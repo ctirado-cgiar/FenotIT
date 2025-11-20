@@ -1,0 +1,57 @@
+cff-version: 1.2.0
+message: "Si utilizas este software, por favor cita como se indica a continuación."
+type: software
+title: "FenotIT: Phenotypic Color Analysis Tool"
+version: 1.0.0
+doi: 10.5281/zenodo.XXXXXXX
+date-released: 2025-01-20
+url: "https://github.com/CGIAR/fenotit"
+repository-code: "https://github.com/CGIAR/fenotit"
+license: CC-BY-NC-SA-4.0
+
+authors:
+  - family-names: "Tirado-Murcia"
+    given-names: "Cristian"
+    email: c.tirado@cgiar.org
+    affiliation: "Alliance of Bioversity International and CIAT"
+    orcid: "https://orcid.org/0000-0000-0000-0000"
+    
+  - family-names: "Aragón"
+    given-names: "Jorge"
+    affiliation: "Alliance of Bioversity International and CIAT"
+    orcid: "https://orcid.org/0000-0000-0000-0000"
+    
+  - family-names: "Polanía"
+    given-names: "José"
+    affiliation: "Alliance of Bioversity International and CIAT"
+    orcid: "https://orcid.org/0000-0000-0000-0000"
+
+contact:
+  - email: c.tirado@cgiar.org
+    name: "Cristian Tirado-Murcia"
+
+keywords:
+  - phenotyping
+  - color analysis
+  - image processing
+  - k-means clustering
+  - plant science
+  - bean breeding
+  - computer vision
+  - agricultural research
+  - fenotipado
+  - análisis de color
+
+abstract: >
+  FenotIT es una herramienta de escritorio para extracción y análisis de 
+  colores dominantes en imágenes biológicas mediante clustering K-means y 
+  selección interactiva de polígonos. Desarrollada por el Equipo de 
+  Fisiología del Programa de Mejoramiento de Frijol de la Alianza 
+  Bioversity International y CIAT, permite a los investigadores cuantificar 
+  fenotipos de color a través de análisis automatizado y generación de 
+  métricas detalladas (RGB, HEX, luminosidad, porcentajes).
+
+references:
+  - type: generic
+    title: "Paper asociado en preparación"
+    notes: "Para citación actualizada contactar: c.tirado@cgiar.org"
