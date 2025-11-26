@@ -32,6 +32,7 @@ Desktop tool for extracting and analyzing dominant colors in biological images u
 - Batch processing
 - CSV + PNG exports
 - Zoom, pan, navigate
+- EMD Algoritm for color comparision.
 - 100% local processing (no internet)
 
 ---
