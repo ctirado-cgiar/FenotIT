@@ -21,6 +21,7 @@ Desktop tool for extracting and analyzing dominant colors in biological images u
 2. Draw polygons (left-click points, right-click to close)
 3. Select number of colors (1-10)
 4. Process and export CSV + visualizations
+5. Run the EMD math
 
 ---
 
