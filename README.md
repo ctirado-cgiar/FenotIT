@@ -65,4 +65,5 @@ See [`CITATION.cff`](CITATION.cff), or use **Cite this repository** on GitHub.
 
 ## Contact
 
-Cristian Tirado-Murcia — Alliance of Bioversity International and CIAT
+Cristian Tirado-Murcia — c.tirado@cgiar.org
+Alliance of Bioversity International and CIAT
