@@ -18,6 +18,7 @@ dependencies = [
     "scikit-image",
     "scipy",
     "openpyxl",
+    "pyyaml",
 ]
 
 [project.optional-dependencies]
