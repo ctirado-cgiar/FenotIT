@@ -104,18 +104,24 @@ def compare(current):
         ref = _read(ref_path)
 
         issues = []
-        if len(new) != len(ref):
-            issues.append(f"filas: {len(ref)} -> {len(new)}")
         ref_cols, new_cols = set(ref[0]) if ref else set(), set(new[0]) if new else set()
         if ref_cols != new_cols:
             if ref_cols - new_cols:
                 issues.append(f"columnas quitadas: {sorted(ref_cols - new_cols)}")
             if new_cols - ref_cols:
                 issues.append(f"columnas nuevas: {sorted(new_cols - ref_cols)}")
-        for r_old, r_new in zip(ref, new):
-            for c in ref_cols & new_cols:
-                if not _same(r_old[c], r_new[c]):
-                    issues.append(f"{r_old['image']} fila {r_old['row']} {c}: {r_old[c]} -> {r_new[c]}")
+        by_img = lambda rows: {img: [r for r in rows if r["image"] == img]
+                               for img in dict.fromkeys(r["image"] for r in rows)}
+        ref_g, new_g = by_img(ref), by_img(new)
+        for img in dict.fromkeys([*ref_g, *new_g]):
+            r_rows, n_rows = ref_g.get(img, []), new_g.get(img, [])
+            if len(r_rows) != len(n_rows):
+                issues.append(f"{img}: {len(r_rows)} -> {len(n_rows)} filas")
+                continue
+            for r_old, r_new in zip(r_rows, n_rows):
+                for c in sorted(ref_cols & new_cols):
+                    if not _same(r_old[c], r_new[c]):
+                        issues.append(f"{img} fila {r_old['row']} {c}: {r_old[c]} -> {r_new[c]}")
 
         if issues:
             n_diff += len(issues)

@@ -86,7 +86,7 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
     contours_raw, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     # ── 5. Filtrar contornos ──────────────────────────────────────────────────
-    area_min  = int(params.get("area_min",  200))
+    area_min  = int(params.get("area_min",  1000))
     area_max  = int(params.get("area_max",  500000))
     ancho_min = int(params.get("ancho_min", 5))
     ancho_max = int(params.get("ancho_max", 99999))
@@ -252,7 +252,7 @@ register(
     params_schema=[
         {
             "key": "area_min", "label": "Área mínima (px²)",
-            "type": "int", "default": 200, "min": 1, "max": 100000,
+            "type": "int", "default": 1000, "min": 1, "max": 100000,
             "tooltip": (
                 "Objetos con área menor a este valor serán ignorados.\n"
                 "Sube este número para filtrar ruido de fondo pequeño.\n"
