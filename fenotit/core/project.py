@@ -39,6 +39,7 @@ class Project:
     segmentation: Segmentation = field(default_factory=Segmentation)
     scale: Scale = field(default_factory=Scale)
     params: dict[str, dict[str, Any]] = field(default_factory=dict)
+    roi: dict[str, list] = field(default_factory=dict)   # formas normalizadas 0-1
 
     @property
     def current_image(self) -> Path | None:
@@ -75,6 +76,7 @@ class Project:
             "segmentation": asdict(self.segmentation),
             "scale": asdict(self.scale),
             "params": self.params,
+            "roi": self.roi,
         }
 
     def save(self, folder: Path | str | None = None) -> Path:
@@ -112,6 +114,7 @@ class Project:
             segmentation=Segmentation(**d.get("segmentation", {})),
             scale=Scale(**d.get("scale", {})),
             params=d.get("params", {}) or {},
+            roi=d.get("roi", {}) or {},
         )
 
     def missing_images(self) -> list[Path]:

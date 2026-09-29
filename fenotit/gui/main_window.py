@@ -295,6 +295,8 @@ class MainWindow:
         self.project.segmentation = Segmentation(
             self.cs_var.get(), int(self.ch_var.get()),
             int(self.min_slider.get()), int(self.max_slider.get()))
+        if self.roi_selector:
+            self.project.roi = self.roi_selector.to_dict()
         return self.project.to_dict()
 
     def _is_dirty(self) -> bool:
@@ -401,6 +403,15 @@ class MainWindow:
             self.canvas_left.delete("all")
         if project.scale.mm_per_pixel:
             self._set_status(f"Escala: {project.scale.mm_per_pixel:.6f} mm/px")
+        roi = project.roi
+        if self.roi_selector:
+            self.roi_selector.clear()
+        self._saved_state = self._collect_state()
+        if roi and self.roi_selector and project.current_image:
+            self.root.after(300, lambda: self._restore_roi(roi))
+
+    def _restore_roi(self, roi: dict):
+        self.roi_selector.load_dict(roi)
         self._saved_state = self._collect_state()
 
     def _on_close(self):

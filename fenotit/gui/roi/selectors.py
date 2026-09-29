@@ -45,6 +45,9 @@ class ROISelector:
         # Color de exclusión actual (BGR)
         self._exclude_color = (255, 255, 255)   # blanco por defecto
         self._exclude_color_hex = "#FFFFFF"
+        # Formas en coordenadas normalizadas (0-1) para guardar/restaurar
+        self._inclusion_ops: list[dict] = []
+        self._exclusion_ops: list[dict] = []
 
         self._canvas_w = 400
         self._canvas_h = 300
@@ -100,6 +103,8 @@ class ROISelector:
         self.start_pt         = None
         self._inclusion_mask  = None
         self._exclusion_zones = []
+        self._inclusion_ops   = []
+        self._exclusion_ops   = []
         self._double_click_pending = False
         if self.on_roi_change:
             self.on_roi_change(None)
@@ -107,6 +112,7 @@ class ROISelector:
     def clear_exclusions(self):
         """Solo limpia zonas de exclusión."""
         self._exclusion_zones = []
+        self._exclusion_ops = []
         # Redibujar solo shapes de inclusión
         # (simplificado: limpiar todo y redibujar)
         self._redraw_all()
@@ -121,6 +127,56 @@ class ROISelector:
     @property
     def has_exclusions(self) -> bool:
         return len(self._exclusion_zones) > 0
+
+    def _op(self, kind: str, points, **extra) -> dict:
+        w, h = max(self._img_w, 1), max(self._img_h, 1)
+        return {"type": kind,
+                "points": [[round(x / w, 5), round(y / h, 5)] for x, y in points],
+                **extra}
+
+    def to_dict(self) -> dict:
+        if not self._inclusion_ops and not self._exclusion_ops:
+            return {}
+        return {"inclusion": self._inclusion_ops, "exclusions": self._exclusion_ops}
+
+    def load_dict(self, data: dict | None):
+        """Reconstruye máscaras y formas a partir de to_dict()."""
+        self.clear()
+        if not data:
+            return
+        w, h = self._img_w, self._img_h
+        to_px = lambda pts: [(int(round(x * w)), int(round(y * h))) for x, y in pts]
+        for op in data.get("inclusion", []):
+            pts = to_px(op["points"])
+            flat = [c for x, y in pts for c in self._img_to_canvas(x, y)]
+            if op["type"] == "rect":
+                (x0, y0), (x1, y1) = pts
+                self.final_shapes.append(self.canvas.create_rectangle(
+                    *flat, outline=ROI_COLOR_RECT, width=2, tags="roi_final"))
+                self._build_rect_mask(x0, y0, x1, y1)
+            elif op["type"] == "polygon":
+                self.final_shapes.append(self.canvas.create_polygon(
+                    *flat, outline=ROI_COLOR_POLY, fill=ROI_COLOR_POLY,
+                    stipple="gray25", width=2, tags="roi_final"))
+                self._build_polygon_mask(pts, hollow=False)
+            elif op["type"] == "hole":
+                self.final_shapes.append(self.canvas.create_polygon(
+                    *flat, outline=ROI_COLOR_EXCLUDE, fill="",
+                    width=2, tags="roi_final"))
+                self._build_polygon_mask(pts, hollow=True)
+        for op in data.get("exclusions", []):
+            pts = to_px(op["points"])
+            color = tuple(op.get("color", (255, 255, 255)))
+            hexc = "#%02x%02x%02x" % (color[2], color[1], color[0])
+            flat = [c for x, y in pts for c in self._img_to_canvas(x, y)]
+            self.final_shapes.append(self.canvas.create_polygon(
+                *flat, outline=hexc, fill=hexc,
+                stipple="gray50", width=2, tags="roi_final"))
+            self._exclusion_zones.append((np.array(pts, dtype=np.int32), color))
+        self._inclusion_ops = list(data.get("inclusion", []))
+        self._exclusion_ops = list(data.get("exclusions", []))
+        if self.on_roi_change:
+            self.on_roi_change(self._inclusion_mask)
 
     def get_combined_params(self) -> dict:
         """
@@ -229,6 +285,7 @@ class ROISelector:
             cx0, cy0, cx1, cy1,
             outline=ROI_COLOR_RECT, width=2, tags="roi_final")
         self.final_shapes.append(sid)
+        self._inclusion_ops = [self._op("rect", [(x_min, y_min), (x_max, y_max)])]
         self._build_rect_mask(x_min, y_min, x_max, y_max)
 
     def _on_double_click(self, event):
@@ -307,17 +364,21 @@ class ROISelector:
             pts_arr = np.array(self.points, dtype=np.int32)
             self._exclusion_zones.append(
                 (pts_arr, self._exclude_color))
+            self._exclusion_ops.append(
+                self._op("exclusion", self.points, color=list(self._exclude_color)))
         elif self.mode == "hueco":
             sid = self.canvas.create_polygon(
                 *flat, outline=ROI_COLOR_EXCLUDE, fill="",
                 width=2, tags="roi_final")
             self.final_shapes.append(sid)
+            self._inclusion_ops.append(self._op("hole", self.points))
             self._build_polygon_mask(self.points, hollow=True)
         else:
             sid = self.canvas.create_polygon(
                 *flat, outline=color, fill=color,
                 stipple="gray25", width=2, tags="roi_final")
             self.final_shapes.append(sid)
+            self._inclusion_ops = [self._op("polygon", self.points)]
             self._build_polygon_mask(self.points, hollow=False)
 
         self.points = []
