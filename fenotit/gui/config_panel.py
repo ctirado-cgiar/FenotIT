@@ -11,6 +11,7 @@ from tkinter import ttk
 from typing import Any
 
 from fenotit import log
+from fenotit.i18n import t
 
 _log = log.get("gui.config_panel")
 
@@ -18,11 +19,12 @@ _log = log.get("gui.config_panel")
 class ConfigPanel(tk.Frame):
 
     def __init__(self, parent, schema: list[dict],
-                 colors: dict, **kwargs):
+                 colors: dict, prefix: str = "", **kwargs):
         super().__init__(parent, bg=colors["bg_panel"], **kwargs)
         self.colors = colors
         self._vars: dict[str, tk.Variable] = {}
         self._tips: list[tk.Toplevel]      = []
+        self._prefix = prefix
         self._build(schema)
 
     def _build(self, schema):
@@ -55,7 +57,7 @@ class ConfigPanel(tk.Frame):
 
         if not schema:
             tk.Label(self.inner,
-                     text="Sin parámetros configurables.",
+                     text=t("config.no_params"),
                      bg=self.colors["bg_panel"],
                      fg=self.colors["text_muted"],
                      font=("Segoe UI", 8),
@@ -67,10 +69,10 @@ class ConfigPanel(tk.Frame):
 
     def _add_param(self, parent, item: dict):
         key     = item["key"]
-        label   = item.get("label", key)
+        label   = t(f"param.{self._prefix}.{key}.label", item.get("label", key))
         typ     = item.get("type", "int")
         default = item.get("default", 0)
-        tooltip = item.get("tooltip", "")
+        tooltip = t(f"param.{self._prefix}.{key}.tip", item.get("tooltip", ""))
         vmin    = item.get("min")
         vmax    = item.get("max")
 

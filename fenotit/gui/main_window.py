@@ -65,6 +65,10 @@ def _analysis_key(name: str) -> str:
     return ANALYSES[name].func.__module__.rsplit(".", 1)[-1]
 
 
+def _analysis_label(name: str) -> str:
+    return t(f"analysis.{_analysis_key(name)}.name", name)
+
+
 def _analysis_name(key: str | None) -> str | None:
     return next((n for n in ANALYSES if _analysis_key(n) == key), None)
 
@@ -231,7 +235,7 @@ class MainWindow:
 
         self.scaler_left   = ImageScaler()
         self.scaler_right  = ImageScaler()
-        self.project = Project()
+        self.project = Project(name=t("project.untitled"))
         self._saved_state = self.project.to_dict()
         self.current_image_path: str | None = None
         self.last_result:  AnalysisResult | None = None
@@ -345,7 +349,7 @@ class MainWindow:
     def _new_project(self):
         if not self._confirm_discard():
             return
-        self._apply_project(Project())
+        self._apply_project(Project(name=t("project.untitled")))
 
     def _open_project(self):
         if not self._confirm_discard():
@@ -386,8 +390,8 @@ class MainWindow:
         self.max_slider.set(seg.max_val)
         self.mode_var.set(project.mode)
 
-        name = _analysis_name(project.analysis) or self.analysis_var.get()
-        self.analysis_var.set(name)
+        name = _analysis_name(project.analysis) or self._selected_analysis()
+        self.analysis_var.set(_analysis_label(name))
         self._on_analysis_selected(None)
 
         self.results_cache.clear()
@@ -1276,14 +1280,18 @@ class MainWindow:
 
     def _populate_analysis_menu(self):
         names = list(ANALYSES.keys())
-        self.analysis_combo["values"] = names
+        self.analysis_combo["values"] = [_analysis_label(n) for n in names]
         if names:
-            self.analysis_var.set(names[0])
+            self.analysis_var.set(_analysis_label(names[0]))
             self.active_analysis = names[0]
             self._on_analysis_selected(None)
 
+    def _selected_analysis(self) -> str | None:
+        label = self.analysis_var.get()
+        return next((n for n in ANALYSES if _analysis_label(n) == label), None)
+
     def _on_analysis_selected(self, _event):
-        name = self.analysis_var.get()
+        name = self._selected_analysis()
         if name not in ANALYSES:
             return
         self._store_panel_params()
@@ -1294,7 +1302,7 @@ class MainWindow:
         self.config_panel = ConfigPanel(
             self.config_container,
             schema=ANALYSES[name].params_schema,
-            colors=COLORS)
+            colors=COLORS, prefix=_analysis_key(name))
         self.config_panel.set_values(self.project.params.get(self.project.analysis, {}))
         self.config_panel.pack(fill=tk.BOTH, expand=True)
 
@@ -1320,7 +1328,7 @@ class MainWindow:
         return p
 
     def _run_analysis(self):
-        name = self.analysis_var.get()
+        name = self._selected_analysis()
         if name not in ANALYSES:
             messagebox.showwarning(t("msg.no_analysis_title"),
                                    t("msg.no_analysis"))
@@ -1336,7 +1344,7 @@ class MainWindow:
                              self.current_image_path or "imagen")
 
     def _run_single(self, name: str, image: np.ndarray, path: str):
-        self._set_status(t("status.running", name=name))
+        self._set_status(t("status.running", name=_analysis_label(name)))
         self.root.config(cursor="watch")
         params = self._build_params()
         def worker():
@@ -1355,7 +1363,7 @@ class MainWindow:
         # Advertencia si hay resoluciones diferentes
         self._check_batch_resolutions()
         total = len(self.batch_paths)
-        self._set_status(t("status.running_batch", name=name, n=total))
+        self._set_status(t("status.running_batch", name=_analysis_label(name), n=total))
         self.root.config(cursor="watch")
         params = self._build_params()
 
@@ -1473,9 +1481,9 @@ class MainWindow:
                                        save_step_images=True)
             self._exporter.append_to_csv(name, Path(path).name, result)
             self._set_status(
-                t("status.done", name=name, detail=self._exporter.results_dir))
+                t("status.done", name=_analysis_label(name), detail=self._exporter.results_dir))
         else:
-            self._set_status(t("status.done", name=name, detail=result.stats))
+            self._set_status(t("status.done", name=_analysis_label(name), detail=result.stats))
         self._refresh_history()
         self._update_step_active(3)
         self._log_process(name)
@@ -1515,11 +1523,11 @@ class MainWindow:
 
         if self.output_root:
             self._set_status(
-                t("status.batch_done", name=name, ok=ok_count, n=len(results))
+                t("status.batch_done", name=_analysis_label(name), ok=ok_count, n=len(results))
                 + f" — {Path(self.output_root) / 'resultados'}")
         else:
             self._set_status(
-                t("status.batch_done", name=name, ok=ok_count, n=len(results)))
+                t("status.batch_done", name=_analysis_label(name), ok=ok_count, n=len(results)))
 
     # ── Tabla ─────────────────────────────────────────────────────────────────
 
