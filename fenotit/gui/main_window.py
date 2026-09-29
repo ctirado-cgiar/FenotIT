@@ -10,6 +10,7 @@ Cambios vs v1.2:
 
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
+import platform
 import threading
 from pathlib import Path
 
@@ -31,7 +32,7 @@ from fenotit.gui.charts import IntraImageChartPanel, BatchChartWindow
 from fenotit.core.export.exporter import Exporter, quick_export_csv
 from fenotit.gui.theme import COLORS, FONTS
 
-from fenotit import log
+from fenotit import __version__, log
 
 _log = log.get("gui.main_window")
 
@@ -125,12 +126,12 @@ class DropMenu(tk.Frame):
                         w.config(bg=self.colors["accent_light"])
                         for ch in w.winfo_children():
                             try: ch.config(bg=self.colors["accent_light"])
-                            except: pass
+                            except Exception: _log.debug("ignorado", exc_info=True)
                     def leave(e):
                         w.config(bg=self.colors["bg_card"])
                         for ch in w.winfo_children():
                             try: ch.config(bg=self.colors["bg_card"])
-                            except: pass
+                            except Exception: _log.debug("ignorado", exc_info=True)
                     def click(e):
                         popup.destroy()
                         c()
@@ -262,7 +263,7 @@ class MainWindow:
         ico = _assets() / "logo.ico"
         if ico.exists():
             try: self.root.iconbitmap(str(ico))
-            except: pass
+            except Exception: _log.debug("ignorado", exc_info=True)
         sw, sh = self.root.winfo_screenwidth(), self.root.winfo_screenheight()
         w = min(int(sw * 0.92), 1600)
         h = min(int(sh * 0.88), 960)
@@ -1524,7 +1525,7 @@ class MainWindow:
         sw, sh = win.winfo_screenwidth(), win.winfo_screenheight()
         win.geometry(f"380x200+{(sw-380)//2}+{(sh-200)//2}")
         try: win.iconbitmap(str(_assets()/"logo.ico"))
-        except: pass
+        except Exception: _log.debug("ignorado", exc_info=True)
         tk.Frame(win, bg=COLORS["accent"], height=4).pack(fill=tk.X)
         body = tk.Frame(win, bg=COLORS["bg_card"])
         body.pack(fill=tk.BOTH, expand=True, padx=20, pady=16)
@@ -1551,7 +1552,7 @@ class MainWindow:
         sw, sh = win.winfo_screenwidth(), win.winfo_screenheight()
         win.geometry(f"400x280+{(sw-400)//2}+{(sh-280)//2}")
         try: win.iconbitmap(str(_assets()/"logo.ico"))
-        except: pass
+        except Exception: _log.debug("ignorado", exc_info=True)
         tk.Frame(win, bg=COLORS["accent"], height=4).pack(fill=tk.X)
         body = tk.Frame(win, bg=COLORS["bg_card"])
         body.pack(fill=tk.BOTH, expand=True, padx=20, pady=16)
@@ -1579,6 +1580,18 @@ class MainWindow:
                   relief="flat", font=FONTS["body"],
                   cursor="hand2", padx=12).pack(anchor="e", pady=(12, 0))
 
+    def _system_info(self) -> str:
+        try:
+            import ctypes
+            scale = ctypes.windll.shcore.GetScaleFactorForDevice(0)
+        except Exception:
+            scale = round(self.root.winfo_fpixels("1i") / 96 * 100)
+        return (f"Versión {__version__}  ·  Python {platform.python_version()}\n"
+                f"{platform.system()} {platform.release()}  ·  "
+                f"Pantalla {self.root.winfo_screenwidth()}×{self.root.winfo_screenheight()} "
+                f"al {scale} %\n"
+                f"Log: {log.log_file()}")
+
     def _about(self):
         about_file = _assets() / "about.txt"
         text = about_file.read_text(encoding="utf-8") \
@@ -1588,9 +1601,8 @@ class MainWindow:
         win.title("Acerca de FenotIT")
         win.configure(bg=COLORS["bg_card"])
         sw, sh = win.winfo_screenwidth(), win.winfo_screenheight()
-        win.geometry(f"440x320+{(sw-440)//2}+{(sh-320)//2}")
         try: win.iconbitmap(str(_assets()/"logo.ico"))
-        except: pass
+        except Exception: _log.debug("ignorado", exc_info=True)
         tk.Frame(win, bg=COLORS["accent"], height=4).pack(fill=tk.X)
         body = tk.Frame(win, bg=COLORS["bg_card"])
         body.pack(fill=tk.BOTH, expand=True, padx=20, pady=16)
@@ -1606,10 +1618,19 @@ class MainWindow:
                  bg=COLORS["bg_card"], fg=COLORS["text"],
                  font=FONTS["small"], justify="left",
                  wraplength=380).pack(anchor="w")
+        tk.Frame(body, bg=COLORS["border"], height=1).pack(
+            fill=tk.X, pady=10)
+        tk.Label(body, text=self._system_info(),
+                 bg=COLORS["bg_card"], fg=COLORS["text_muted"],
+                 font=FONTS["small"], justify="left",
+                 wraplength=380).pack(anchor="w")
         tk.Button(body, text="Cerrar", command=win.destroy,
                   bg=COLORS["btn_bg"], fg=COLORS["accent"],
                   relief="flat", font=FONTS["body"],
                   cursor="hand2", padx=12).pack(anchor="e", pady=(12, 0))
+        win.update_idletasks()
+        w, h = win.winfo_reqwidth(), min(win.winfo_reqheight(), sh - 80)
+        win.geometry(f"{w}x{h}+{(sw - w) // 2}+{(sh - h) // 2}")
 
     # ── Exportación ───────────────────────────────────────────────────────────
 

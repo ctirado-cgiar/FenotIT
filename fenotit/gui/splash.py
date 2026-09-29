@@ -5,7 +5,7 @@ ui/splash.py  —  Splash screen con tema claro científico + logo .ico
 import tkinter as tk
 from pathlib import Path
 
-from fenotit import log
+from fenotit import __version__, log
 
 _log = log.get("gui.splash")
 
@@ -93,7 +93,7 @@ class SplashScreen:
         self._prog_bg   = prog_bg
 
         # Versión
-        tk.Label(body, text="v1.0.0",
+        tk.Label(body, text=f"v{__version__}",
                  bg="#FFFFFF", fg="#BBBBBB",
                  font=("Segoe UI", 7)).pack(side=tk.BOTTOM, anchor="e", pady=6)
 
