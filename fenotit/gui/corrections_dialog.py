@@ -7,7 +7,10 @@ from tkinter import filedialog, messagebox, ttk
 from fenotit import log
 from fenotit.core.corrections import pipeline as P
 from fenotit.core.corrections.aruco import detect_aruco_corners
-from fenotit.core.corrections.distortion import calibrate_from_folder
+from fenotit.core.corrections.distortion import calibrate
+from fenotit.core.image_io import load_image
+from fenotit.core.project import IMAGE_EXTS
+from fenotit.gui.widgets import ImagePicker
 from fenotit.gui.calibration_dialogs import BaseDialog
 from fenotit.gui.theme import COLORS, FONTS
 from fenotit.i18n import t
@@ -26,10 +29,12 @@ def _float_or_none(s: str) -> float | None:
 class CorrectionsDialog(BaseDialog):
     W, H = 620, 560
 
-    def __init__(self, parent, corrections: P.Corrections, raw_image=None,
+    def __init__(self, parent, corrections: P.Corrections, paths=None, current_path=None,
                  aruco_scale: bool = False, on_apply=None):
         self.c = copy.deepcopy(corrections)
-        self._raw = raw_image
+        self._paths = list(paths or [])
+        self._raw_path = current_path
+        self._raw = load_image(current_path) if current_path else None
         self._on_apply = on_apply
         self._aruco_scale = aruco_scale
         super().__init__(parent, t("corr.title"))
@@ -46,7 +51,8 @@ class CorrectionsDialog(BaseDialog):
                   font=("Segoe UI", 9, "bold"), cursor="hand2", padx=12).pack(side=tk.RIGHT, padx=2)
 
     def _build_body(self):
-        self._lbl(self.body, t("corr.intro"), justify="left", wraplength=560).pack(anchor="w", pady=(0, 8))
+        self._muted(self.body, t("corr.intro")).pack(anchor="w", pady=(0, 6))
+        ImagePicker(self.body, self._paths, self._raw_path, self._set_raw).pack(anchor="w", pady=(0, 8))
         nb = ttk.Notebook(self.body)
         nb.pack(fill=tk.BOTH, expand=True)
         for build, key in ((self._tab_distortion, "corr.tab.distortion"),
@@ -64,6 +70,11 @@ class CorrectionsDialog(BaseDialog):
         tk.Entry(f, textvariable=var, width=width, bg=COLORS["bg_panel"], fg=COLORS["text"],
                  relief="solid", bd=1, font=FONTS["mono"]).pack(side=tk.LEFT, padx=4)
         return f
+
+    def _set_raw(self, path: str):
+        self._raw_path, self._raw = path, load_image(path)
+        for var in (self._p_status, self._c_status):
+            var.set("")
 
     def _muted(self, parent, text):
         return tk.Label(parent, text=text, bg=COLORS["bg_card"], fg=COLORS["text_muted"],
@@ -111,8 +122,10 @@ class CorrectionsDialog(BaseDialog):
             self._d_status.set(t("corr.distortion.ready", source=d.source) + rms)
 
     def _calibrate(self):
-        folder = filedialog.askdirectory(title=t("corr.distortion.folder"), parent=self)
-        if not folder:
+        exts = " ".join(f"*{e}" for e in sorted(IMAGE_EXTS))
+        files = filedialog.askopenfilenames(title=t("corr.distortion.folder"), parent=self,
+                                            filetypes=[(t("common.images"), exts)])
+        if not files:
             return
         try:
             cols, rows = int(self._d_cols.get()), int(self._d_rows.get())
@@ -122,21 +135,20 @@ class CorrectionsDialog(BaseDialog):
         self._d_status.set(t("corr.distortion.running"))
 
         def work():
-            res = calibrate_from_folder(folder, cols, rows,
+            res = calibrate(list(files), cols, rows,
                                         progress_cb=lambda i, n, name: self.after(
                                             0, lambda: self._show_progress(i, n, name)))
-            self.after(0, lambda: self._calib_done(res, folder))
+            self.after(0, lambda: self._calib_done(res, files))
         threading.Thread(target=work, daemon=True).start()
 
-    def _calib_done(self, res, folder):
+    def _calib_done(self, res, files):
         self._hide_progress()
         self._log_var.set("")
         if not res.success:
             self._d_status.set(t("corr.distortion.failed", used=res.n_images_used, total=res.n_images_total))
             return
-        from pathlib import Path
         self.c.distortion = P.Distortion(True, res.mtx.tolist(), res.dist.tolist(), res.rms_error,
-                                         Path(folder).name)
+                                         t("corr.distortion.n_photos", n=res.n_images_used))
         self._d_on.set(True)
         self._refresh_distortion()
         self._d_status.set(self._d_status.get() + "\n" + t("corr.distortion.used", used=res.n_images_used,

@@ -223,8 +223,9 @@ class ScaleDialog(BaseDialog):
     def __init__(self, parent,
                  current_image: np.ndarray | None = None,
                  current_path: str | None = None,
-                 on_scale_set=None, loader=None):
+                 on_scale_set=None, loader=None, paths=None):
         self._loader = loader
+        self._paths = list(paths or ([current_path] if current_path else []))
         super().__init__(parent, t("menu.cal_scale"))
         self._image      = current_image
         self._path       = current_path
@@ -244,27 +245,8 @@ class ScaleDialog(BaseDialog):
             t("scale.help"),
             justify="left", wraplength=500).pack(anchor="w", pady=(0, 6))
 
-        # Fuente de imagen + botones de zoom
-        src_f = tk.Frame(b, bg=COLORS["bg_card"])
-        src_f.pack(fill=tk.X, pady=2)
-        tk.Label(src_f, text=t("scale.image"),
-                 bg=COLORS["bg_card"], fg=COLORS["text"],
-                 font=FONTS["body"], width=8, anchor="w").pack(side=tk.LEFT)
-        self._img_path_var = tk.StringVar(value=self._path or "")
-        tk.Entry(src_f, textvariable=self._img_path_var, width=22,
-                 bg=COLORS["bg_panel"], fg=COLORS["text"],
-                 relief="solid", bd=1,
-                 font=FONTS["small"]).pack(side=tk.LEFT, padx=4)
-        tk.Button(src_f, text="…", command=self._pick_image,
-                  bg=COLORS["btn_bg"], fg=COLORS["accent"],
-                  relief="flat", cursor="hand2",
-                  font=FONTS["body"]).pack(side=tk.LEFT)
-        if self._image is not None:
-            tk.Button(src_f, text=t("scale.current_image"),
-                      command=lambda: self._load_image(self._image),
-                      bg=COLORS["btn_bg"], fg=COLORS["accent2"],
-                      relief="flat", cursor="hand2",
-                      font=FONTS["small"]).pack(side=tk.LEFT, padx=4)
+        from fenotit.gui.widgets import ImagePicker
+        ImagePicker(b, self._paths, self._path, self._pick_image).pack(anchor="w", pady=2)
 
         # Botones zoom para el canvas
         zoom_f = tk.Frame(b, bg=COLORS["bg_card"])
@@ -349,30 +331,22 @@ class ScaleDialog(BaseDialog):
                   relief="flat", font=("Segoe UI", 9, "bold"),
                   cursor="hand2", padx=10).pack(side=tk.RIGHT, padx=2)
 
-    def _pick_image(self):
-        path = filedialog.askopenfilename(
-            title=t("scale.ref_image"),
-            filetypes=[(t("common.images"),"*.jpg *.jpeg *.png *.bmp *.tif *.tiff"),
-                       (t("common.all_files"),"*.*")],
-            parent=self)
-        if not path:
-            return
-        self._img_path_var.set(path)
+    def _pick_image(self, path: str):
         try:
             if self._loader:
                 img = self._loader(path)
             else:
                 img = cv2.imdecode(np.frombuffer(Path(path).read_bytes(), np.uint8), cv2.IMREAD_COLOR)
-            if img is not None:
-                self._image = img
-                self._load_image(img)
-            else:
-                messagebox.showerror(
-                    t("common.error"), t("msg.image_unreadable", name=Path(path).name),
-                    parent=self)
         except Exception as e:
             _log.exception("Error en calibración")
             messagebox.showerror(t("common.error"), str(e), parent=self)
+            return
+        if img is None:
+            messagebox.showerror(t("common.error"), t("msg.image_unreadable", name=Path(path).name),
+                                 parent=self)
+            return
+        self._image, self._path = img, path
+        self._load_image(img)
 
     def _load_image(self, img: np.ndarray):
         self._points   = []

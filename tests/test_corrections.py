@@ -104,6 +104,34 @@ def test_color_card_auto_orientation():
         assert _chip_error(np.rot90(out, -k), ref) < 3
 
 
+def test_chessboard_calibration():
+    import tempfile
+    from fenotit.core.corrections.distortion import calibrate
+    board = np.full((700, 900), 255, np.uint8)
+    for r in range(7):
+        for c in range(9):
+            if (r + c) % 2 == 0:
+                board[50 + r * 85:50 + (r + 1) * 85, 70 + c * 85:70 + (c + 1) * 85] = 0
+    rng = np.random.default_rng(0)
+    K = np.array([[1100, 0, 600], [0, 1100, 500], [0, 0, 1]], np.float64)
+    src = np.float32([[0, 0], [900, 0], [900, 700], [0, 700]])
+    obj = np.array([[x - 450, y - 350, 0] for x, y in src], np.float64)
+    with tempfile.TemporaryDirectory() as tmp:
+        files = []
+        for i in range(8):
+            rvec = rng.uniform(-0.35, 0.35, 3)
+            tvec = np.array([rng.uniform(-60, 60), rng.uniform(-60, 60), 1500.0])
+            dst, _ = cv2.projectPoints(obj, rvec, tvec, K, None)
+            view = cv2.warpPerspective(board, cv2.getPerspectiveTransform(src, dst.reshape(4, 2).astype(np.float32)),
+                                       (1200, 1000), borderValue=255)
+            f = Path(tmp) / f"b{i}.png"
+            cv2.imwrite(str(f), view)
+            files.append(str(f))
+        res = calibrate(files, inner_cols=8, inner_rows=6)
+    assert res.success and res.n_images_used >= 6, res.message
+    assert res.rms_error < 1.0
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

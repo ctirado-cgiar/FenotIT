@@ -82,6 +82,7 @@ class CorrectionInfo:
     applied: list[str] = field(default_factory=list)
     mm_per_px: float | None = None    # escala obtenida de ArUco con medidas reales
     warnings: list[str] = field(default_factory=list)
+    aruco_missing: list[int] = field(default_factory=list)
 
 
 # ── Distorsión ────────────────────────────────────────────────────────────────
@@ -178,6 +179,8 @@ def apply(image: np.ndarray, corr: Corrections) -> tuple[np.ndarray, CorrectionI
         fixed, mm_per_px, err = rectify(out, corr.perspective)
         if fixed is None:
             info.warnings.append(f"perspective: {err}")
+            found = aruco.detect_aruco_corners(out)
+            info.aruco_missing = [i for i in range(4) if i not in found]
         else:
             out, info.mm_per_px = fixed, mm_per_px
             info.applied.append("perspective")

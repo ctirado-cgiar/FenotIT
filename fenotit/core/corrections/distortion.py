@@ -7,7 +7,6 @@ Adaptado de scripts 01/02. Tablero configurable (filas x columnas esquinas).
 import cv2
 import numpy as np
 import os
-import glob
 from pathlib import Path
 from dataclasses import dataclass
 
@@ -27,20 +26,24 @@ class CalibrationResult:
     message: str = ""
 
 
-def calibrate_from_folder(
-    folder: str,
+def calibrate_from_folder(folder: str, inner_cols: int = 7, inner_rows: int = 6,
+                          output_params_dir: str | None = None, progress_cb=None) -> CalibrationResult:
+    exts = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"}
+    files = sorted(str(p) for p in Path(folder).iterdir() if p.suffix.lower() in exts)
+    return calibrate(files, inner_cols, inner_rows, output_params_dir, progress_cb)
+
+
+def calibrate(
+    images: list[str],
     inner_cols: int = 7,
     inner_rows: int = 6,
     output_params_dir: str | None = None,
     progress_cb=None,
 ) -> CalibrationResult:
     """
-    Detecta esquinas en todas las imágenes del tablero y calibra la cámara.
-
-    inner_cols, inner_rows: esquinas interiores del tablero
-        (cuadros - 1 en cada dirección)
-    output_params_dir: si se da, guarda calibracion_params.npz ahí
-    progress_cb: callback(current, total, filename) para progreso
+    Calibra la cámara con fotos de un tablero de ajedrez.
+    inner_cols, inner_rows: esquinas interiores (cuadros - 1 en cada dirección)
+    progress_cb: callback(actual, total, nombre)
     """
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 
@@ -49,13 +52,6 @@ def calibrate_from_folder(
 
     objpoints = []
     imgpoints = []
-
-    exts = ("*.jpg", "*.jpeg", "*.png", "*.bmp", "*.tif", "*.tiff")
-    images = []
-    for ext in exts:
-        images.extend(glob.glob(os.path.join(folder, ext)))
-        images.extend(glob.glob(os.path.join(folder, ext.upper())))
-    images = sorted(set(images))
 
     if not images:
         return CalibrationResult(

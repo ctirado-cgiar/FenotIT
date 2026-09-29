@@ -308,9 +308,22 @@ class MainWindow:
     def _load_corrected_image(self, path: str):
         return self._load_corrected(path)[0]
 
+    def _skip_reason(self, info) -> str | None:
+        """Motivo para no analizar una imagen (perspectiva activa pero sin los 4 ArUco)."""
+        if info and self.project.corrections.perspective.enabled and "perspective" not in info.applied:
+            return t("corr.skip_aruco", ids=", ".join(map(str, info.aruco_missing)) or "?")
+        return None
+
+    def _mark_skipped(self, path: str, reason: str):
+        if path in self.batch_paths:
+            i = self.batch_paths.index(path)
+            self.batch_listbox.delete(i)
+            self.batch_listbox.insert(i, f"⚠ {Path(path).name}")
+            self.batch_listbox.itemconfig(i, fg=COLORS["warning"])
+        _log.warning("%s omitida: %s", Path(path).name, reason)
+
     def _open_corrections(self):
-        raw = load_image(self.current_image_path) if self.current_image_path else None
-        CorrectionsDialog(self.root, self.project.corrections, raw,
+        CorrectionsDialog(self.root, self.project.corrections, self.batch_paths, self.current_image_path,
                           aruco_scale=self.project.scale.source == "aruco",
                           on_apply=self._on_corrections_applied)
 
@@ -638,7 +651,8 @@ class MainWindow:
                      if self.scaler_left.has_image else None,
                  current_path=self.current_image_path,
                  on_scale_set=self._on_scale_set,
-                 loader=self._load_corrected_image)),
+                 loader=self._load_corrected_image,
+                 paths=self.batch_paths)),
             (t("menu.scale_manual"), self._calibrate_scale),
             (t("menu.scale_clear"), self._clear_scale),
             None,
@@ -1402,6 +1416,10 @@ class MainWindow:
                 messagebox.showwarning(t("msg.no_image_title"),
                                        t("msg.no_image"))
                 return
+            reason = self._skip_reason(self._corr_info.get(self.current_image_path))
+            if reason:
+                messagebox.showwarning(t("corr.skip_title"), reason, parent=self.root)
+                return
             self._run_single(name, self.scaler_left.original,
                              self.current_image_path or "imagen")
 
@@ -1429,11 +1447,20 @@ class MainWindow:
         self.root.config(cursor="watch")
         params = self._build_params()
 
+        skipped: list[str] = []
+        self._update_batch_list()
+        self._sync_listbox()
+
         def worker():
             results = []
             for i, path in enumerate(self.batch_paths):
-                img, _ = self._load_corrected(path)
+                img, info = self._load_corrected(path)
                 if img is None:
+                    continue
+                reason = self._skip_reason(info)
+                if reason:
+                    skipped.append(path)
+                    self.root.after(0, lambda p=path, r=reason: self._mark_skipped(p, r))
                     continue
                 p = dict(params, mm_per_pixel=self._scale_for(path))
                 try:
@@ -1447,7 +1474,7 @@ class MainWindow:
                 self.root.after(0, lambda p=path, r=r, i=i:
                     self._cache_result(name, p, r, i, total))
 
-            self.root.after(0, lambda: self._on_batch_result(name, results))
+            self.root.after(0, lambda: self._on_batch_result(name, results, len(skipped)))
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -1554,7 +1581,7 @@ class MainWindow:
         if self._chart_panel and result.measurements:
             self._chart_panel.load(result.measurements)
 
-    def _on_batch_result(self, name: str, results: list):
+    def _on_batch_result(self, name: str, results: list, n_skipped: int = 0):
         self.root.config(cursor="")
         if not results:
             self._set_status(t("msg.no_results_status"))
@@ -1584,13 +1611,14 @@ class MainWindow:
                 self._refresh_history()
                 self._update_step_active(3)
 
+        msg = t("status.batch_done", name=_analysis_label(name), ok=ok_count, n=len(results) + n_skipped)
+        if n_skipped:
+            msg += "  ·  " + t("status.skipped", n=n_skipped)
         if self.output_root:
-            self._set_status(
-                t("status.batch_done", name=_analysis_label(name), ok=ok_count, n=len(results))
-                + f" — {Path(self.output_root) / 'resultados'}")
-        else:
-            self._set_status(
-                t("status.batch_done", name=_analysis_label(name), ok=ok_count, n=len(results)))
+            msg += f" — {Path(self.output_root) / 'resultados'}"
+        self._set_status(msg)
+        if n_skipped:
+            messagebox.showwarning(t("corr.skip_title"), t("corr.skip_summary", n=n_skipped), parent=self.root)
 
     # ── Tabla ─────────────────────────────────────────────────────────────────
 
