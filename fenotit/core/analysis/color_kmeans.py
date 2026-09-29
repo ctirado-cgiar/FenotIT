@@ -13,7 +13,6 @@ Flujo correcto:
 
 import cv2
 import numpy as np
-from sklearn.cluster import KMeans
 from .registry import register, AnalysisResult
 
 from fenotit import log
@@ -144,6 +143,7 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
 
     # ── 4. KMeans ─────────────────────────────────────────────────────────────
     n_clusters = min(n_colors, len(np.unique(pixels, axis=0)))
+    from sklearn.cluster import KMeans
     kmeans     = KMeans(n_clusters=n_clusters, n_init=10, random_state=134)
     kmeans.fit(pixels)
 

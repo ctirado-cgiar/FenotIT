@@ -9,15 +9,13 @@ Diferencias:
 - Retorna AnalysisResult con imágenes de pasos y conteo
 """
 
+import importlib.util
+
 import cv2
 import numpy as np
 from .registry import register, AnalysisResult
 
-try:
-    from skimage.feature import peak_local_max
-    SKIMAGE_OK = True
-except ImportError:
-    SKIMAGE_OK = False
+SKIMAGE_OK = importlib.util.find_spec("skimage") is not None
 
 
 def run(image: np.ndarray, params: dict) -> AnalysisResult:
@@ -78,6 +76,7 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
 
     # ── 5. Picos locales = centros de semillas ────────────────────────────────
     threshold_abs = peak_threshold * dist.max() if dist.max() > 0 else 0.1
+    from skimage.feature import peak_local_max
     coords = peak_local_max(dist,
                             min_distance=min_distance,
                             threshold_abs=threshold_abs)
