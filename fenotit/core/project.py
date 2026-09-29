@@ -8,6 +8,7 @@ from typing import Any
 import yaml
 
 from fenotit import __version__
+from fenotit.core.corrections.pipeline import Corrections
 
 PROJECT_EXT = ".fenotit"
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"}
@@ -40,6 +41,7 @@ class Project:
     scale: Scale = field(default_factory=Scale)
     params: dict[str, dict[str, Any]] = field(default_factory=dict)
     roi: dict[str, list] = field(default_factory=dict)   # formas normalizadas 0-1
+    corrections: Corrections = field(default_factory=Corrections)
 
     @property
     def current_image(self) -> Path | None:
@@ -77,6 +79,7 @@ class Project:
             "scale": asdict(self.scale),
             "params": self.params,
             "roi": self.roi,
+            "corrections": self.corrections.to_dict(),
         }
 
     def save(self, folder: Path | str | None = None) -> Path:
@@ -87,6 +90,7 @@ class Project:
         self.folder.mkdir(parents=True, exist_ok=True)
         for sub in ("calibration", "results"):
             (self.folder / sub).mkdir(exist_ok=True)
+        self.corrections.save_files(self.folder)
         with open(self.file, "w", encoding="utf-8") as f:
             yaml.safe_dump(self.to_dict(), f, allow_unicode=True, sort_keys=False)
         return self.file
@@ -118,6 +122,7 @@ class Project:
             scale=Scale(**d.get("scale", {})),
             params=d.get("params", {}) or {},
             roi=d.get("roi", {}) or {},
+            corrections=Corrections.from_dict(d.get("corrections"), folder),
         )
 
     def missing_images(self) -> list[Path]:
