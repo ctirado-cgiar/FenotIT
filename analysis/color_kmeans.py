@@ -68,11 +68,11 @@ def _rgb_to_lab(rgb: tuple) -> tuple:
     swatch = np.uint8([[list(rgb)]])
     bgr    = cv2.cvtColor(swatch, cv2.COLOR_RGB2BGR)
     lab    = cv2.cvtColor(bgr, cv2.COLOR_BGR2LAB)
-    L, a, b = lab[0, 0]
+    L, a, b = (int(v) for v in lab[0, 0])
     # Desnormalizar: OpenCV usa L*100/255, a/b centrados en 128
     L_real = round(L * 100 / 255, 1)
-    a_real = round(int(a) - 128, 1)
-    b_real = round(int(b) - 128, 1)
+    a_real = a - 128
+    b_real = b - 128
     return (L_real, a_real, b_real)
 
 
