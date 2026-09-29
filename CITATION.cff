@@ -5,8 +5,8 @@ title: "FenotIT: Phenotypic Color Analysis Tool"
 version: 1.0.0
 doi: 10.5281/zenodo.XXXXXXX
 date-released: 2025-01-20
-url: "https://github.com/CGIAR/fenotit"
-repository-code: "https://github.com/CGIAR/fenotit"
+url: "https://github.com/ctirado-cgiar/FenotIT"
+repository-code: "https://github.com/ctirado-cgiar/FenotIT"
 license: CC-BY-NC-SA-4.0
 
 authors:
