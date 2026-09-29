@@ -9,7 +9,7 @@ from pathlib import Path
 from PIL import Image, ImageTk
 
 from fenotit.gui.theme import COLORS, FONTS
-from fenotit.gui.zoom_controller import ZoomController, ZoomState
+from fenotit.gui.zoom_controller import ZoomableCanvas
 
 from fenotit import log
 from fenotit.i18n import t
@@ -23,99 +23,6 @@ def _assets() -> Path:
 
 # ── Base dialog ───────────────────────────────────────────────────────────────
 
-
-class ZoomableCanvas(tk.Canvas):
-    """
-    Canvas con zoom/pan propio para ventanas de calibración.
-    Responsive: se adapta al tamaño de la ventana.
-    """
-    ZOOM_FACTOR = 1.25
-
-    def __init__(self, parent, **kw):
-        super().__init__(parent, **kw)
-        self._img_bgr:  np.ndarray | None = None
-        self._photo     = None
-        self._state     = ZoomState()
-        self._drag_sx   = 0
-        self._drag_sy   = 0
-        self._drag_px   = 0.0
-        self._drag_py   = 0.0
-
-        self.bind("<MouseWheel>",      self._on_wheel)
-        self.bind("<Button-4>",        self._on_wheel)
-        self.bind("<Button-5>",        self._on_wheel)
-        self.bind("<ButtonPress-2>",   self._on_drag_start)
-        self.bind("<B2-Motion>",       self._on_drag_move)
-        self.bind("<ButtonRelease-2>", self._on_drag_end)
-        self.bind("<Control-ButtonPress-1>",   self._on_drag_start)
-        self.bind("<Control-B1-Motion>",       self._on_drag_move)
-        self.bind("<Control-ButtonRelease-1>", self._on_drag_end)
-        self.bind("<Double-Button-2>", lambda e: self.reset())
-        self.bind("<Configure>",       lambda e: self._redraw())
-
-    def set_image(self, img_bgr: np.ndarray | None):
-        self._img_bgr = img_bgr
-        self._state.reset()
-        self._redraw()
-
-    def reset(self):
-        self._state.reset()
-        self._redraw()
-
-    def _on_wheel(self, event):
-        if self._img_bgr is None:
-            return
-        factor = self.ZOOM_FACTOR if (event.num == 4 or event.delta > 0) \
-                 else 1.0 / self.ZOOM_FACTOR
-        cw = max(self.winfo_width(),  1)
-        ch = max(self.winfo_height(), 1)
-        ih, iw = self._img_bgr.shape[:2]
-        self._state.zoom_at(event.x, event.y, cw, ch, iw, ih, factor)
-        self._state.clamp_pan(cw, ch, iw, ih)
-        self._redraw()
-
-    def _on_drag_start(self, event):
-        self._drag_sx = event.x
-        self._drag_sy = event.y
-        self._drag_px = self._state.pan_x
-        self._drag_py = self._state.pan_y
-        self.config(cursor="fleur")
-
-    def _on_drag_move(self, event):
-        self._state.pan_x = self._drag_px + (event.x - self._drag_sx)
-        self._state.pan_y = self._drag_py + (event.y - self._drag_sy)
-        if self._img_bgr is not None:
-            cw = max(self.winfo_width(),  1)
-            ch = max(self.winfo_height(), 1)
-            ih, iw = self._img_bgr.shape[:2]
-            self._state.clamp_pan(cw, ch, iw, ih)
-        self._redraw()
-
-    def _on_drag_end(self, event):
-        self.config(cursor="")
-
-    def _redraw(self):
-        self.update_idletasks()
-        cw = max(self.winfo_width(),  1)
-        ch = max(self.winfo_height(), 1)
-        self.delete("all")
-        if self._img_bgr is None:
-            return
-        ih, iw = self._img_bgr.shape[:2]
-        dw, dh = self._state.display_size(iw, ih)
-        dw, dh = max(1, dw), max(1, dh)
-        ox, oy = self._state.image_offset(cw, ch, iw, ih)
-        interp = cv2.INTER_AREA if self._state.zoom < 1.0 \
-                 else cv2.INTER_LINEAR
-        try:
-            resized = cv2.resize(self._img_bgr, (dw, dh),
-                                 interpolation=interp)
-            rgb   = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
-            photo = ImageTk.PhotoImage(Image.fromarray(rgb))
-            self._photo = photo
-            self.create_image(ox, oy, anchor="nw", image=photo)
-        except Exception:
-            _log.debug("ignorado", exc_info=True)
 
 
 class BaseDialog(tk.Toplevel):
@@ -226,7 +133,7 @@ class ScaleDialog(BaseDialog):
                  on_scale_set=None, loader=None, paths=None):
         self._loader = loader
         self._paths = list(paths or ([current_path] if current_path else []))
-        super().__init__(parent, t("menu.cal_scale"))
+        super().__init__(parent, t("menu.cal_scale").rstrip("…"))
         self._image      = current_image
         self._path       = current_path
         self._on_scale   = on_scale_set
@@ -419,8 +326,8 @@ class ScaleDialog(BaseDialog):
         ch = max(self._canvas.winfo_height(), 1)
         ox, oy = state.image_offset(cw, ch, iw, ih)
         # Coord en imagen original
-        x = int((event.x - ox) / state.zoom)
-        y = int((event.y - oy) / state.zoom)
+        x = int(round((event.x - ox) / state.zoom))
+        y = int(round((event.y - oy) / state.zoom))
         x = max(0, min(x, iw - 1))
         y = max(0, min(y, ih - 1))
         self._points.append((x, y))

@@ -311,6 +311,13 @@ class ZoomableCanvas(tk.Canvas):
         self.bind("<ButtonPress-1>",
                   lambda e: e.widget.focus_set(), add="+")
         self.bind("<Configure>", lambda e: self._fit_if_needed())
+        self.bind("<MouseWheel>", self._on_wheel)
+        self.bind("<Button-4>", self._on_wheel)
+        self.bind("<Button-5>", self._on_wheel)
+
+    def _on_wheel(self, event):
+        up = event.num == 4 or getattr(event, "delta", 0) > 0
+        self._zoom(ZoomState.ZOOM_STEP if up else 1.0 / ZoomState.ZOOM_STEP)
 
     def set_image(self, img_bgr: np.ndarray | None):
         self._img_bgr = img_bgr
