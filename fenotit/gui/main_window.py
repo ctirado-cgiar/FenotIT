@@ -31,6 +31,10 @@ from fenotit.gui.charts import IntraImageChartPanel, BatchChartWindow
 from fenotit.core.export.exporter import Exporter, quick_export_csv
 from fenotit.gui.theme import COLORS, FONTS
 
+from fenotit import log
+
+_log = log.get("gui.main_window")
+
 CHANNEL_NAMES = {
     "BGR":   ["B", "G", "R"],
     "HSV":   ["H", "S", "V"],
@@ -369,7 +373,7 @@ class MainWindow:
                      bg=COLORS["bg_topbar"]).pack(
                          side=tk.LEFT, padx=(10, 2), pady=6)
         except Exception:
-            pass
+            _log.debug("ignorado", exc_info=True)
 
         tk.Label(self.topbar, text="FenotIT",
                  bg=COLORS["bg_topbar"], fg="#FFFFFF",
@@ -673,6 +677,7 @@ class MainWindow:
             self.preview_var.set(f"● preview  {n_px:,} px  ({pct}%)")
 
         except Exception:
+            _log.debug("Preview falló", exc_info=True)
             if self.zoom_ctrl:
                 self.zoom_ctrl.redraw_with_overlay(overlay_left=img_original)
             self.preview_var.set("")
@@ -1169,6 +1174,7 @@ class MainWindow:
             try:
                 result = ANALYSES[name].func(image, params)
             except Exception as e:
+                _log.exception("%s falló en %s", name, path)
                 result = AnalysisResult(status="error", error=str(e))
             self.root.after(0, lambda: self._on_result(name, result, path))
         threading.Thread(target=worker, daemon=True).start()
@@ -1193,6 +1199,7 @@ class MainWindow:
                 try:
                     r = ANALYSES[name].func(img, params)
                 except Exception as e:
+                    _log.exception("%s falló en %s", name, path)
                     r = AnalysisResult(status="error", error=str(e))
                 results.append((path, r))
 
@@ -1215,7 +1222,7 @@ class MainWindow:
                 if img is not None:
                     resolutions.add(img.shape[:2])
             except Exception:
-                pass
+                _log.warning("No se pudo leer %s", path, exc_info=True)
         if len(resolutions) > 1:
             res_list = ', '.join(f'{w}×{h}' for h,w in resolutions)
             messagebox.showwarning(

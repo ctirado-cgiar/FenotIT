@@ -10,6 +10,10 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Any
 
+from fenotit import log
+
+_log = log.get("gui.config_panel")
+
 
 class ConfigPanel(tk.Frame):
 
@@ -131,7 +135,7 @@ class ConfigPanel(tk.Frame):
                             nv = min(nv, mx)
                         v.set(round(nv, 4) if isinstance(s, float) else int(nv))
                     except Exception:
-                        pass
+                        _log.debug("ignorado", exc_info=True)
                 return up
 
             def make_dn(v=var, s=step, mn=vmin, mx=vmax):
@@ -143,7 +147,7 @@ class ConfigPanel(tk.Frame):
                             nv = max(nv, mn)
                         v.set(round(nv, 4) if isinstance(s, float) else int(nv))
                     except Exception:
-                        pass
+                        _log.debug("ignorado", exc_info=True)
                 return dn
 
             btn_kw = dict(bg=self.colors["bg_panel"],
@@ -170,7 +174,7 @@ class ConfigPanel(tk.Frame):
             try:
                 out[k] = v.get()
             except Exception:
-                pass
+                _log.warning("Valor inválido en '%s'; se usa el valor por defecto", k)
         return out
 
     def _show_tip(self, event, label: str, text: str):
@@ -178,7 +182,7 @@ class ConfigPanel(tk.Frame):
             try:
                 tw.destroy()
             except Exception:
-                pass
+                _log.debug("ignorado", exc_info=True)
         self._tips.clear()
 
         tw = tk.Toplevel()

@@ -12,6 +12,10 @@ import glob
 from pathlib import Path
 from dataclasses import dataclass
 
+from fenotit import log
+
+_log = log.get("corrections.distortion")
+
 
 @dataclass
 class CalibrationResult:
@@ -178,6 +182,6 @@ def apply_correction(
                 results["error"] += 1
         except Exception as e:
             results["error"] += 1
-            print(f"[distortion] Error en {img_path.name}: {e}")
+            _log.error("Error en %s: %s", img_path.name, e)
 
     return results

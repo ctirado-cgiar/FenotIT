@@ -28,6 +28,10 @@ except ImportError:
 
 from fenotit.gui.theme import COLORS, FONTS
 
+from fenotit import log
+
+_log = log.get("gui.charts")
+
 
 def _assets() -> Path:
     return Path(__file__).parent.parent / "assets"
@@ -367,7 +371,7 @@ class BatchChartWindow(tk.Toplevel):
         try:
             self.iconbitmap(str(_assets()/"logo.ico"))
         except Exception:
-            pass
+            _log.debug("ignorado", exc_info=True)
 
         self._fig = None
         self._all_cols: list[str] = []
@@ -783,5 +787,6 @@ class BatchChartWindow(tk.Toplevel):
                     "Guardado", f"Gráfico guardado:\n{path}",
                     parent=self)
             except Exception as e:
+                _log.exception("Error guardando gráfico")
                 messagebox.showerror("Error", str(e),
                                      parent=self)

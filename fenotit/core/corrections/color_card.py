@@ -10,6 +10,10 @@ import numpy as np
 import os
 from pathlib import Path
 
+from fenotit import log
+
+_log = log.get("corrections.color_card")
+
 
 def _plantcv_available() -> bool:
     try:
@@ -52,6 +56,7 @@ def detect_and_save_mask(
         return True, "Tarjeta detectada correctamente.", mask
 
     except Exception as e:
+        _log.exception("Error al detectar tarjeta")
         return False, f"Error al detectar tarjeta: {e}", None
 
 
@@ -104,6 +109,7 @@ def correct_single(
         return False, "Error al guardar imagen corregida."
 
     except Exception as e:
+        _log.exception("Error corrigiendo color")
         return False, f"Error: {e}"
 
 

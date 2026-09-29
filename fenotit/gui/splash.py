@@ -5,6 +5,10 @@ ui/splash.py  —  Splash screen con tema claro científico + logo .ico
 import tkinter as tk
 from pathlib import Path
 
+from fenotit import log
+
+_log = log.get("gui.splash")
+
 
 def _assets() -> Path:
     return Path(__file__).parent.parent / "assets"
@@ -34,7 +38,7 @@ class SplashScreen:
             try:
                 self.window.iconbitmap(str(ico))
             except Exception:
-                pass
+                _log.debug("ignorado", exc_info=True)
 
         # ── Borde azul superior (banda de color) ──────────────────────────────
         tk.Frame(self.window, bg="#2166AC", height=6).pack(fill=tk.X)
@@ -54,7 +58,7 @@ class SplashScreen:
             tk.Label(logo_row, image=self._logo_photo,
                      bg="#FFFFFF").pack(side=tk.LEFT, padx=(0, 12))
         except Exception:
-            pass
+            _log.debug("ignorado", exc_info=True)
 
         name_col = tk.Frame(logo_row, bg="#FFFFFF")
         name_col.pack(side=tk.LEFT)
@@ -106,7 +110,7 @@ class SplashScreen:
             w = self._prog_bg.winfo_width()
             self._prog_fill.place(x=0, y=0, relheight=1, width=int(w * frac))
         except Exception:
-            pass
+            _log.debug("ignorado", exc_info=True)
 
         msgs = {
             5:  "Registrando módulo: Morfometría…",
@@ -129,5 +133,5 @@ class SplashScreen:
             try:
                 self.window.destroy()
             except Exception:
-                pass
+                _log.debug("ignorado", exc_info=True)
             self.window = None

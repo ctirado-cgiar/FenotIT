@@ -12,6 +12,10 @@ import tkinter as tk
 from tkinter import colorchooser
 from typing import Callable
 
+from fenotit import log
+
+_log = log.get("gui.roi")
+
 
 # Colores de dibujo
 ROI_COLOR_RECT    = "#2166AC"
@@ -88,7 +92,7 @@ class ROISelector:
             try:
                 self.canvas.delete(sid)
             except Exception:
-                pass
+                _log.debug("ignorado", exc_info=True)
         self.temp_shapes      = []
         self.final_shapes     = []
         self.points           = []
@@ -248,7 +252,7 @@ class ROISelector:
             try:
                 self.canvas.delete(sid)
             except Exception:
-                pass
+                _log.debug("ignorado", exc_info=True)
         self.temp_shapes = []
 
     def _get_color(self):
@@ -327,7 +331,7 @@ class ROISelector:
             try:
                 self.canvas.delete(sid)
             except Exception:
-                pass
+                _log.debug("ignorado", exc_info=True)
         self.final_shapes = []
         if self.on_roi_change:
             self.on_roi_change(self._inclusion_mask)

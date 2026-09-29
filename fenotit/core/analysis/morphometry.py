@@ -14,6 +14,10 @@ import cv2
 import numpy as np
 from .registry import register, AnalysisResult
 
+from fenotit import log
+
+_log = log.get("analysis.morphometry")
+
 
 # ── Función principal ─────────────────────────────────────────────────────────
 
@@ -46,6 +50,7 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
         try:
             converted = cv2.cvtColor(image, cs_code)
         except Exception:
+            _log.warning("Conversión de color %s falló; se usa BGR", cs_code, exc_info=True)
             converted = image
     else:
         converted = image
@@ -147,7 +152,7 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
                 if major_axis > 0:
                     eccentricity = np.sqrt(1 - (minor_axis / major_axis) ** 2)
             except Exception:
-                pass
+                _log.debug("fitEllipse falló en objeto %s", i + 1, exc_info=True)
 
         # Momentos → centroide
         M  = cv2.moments(cnt)

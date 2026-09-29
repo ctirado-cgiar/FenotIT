@@ -10,6 +10,10 @@ import cv2
 import numpy as np
 from pathlib import Path
 
+from fenotit import log
+
+_log = log.get("corrections.aruco")
+
 
 # ── Detección de ArUcos ───────────────────────────────────────────────────────
 
@@ -165,6 +169,7 @@ def correct_batch(
         except Exception as e:
             results["error"] += 1
             results["errors"].append(f"{img_path.name}: {e}")
+            _log.error("ArUco en %s: %s", img_path.name, e)
 
     return results
 

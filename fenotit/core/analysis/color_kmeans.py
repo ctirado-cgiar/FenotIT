@@ -16,6 +16,10 @@ import numpy as np
 from sklearn.cluster import KMeans
 from .registry import register, AnalysisResult
 
+from fenotit import log
+
+_log = log.get("analysis.color_kmeans")
+
 
 # ── Función de segmentación (igual que morfometría) ───────────────────────────
 
@@ -34,6 +38,7 @@ def _build_fg_mask(image: np.ndarray, params: dict) -> np.ndarray:
         try:
             converted = cv2.cvtColor(image, cs_code)
         except Exception:
+            _log.warning("Conversión de color %s falló; se usa BGR", cs_code, exc_info=True)
             converted = image
     else:
         converted = image
@@ -114,6 +119,7 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
             conv    = cv2.cvtColor(image, cs_code)
             channel = conv[:, :, min(ch_idx, conv.shape[2]-1)]
         except Exception:
+            _log.warning("Conversión de color %s falló; se usa canal B", cs_code, exc_info=True)
             channel = image[:, :, 0]
     else:
         channel = image[:, :, min(ch_idx, 2)]

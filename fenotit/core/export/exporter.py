@@ -28,6 +28,10 @@ from typing import Any
 import cv2
 import numpy as np
 
+from fenotit import log
+
+_log = log.get("export")
+
 try:
     import openpyxl
     from openpyxl.styles import (Font, PatternFill, Alignment,
@@ -78,7 +82,7 @@ def _save_img(folder: str, name: str, img: np.ndarray):
         if ok:
             out.write_bytes(buf.tobytes())
     except Exception as e:
-        print(f"[exporter] Error guardando {name}: {e}")
+        _log.error("Error guardando %s: %s", name, e)
 
 
 def _write_csv(path: str, rows: list[dict], encoding="utf-8-sig"):

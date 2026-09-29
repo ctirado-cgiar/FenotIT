@@ -9,6 +9,10 @@ from tkinter import ttk, filedialog, messagebox
 from pathlib import Path
 from fenotit.gui.theme import COLORS, FONTS
 
+from fenotit import log
+
+_log = log.get("gui.export_dialog")
+
 
 def _assets() -> Path:
     return Path(__file__).parent.parent / "assets"
@@ -32,7 +36,7 @@ class ExportDialog(tk.Toplevel):
         try:
             self.iconbitmap(str(_assets() / "logo.ico"))
         except Exception:
-            pass
+            _log.debug("ignorado", exc_info=True)
         self.grab_set()
 
         self._exporter      = exporter
@@ -212,6 +216,7 @@ class ExportDialog(tk.Toplevel):
                                 msg, parent=self)
 
         except Exception as e:
+            _log.exception("Error al exportar")
             self._log_var.set(f"✗ Error: {e}")
             messagebox.showerror("Error al exportar",
                                  str(e), parent=self)

@@ -10,6 +10,10 @@ import cv2
 import numpy as np
 from PIL import Image, ImageTk
 
+from fenotit import log
+
+_log = log.get("gui.zoom")
+
 
 class ZoomState:
     ZOOM_MIN:  float = 0.05
@@ -262,6 +266,7 @@ class ZoomController:
             setattr(self, attr, photo)
             canvas.create_image(ox, oy, anchor="nw", image=photo)
         except Exception:
+            _log.debug("Render falló", exc_info=True)
             return
         if left and hasattr(canvas, '_roi_selector_ref'):
             canvas._roi_selector_ref.set_image_offset(ox, oy, dw, dh)
@@ -385,4 +390,4 @@ class ZoomableCanvas(tk.Canvas):
             self._photo = photo
             self.create_image(ox, oy, anchor="nw", image=photo)
         except Exception:
-            pass
+            _log.debug("ignorado", exc_info=True)

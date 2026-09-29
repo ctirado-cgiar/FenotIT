@@ -18,6 +18,10 @@ from PIL import Image, ImageTk
 from fenotit.gui.theme import COLORS, FONTS
 from fenotit.gui.zoom_controller import ZoomController, ZoomState
 
+from fenotit import log
+
+_log = log.get("gui.calibration")
+
 
 def _assets() -> Path:
     return Path(__file__).parent.parent / "assets"
@@ -117,7 +121,7 @@ class ZoomableCanvas(tk.Canvas):
             self._photo = photo
             self.create_image(ox, oy, anchor="nw", image=photo)
         except Exception:
-            pass
+            _log.debug("ignorado", exc_info=True)
 
 
 class BaseDialog(tk.Toplevel):
@@ -135,7 +139,7 @@ class BaseDialog(tk.Toplevel):
         try:
             self.iconbitmap(str(_assets() / "logo.ico"))
         except Exception:
-            pass
+            _log.debug("ignorado", exc_info=True)
         self.grab_set()
 
         # Banda azul superior
@@ -955,6 +959,7 @@ class ScaleDialog(BaseDialog):
                     "Error", "No se pudo cargar la imagen.",
                     parent=self)
         except Exception as e:
+            _log.exception("Error en calibración")
             messagebox.showerror("Error", str(e), parent=self)
 
     def _load_image(self, img: np.ndarray):
@@ -1064,6 +1069,7 @@ class ScaleDialog(BaseDialog):
             self._scale_result = result
             self._result_var.set(result.format())
         except Exception as e:
+            _log.exception("Error calculando escala")
             self._result_var.set(f"Error: {e}")
 
     def _clear_points(self):

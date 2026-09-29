@@ -8,6 +8,10 @@ import cv2
 import numpy as np
 from pathlib import Path
 
+from fenotit import log
+
+_log = log.get("image_io")
+
 
 # ── Carga Unicode-safe ────────────────────────────────────────────────────────
 
@@ -23,7 +27,7 @@ def load_image(path: str) -> np.ndarray | None:
         img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
         return img
     except Exception as e:
-        print(f"[image_io] Error cargando {path}: {e}")
+        _log.error("Error cargando %s: %s", path, e)
         return None
 
 
@@ -40,7 +44,7 @@ def save_image(path: str, image: np.ndarray) -> bool:
             return True
         return False
     except Exception as e:
-        print(f"[image_io] Error guardando {path}: {e}")
+        _log.error("Error guardando %s: %s", path, e)
         return False
 
 

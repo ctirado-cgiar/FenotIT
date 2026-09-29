@@ -13,6 +13,10 @@ from dataclasses import dataclass, field
 from typing import Callable, Any
 import numpy as np
 
+from fenotit import log
+
+_log = log.get("analysis")
+
 
 # ── Estructura de resultado estándar ─────────────────────────────────────────
 
@@ -102,7 +106,7 @@ def register(
         icon=icon,
     )
     ANALYSES[name] = descriptor
-    print(f"[registry] Módulo registrado: '{name}'")
+    _log.debug("Análisis registrado: %s", name)
     return descriptor
 
 
@@ -121,33 +125,33 @@ def _load_modules():
     try:
         from . import morphometry      # noqa: F401  scripts 08/09
     except Exception as e:
-        print(f"[registry] morphometry no disponible: {e}")
+        _log.error("morphometry no disponible: %s", e)
 
     try:
         from . import color_kmeans     # noqa: F401  script 10.0
     except Exception as e:
-        print(f"[registry] color_kmeans no disponible: {e}")
+        _log.error("color_kmeans no disponible: %s", e)
 
     try:
         from . import seed_counter     # noqa: F401  script 15
     except Exception as e:
-        print(f"[registry] seed_counter no disponible: {e}")
+        _log.error("seed_counter no disponible: %s", e)
 
     # ── Futuros — descomenta cuando el módulo esté listo ──────────────────
     # try:
     #     from . import color_distance   # noqa: F401  script 10.1
     # except Exception as e:
-    #     print(f"[registry] color_distance no disponible: {e}")
+    #     _log.error("color_distance no disponible: %s", e)
 
     # try:
     #     from . import shape_analysis   # noqa: F401  scripts 11.x / 12
     # except Exception as e:
-    #     print(f"[registry] shape_analysis no disponible: {e}")
+    #     _log.error("shape_analysis no disponible: %s", e)
 
     # try:
     #     from . import yolo_detector    # noqa: F401  modelo futuro
     # except Exception as e:
-    #     print(f"[registry] yolo_detector no disponible: {e}")
+    #     _log.error("yolo_detector no disponible: %s", e)
 
 
 _load_modules()
