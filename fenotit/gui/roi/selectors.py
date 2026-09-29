@@ -155,39 +155,48 @@ class ROISelector:
         self.clear()
         if not data:
             return
-        w, h = self._img_w, self._img_h
-        to_px = lambda pts: [(int(round(x * w)), int(round(y * h))) for x, y in pts]
         for op in data.get("inclusion", []):
-            pts = to_px(op["points"])
-            flat = [c for x, y in pts for c in self._img_to_canvas(x, y)]
+            pts = self._to_px(op["points"])
             if op["type"] == "rect":
                 (x0, y0), (x1, y1) = pts
-                self.final_shapes.append(self.canvas.create_rectangle(
-                    *flat, outline=ROI_COLOR_RECT, width=2, tags="roi_final"))
                 self._build_rect_mask(x0, y0, x1, y1)
-            elif op["type"] == "polygon":
-                self.final_shapes.append(self.canvas.create_polygon(
-                    *flat, outline=ROI_COLOR_POLY, fill=ROI_COLOR_POLY,
-                    stipple="gray25", width=2, tags="roi_final"))
-                self._build_polygon_mask(pts, hollow=False)
-            elif op["type"] == "hole":
-                self.final_shapes.append(self.canvas.create_polygon(
-                    *flat, outline=ROI_COLOR_EXCLUDE, fill="",
-                    width=2, tags="roi_final"))
-                self._build_polygon_mask(pts, hollow=True)
+            else:
+                self._build_polygon_mask(pts, hollow=op["type"] == "hole")
         for op in data.get("exclusions", []):
-            pts = to_px(op["points"])
             color = tuple(op.get("color", (255, 255, 255)))
-            hexc = "#%02x%02x%02x" % (color[2], color[1], color[0])
-            flat = [c for x, y in pts for c in self._img_to_canvas(x, y)]
-            self.final_shapes.append(self.canvas.create_polygon(
-                *flat, outline=hexc, fill=hexc,
-                stipple="gray50", width=2, tags="roi_final"))
-            self._exclusion_zones.append((np.array(pts, dtype=np.int32), color))
+            self._exclusion_zones.append((np.array(self._to_px(op["points"]), dtype=np.int32), color))
         self._inclusion_ops = list(data.get("inclusion", []))
         self._exclusion_ops = list(data.get("exclusions", []))
+        self.redraw_shapes()
         if self.on_roi_change:
             self.on_roi_change(self._inclusion_mask)
+
+    def _to_px(self, pts):
+        w, h = self._img_w, self._img_h
+        return [(int(round(x * w)), int(round(y * h))) for x, y in pts]
+
+    def redraw_shapes(self):
+        """Vuelve a dibujar las formas guardadas con el zoom y desplazamiento actuales."""
+        for sid in self.final_shapes:
+            self.canvas.delete(sid)
+        self.final_shapes = []
+        for op in self._inclusion_ops:
+            flat = [c for x, y in self._to_px(op["points"]) for c in self._img_to_canvas(x, y)]
+            if op["type"] == "rect":
+                sid = self.canvas.create_rectangle(*flat, outline=ROI_COLOR_RECT, width=2, tags="roi_final")
+            elif op["type"] == "polygon":
+                sid = self.canvas.create_polygon(*flat, outline=ROI_COLOR_POLY, fill=ROI_COLOR_POLY,
+                                                 stipple="gray25", width=2, tags="roi_final")
+            else:
+                sid = self.canvas.create_polygon(*flat, outline=ROI_COLOR_EXCLUDE, fill="",
+                                                 width=2, tags="roi_final")
+            self.final_shapes.append(sid)
+        for op in self._exclusion_ops:
+            color = op.get("color", (255, 255, 255))
+            hexc = "#%02x%02x%02x" % (color[2], color[1], color[0])
+            flat = [c for x, y in self._to_px(op["points"]) for c in self._img_to_canvas(x, y)]
+            self.final_shapes.append(self.canvas.create_polygon(
+                *flat, outline=hexc, fill=hexc, stipple="gray50", width=2, tags="roi_final"))
 
     def get_combined_params(self) -> dict:
         """
@@ -423,7 +432,10 @@ class ROISelector:
     def _build_polygon_mask(self, points, hollow=False):
         pts = np.array(points, dtype=np.int32)
         if hollow and self._inclusion_mask is not None:
-            base = self._inclusion_mask.copy()
+            base = self._inclusion_mask
+            if base.shape[:2] != (self._img_h, self._img_w):
+                base = cv2.resize(base, (self._img_w, self._img_h), interpolation=cv2.INTER_NEAREST)
+            base = base.copy()
             cv2.fillPoly(base, [pts], 0)
         else:
             base = np.zeros((self._img_h, self._img_w), dtype=np.uint8)

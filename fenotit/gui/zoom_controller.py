@@ -49,8 +49,8 @@ class ZoomState:
         off_y  = (canvas_h - disp_h) / 2 + self.pan_y
         img_x  = (cx - off_x) / self.zoom
         img_y  = (cy - off_y) / self.zoom
-        self.pan_x += img_x * (self.zoom - new_zoom)
-        self.pan_y += img_y * (self.zoom - new_zoom)
+        self.pan_x = cx - img_x * new_zoom - (canvas_w - img_w * new_zoom) / 2
+        self.pan_y = cy - img_y * new_zoom - (canvas_h - img_h * new_zoom) / 2
         self.zoom   = new_zoom
 
     def pan(self, dx: float, dy: float,
@@ -114,6 +114,7 @@ class ZoomController:
 
         self._img_left:  np.ndarray | None = None
         self._img_right: np.ndarray | None = None
+        self._overlay_left: np.ndarray | None = None
         self._photo_left  = None
         self._photo_right = None
         self._zoom_var: tk.StringVar | None = None
@@ -136,6 +137,7 @@ class ZoomController:
 
     def set_left(self, img_bgr: np.ndarray | None):
         self._img_left = img_bgr
+        self._overlay_left = None
         if img_bgr is not None:
             self._fit_to_canvas()
         else:
@@ -235,9 +237,10 @@ class ZoomController:
     # ── Renderizado ───────────────────────────────────────────────────────────
 
     def _redraw(self):
-        self._draw_canvas(self.cl,  self._img_left,
+        left = self._overlay_left if self._overlay_left is not None else self._img_left
+        self._draw_canvas(self.cl,  left,
                           "_photo_left",  left=True)
-        self._draw_canvas(self.cr,  self._img_right,
+        self._draw_canvas(self.cr,  self._right_aligned(),
                           "_photo_right", left=False)
         if self._zoom_var is not None:
             self._zoom_var.set(f"{self.state.zoom_pct}%")
@@ -271,18 +274,19 @@ class ZoomController:
         if left and hasattr(canvas, '_roi_selector_ref'):
             canvas._roi_selector_ref.set_image_offset(ox, oy, dw, dh)
 
+    def _right_aligned(self) -> np.ndarray | None:
+        """Imagen derecha llevada al tamaño de la izquierda para que el zoom coincida."""
+        r, l = self._img_right, self._img_left
+        if r is None or l is None or r.shape[:2] == l.shape[:2]:
+            return r
+        interp = cv2.INTER_NEAREST if r.shape[0] < l.shape[0] else cv2.INTER_AREA
+        return cv2.resize(r, (l.shape[1], l.shape[0]), interpolation=interp)
+
     def redraw_with_overlay(self,
                             overlay_left: np.ndarray | None = None):
-        img_l = overlay_left \
-                if overlay_left is not None else self._img_left
-        self._draw_canvas(self.cl, img_l,
-                          "_photo_left",  left=True)
-        self._draw_canvas(self.cr, self._img_right,
-                          "_photo_right", left=False)
-        if self._zoom_var is not None:
-            self._zoom_var.set(f"{self.state.zoom_pct}%")
-        if self.on_redraw:
-            self.on_redraw()
+        """Muestra la izquierda con una superposición que se conserva al hacer zoom."""
+        self._overlay_left = overlay_left
+        self._redraw()
 
 
 # ── ZoomableCanvas para ventanas de calibración ───────────────────────────────

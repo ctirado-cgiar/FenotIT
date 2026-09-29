@@ -499,7 +499,7 @@ class MainWindow:
         self.root.configure(bg=COLORS["bg"])
         ico = _assets() / "logo.ico"
         if ico.exists():
-            try: self.root.iconbitmap(str(ico))
+            try: self.root.iconbitmap(default=str(ico))
             except Exception: _log.debug("ignorado", exc_info=True)
         sw, sh = self.root.winfo_screenwidth(), self.root.winfo_screenheight()
         w = min(int(sw * 0.92), 1600)
@@ -1266,6 +1266,7 @@ class MainWindow:
         if self.zoom_ctrl and self.roi_selector:
             ox, oy, dw, dh = self.zoom_ctrl.current_image_offset()
             self.roi_selector.set_image_offset(ox, oy, dw, dh)
+            self.roi_selector.redraw_shapes()
 
     def _load_single(self, path: str):
         self.current_image_path = path
