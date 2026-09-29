@@ -1463,10 +1463,13 @@ class MainWindow:
         self.stats_var.set("   |   ".join(
             f"{k}: {v}" for k, v in result.stats.items()))
         if self.output_root:
-            exp   = Exporter(self.output_root)
-            paths = exp.export(name, result, Path(path).name)
+            if self._exporter is None:
+                self._exporter = Exporter(self.output_root)
+            self._exporter.save_result(name, Path(path).name, result,
+                                       save_step_images=True)
+            self._exporter.append_to_csv(name, Path(path).name, result)
             self._set_status(
-                f"{name} completado — {paths.get('csv', paths)}")
+                f"{name} completado — {self._exporter.results_dir}")
         else:
             self._set_status(f"{name} completado — {result.stats}")
         self._refresh_history()
@@ -1507,12 +1510,9 @@ class MainWindow:
                 self._update_step_active(3)
 
         if self.output_root:
-            exp   = Exporter(self.output_root)
-            paths = exp.export_batch(
-                name, [(Path(p).name, r) for p, r in results])
             self._set_status(
                 f"Lote {name} completado — {ok_count}/{len(results)} imágenes — "
-                f"{paths.get('csv', '')}")
+                f"{Path(self.output_root) / 'resultados'}")
         else:
             self._set_status(
                 f"Lote {name} completado — {ok_count}/{len(results)} imágenes")
