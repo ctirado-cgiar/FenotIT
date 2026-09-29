@@ -48,6 +48,7 @@ class ROISelector:
         # Formas en coordenadas normalizadas (0-1) para guardar/restaurar
         self._inclusion_ops: list[dict] = []
         self._exclusion_ops: list[dict] = []
+        self._pending: dict | None = None
 
         self._canvas_w = 400
         self._canvas_h = 300
@@ -75,6 +76,9 @@ class ROISelector:
         self._img_y = img_y
         self._img_w = img_w
         self._img_h = img_h
+        if self._pending is not None:
+            data, self._pending = self._pending, None
+            self.load_dict(data)
 
     def pick_exclusion_color(self, parent=None):
         """Abre selector de color para el parche de exclusión."""
@@ -134,7 +138,14 @@ class ROISelector:
                 "points": [[round(x / w, 5), round(y / h, 5)] for x, y in points],
                 **extra}
 
+    def restore_when_ready(self, data: dict | None):
+        """Guarda formas para dibujarlas cuando la imagen tenga tamaño en pantalla."""
+        self.clear()
+        self._pending = data or None
+
     def to_dict(self) -> dict:
+        if self._pending is not None:
+            return self._pending
         if not self._inclusion_ops and not self._exclusion_ops:
             return {}
         return {"inclusion": self._inclusion_ops, "exclusions": self._exclusion_ops}

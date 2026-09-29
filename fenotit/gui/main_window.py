@@ -19,7 +19,7 @@ import numpy as np
 from PIL import Image, ImageTk
 
 from fenotit.core.image_io import ImageScaler, load_image
-from fenotit.core.project import IMAGE_EXTS, PROJECT_FILE, Project, Scale, Segmentation
+from fenotit.core.project import IMAGE_EXTS, PROJECT_EXT, Project, Scale, Segmentation
 from fenotit.gui.roi.selectors import ROISelector
 from fenotit.core.analysis.registry import ANALYSES, AnalysisResult
 from fenotit.core.export.exporter import Exporter
@@ -333,7 +333,7 @@ class MainWindow:
 
     def _save_project_as(self) -> bool:
         folder = filedialog.askdirectory(
-            title="Carpeta del proyecto (se crea project.yaml)", mustexist=False)
+            title=f"Carpeta del proyecto (se crea <carpeta>{PROJECT_EXT})", mustexist=False)
         if not folder:
             return False
         self.project.folder = Path(folder)
@@ -349,9 +349,12 @@ class MainWindow:
         if not self._confirm_discard():
             return
         path = filedialog.askopenfilename(
-            title="Abrir proyecto", filetypes=[("Proyecto FenotIT", PROJECT_FILE)])
-        if not path:
-            return
+            title="Abrir proyecto",
+            filetypes=[("Proyecto FenotIT", f"*{PROJECT_EXT}"), ("Todos", "*.*")])
+        if path:
+            self.open_project_path(path)
+
+    def open_project_path(self, path):
         try:
             project = Project.load(path)
         except Exception as e:
@@ -391,6 +394,8 @@ class MainWindow:
         self._exporter = None
         self.output_root = None
         self.canvas_right.delete("all")
+        if self.roi_selector:
+            self.roi_selector.restore_when_ready(project.roi if project.current_image else None)
         self._update_batch_list()
         if project.current_image:
             if project.mode == "batch":
@@ -403,15 +408,6 @@ class MainWindow:
             self.canvas_left.delete("all")
         if project.scale.mm_per_pixel:
             self._set_status(f"Escala: {project.scale.mm_per_pixel:.6f} mm/px")
-        roi = project.roi
-        if self.roi_selector:
-            self.roi_selector.clear()
-        self._saved_state = self._collect_state()
-        if roi and self.roi_selector and project.current_image:
-            self.root.after(300, lambda: self._restore_roi(roi))
-
-    def _restore_roi(self, roi: dict):
-        self.roi_selector.load_dict(roi)
         self._saved_state = self._collect_state()
 
     def _on_close(self):

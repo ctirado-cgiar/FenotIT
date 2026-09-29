@@ -26,6 +26,8 @@ def test_roundtrip():
         assert q.params == p.params
         assert not q.missing_images()
         assert (q.folder / "calibration").is_dir() and (q.folder / "results").is_dir()
+        assert q.file.name == "Ensayo.fenotit" and q.file.exists()
+        assert Project.load(q.file).name == "Ensayo"
 
 
 def test_relative_images():

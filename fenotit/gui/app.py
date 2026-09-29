@@ -16,18 +16,20 @@ def _report_error(root, exc_type, exc, tb):
         parent=root)
 
 
-def main():
+def main(project_path: str | None = None):
     root = tk.Tk()
     root.report_callback_exception = lambda *a: _report_error(root, *a)
     root.withdraw()
 
     splash = SplashScreen(root, duration_ms=2000)
     splash.show()
-    root.after(2200, lambda: _launch(root, splash))
+    root.after(2200, lambda: _launch(root, splash, project_path))
     root.mainloop()
 
 
-def _launch(root: tk.Tk, splash: SplashScreen):
+def _launch(root: tk.Tk, splash: SplashScreen, project_path: str | None):
     splash.close()
     root.deiconify()
-    MainWindow(root)
+    window = MainWindow(root)
+    if project_path:
+        root.after(100, lambda: window.open_project_path(project_path))

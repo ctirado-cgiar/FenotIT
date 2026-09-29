@@ -1,4 +1,4 @@
-"""Estado de una sesión de trabajo, guardable como carpeta con project.yaml."""
+"""Estado de una sesión de trabajo, guardable como carpeta con <carpeta>.fenotit (YAML)."""
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
@@ -9,7 +9,7 @@ import yaml
 
 from fenotit import __version__
 
-PROJECT_FILE = "project.yaml"
+PROJECT_EXT = ".fenotit"
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"}
 
 
@@ -49,7 +49,7 @@ class Project:
 
     @property
     def file(self) -> Path | None:
-        return self.folder / PROJECT_FILE if self.folder else None
+        return self.folder / f"{self.folder.name}{PROJECT_EXT}" if self.folder else None
 
     def set_images(self, paths, mode: str | None = None):
         self.images = [Path(p) for p in paths]
@@ -95,7 +95,10 @@ class Project:
     def load(cls, path: Path | str) -> "Project":
         path = Path(path)
         if path.is_dir():
-            path = path / PROJECT_FILE
+            found = sorted(path.glob(f"*{PROJECT_EXT}")) or sorted(path.glob("project.yaml"))
+            if not found:
+                raise FileNotFoundError(f"No hay un proyecto {PROJECT_EXT} en {path}")
+            path = found[0]
         with open(path, encoding="utf-8") as f:
             d = yaml.safe_load(f) or {}
         folder = path.parent
