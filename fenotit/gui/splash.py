@@ -5,7 +5,8 @@ ui/splash.py  —  Splash screen con tema claro científico + logo .ico
 import tkinter as tk
 from pathlib import Path
 
-from fenotit import __version__, log
+from fenotit import APP_NAME, __version__, log
+from fenotit.i18n import t
 
 _log = log.get("gui.splash")
 
@@ -63,7 +64,7 @@ class SplashScreen:
         name_col = tk.Frame(logo_row, bg="#FFFFFF")
         name_col.pack(side=tk.LEFT)
 
-        tk.Label(name_col, text="FenotIT",
+        tk.Label(name_col, text=APP_NAME,
                  bg="#FFFFFF", fg="#2166AC",
                  font=("Segoe UI", 30, "bold")).pack(anchor="w")
         tk.Label(name_col, text="Digital Phenotyping Platform",
@@ -80,7 +81,7 @@ class SplashScreen:
         tk.Frame(body, bg="#DDDDDD", height=1).pack(fill=tk.X, pady=(16, 8))
 
         # Mensaje de carga
-        self.msg_var = tk.StringVar(value="Cargando módulos de análisis…")
+        self.msg_var = tk.StringVar(value=t("splash.loading"))
         tk.Label(body, textvariable=self.msg_var,
                  bg="#FFFFFF", fg="#666666",
                  font=("Segoe UI", 8)).pack(anchor="w")
@@ -113,11 +114,9 @@ class SplashScreen:
             _log.debug("ignorado", exc_info=True)
 
         msgs = {
-            5:  "Registrando módulo: Morfometría…",
-            12: "Registrando módulo: Color KMeans…",
-            20: "Registrando módulo: Contador de semillas…",
-            30: "Preparando interfaz gráfica…",
-            37: "Casi listo…",
+            12: t("splash.modules"),
+            30: t("splash.ui"),
+            37: t("splash.almost"),
         }
         if step in msgs:
             self.msg_var.set(msgs[step])

@@ -33,7 +33,9 @@ from fenotit.gui.charts import IntraImageChartPanel, BatchChartWindow
 from fenotit.core.export.exporter import Exporter, quick_export_csv
 from fenotit.gui.theme import COLORS, FONTS
 
-from fenotit import __version__, log
+from fenotit import APP_NAME, __version__, log
+from fenotit.i18n import t
+from fenotit import i18n
 
 _log = log.get("gui.main_window")
 
@@ -124,7 +126,7 @@ class DropMenu(tk.Frame):
                            font=FONTS["body"], anchor="w", pady=4, padx=4)
             lbl.pack(fill=tk.X)
             if disabled:
-                tk.Label(row, text=" en desarrollo ",
+                tk.Label(row, text=t("common.wip_badge"),
                          bg="#FFF3CD", fg="#856404",
                          font=("Segoe UI", 7),
                          padx=4).place(relx=1.0, rely=0.5,
@@ -304,15 +306,15 @@ class MainWindow:
 
     def _update_title(self):
         mark = " *" if self._is_dirty() else ""
-        self.root.title(f"{self.project.name}{mark} — FenotIT")
+        self.root.title(f"{self.project.name}{mark} — {APP_NAME}")
         self.root.after(1000, self._update_title)
 
     def _confirm_discard(self) -> bool:
         if not self._is_dirty():
             return True
         ans = messagebox.askyesnocancel(
-            "Cambios sin guardar",
-            f"¿Guardar los cambios en «{self.project.name}»?", parent=self.root)
+            t("project.unsaved_title"),
+            t("project.unsaved_msg", name=self.project.name), parent=self.root)
         if ans is None:
             return False
         return self._save_project() if ans else True
@@ -325,15 +327,15 @@ class MainWindow:
             self.project.save()
         except Exception as e:
             _log.exception("Error guardando proyecto")
-            messagebox.showerror("Error", f"No se pudo guardar:\n{e}", parent=self.root)
+            messagebox.showerror(t("common.error"), t("project.save_error", error=e), parent=self.root)
             return False
         self._saved_state = self.project.to_dict()
-        self._set_status(f"Proyecto guardado: {self.project.file}")
+        self._set_status(t("project.saved", path=self.project.file))
         return True
 
     def _save_project_as(self) -> bool:
         folder = filedialog.askdirectory(
-            title=f"Carpeta del proyecto (se crea <carpeta>{PROJECT_EXT})", mustexist=False)
+            title=t("project.folder_title", ext=PROJECT_EXT), mustexist=False)
         if not folder:
             return False
         self.project.folder = Path(folder)
@@ -349,8 +351,8 @@ class MainWindow:
         if not self._confirm_discard():
             return
         path = filedialog.askopenfilename(
-            title="Abrir proyecto",
-            filetypes=[("Proyecto FenotIT", f"*{PROJECT_EXT}"), ("Todos", "*.*")])
+            title=t("project.open_title"),
+            filetypes=[(t("project.filetype"), f"*{PROJECT_EXT}"), (t("common.all_files"), "*.*")])
         if path:
             self.open_project_path(path)
 
@@ -359,19 +361,19 @@ class MainWindow:
             project = Project.load(path)
         except Exception as e:
             _log.exception("Error abriendo proyecto %s", path)
-            messagebox.showerror("Error", f"No se pudo abrir:\n{e}", parent=self.root)
+            messagebox.showerror(t("common.error"), t("project.open_error", error=e), parent=self.root)
             return
         missing = project.missing_images()
         if missing:
             messagebox.showwarning(
-                "Imágenes no encontradas",
-                f"{len(missing)} de {len(project.images)} imágenes no están en su ruta:\n"
+                t("project.missing_title"),
+                t("project.missing_msg", n=len(missing), total=len(project.images)) + "\n"
                 + "\n".join(str(m) for m in missing[:5])
                 + ("\n…" if len(missing) > 5 else ""), parent=self.root)
             project.images = [p for p in project.images if p.exists()]
             project.current_index = min(project.current_index, max(len(project.images) - 1, 0))
         self._apply_project(project)
-        self._set_status(f"Proyecto abierto: {project.file}")
+        self._set_status(t("project.opened", path=project.file))
 
     def _apply_project(self, project: Project):
         self.config_panel = None
@@ -407,7 +409,7 @@ class MainWindow:
             self.current_image_path = None
             self.canvas_left.delete("all")
         if project.scale.mm_per_pixel:
-            self._set_status(f"Escala: {project.scale.mm_per_pixel:.6f} mm/px")
+            self._set_status(t("status.scale", scale=f"{project.scale.mm_per_pixel:.6f} mm/px"))
         self._saved_state = self._collect_state()
 
     def _on_close(self):
@@ -417,7 +419,7 @@ class MainWindow:
     # ── Setup ─────────────────────────────────────────────────────────────────
 
     def _setup_window(self):
-        self.root.title("FenotIT — Digital Phenotyping")
+        self.root.title(f"{APP_NAME} — Digital Phenotyping")
         self.root.configure(bg=COLORS["bg"])
         ico = _assets() / "logo.ico"
         if ico.exists():
@@ -493,7 +495,7 @@ class MainWindow:
         # Panel izquierdo colapsable
         self.left_panel = CollapsiblePanel(
             self.paned, side="left",
-            title="Flujo", colors=COLORS,
+            title=t("panel.left"), colors=COLORS,
             default_width=200)
         self.paned.add(self.left_panel, minsize=CollapsiblePanel.COLLAPSED_W,
                        width=200)
@@ -505,7 +507,7 @@ class MainWindow:
         # Panel derecho colapsable
         self.right_panel = CollapsiblePanel(
             self.paned, side="right",
-            title="Config", colors=COLORS,
+            title=t("panel.right"), colors=COLORS,
             default_width=260)
         self.paned.add(self.right_panel, minsize=CollapsiblePanel.COLLAPSED_W,
                        width=260)
@@ -516,7 +518,7 @@ class MainWindow:
         self.statusbar.pack_propagate(False)
         tk.Frame(self.statusbar, bg=COLORS["border"],
                  height=1).pack(fill=tk.X)
-        self.status_var = tk.StringVar(value="Listo")
+        self.status_var = tk.StringVar(value=t("status.ready"))
         tk.Label(self.statusbar, textvariable=self.status_var,
                  bg=COLORS["bg_panel"], fg=COLORS["text_muted"],
                  font=FONTS["small"], anchor="w",
@@ -535,44 +537,44 @@ class MainWindow:
         except Exception:
             _log.debug("ignorado", exc_info=True)
 
-        tk.Label(self.topbar, text="FenotIT",
+        tk.Label(self.topbar, text=APP_NAME,
                  bg=COLORS["bg_topbar"], fg="#FFFFFF",
                  font=("Segoe UI", 12, "bold")).pack(
                      side=tk.LEFT, padx=(0, 8))
         self._vdiv()
 
         # Archivo
-        self._drop(self.topbar, "Archivo", [
-            ("🆕  Nuevo proyecto",      self._new_project),
-            ("📂  Abrir proyecto…",     self._open_project),
-            ("💾  Guardar proyecto",    self._save_project),
-            ("💾  Guardar proyecto como…", self._save_project_as),
+        self._drop(self.topbar, t("menu.file"), [
+            (t("menu.new_project"),      self._new_project),
+            (t("menu.open_project"),     self._open_project),
+            (t("menu.save_project"),    self._save_project),
+            (t("menu.save_project_as"), self._save_project_as),
             None,
-            ("📂  Cargar imagen",       self._open_image),
-            ("📁  Cargar carpeta",      self._open_folder),
+            (t("menu.load_image"),       self._open_image),
+            (t("menu.load_folder"),      self._open_folder),
             None,
-            ("💾  Exportar imagen",     self._export_results),
-            ("📦  Exportar lote",       self._export_batch),
+            (t("menu.export_image"),     self._export_results),
+            (t("menu.export_batch"),       self._export_batch),
             None,
-            ("🚪  Salir",              self._on_close),
+            (t("menu.exit"),              self._on_close),
         ])
 
         # Configuración
-        self._drop(self.topbar, "Configuración", [
-            ("Calibración óptica",
+        self._drop(self.topbar, t("menu.settings"), [
+            (t("menu.cal_optical"),
              lambda: DistortionDialog(self.root)),
-            ("Calibración de color",
+            (t("menu.cal_color"),
              lambda: ColorCardDialog(
                  self.root,
                  current_image_path=self.current_image_path)),
-            ("Calibración de perspectiva",
+            (t("menu.cal_perspective"),
              lambda: ArucoDialog(
                  self.root,
                  current_image=self.scaler_left.original
                      if self.scaler_left.has_image else None,
                  current_path=self.current_image_path,
                  batch_paths=self.batch_paths)),
-            ("Calibración de escala",
+            (t("menu.cal_scale"),
              lambda: ScaleDialog(
                  self.root,
                  current_image=self.scaler_left.original
@@ -580,35 +582,34 @@ class MainWindow:
                  current_path=self.current_image_path,
                  on_scale_set=self._on_scale_set)),
             None,
-            ("Preferencias de exportación",
-             lambda: self._wip("Preferencias de exportación",
-                "Selección de espacios de color a exportar\n"
-                "y métricas (RGB, CIELab, %, luminancia)."), True),
+            (t("menu.export_prefs"),
+             lambda: self._wip(t("menu.export_prefs"), t("wip.export_prefs")), True),
+            (t("menu.language"), self._choose_language),
             None,
-            ("Acerca de FenotIT",      self._about),
+            (t("menu.about"),      self._about),
         ])
 
         # ROI
-        self._drop(self.topbar, "ROI", [
-            ("▭  Rectángulo",
+        self._drop(self.topbar, t("menu.roi"), [
+            (t("roi.menu.rect"),
              lambda: self._set_roi_mode("rectángulo")),
-            ("◻  Cuadrado",
+            (t("roi.menu.square"),
              lambda: self._set_roi_mode("cuadrado")),
-            ("⬠  Polígono",
+            (t("roi.menu.polygon"),
              lambda: self._set_roi_mode("polígono")),
-            ("⬡  Polígono hueco",
+            (t("roi.menu.hole"),
              lambda: self._set_roi_mode("hueco")),
             None,
-            ("🚫  Zona de exclusión",
+            (t("roi.menu.exclusion"),
              lambda: self._set_roi_mode("exclusión")),
-            ("🎨  Color de exclusión",
+            (t("roi.menu.exclusion_color"),
              self._pick_exclusion_color),
-            ("✕  Limpiar exclusiones",
+            (t("roi.menu.clear_exclusions"),
              self._clear_exclusions),
             None,
-            ("🤖  IA Segmentation",    self._ai_segmentation),
+            (t("roi.menu.ai"),    self._ai_segmentation),
             None,
-            ("✕  Limpiar todo ROI",
+            (t("roi.menu.clear_all"),
              lambda: self.roi_selector.clear()
              if self.roi_selector else None),
         ])
@@ -616,7 +617,7 @@ class MainWindow:
         self._vdiv()
 
         # Análisis
-        tk.Label(self.topbar, text="Análisis:",
+        tk.Label(self.topbar, text=t("topbar.analysis"),
                  bg=COLORS["bg_topbar"], fg="#CCCCCC",
                  font=FONTS["small"]).pack(side=tk.LEFT, padx=(6, 2))
         self.analysis_var = tk.StringVar()
@@ -627,7 +628,7 @@ class MainWindow:
         self.analysis_combo.bind("<<ComboboxSelected>>",
                                  self._on_analysis_selected)
 
-        tk.Button(self.topbar, text="▶  Ejecutar",
+        tk.Button(self.topbar, text=t("topbar.run"),
                   command=self._run_analysis,
                   bg="#FFFFFF", fg=COLORS["accent"],
                   font=("Segoe UI", 9, "bold"),
@@ -639,11 +640,11 @@ class MainWindow:
 
         self._vdiv()
 
-        tk.Label(self.topbar, text="Modo:",
+        tk.Label(self.topbar, text=t("topbar.mode"),
                  bg=COLORS["bg_topbar"], fg="#CCCCCC",
                  font=FONTS["small"]).pack(side=tk.LEFT, padx=(8, 2))
         self.mode_var = tk.StringVar(value="individual")
-        for val, lbl in [("individual","Individual"),("batch","Lote")]:
+        for val, lbl in [("individual", t("mode.individual")), ("batch", t("mode.batch"))]:
             tk.Radiobutton(
                 self.topbar, text=lbl,
                 variable=self.mode_var, value=val,
@@ -664,7 +665,7 @@ class MainWindow:
     def _build_controls_bar(self):
         bar = self.controls_bar
 
-        tk.Label(bar, text="Espacio:",
+        tk.Label(bar, text=t("controls.space"),
                  bg=COLORS["bg_panel"], fg=COLORS["text_muted"],
                  font=FONTS["small"]).pack(side=tk.LEFT, padx=(10, 2))
 
@@ -676,7 +677,7 @@ class MainWindow:
         cs_combo.pack(side=tk.LEFT, padx=(0, 8), pady=4)
         cs_combo.bind("<<ComboboxSelected>>", self._on_cs_change)
 
-        tk.Label(bar, text="Canal:",
+        tk.Label(bar, text=t("controls.channel"),
                  bg=COLORS["bg_panel"], fg=COLORS["text_muted"],
                  font=FONTS["small"]).pack(side=tk.LEFT, padx=(0, 4))
 
@@ -839,7 +840,7 @@ class MainWindow:
 
             n_px = int(np.sum(mask > 0))
             pct  = round(n_px / mask.size * 100, 1)
-            self.preview_var.set(f"● preview  {n_px:,} px  ({pct}%)")
+            self.preview_var.set(t("status.preview", px=f"{n_px:,}", pct=pct))
 
         except Exception:
             _log.debug("Preview falló", exc_info=True)
@@ -852,10 +853,10 @@ class MainWindow:
     def _build_left_panel(self):
         lf = self.left_panel.content
 
-        self._section_lbl(lf, "FLUJO DE TRABAJO")
+        self._section_lbl(lf, t("left.workflow"))
         self.step_labels = []
-        for num, name in [("①","Correcciones"),("②","Cargar imagen"),
-                          ("③","ROI"),("④","Análisis"),("⑤","Exportar")]:
+        for num, name in [("①", t("step.corrections")), ("②", t("step.load")),
+                          ("③", t("step.roi")), ("④", t("step.analysis")), ("⑤", t("step.export"))]:
             f = tk.Frame(lf, bg=COLORS["bg_panel"])
             f.pack(fill=tk.X, padx=10, pady=1)
             tk.Label(f, text=num, bg=COLORS["bg_panel"],
@@ -869,12 +870,12 @@ class MainWindow:
             self.step_labels.append(lbl)
 
         self._divider(lf)
-        self._section_lbl(lf, "HISTORIAL DE PASOS")
+        self._section_lbl(lf, t("left.history"))
         self.history_frame = tk.Frame(lf, bg=COLORS["bg_panel"])
         self.history_frame.pack(fill=tk.X, padx=6)
 
         self._divider(lf)
-        self._section_lbl(lf, "LOTE")
+        self._section_lbl(lf, t("left.batch"))
 
         nav = tk.Frame(lf, bg=COLORS["bg_panel"])
         nav.pack(fill=tk.X, padx=10, pady=2)
@@ -917,10 +918,10 @@ class MainWindow:
 
         lbl_row = tk.Frame(cf, bg=COLORS["bg"])
         lbl_row.pack(fill=tk.X, padx=6, pady=(4, 0))
-        tk.Label(lbl_row, text="Entrada / Preview",
+        tk.Label(lbl_row, text=t("center.input"),
                  bg=COLORS["bg"], fg=COLORS["text_muted"],
                  font=FONTS["small"]).pack(side=tk.LEFT, expand=True)
-        tk.Label(lbl_row, text="Resultado",
+        tk.Label(lbl_row, text=t("center.result"),
                  bg=COLORS["bg"], fg=COLORS["text_muted"],
                  font=FONTS["small"]).pack(side=tk.RIGHT, expand=True)
 
@@ -1017,7 +1018,7 @@ class MainWindow:
 
         # ── Pestaña Tabla ─────────────────────────────────────────────────
         tab_table = tk.Frame(bottom_nb, bg=COLORS["bg_card"])
-        bottom_nb.add(tab_table, text="  Tabla  ")
+        bottom_nb.add(tab_table, text=f"  {t("tab.table")}  ")
 
         tv_f = tk.Frame(tab_table, bg=COLORS["bg_card"])
         tv_f.pack(fill=tk.BOTH, expand=True)
@@ -1040,26 +1041,26 @@ class MainWindow:
 
         # ── Pestaña Gráficos ──────────────────────────────────────────────
         tab_charts = tk.Frame(bottom_nb, bg=COLORS["bg_card"])
-        bottom_nb.add(tab_charts, text="  Gráficos  ")
+        bottom_nb.add(tab_charts, text=f"  {t("tab.charts")}  ")
 
         chart_ctrl = tk.Frame(tab_charts, bg=COLORS["bg_panel"])
         chart_ctrl.pack(fill=tk.X)
         tk.Button(chart_ctrl,
-                  text="📊  Esta imagen",
+                  text=t("charts.this_image"),
                   command=self._show_intra_chart,
                   bg=COLORS["btn_bg"], fg=COLORS["accent"],
                   relief="flat", font=FONTS["small"],
                   cursor="hand2", pady=3).pack(
                       side=tk.LEFT, padx=6, pady=3)
         tk.Button(chart_ctrl,
-                  text="📈  Lote completo",
+                  text=t("charts.whole_batch"),
                   command=self._show_batch_chart,
                   bg=COLORS["btn_bg"], fg=COLORS["accent2"],
                   relief="flat", font=FONTS["small"],
                   cursor="hand2", pady=3).pack(
                       side=tk.LEFT, padx=2, pady=3)
         tk.Button(chart_ctrl,
-                  text="💾  Guardar",
+                  text=t("common.save"),
                   command=self._save_intra_chart,
                   bg=COLORS["btn_bg"], fg=COLORS["text_muted"],
                   relief="flat", font=FONTS["small"],
@@ -1074,8 +1075,8 @@ class MainWindow:
 
     def _build_right_panel(self):
         rf = self.right_panel.content
-        self._section_lbl(rf, "CONFIGURACIÓN")
-        tk.Label(rf, text="Parámetros del análisis activo",
+        self._section_lbl(rf, t("right.title"))
+        tk.Label(rf, text=t("right.subtitle"),
                  bg=COLORS["bg_panel"], fg=COLORS["text_muted"],
                  font=FONTS["small"], padx=10).pack(anchor="w")
         self._divider(rf)
@@ -1126,9 +1127,9 @@ class MainWindow:
 
     def _open_image(self):
         path = filedialog.askopenfilename(
-            title="Seleccionar imagen",
-            filetypes=[("Imágenes","*.jpg *.jpeg *.png *.bmp *.tif *.tiff"),
-                       ("Todos","*.*")])
+            title=t("dlg.select_image"),
+            filetypes=[(t("common.images"),"*.jpg *.jpeg *.png *.bmp *.tif *.tiff"),
+                       (t("common.all_files"),"*.*")])
         if path:
             self.project.set_images([path], "individual")
             self._update_batch_list()
@@ -1136,14 +1137,14 @@ class MainWindow:
             self.mode_var.set("individual")
 
     def _open_folder(self):
-        folder = filedialog.askdirectory(title="Carpeta de imágenes")
+        folder = filedialog.askdirectory(title=t("dlg.image_folder"))
         if not folder:
             return
         paths = sorted(str(p) for p in Path(folder).iterdir()
                        if p.suffix.lower() in IMAGE_EXTS)
         if not paths:
-            messagebox.showwarning("Sin imágenes",
-                                   "No se encontraron imágenes.")
+            messagebox.showwarning(t("msg.no_images_title"),
+                                   t("msg.no_images"))
             return
         self.project.set_images(paths, "batch")
         self.output_root = folder
@@ -1151,7 +1152,7 @@ class MainWindow:
         self._load_single(paths[0])
         self.mode_var.set("batch")
         self._exporter = Exporter(folder)
-        self._set_status(f"{len(paths)} imágenes — {folder}")
+        self._set_status(t("status.folder_loaded", n=len(paths), folder=folder))
 
     # ── Métodos de zoom (llamados por botones) ───────────────────────────────
 
@@ -1241,7 +1242,7 @@ class MainWindow:
                 self.canvas_right.delete("all")
 
         self._refresh_history()
-        self._set_status(f"Imagen: {Path(path).name}")
+        self._set_status(t("status.image", name=Path(path).name))
 
     # ── Display ───────────────────────────────────────────────────────────────
 
@@ -1321,21 +1322,21 @@ class MainWindow:
     def _run_analysis(self):
         name = self.analysis_var.get()
         if name not in ANALYSES:
-            messagebox.showwarning("Sin análisis",
-                                   "Selecciona un análisis primero.")
+            messagebox.showwarning(t("msg.no_analysis_title"),
+                                   t("msg.no_analysis"))
             return
         if self.mode_var.get() == "batch":
             self._run_batch(name)
         else:
             if not self.scaler_left.has_image:
-                messagebox.showwarning("Sin imagen",
-                                       "Carga una imagen primero.")
+                messagebox.showwarning(t("msg.no_image_title"),
+                                       t("msg.no_image"))
                 return
             self._run_single(name, self.scaler_left.original,
                              self.current_image_path or "imagen")
 
     def _run_single(self, name: str, image: np.ndarray, path: str):
-        self._set_status(f"Ejecutando {name}…")
+        self._set_status(t("status.running", name=name))
         self.root.config(cursor="watch")
         params = self._build_params()
         def worker():
@@ -1349,12 +1350,12 @@ class MainWindow:
 
     def _run_batch(self, name: str):
         if not self.batch_paths:
-            messagebox.showwarning("Sin lote", "Carga una carpeta primero.")
+            messagebox.showwarning(t("msg.no_batch_title"), t("msg.no_batch"))
             return
         # Advertencia si hay resoluciones diferentes
         self._check_batch_resolutions()
         total = len(self.batch_paths)
-        self._set_status(f"Ejecutando {name} en lote ({total} imágenes)…")
+        self._set_status(t("status.running_batch", name=name, n=total))
         self.root.config(cursor="watch")
         params = self._build_params()
 
@@ -1394,12 +1395,8 @@ class MainWindow:
         if len(resolutions) > 1:
             res_list = ', '.join(f'{w}×{h}' for h,w in resolutions)
             messagebox.showwarning(
-                'Resoluciones diferentes',
-                f'Se detectaron {len(resolutions)} resoluciones distintas '
-                f'en el lote:\n{res_list}\n\n'
-                'El ROI definido se aplicará con coordenadas absolutas.\n'
-                'Para mejores resultados, procesa imágenes del '
-                'mismo tamaño en lotes separados.',
+                t("msg.res_title"),
+                t("msg.res_body", n=len(resolutions), list=res_list),
                 parent=self.root)
 
     def _cache_result(self, name: str, path: str,
@@ -1448,8 +1445,8 @@ class MainWindow:
         self.root.config(cursor="")
         self.last_result = result
         if result.status == "error":
-            messagebox.showerror("Error", result.error)
-            self._set_status(f"Error: {result.error}")
+            messagebox.showerror(t("common.error"), result.error)
+            self._set_status(f"{t('common.error')}: {result.error}")
             return
         self.step_names = list(result.step_images.keys())
         self.step_idx   = len(self.step_names) - 1
@@ -1476,9 +1473,9 @@ class MainWindow:
                                        save_step_images=True)
             self._exporter.append_to_csv(name, Path(path).name, result)
             self._set_status(
-                f"{name} completado — {self._exporter.results_dir}")
+                t("status.done", name=name, detail=self._exporter.results_dir))
         else:
-            self._set_status(f"{name} completado — {result.stats}")
+            self._set_status(t("status.done", name=name, detail=result.stats))
         self._refresh_history()
         self._update_step_active(3)
         self._log_process(name)
@@ -1489,7 +1486,7 @@ class MainWindow:
     def _on_batch_result(self, name: str, results: list):
         self.root.config(cursor="")
         if not results:
-            self._set_status("Sin resultados.")
+            self._set_status(t("msg.no_results_status"))
             return
 
         self.root.config(cursor="")
@@ -1518,11 +1515,11 @@ class MainWindow:
 
         if self.output_root:
             self._set_status(
-                f"Lote {name} completado — {ok_count}/{len(results)} imágenes — "
-                f"{Path(self.output_root) / 'resultados'}")
+                t("status.batch_done", name=name, ok=ok_count, n=len(results))
+                + f" — {Path(self.output_root) / 'resultados'}")
         else:
             self._set_status(
-                f"Lote {name} completado — {ok_count}/{len(results)} imágenes")
+                t("status.batch_done", name=name, ok=ok_count, n=len(results)))
 
     # ── Tabla ─────────────────────────────────────────────────────────────────
 
@@ -1656,7 +1653,7 @@ class MainWindow:
         if self.roi_selector:
             self.roi_selector.set_mode(mode)
         self._update_step_active(2)
-        self._set_status(f"ROI: modo {mode} — dibuja en el canvas izquierdo")
+        self._set_status(t("status.roi_mode", mode=t(f"roi.mode.{mode}", mode)))
 
     def _on_roi_change(self, mask):
         self._update_step_active(2)
@@ -1672,18 +1669,16 @@ class MainWindow:
             scale_result.unit_per_px * UNIT_TO_MM.get(scale_result.unit, 1.0),
             "two_points", scale_result.format())
         self.scale_result = scale_result
-        self._set_status(
-            f"Escala: {scale_result.format()}")
+        self._set_status(t("status.scale", scale=scale_result.format()))
 
     def _calibrate_scale(self):
         val = simpledialog.askfloat(
-            "Calibración de escala",
-            "Factor mm/pixel:\n"
-            "(mide una distancia conocida → divide mm / píxeles)",
+            t("menu.cal_scale"),
+            t("scale.manual_prompt"),
             minvalue=0.0001)
         if val:
             self.project.scale = Scale(val, "manual")
-            self._set_status(f"Escala: {val:.6f} mm/px")
+            self._set_status(t("status.scale", scale=f"{val:.6f} mm/px"))
 
     def _wip(self, title: str, desc: str):
         win = tk.Toplevel(self.root)
@@ -1704,17 +1699,17 @@ class MainWindow:
                  bg=COLORS["bg_card"], fg=COLORS["text"],
                  font=FONTS["body"], justify="left").pack(
                      anchor="w", pady=(8, 12))
-        tk.Label(body, text="🚧  En desarrollo — disponible en próxima versión",
+        tk.Label(body, text=t("wip.notice"),
                  bg=COLORS["bg_card"], fg=COLORS["warning"],
                  font=FONTS["small"]).pack(anchor="w")
-        tk.Button(body, text="Cerrar", command=win.destroy,
+        tk.Button(body, text=t("common.close"), command=win.destroy,
                   bg=COLORS["btn_bg"], fg=COLORS["accent"],
                   relief="flat", font=FONTS["body"],
                   cursor="hand2", padx=12).pack(anchor="e", pady=(12, 0))
 
     def _ai_segmentation(self):
         win = tk.Toplevel(self.root)
-        win.title("IA Segmentation")
+        win.title(t("ai.title"))
         win.configure(bg=COLORS["bg_card"])
         win.resizable(False, False)
         sw, sh = win.winfo_screenwidth(), win.winfo_screenheight()
@@ -1724,15 +1719,15 @@ class MainWindow:
         tk.Frame(win, bg=COLORS["accent"], height=4).pack(fill=tk.X)
         body = tk.Frame(win, bg=COLORS["bg_card"])
         body.pack(fill=tk.BOTH, expand=True, padx=20, pady=16)
-        tk.Label(body, text="🤖  IA Segmentation",
+        tk.Label(body, text=f"🤖  {t('ai.title')}",
                  bg=COLORS["bg_card"], fg=COLORS["accent"],
                  font=("Segoe UI", 13, "bold")).pack(anchor="w")
-        tk.Label(body, text="Selecciona el modelo de segmentación:",
+        tk.Label(body, text=t("ai.select_model"),
                  bg=COLORS["bg_card"], fg=COLORS["text"],
                  font=FONTS["body"]).pack(anchor="w", pady=(8, 4))
         model_var = tk.StringVar(value="SAM (Segment Anything)")
         for m in ["SAM (Segment Anything)",
-                  "YOLOv8-seg (custom)", "Otro modelo…"]:
+                  "YOLOv8-seg (custom)", t("ai.other_model")]:
             tk.Radiobutton(body, text=m,
                            variable=model_var, value=m,
                            bg=COLORS["bg_card"], fg=COLORS["text"],
@@ -1740,13 +1735,48 @@ class MainWindow:
                            activebackground=COLORS["bg_card"],
                            font=FONTS["body"]).pack(anchor="w")
         tk.Label(body,
-                 text="⚠  Módulo en desarrollo — disponible en próxima versión",
+                 text=t("wip.module"),
                  bg=COLORS["bg_card"], fg=COLORS["warning"],
                  font=FONTS["small"]).pack(anchor="w", pady=(12, 0))
-        tk.Button(body, text="Cerrar", command=win.destroy,
+        tk.Button(body, text=t("common.close"), command=win.destroy,
                   bg=COLORS["btn_bg"], fg=COLORS["accent"],
                   relief="flat", font=FONTS["body"],
                   cursor="hand2", padx=12).pack(anchor="e", pady=(12, 0))
+
+    def _choose_language(self):
+        langs = i18n.available()
+        win = tk.Toplevel(self.root)
+        win.title(t("lang.title"))
+        win.configure(bg=COLORS["bg_card"])
+        win.resizable(False, False)
+        win.transient(self.root)
+        tk.Frame(win, bg=COLORS["accent"], height=4).pack(fill=tk.X)
+        body = tk.Frame(win, bg=COLORS["bg_card"])
+        body.pack(fill=tk.BOTH, expand=True, padx=20, pady=16)
+        var = tk.StringVar(value=i18n.current())
+        for code, name in langs.items():
+            tk.Radiobutton(body, text=name, variable=var, value=code,
+                           bg=COLORS["bg_card"], fg=COLORS["text"],
+                           selectcolor=COLORS["bg_panel"],
+                           activebackground=COLORS["bg_card"],
+                           font=FONTS["body"]).pack(anchor="w")
+
+        def apply():
+            code = var.get()
+            win.destroy()
+            if code == i18n.current():
+                return
+            i18n.set_language(code)
+            messagebox.showinfo(t("lang.title"), t("lang.restart"), parent=self.root)
+
+        tk.Button(body, text="OK", command=apply,
+                  bg=COLORS["btn_bg"], fg=COLORS["accent"],
+                  relief="flat", font=FONTS["body"],
+                  cursor="hand2", padx=12).pack(anchor="e", pady=(12, 0))
+        win.update_idletasks()
+        sw, sh = win.winfo_screenwidth(), win.winfo_screenheight()
+        w, h = max(win.winfo_reqwidth(), 260), win.winfo_reqheight()
+        win.geometry(f"{w}x{h}+{(sw - w) // 2}+{(sh - h) // 2}")
 
     def _system_info(self) -> str:
         try:
@@ -1754,19 +1784,18 @@ class MainWindow:
             scale = ctypes.windll.shcore.GetScaleFactorForDevice(0)
         except Exception:
             scale = round(self.root.winfo_fpixels("1i") / 96 * 100)
-        return (f"Versión {__version__}  ·  Python {platform.python_version()}\n"
-                f"{platform.system()} {platform.release()}  ·  "
-                f"Pantalla {self.root.winfo_screenwidth()}×{self.root.winfo_screenheight()} "
-                f"al {scale} %\n"
-                f"Log: {log.log_file()}")
+        return t("about.system", version=__version__, python=platform.python_version(),
+                 os=f"{platform.system()} {platform.release()}",
+                 screen=f"{self.root.winfo_screenwidth()}×{self.root.winfo_screenheight()}",
+                 scale=scale, log=log.log_file())
 
     def _about(self):
-        about_file = _assets() / "about.txt"
-        text = about_file.read_text(encoding="utf-8") \
-               if about_file.exists() \
-               else "[Contenido pendiente — edita assets/about.txt]"
+        about_file = _assets() / f"about_{i18n.current()}.txt"
+        if not about_file.exists():
+            about_file = _assets() / "about_en.txt"
+        text = about_file.read_text(encoding="utf-8") if about_file.exists() else ""
         win = tk.Toplevel(self.root)
-        win.title("Acerca de FenotIT")
+        win.title(t("menu.about"))
         win.configure(bg=COLORS["bg_card"])
         sw, sh = win.winfo_screenwidth(), win.winfo_screenheight()
         try: win.iconbitmap(str(_assets()/"logo.ico"))
@@ -1774,7 +1803,7 @@ class MainWindow:
         tk.Frame(win, bg=COLORS["accent"], height=4).pack(fill=tk.X)
         body = tk.Frame(win, bg=COLORS["bg_card"])
         body.pack(fill=tk.BOTH, expand=True, padx=20, pady=16)
-        tk.Label(body, text="FenotIT",
+        tk.Label(body, text=APP_NAME,
                  bg=COLORS["bg_card"], fg=COLORS["accent"],
                  font=("Segoe UI", 16, "bold")).pack(anchor="w")
         tk.Label(body, text="Digital Phenotyping Platform",
@@ -1792,7 +1821,7 @@ class MainWindow:
                  bg=COLORS["bg_card"], fg=COLORS["text_muted"],
                  font=FONTS["small"], justify="left",
                  wraplength=380).pack(anchor="w")
-        tk.Button(body, text="Cerrar", command=win.destroy,
+        tk.Button(body, text=t("common.close"), command=win.destroy,
                   bg=COLORS["btn_bg"], fg=COLORS["accent"],
                   relief="flat", font=FONTS["body"],
                   cursor="hand2", padx=12).pack(anchor="e", pady=(12, 0))
@@ -1807,8 +1836,8 @@ class MainWindow:
         available = list(self.results_cache.keys())
         if not available and not self._exporter:
             messagebox.showwarning(
-                "Sin resultados",
-                "Ejecuta al menos un análisis primero.",
+                t("msg.no_results_title"),
+                t("msg.no_results"),
                 parent=self.root)
             return
         # Inferir análisis disponibles del cache
@@ -1835,16 +1864,16 @@ class MainWindow:
             self._chart_panel.load(self.last_result.measurements)
         elif self._chart_panel:
             messagebox.showinfo(
-                'Sin datos',
-                'Ejecuta un análisis primero para ver los gráficos.',
+                t("msg.no_data_title"),
+                t("msg.no_data_image"),
                 parent=self.root)
 
     def _show_batch_chart(self):
         """Abre ventana de gráficos del lote con todos los análisis."""
         if not self.results_cache:
             messagebox.showinfo(
-                "Sin datos",
-                "Procesa el lote primero para ver gráficos comparativos.",
+                t("msg.no_data_title"),
+                t("msg.no_data_batch"),
                 parent=self.root)
             return
         # Agrupar results_cache por análisis

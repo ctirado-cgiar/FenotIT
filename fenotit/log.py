@@ -1,17 +1,15 @@
 import logging
-import os
 import sys
 import threading
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from fenotit import __version__
+from fenotit import APP_NAME, __version__
 
 
 def log_dir() -> Path:
-    base = os.environ.get("LOCALAPPDATA")
-    root = Path(base) / "FenotIT" if base else Path.home() / ".fenotit"
-    return root / "logs"
+    from fenotit.settings import data_dir
+    return data_dir() / "logs"
 
 
 def log_file() -> Path:
@@ -51,5 +49,5 @@ def setup(console_level=logging.WARNING) -> Path | None:
         "Error no controlado en hilo %s", a.thread.name if a.thread else "?",
         exc_info=(a.exc_type, a.exc_value, a.exc_traceback))
 
-    root.info("FenotIT %s | Python %s | %s", __version__, sys.version.split()[0], sys.platform)
+    root.info("%s %s | Python %s | %s", APP_NAME, __version__, sys.version.split()[0], sys.platform)
     return path
