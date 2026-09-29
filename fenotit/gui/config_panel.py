@@ -168,14 +168,23 @@ class ConfigPanel(tk.Frame):
         tk.Frame(parent, bg=self.colors["border"],
                  height=1).pack(fill=tk.X, padx=6, pady=(2,0))
 
-    def get_values(self) -> dict[str, Any]:
+    def get_values(self, warn: bool = True) -> dict[str, Any]:
         out = {}
         for k, v in self._vars.items():
             try:
                 out[k] = v.get()
             except Exception:
-                _log.warning("Valor inválido en '%s'; se usa el valor por defecto", k)
+                if warn:
+                    _log.warning("Valor inválido en '%s'; se usa el valor por defecto", k)
         return out
+
+    def set_values(self, values: dict[str, Any]):
+        for k, v in (values or {}).items():
+            if k in self._vars:
+                try:
+                    self._vars[k].set(v)
+                except Exception:
+                    _log.warning("No se pudo restaurar '%s' = %r", k, v)
 
     def _show_tip(self, event, label: str, text: str):
         for tw in self._tips:

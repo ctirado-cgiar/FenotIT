@@ -19,6 +19,7 @@ import numpy as np
 from PIL import Image, ImageTk
 
 from fenotit.core.image_io import ImageScaler, load_image
+from fenotit.core.project import IMAGE_EXTS, PROJECT_FILE, Project, Scale, Segmentation
 from fenotit.gui.roi.selectors import ROISelector
 from fenotit.core.analysis.registry import ANALYSES, AnalysisResult
 from fenotit.core.export.exporter import Exporter
@@ -56,6 +57,14 @@ CV2_CODES = {
     "XYZ":   cv2.COLOR_BGR2XYZ,
     "YUV":   cv2.COLOR_BGR2YUV,
 }
+
+
+def _analysis_key(name: str) -> str:
+    return ANALYSES[name].func.__module__.rsplit(".", 1)[-1]
+
+
+def _analysis_name(key: str | None) -> str | None:
+    return next((n for n in ANALYSES if _analysis_key(n) == key), None)
 
 
 def _assets() -> Path:
@@ -220,9 +229,9 @@ class MainWindow:
 
         self.scaler_left   = ImageScaler()
         self.scaler_right  = ImageScaler()
+        self.project = Project()
+        self._saved_state = self.project.to_dict()
         self.current_image_path: str | None = None
-        self.batch_paths:  list[str] = []
-        self.batch_index:  int = 0
         self.last_result:  AnalysisResult | None = None
         self.step_names:   list[str] = []
         self.step_idx:     int = 0
@@ -231,7 +240,6 @@ class MainWindow:
         self.results_cache: dict[str, AnalysisResult] = {}
         self.step_names_cache: dict[str, list] = {}
         self.output_root:  str | None = None
-        self.mm_per_pixel: float | None = None
         self.active_analysis: str | None = None
         self._after_resize_id  = None
         self._after_preview_id = None
@@ -254,6 +262,150 @@ class MainWindow:
         self._build_right_panel()
         self._bind_resize()
         self._populate_analysis_menu()
+        self._saved_state = self._collect_state()
+        self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+        self._update_title()
+
+    # ── Estado del proyecto ───────────────────────────────────────────────────
+
+    @property
+    def batch_paths(self) -> list[str]:
+        return [str(p) for p in self.project.images]
+
+    @property
+    def batch_index(self) -> int:
+        return self.project.current_index
+
+    @batch_index.setter
+    def batch_index(self, value: int):
+        self.project.current_index = value
+
+    @property
+    def mm_per_pixel(self) -> float | None:
+        return self.project.scale.mm_per_pixel
+
+    def _store_panel_params(self):
+        panel = getattr(self, "config_panel", None)
+        if panel is not None and self.active_analysis in ANALYSES:
+            self.project.params[_analysis_key(self.active_analysis)] = panel.get_values(warn=False)
+
+    def _collect_state(self) -> dict:
+        self._store_panel_params()
+        self.project.mode = self.mode_var.get()
+        self.project.segmentation = Segmentation(
+            self.cs_var.get(), int(self.ch_var.get()),
+            int(self.min_slider.get()), int(self.max_slider.get()))
+        return self.project.to_dict()
+
+    def _is_dirty(self) -> bool:
+        return self._collect_state() != self._saved_state
+
+    def _update_title(self):
+        mark = " *" if self._is_dirty() else ""
+        self.root.title(f"{self.project.name}{mark} — FenotIT")
+        self.root.after(1000, self._update_title)
+
+    def _confirm_discard(self) -> bool:
+        if not self._is_dirty():
+            return True
+        ans = messagebox.askyesnocancel(
+            "Cambios sin guardar",
+            f"¿Guardar los cambios en «{self.project.name}»?", parent=self.root)
+        if ans is None:
+            return False
+        return self._save_project() if ans else True
+
+    def _save_project(self) -> bool:
+        if self.project.folder is None:
+            return self._save_project_as()
+        self._collect_state()
+        try:
+            self.project.save()
+        except Exception as e:
+            _log.exception("Error guardando proyecto")
+            messagebox.showerror("Error", f"No se pudo guardar:\n{e}", parent=self.root)
+            return False
+        self._saved_state = self.project.to_dict()
+        self._set_status(f"Proyecto guardado: {self.project.file}")
+        return True
+
+    def _save_project_as(self) -> bool:
+        folder = filedialog.askdirectory(
+            title="Carpeta del proyecto (se crea project.yaml)", mustexist=False)
+        if not folder:
+            return False
+        self.project.folder = Path(folder)
+        self.project.name = Path(folder).name
+        return self._save_project()
+
+    def _new_project(self):
+        if not self._confirm_discard():
+            return
+        self._apply_project(Project())
+
+    def _open_project(self):
+        if not self._confirm_discard():
+            return
+        path = filedialog.askopenfilename(
+            title="Abrir proyecto", filetypes=[("Proyecto FenotIT", PROJECT_FILE)])
+        if not path:
+            return
+        try:
+            project = Project.load(path)
+        except Exception as e:
+            _log.exception("Error abriendo proyecto %s", path)
+            messagebox.showerror("Error", f"No se pudo abrir:\n{e}", parent=self.root)
+            return
+        missing = project.missing_images()
+        if missing:
+            messagebox.showwarning(
+                "Imágenes no encontradas",
+                f"{len(missing)} de {len(project.images)} imágenes no están en su ruta:\n"
+                + "\n".join(str(m) for m in missing[:5])
+                + ("\n…" if len(missing) > 5 else ""), parent=self.root)
+            project.images = [p for p in project.images if p.exists()]
+            project.current_index = min(project.current_index, max(len(project.images) - 1, 0))
+        self._apply_project(project)
+        self._set_status(f"Proyecto abierto: {project.file}")
+
+    def _apply_project(self, project: Project):
+        self.config_panel = None
+        self.project = project
+        seg = project.segmentation
+        self.cs_var.set(seg.color_space)
+        self._update_channel_names()
+        self.ch_var.set(seg.channel)
+        self.min_slider.set(seg.min_val)
+        self.max_slider.set(seg.max_val)
+        self.mode_var.set(project.mode)
+
+        name = _analysis_name(project.analysis) or self.analysis_var.get()
+        self.analysis_var.set(name)
+        self._on_analysis_selected(None)
+
+        self.results_cache.clear()
+        self.step_names_cache.clear()
+        self.all_results_by_analysis.clear()
+        self._exporter = None
+        self.output_root = None
+        self.canvas_right.delete("all")
+        self._update_batch_list()
+        if project.current_image:
+            if project.mode == "batch":
+                self.output_root = str(project.images[0].parent)
+                self._exporter = Exporter(self.output_root)
+            self._load_single(str(project.current_image))
+            self._sync_listbox()
+        else:
+            self.current_image_path = None
+            self.canvas_left.delete("all")
+        if project.scale.mm_per_pixel:
+            self._set_status(f"Escala: {project.scale.mm_per_pixel:.6f} mm/px")
+        self._saved_state = self._collect_state()
+
+    def _on_close(self):
+        if self._confirm_discard():
+            self.root.destroy()
 
     # ── Setup ─────────────────────────────────────────────────────────────────
 
@@ -384,13 +536,18 @@ class MainWindow:
 
         # Archivo
         self._drop(self.topbar, "Archivo", [
+            ("🆕  Nuevo proyecto",      self._new_project),
+            ("📂  Abrir proyecto…",     self._open_project),
+            ("💾  Guardar proyecto",    self._save_project),
+            ("💾  Guardar proyecto como…", self._save_project_as),
+            None,
             ("📂  Cargar imagen",       self._open_image),
             ("📁  Cargar carpeta",      self._open_folder),
             None,
             ("💾  Exportar imagen",     self._export_results),
             ("📦  Exportar lote",       self._export_batch),
             None,
-            ("🚪  Salir",              self.root.quit),
+            ("🚪  Salir",              self._on_close),
         ])
 
         # Configuración
@@ -966,6 +1123,8 @@ class MainWindow:
             filetypes=[("Imágenes","*.jpg *.jpeg *.png *.bmp *.tif *.tiff"),
                        ("Todos","*.*")])
         if path:
+            self.project.set_images([path], "individual")
+            self._update_batch_list()
             self._load_single(path)
             self.mode_var.set("individual")
 
@@ -973,15 +1132,13 @@ class MainWindow:
         folder = filedialog.askdirectory(title="Carpeta de imágenes")
         if not folder:
             return
-        exts  = {".jpg",".jpeg",".png",".bmp",".tif",".tiff"}
         paths = sorted(str(p) for p in Path(folder).iterdir()
-                       if p.suffix.lower() in exts)
+                       if p.suffix.lower() in IMAGE_EXTS)
         if not paths:
             messagebox.showwarning("Sin imágenes",
                                    "No se encontraron imágenes.")
             return
-        self.batch_paths = paths
-        self.batch_index = 0
+        self.project.set_images(paths, "batch")
         self.output_root = folder
         self._update_batch_list()
         self._load_single(paths[0])
@@ -1121,13 +1278,16 @@ class MainWindow:
         name = self.analysis_var.get()
         if name not in ANALYSES:
             return
+        self._store_panel_params()
         self.active_analysis = name
+        self.project.analysis = _analysis_key(name)
         for w in self.config_container.winfo_children():
             w.destroy()
         self.config_panel = ConfigPanel(
             self.config_container,
             schema=ANALYSES[name].params_schema,
             colors=COLORS)
+        self.config_panel.set_values(self.project.params.get(self.project.analysis, {}))
         self.config_panel.pack(fill=tk.BOTH, expand=True)
 
     def _build_params(self) -> dict:
@@ -1501,8 +1661,9 @@ class MainWindow:
         """Callback desde ScaleDialog — aplica la escala al estado."""
         from fenotit.core.corrections.scale import UNIT_TO_MM
         # Guardamos mm/px para compatibilidad con los módulos de análisis
-        self.mm_per_pixel = scale_result.unit_per_px * \
-            UNIT_TO_MM.get(scale_result.unit, 1.0)
+        self.project.scale = Scale(
+            scale_result.unit_per_px * UNIT_TO_MM.get(scale_result.unit, 1.0),
+            "two_points", scale_result.format())
         self.scale_result = scale_result
         self._set_status(
             f"Escala: {scale_result.format()}")
@@ -1514,7 +1675,7 @@ class MainWindow:
             "(mide una distancia conocida → divide mm / píxeles)",
             minvalue=0.0001)
         if val:
-            self.mm_per_pixel = val
+            self.project.scale = Scale(val, "manual")
             self._set_status(f"Escala: {val:.6f} mm/px")
 
     def _wip(self, title: str, desc: str):
