@@ -39,14 +39,14 @@ class ConfigPanel(tk.Frame):
                                       anchor="nw")
 
         self.inner.bind("<Configure>",
-            lambda e: canvas.configure(
+            lambda e=None: canvas.configure(
                 scrollregion=canvas.bbox("all")))
         canvas.bind("<Configure>",
-            lambda e: canvas.itemconfig(win_id, width=e.width))
+            lambda e=None: canvas.itemconfig(win_id, width=e.width))
 
         def _enter(e): canvas.bind_all(
             "<MouseWheel>",
-            lambda e: canvas.yview_scroll(
+            lambda e=None: canvas.yview_scroll(
                 int(-1*(e.delta/120)), "units"))
         def _leave(e): canvas.unbind_all("<MouseWheel>")
         canvas.bind("<Enter>", _enter)
@@ -239,4 +239,4 @@ class ConfigPanel(tk.Frame):
         tw.wm_geometry(f"+{x}+{y}")
         self._tips.append(tw)
         tw.focus_set()
-        tw.bind("<FocusOut>", lambda e: tw.destroy())
+        tw.bind("<FocusOut>", lambda e=None: tw.destroy())

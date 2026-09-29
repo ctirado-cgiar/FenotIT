@@ -211,7 +211,7 @@ class IntraImageChartPanel(tk.Frame):
                               font=FONTS["small"])
             cb.pack(side=tk.LEFT, padx=2, pady=3)
             cb.bind("<<ComboboxSelected>>",
-                    lambda e: self._refresh())
+                    lambda e=None: self._refresh())
             self._var_selectors.append(cb)
 
         # Área del gráfico
@@ -488,7 +488,7 @@ class BatchChartWindow(tk.Toplevel):
                 sv.set(defaults[i])
             cb.pack(side=tk.LEFT, padx=2)
             cb.bind("<<ComboboxSelected>>",
-                    lambda e: self._refresh())
+                    lambda e=None: self._refresh())
 
         tk.Frame(ctrl, bg=COLORS["border"],
                  width=1).pack(side=tk.LEFT, fill=tk.Y,

@@ -156,7 +156,7 @@ class DropMenu(tk.Frame):
                         widget.bind("<Button-1>", click)
                 _bind(row)
 
-        popup.bind("<FocusOut>", lambda e: popup.destroy())
+        popup.bind("<FocusOut>", lambda e=None: popup.destroy())
         popup.focus_set()
 
 
@@ -192,7 +192,7 @@ class CollapsiblePanel(tk.Frame):
             bg=colors["bg_panel"], fg=colors["accent"],
             font=("Segoe UI", 9), cursor="hand2")
         self._toggle_btn.place(relx=0.5, rely=0.5, anchor="center")
-        self._toggle_btn.bind("<Button-1>", lambda e: self.toggle())
+        self._toggle_btn.bind("<Button-1>", lambda e=None: self.toggle())
 
         # Contenedor del contenido
         self.content = tk.Frame(self, bg=colors["bg_panel"])

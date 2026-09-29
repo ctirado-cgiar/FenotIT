@@ -128,7 +128,7 @@ class ZoomController:
         # Clic izquierdo da foco al canvas (necesario para flechas)
         # IMPORTANTE: add="+" para no reemplazar el bind del ROI
         canvas_left.bind("<ButtonPress-1>",
-                         lambda e: e.widget.focus_set(), add="+")
+                         lambda e=None: e.widget.focus_set(), add="+")
 
     # ── API pública ───────────────────────────────────────────────────────────
 
@@ -313,8 +313,8 @@ class ZoomableCanvas(tk.Canvas):
         self.bind("<Up>",    self._on_arrow)
         self.bind("<Down>",  self._on_arrow)
         self.bind("<ButtonPress-1>",
-                  lambda e: e.widget.focus_set(), add="+")
-        self.bind("<Configure>", lambda e: self._fit_if_needed())
+                  lambda e=None: e.widget.focus_set(), add="+")
+        self.bind("<Configure>", lambda e=None: self._fit_if_needed())
         self.bind("<MouseWheel>", self._on_wheel)
         self.bind("<Button-4>", self._on_wheel)
         self.bind("<Button-5>", self._on_wheel)
