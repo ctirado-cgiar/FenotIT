@@ -26,7 +26,7 @@ try:
 except ImportError:
     MPL_OK = False
 
-from ui.theme import COLORS, FONTS
+from fenotit.gui.theme import COLORS, FONTS
 
 
 def _assets() -> Path:

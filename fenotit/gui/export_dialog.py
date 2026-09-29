@@ -7,7 +7,7 @@ Permite elegir qué exportar: análisis individual o todo.
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from pathlib import Path
-from ui.theme import COLORS, FONTS
+from fenotit.gui.theme import COLORS, FONTS
 
 
 def _assets() -> Path:

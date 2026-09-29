@@ -12,27 +12,24 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
 import threading
 from pathlib import Path
-import sys
 
 import cv2
 import numpy as np
 from PIL import Image, ImageTk
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from utils.image_io import ImageScaler, load_image
-from roi.selectors import ROISelector
-from analysis.registry import ANALYSES, AnalysisResult
-from export.exporter import Exporter
-from ui.config_panel import ConfigPanel
-from ui.zoom_controller import ZoomController
-from ui.calibration_dialogs import (
+from fenotit.core.image_io import ImageScaler, load_image
+from fenotit.gui.roi.selectors import ROISelector
+from fenotit.core.analysis.registry import ANALYSES, AnalysisResult
+from fenotit.core.export.exporter import Exporter
+from fenotit.gui.config_panel import ConfigPanel
+from fenotit.gui.zoom_controller import ZoomController
+from fenotit.gui.calibration_dialogs import (
     DistortionDialog, ColorCardDialog,
     ArucoDialog, ScaleDialog)
-from ui.export_dialog import ExportDialog
-from ui.charts import IntraImageChartPanel, BatchChartWindow
-from export.exporter import Exporter, quick_export_csv
-from ui.theme import COLORS, FONTS
+from fenotit.gui.export_dialog import ExportDialog
+from fenotit.gui.charts import IntraImageChartPanel, BatchChartWindow
+from fenotit.core.export.exporter import Exporter, quick_export_csv
+from fenotit.gui.theme import COLORS, FONTS
 
 CHANNEL_NAMES = {
     "BGR":   ["B", "G", "R"],
@@ -1494,7 +1491,7 @@ class MainWindow:
 
     def _on_scale_set(self, scale_result):
         """Callback desde ScaleDialog — aplica la escala al estado."""
-        from corrections.scale import UNIT_TO_MM
+        from fenotit.core.corrections.scale import UNIT_TO_MM
         # Guardamos mm/px para compatibilidad con los módulos de análisis
         self.mm_per_pixel = scale_result.unit_per_px * \
             UNIT_TO_MM.get(scale_result.unit, 1.0)

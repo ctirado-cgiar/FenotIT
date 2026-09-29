@@ -2,7 +2,7 @@
 
 ## Cómo agregar un nuevo análisis
 
-1. **Crear el módulo** en `analysis/mi_analisis.py`
+1. **Crear el módulo** en `fenotit/core/analysis/mi_analisis.py`
 
 ```python
 import numpy as np
@@ -36,7 +36,7 @@ register(
 )
 ```
 
-2. **Registrar el import** en `analysis/registry.py`, sección `_load_modules()`:
+2. **Registrar el import** en `fenotit/core/analysis/registry.py`, sección `_load_modules()`:
 
 ```python
 try:
@@ -53,28 +53,30 @@ Eso es todo. La UI detecta el nuevo análisis automáticamente.
 
 ```
 FenotIT/
-├── main.py                     # Punto de entrada
-├── ui/
-│   ├── main_window.py          # Ventana principal (3 paneles)
-│   ├── splash.py               # Pantalla de carga
-│   ├── config_panel.py         # Panel de parámetros con tooltips ?
-│   └── step_navigator.py       # Placeholder futuro
-├── analysis/
-│   ├── registry.py             # Registro central + AnalysisResult
-│   ├── morphometry.py          # Morfometría (scripts 08/09)
-│   ├── color_kmeans.py         # KMeans color (script 10.0)
-│   └── seed_counter.py         # Contador semillas (script 15)
-├── corrections/                # Pre-procesamiento (pendiente)
-│   ├── distortion.py           # 01/02 ajedrez
-│   ├── color_card.py           # 03/04 PlantCV
-│   ├── aruco.py                # corrección ArUco
-│   └── scale.py                # factor mm/px interactivo
-├── roi/
-│   └── selectors.py            # ROI: rectángulo, cuadrado, polígono, hueco
-├── export/
-│   └── exporter.py             # CSV/JSON/imágenes, estructura del pipeline
-└── utils/
-    └── image_io.py             # Loader Unicode-safe + ImageScaler responsivo
+├── main.py                       # Lanzador (equivale a `python -m fenotit`)
+├── pyproject.toml
+├── fenotit/
+│   ├── __init__.py               # __version__
+│   ├── cli.py                    # Línea de comandos; sin argumentos abre la GUI
+│   ├── assets/                   # logo.ico, about.txt
+│   ├── core/                     # Sin tkinter
+│   │   ├── image_io.py           # Loader Unicode-safe + ImageScaler
+│   │   ├── analysis/
+│   │   │   ├── registry.py       # Registro central + AnalysisResult
+│   │   │   ├── morphometry.py
+│   │   │   ├── color_kmeans.py
+│   │   │   └── seed_counter.py
+│   │   ├── corrections/          # distortion, color_card, aruco, scale
+│   │   └── export/exporter.py
+│   └── gui/                      # tkinter
+│       ├── app.py                # Splash + ventana principal
+│       ├── main_window.py
+│       ├── config_panel.py, charts.py, calibration_dialogs.py, ...
+│       └── roi/selectors.py
+└── tests/
+    ├── images/                   # Imágenes de prueba
+    ├── reference/                # Resultados de referencia
+    └── reference.py              # Compara contra la referencia
 ```
 
 ## Estructura de params{}
@@ -93,7 +95,7 @@ Todos los módulos de análisis reciben un dict `params` con:
 
 ## Escalado de imágenes
 
-`utils/image_io.ImageScaler` maneja todo el escalado:
+`fenotit/core/image_io.ImageScaler` maneja todo el escalado:
 - `scaler.original` → imagen full-res para análisis
 - `scaler.display`  → imagen escalada al canvas para visualización
 - `scaler.display_to_original(x, y)` → convierte coords de click → originales

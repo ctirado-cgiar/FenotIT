@@ -18,8 +18,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 with contextlib.redirect_stdout(io.StringIO()):
-    from analysis.registry import ANALYSES
-from utils.image_io import load_image
+    from fenotit.core.analysis.registry import ANALYSES
+from fenotit.core.image_io import load_image
 
 IMAGES = sorted((ROOT / "tests" / "images").glob("*.jpg"))
 REF_DIR = ROOT / "tests" / "reference"

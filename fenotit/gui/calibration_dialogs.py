@@ -15,8 +15,8 @@ import numpy as np
 from pathlib import Path
 from PIL import Image, ImageTk
 
-from ui.theme import COLORS, FONTS
-from ui.zoom_controller import ZoomController, ZoomState
+from fenotit.gui.theme import COLORS, FONTS
+from fenotit.gui.zoom_controller import ZoomController, ZoomState
 
 
 def _assets() -> Path:
@@ -328,7 +328,7 @@ class DistortionDialog(BaseDialog):
                                    parent=self)
             return
 
-        from corrections.distortion import calibrate_from_folder
+        from fenotit.core.corrections.distortion import calibrate_from_folder
         self._log_var.set("Calibrando…")
         self.update_idletasks()
 
@@ -372,7 +372,7 @@ class DistortionDialog(BaseDialog):
                 "Selecciona la carpeta con imágenes a corregir.", parent=self)
             return
 
-        from corrections.distortion import apply_correction
+        from fenotit.core.corrections.distortion import apply_correction
 
         def worker():
             results = apply_correction(
@@ -541,7 +541,7 @@ class ColorCardDialog(BaseDialog):
                                    parent=self)
             return
         self._log_var.set("Detectando tarjeta…")
-        from corrections.color_card import detect_and_save_mask
+        from fenotit.core.corrections.color_card import detect_and_save_mask
         ok, msg, mask = detect_and_save_mask(
             path, radius=self._radius.get())
         if ok:
@@ -563,7 +563,7 @@ class ColorCardDialog(BaseDialog):
                                    parent=self)
             return
         out_folder = str(Path(path).parent / "colorCorrejidas")
-        from corrections.color_card import correct_single
+        from fenotit.core.corrections.color_card import correct_single
         ok, msg = correct_single(path, self._mask, out_folder,
                                  pos=self._pos.get())
         self._log_var.set(f"{'✓' if ok else '✗'}  {msg}")
@@ -591,7 +591,7 @@ class ColorCardDialog(BaseDialog):
                 parent=self):
             return
 
-        from corrections.color_card import correct_batch
+        from fenotit.core.corrections.color_card import correct_batch
 
         def worker():
             results = correct_batch(
@@ -719,11 +719,11 @@ class ArucoDialog(BaseDialog):
                   cursor="hand2", padx=10).pack(side=tk.RIGHT, padx=2)
 
     def _show_preview(self, img: np.ndarray):
-        from corrections.aruco import preview_detection
+        from fenotit.core.corrections.aruco import preview_detection
         prev = preview_detection(img)
         self._canvas.set_image(prev)   # ZoomableCanvas maneja el escalado
 
-        from corrections.aruco import detect_aruco_corners
+        from fenotit.core.corrections.aruco import detect_aruco_corners
         found = detect_aruco_corners(img)
         n = len(found)
         if n == 4:
@@ -748,7 +748,7 @@ class ArucoDialog(BaseDialog):
                                    "Carga una imagen primero.",
                                    parent=self)
             return
-        from corrections.aruco import correct_perspective
+        from fenotit.core.corrections.aruco import correct_perspective
         corrected, msg = correct_perspective(
             self._current_image, margin=self._margin.get())
         if corrected is None:
@@ -775,7 +775,7 @@ class ArucoDialog(BaseDialog):
                                    "Selecciona la carpeta del lote.",
                                    parent=self)
             return
-        from corrections.aruco import correct_batch
+        from fenotit.core.corrections.aruco import correct_batch
 
         def worker():
             results = correct_batch(
@@ -901,7 +901,7 @@ class ScaleDialog(BaseDialog):
                  bg=COLORS["bg_card"], fg=COLORS["text"],
                  font=FONTS["body"]).pack(side=tk.LEFT, padx=(12, 2))
         self._unit_var = tk.StringVar(value="mm")
-        from corrections.scale import UNITS
+        from fenotit.core.corrections.scale import UNITS
         ttk.Combobox(step3, textvariable=self._unit_var,
                      values=UNITS, state="readonly", width=4,
                      font=FONTS["body"]).pack(side=tk.LEFT)
@@ -1054,7 +1054,7 @@ class ScaleDialog(BaseDialog):
     def _compute(self):
         if len(self._points) != 2:
             return
-        from corrections.scale import compute_scale
+        from fenotit.core.corrections.scale import compute_scale
         try:
             # Puntos ya están en coordenadas de imagen original
             result = compute_scale(
