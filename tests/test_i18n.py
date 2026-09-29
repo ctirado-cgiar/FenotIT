@@ -10,7 +10,7 @@ LANG = ROOT / "fenotit" / "lang"
 def _keys_in_code():
     keys = set()
     for f in (ROOT / "fenotit").rglob("*.py"):
-        keys |= set(re.findall(r'\bt\(\s*"([a-z_]+(?:\.[a-z_]+)+)"', f.read_text(encoding="utf-8")))
+        keys |= set(re.findall(r'\bt\(\s*["\']([a-z_]+(?:\.[a-z_]+)+)["\']', f.read_text(encoding="utf-8")))
     return keys
 
 

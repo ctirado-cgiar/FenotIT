@@ -25,9 +25,9 @@ from fenotit.core.analysis.registry import ANALYSES, AnalysisResult
 from fenotit.core.export.exporter import Exporter
 from fenotit.gui.config_panel import ConfigPanel
 from fenotit.gui.zoom_controller import ZoomController
-from fenotit.gui.calibration_dialogs import (
-    DistortionDialog, ColorCardDialog,
-    ArucoDialog, ScaleDialog)
+from fenotit.gui.calibration_dialogs import ScaleDialog
+from fenotit.gui.corrections_dialog import CorrectionsDialog
+from fenotit.core.corrections import pipeline as corrections
 from fenotit.gui.export_dialog import ExportDialog
 from fenotit.gui.charts import IntraImageChartPanel, BatchChartWindow
 from fenotit.core.export.exporter import Exporter, quick_export_csv
@@ -236,6 +236,7 @@ class MainWindow:
         self.scaler_left   = ImageScaler()
         self.scaler_right  = ImageScaler()
         self.project = Project(name=t("project.untitled"))
+        self._corr_info: dict[str, corrections.CorrectionInfo] = {}
         self._saved_state = self.project.to_dict()
         self.current_image_path: str | None = None
         self.last_result:  AnalysisResult | None = None
@@ -288,7 +289,65 @@ class MainWindow:
 
     @property
     def mm_per_pixel(self) -> float | None:
+        return self._scale_for(self.current_image_path)
+
+    def _scale_for(self, path: str | None) -> float | None:
+        if self.project.scale.source == "aruco":
+            info = self._corr_info.get(path) if path else None
+            return info.mm_per_px if info else None
         return self.project.scale.mm_per_pixel
+
+    def _load_corrected(self, path: str):
+        img = load_image(path)
+        if img is None:
+            return None, None
+        img, info = corrections.apply(img, self.project.corrections)
+        self._corr_info[path] = info
+        return img, info
+
+    def _load_corrected_image(self, path: str):
+        return self._load_corrected(path)[0]
+
+    def _open_corrections(self):
+        raw = load_image(self.current_image_path) if self.current_image_path else None
+        CorrectionsDialog(self.root, self.project.corrections, raw,
+                          aruco_scale=self.project.scale.source == "aruco",
+                          on_apply=self._on_corrections_applied)
+
+    def _on_corrections_applied(self, corr, use_aruco_scale: bool):
+        self.project.corrections = corr
+        if use_aruco_scale:
+            self.project.scale = Scale(None, "aruco")
+        elif self.project.scale.source == "aruco":
+            self.project.scale = Scale()
+        self._invalidate_results()
+        if self.current_image_path:
+            self._load_single(self.current_image_path)
+        self._update_corr_indicator()
+
+    def _invalidate_results(self):
+        self._corr_info.clear()
+        self.results_cache.clear()
+        self.step_names_cache.clear()
+        self.all_results_by_analysis.clear()
+        self.last_result = None
+        self.canvas_right.delete("all")
+
+    def _clear_scale(self):
+        self.project.scale = Scale()
+        self._set_status(t("status.scale_cleared"))
+        self._update_corr_indicator()
+
+    def _update_corr_indicator(self):
+        parts = [t(f"corr.short.{n}") for n in self.project.corrections.active()]
+        mm = self.mm_per_pixel
+        if self.project.scale.source != "none":
+            parts.append(f"{mm:.4f} mm/px" if mm else t("corr.short.scale_pending"))
+        info = self._corr_info.get(self.current_image_path) if self.current_image_path else None
+        warn = bool(info and info.warnings)
+        text = ("⚠ " if warn else "") + "  ·  ".join(parts)
+        self.corr_var.set(text)
+        self._corr_label.config(fg=COLORS["warning"] if warn else COLORS["accent"])
 
     def _store_panel_params(self):
         panel = getattr(self, "config_panel", None)
@@ -397,6 +456,7 @@ class MainWindow:
         self.results_cache.clear()
         self.step_names_cache.clear()
         self.all_results_by_analysis.clear()
+        self._corr_info.clear()
         self._exporter = None
         self.output_root = None
         self.canvas_right.delete("all")
@@ -412,8 +472,7 @@ class MainWindow:
         else:
             self.current_image_path = None
             self.canvas_left.delete("all")
-        if project.scale.mm_per_pixel:
-            self._set_status(t("status.scale", scale=f"{project.scale.mm_per_pixel:.6f} mm/px"))
+        self._update_corr_indicator()
         self._saved_state = self._collect_state()
 
     def _on_close(self):
@@ -523,6 +582,11 @@ class MainWindow:
         tk.Frame(self.statusbar, bg=COLORS["border"],
                  height=1).pack(fill=tk.X)
         self.status_var = tk.StringVar(value=t("status.ready"))
+        self.corr_var = tk.StringVar(value="")
+        self._corr_label = tk.Label(self.statusbar, textvariable=self.corr_var,
+                                    bg=COLORS["bg_panel"], fg=COLORS["accent"],
+                                    font=FONTS["small"], padx=10)
+        self._corr_label.pack(side=tk.RIGHT)
         tk.Label(self.statusbar, textvariable=self.status_var,
                  bg=COLORS["bg_panel"], fg=COLORS["text_muted"],
                  font=FONTS["small"], anchor="w",
@@ -565,26 +629,18 @@ class MainWindow:
 
         # Configuración
         self._drop(self.topbar, t("menu.settings"), [
-            (t("menu.cal_optical"),
-             lambda: DistortionDialog(self.root)),
-            (t("menu.cal_color"),
-             lambda: ColorCardDialog(
-                 self.root,
-                 current_image_path=self.current_image_path)),
-            (t("menu.cal_perspective"),
-             lambda: ArucoDialog(
-                 self.root,
-                 current_image=self.scaler_left.original
-                     if self.scaler_left.has_image else None,
-                 current_path=self.current_image_path,
-                 batch_paths=self.batch_paths)),
+            (t("menu.corrections"), self._open_corrections),
+            None,
             (t("menu.cal_scale"),
              lambda: ScaleDialog(
                  self.root,
                  current_image=self.scaler_left.original
                      if self.scaler_left.has_image else None,
                  current_path=self.current_image_path,
-                 on_scale_set=self._on_scale_set)),
+                 on_scale_set=self._on_scale_set,
+                 loader=self._load_corrected_image)),
+            (t("menu.scale_manual"), self._calibrate_scale),
+            (t("menu.scale_clear"), self._clear_scale),
             None,
             (t("menu.export_prefs"),
              lambda: self._wip(t("menu.export_prefs"), t("wip.export_prefs")), True),
@@ -1022,7 +1078,7 @@ class MainWindow:
 
         # ── Pestaña Tabla ─────────────────────────────────────────────────
         tab_table = tk.Frame(bottom_nb, bg=COLORS["bg_card"])
-        bottom_nb.add(tab_table, text=f"  {t("tab.table")}  ")
+        bottom_nb.add(tab_table, text=f"  {t('tab.table')}  ")
 
         tv_f = tk.Frame(tab_table, bg=COLORS["bg_card"])
         tv_f.pack(fill=tk.BOTH, expand=True)
@@ -1045,7 +1101,7 @@ class MainWindow:
 
         # ── Pestaña Gráficos ──────────────────────────────────────────────
         tab_charts = tk.Frame(bottom_nb, bg=COLORS["bg_card"])
-        bottom_nb.add(tab_charts, text=f"  {t("tab.charts")}  ")
+        bottom_nb.add(tab_charts, text=f"  {t('tab.charts')}  ")
 
         chart_ctrl = tk.Frame(tab_charts, bg=COLORS["bg_panel"])
         chart_ctrl.pack(fill=tk.X)
@@ -1199,7 +1255,13 @@ class MainWindow:
 
     def _load_single(self, path: str):
         self.current_image_path = path
-        self.scaler_left.load(path)
+        img, info = self._load_corrected(path)
+        if img is None:
+            messagebox.showerror(t("common.error"), t("msg.image_unreadable", name=Path(path).name),
+                                 parent=self.root)
+            return
+        self.scaler_left.set_image(img)
+        self._update_corr_indicator()
         self.preview_var.set("")
         self._update_step_active(1)
         # Al cargar imagen nueva: fit-to-canvas (imagen completa visible)
@@ -1370,11 +1432,12 @@ class MainWindow:
         def worker():
             results = []
             for i, path in enumerate(self.batch_paths):
-                img = load_image(path)
+                img, _ = self._load_corrected(path)
                 if img is None:
                     continue
+                p = dict(params, mm_per_pixel=self._scale_for(path))
                 try:
-                    r = ANALYSES[name].func(img, params)
+                    r = ANALYSES[name].func(img, p)
                 except Exception as e:
                     _log.exception("%s falló en %s", name, path)
                     r = AnalysisResult(status="error", error=str(e))
@@ -1676,16 +1739,18 @@ class MainWindow:
         self.project.scale = Scale(
             scale_result.unit_per_px * UNIT_TO_MM.get(scale_result.unit, 1.0),
             "two_points", scale_result.format())
+        self._update_corr_indicator()
         self.scale_result = scale_result
         self._set_status(t("status.scale", scale=scale_result.format()))
 
     def _calibrate_scale(self):
         val = simpledialog.askfloat(
-            t("menu.cal_scale"),
+            t("menu.scale_manual").rstrip("…"),
             t("scale.manual_prompt"),
             minvalue=0.0001)
         if val:
             self.project.scale = Scale(val, "manual")
+            self._update_corr_indicator()
             self._set_status(t("status.scale", scale=f"{val:.6f} mm/px"))
 
     def _wip(self, title: str, desc: str):
