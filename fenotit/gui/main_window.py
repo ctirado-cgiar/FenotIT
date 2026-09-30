@@ -170,9 +170,10 @@ class CollapsiblePanel(tk.Frame):
     COLLAPSED_W = 18
 
     def __init__(self, parent, side: str, title: str,
-                 colors: dict, default_width: int = 200, **kw):
+                 colors: dict, default_width: int = 200, on_toggle=None, **kw):
         super().__init__(parent, bg=colors["bg_panel"], **kw)
         self.colors        = colors
+        self._on_toggle    = on_toggle
         self.side          = side          # "left" o "right"
         self.title         = title
         self.default_width = default_width
@@ -208,21 +209,33 @@ class CollapsiblePanel(tk.Frame):
         else:
             self.expand()
 
+    def _set_width(self, width: int):
+        """El ancho real lo manda el PanedWindow que contiene al panel."""
+        if isinstance(self.master, tk.PanedWindow):
+            self.master.paneconfigure(self, width=width)
+        else:
+            self.configure(width=width)
+        if self._on_toggle:
+            self._on_toggle()
+
     def collapse(self):
         self._expanded = False
+        width = self.winfo_width()
+        if width > self.COLLAPSED_W * 3:          # recordar el ancho que dejó el usuario
+            self.default_width = width
         self.content.pack_forget()
-        self.configure(width=self.COLLAPSED_W)
         arrow = "▶" if self.side == "left" else "◀"
         self._toggle_btn.config(text=arrow)
+        self._set_width(self.COLLAPSED_W)
 
     def expand(self):
         self._expanded = True
         self.content.pack(
             side=tk.LEFT if self.side == "left" else tk.RIGHT,
             fill=tk.BOTH, expand=True)
-        self.configure(width=self.default_width)
         arrow = "◀" if self.side == "left" else "▶"
         self._toggle_btn.config(text=arrow)
+        self._set_width(self.default_width)
 
 
 # ── Ventana principal ─────────────────────────────────────────────────────────
@@ -607,7 +620,7 @@ class MainWindow:
         self.left_panel = CollapsiblePanel(
             self.paned, side="left",
             title=t("panel.left"), colors=COLORS,
-            default_width=200)
+            default_width=200, on_toggle=self._after_panel_toggle)
         self.paned.add(self.left_panel, minsize=CollapsiblePanel.COLLAPSED_W,
                        width=200)
 
@@ -619,7 +632,7 @@ class MainWindow:
         self.right_panel = CollapsiblePanel(
             self.paned, side="right",
             title=t("panel.right"), colors=COLORS,
-            default_width=260)
+            default_width=260, on_toggle=self._after_panel_toggle)
         self.paned.add(self.right_panel, minsize=CollapsiblePanel.COLLAPSED_W,
                        width=260)
 
@@ -1630,6 +1643,9 @@ class MainWindow:
             self._bottom_nb.pack_forget()
         arrow = "▾" if self._results_visible else "▴"
         self._results_btn.config(text=f"{arrow} {t('results.panel')}")
+        self.root.after(50, self._refit_images)
+
+    def _after_panel_toggle(self):
         self.root.after(50, self._refit_images)
 
     def _refit_images(self):
