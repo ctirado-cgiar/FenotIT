@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 
 from fenotit.core import pipeline
+from fenotit.core.pipeline.views import legend
 from fenotit.core.analysis.registry import AnalysisResult, register
 from fenotit.i18n import t
 
@@ -67,7 +68,8 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
         if img is None or (key in MEASUREMENTS and key not in chosen):
             continue
         label = t(f"step.{key}", key)
-        res.step_images[label] = img if img.ndim == 3 else cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+        img = img if img.ndim == 3 else cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+        res.step_images[label] = _with_legend(key, img, ctx, params)
         names[label] = STEP_FOLDERS[key]
         view_tables[label] = tables.get(key, tables["image"])
     res.measurements = tables.get("morphometry", [])        # lo que se puede graficar
@@ -75,10 +77,56 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
     res.extra["tables"] = {k: v for k, v in ctx.tables.items() if v}
     res.extra["step_folders"] = names
     res.extra["view_tables"] = view_tables
-    res.extra["default_view"] = t(f"step.{chosen[0]}", chosen[0]) if chosen else None
+    # vista a mostrar: la medición que se recalculó (si las demás se reutilizaron);
+    # si se recalculó todo o nada, la interfaz conserva la vista que estaba viendo
+    changed = [v for v in chosen if v not in _CACHE.hits]
+    partial = "objects" in _CACHE.hits and 0 < len(changed) < len(chosen)
+    res.extra["default_view"] = t(f"step.{changed[0]}", changed[0]) if partial else None
+    res.extra["first_view"] = t(f"step.{chosen[0]}", chosen[0]) if chosen else None
     res.extra["chain"] = build_chain(params)
     res.extra["reused"] = list(_CACHE.hits)
     return res
+
+
+def _fmt(v: float) -> str:
+    return f"{v:,.1f}" if abs(v) >= 10 else f"{v:.2f}"
+
+
+def _with_legend(key: str, img: np.ndarray, ctx, params: dict) -> np.ndarray:
+    """Cada vista lleva un recuadro con lo esencial de esa medición."""
+    row = ctx.image_row()
+    objects = ctx.tables.get("objects", [])
+    if key == "count":
+        rows = [(t("legend.n_objects", n=row.get("n_objects", 0)), (255, 0, 255))]
+        if params.get("touching"):
+            rows.append((t("legend.n_touching", n=row.get("n_touching", 0)), None))
+        return legend(img, rows, t("step.count"))
+    if key == "morphometry":
+        measured = [r for r in objects if any(k.startswith("area_") for k in r)]
+        rows = [(t("legend.measured", n=len(measured), total=len(objects)), (100, 220, 0))]
+        for prefix, name in (("area_", "legend.area"), ("length_", "legend.length"), ("width_", "legend.width")):
+            col = next((k for k in (measured[0] if measured else {}) if k.startswith(prefix)), None)
+            if col:
+                vals = np.array([r[col] for r in measured], float)
+                unit = col.split("_", 1)[1].replace("2", "²")
+                rows.append((f"{t(name)}: {_fmt(vals.mean())} ± {_fmt(vals.std())} {unit}", None))
+        return legend(img, rows, t("step.morphometry"))
+    if key == "color":
+        rows = [(f"{c['hex']}   {c['pct']:.1f} %   L {c['L']:.0f}  a {c['a']}  b {c['b']}",
+                 (c["B"], c["G"], c["R"])) for c in ctx.tables.get("image_colors", [])]
+        return legend(img, rows, t("legend.image_colors"))
+    if key == "shape":
+        shapes = ctx.tables.get("object_shape", [])
+        inset = None
+        if len(shapes) >= 2:
+            from fenotit.core.efd import from_row
+            from fenotit.core.stats.shape import align, draw
+            coeffs = align([from_row(r) for r in shapes])
+            size = max(120, round(max(img.shape[:2]) / 10))
+            inset = cv2.resize(draw(np.mean(coeffs, axis=0), coeffs), (size, size), interpolation=cv2.INTER_AREA)
+        rows = [(t("legend.shape_n", n=len(shapes)), (255, 160, 0))]
+        return legend(img, rows, t("legend.mean_shape"), inset)
+    return img
 
 
 def _view_tables(ctx) -> dict[str, list[dict]]:

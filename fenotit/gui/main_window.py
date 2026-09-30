@@ -1575,7 +1575,7 @@ class MainWindow:
 
         # Si es la imagen que está visible ahora, actualizar display
         if path == self.current_image_path and result.status == "ok":
-            self._display_result(result, step_names)
+            self._display_result(result, step_names, fresh=True)
 
     def _on_result(self, name: str, result: AnalysisResult, path: str):
         self.root.config(cursor="")
@@ -1584,17 +1584,16 @@ class MainWindow:
             messagebox.showerror(t("common.error"), result.error)
             self._set_status(f"{t('common.error')}: {result.error}")
             return
-        self.step_names = list(result.step_images.keys())
-        self.step_idx   = len(self.step_names) - 1
-        self.step_history[path] = self.step_names
+        names = list(result.step_images.keys())
+        self.step_history[path] = names
         # Guardar en cache para restaurar al navegar
         self.results_cache[path]    = result
-        self.step_names_cache[path] = self.step_names
+        self.step_names_cache[path] = names
         # Índice combinado por análisis
         if name not in self.all_results_by_analysis:
             self.all_results_by_analysis[name] = {}
         self.all_results_by_analysis[name][path] = result
-        self._display_result(result, self.step_names)
+        self._display_result(result, names, fresh=True)
         if self.output_root:
             if self._exporter is None:
                 self._exporter = Exporter(self.output_root)
@@ -1662,18 +1661,22 @@ class MainWindow:
         if self.zoom_ctrl and self.scaler_left.has_image:
             self.do_zoom_fit()
 
-    def _display_result(self, result: AnalysisResult, step_names: list[str]):
-        """Muestra un resultado: la vista de la primera medición elegida (o el último
-        paso), su tabla y el resumen de la imagen."""
+    def _display_result(self, result: AnalysisResult, step_names: list[str], fresh: bool = False):
+        """Muestra un resultado. Tras correr: la medición que se recalculó (si solo cambió
+        esa); si no, se conserva la vista que se estaba viendo; si no existe, la primera."""
+        prev = self.step_names[self.step_idx] if self.step_names and 0 <= self.step_idx < len(self.step_names) else None
         self.last_result = result
         self.step_names = list(step_names)
         self.stats_var.set("   |   ".join(f"{k}: {v}" for k, v in result.stats.items()))
         if not self.step_names:
             self._update_table(result)
             return
-        default = result.extra.get("default_view")
-        self._jump_to_step(self.step_names.index(default) if default in self.step_names
-                           else len(self.step_names) - 1)
+        changed = result.extra.get("default_view") if fresh else None
+        for name in (changed, prev, result.extra.get("first_view")):
+            if name in self.step_names:
+                self._jump_to_step(self.step_names.index(name))
+                return
+        self._jump_to_step(len(self.step_names) - 1)
 
     # ── Tabla ─────────────────────────────────────────────────────────────────
 
