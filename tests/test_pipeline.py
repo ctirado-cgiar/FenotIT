@@ -52,6 +52,14 @@ def test_split_side_by_side():
     ctx = pipeline.run(img, [SEG, {"step": "separate"}, {"step": "filter", "params": {"area_min": 100}},
                              {"step": "count"}])
     assert ctx.image_row()["n_objects"] == 6, ctx.image_row()
+    assert ctx.image_row()["n_touching"] == 2
+
+
+def test_morphometry_skips_touching():
+    ctx = _run([{"step": "separate"}, {"step": "filter", "params": {"area_min": 100}}, {"step": "morphometry"}])
+    row = ctx.image_row()
+    assert (row["n_objects"], row["n_touching"], row["n_measured"]) == (4, 2, 2), row
+    assert all(("area_px2" in r) == (not r["touching"]) for r in ctx.tables["objects"])
 
 
 def test_border_kept_when_disabled():

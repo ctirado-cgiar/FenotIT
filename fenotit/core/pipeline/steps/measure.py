@@ -12,23 +12,33 @@ def _regions(labels):
             yield oid, sl, (labels[sl] == oid).astype(np.uint8)
 
 
-def _draw_ids(ctx, name, color=(0, 220, 100)):
+def _draw_ids(ctx, name, color=(0, 220, 100), touching_color=(0, 150, 255)):
+    """Contornos numerados; los objetos desagrupados (se tocaban) van en naranja."""
     out = ctx.image.copy()
+    touching = ctx.touching_ids()
     for oid, sl, m in _regions(ctx.labels):
         cnts, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE,
                                    offset=(sl[1].start, sl[0].start))
-        cv2.drawContours(out, cnts, -1, color, 2)
+        cv2.drawContours(out, cnts, -1, touching_color if oid in touching else color, 2)
         ys, xs = np.nonzero(m)
         cx, cy = int(xs.mean()) + sl[1].start, int(ys.mean()) + sl[0].start
         cv2.putText(out, str(oid), (cx - 8, cy + 6), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
     ctx.images[name] = out
 
 
-@step("morphometry", "measurement", requires=("labels",))
+@step("morphometry", "measurement", requires=("labels",), params=[
+    {"key": "isolated_only", "type": "bool", "default": True},
+])
 def morphometry(ctx, p):
+    """Tamaño y forma. Con isolated_only, los objetos que se tocaban con otro
+    (desagrupados) se cuentan pero no se miden: su contorno no es confiable."""
     u, f = ctx.unit, ctx.scale
     rows = ctx.object_rows()
+    touching = ctx.touching_ids()
     for oid, sl, m in _regions(ctx.labels):
+        rows[oid]["touching"] = int(oid in touching)
+        if p["isolated_only"] and oid in touching:
+            continue
         cnts, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         cnt = max(cnts, key=cv2.contourArea)
         area = float(m.sum())                     # píxeles del objeto
@@ -68,10 +78,13 @@ def morphometry(ctx, p):
             "centroid_x_px": int(round(cx + sl[1].start)),
             "centroid_y_px": int(round(cy + sl[0].start)),
         })
-    areas = [r[f"area_{u}2"] for r in rows.values()]
-    lengths = [r[f"length_{u}"] for r in rows.values()]
+    measured = [r for r in rows.values() if f"area_{u}2" in r]
+    areas = [r[f"area_{u}2"] for r in measured]
+    lengths = [r[f"length_{u}"] for r in measured]
     ctx.image_row().update({
         "n_objects": len(rows),
+        "n_touching": len(touching & set(rows)),
+        "n_measured": len(measured),
         f"area_mean_{u}2": round(float(np.mean(areas)), 3) if areas else None,
         f"area_sd_{u}2": round(float(np.std(areas)), 3) if areas else None,
         f"length_mean_{u}": round(float(np.mean(lengths)), 3) if lengths else None,
@@ -126,6 +139,7 @@ def color(ctx, p):
 
 @step("count", "measurement", requires=("labels",))
 def count(ctx, p):
-    ctx.image_row()["n_objects"] = int(len([s for s in find_objects(ctx.labels) if s is not None]))
+    ids = {i for i, s in enumerate(find_objects(ctx.labels), 1) if s is not None}
+    ctx.image_row().update({"n_objects": len(ids), "n_touching": len(ctx.touching_ids() & ids)})
     if "objects" not in ctx.images:
         _draw_ids(ctx, "objects")

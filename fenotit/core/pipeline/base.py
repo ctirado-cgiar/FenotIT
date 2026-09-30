@@ -30,6 +30,7 @@ class Context:
     labels: np.ndarray | None = None                 # int32, 0 = fondo
     detections: list[dict] | None = None             # [{"x", "y", ...}]
     skeleton: np.ndarray | None = None
+    groups: np.ndarray | None = None                 # componentes antes de desagrupar
     tables: dict[str, list[dict]] = field(default_factory=dict)
     images: dict[str, np.ndarray] = field(default_factory=dict)
     extra: dict[str, Any] = field(default_factory=dict)
@@ -51,6 +52,16 @@ class Context:
                     rows[int(oid)] = {"object_id": int(oid)}
             self.tables["objects"] = list(rows.values())
         return rows
+
+    def touching_ids(self) -> set[int]:
+        """Objetos que salieron de desagrupar un grupo (se tocaban con otro)."""
+        if self.groups is None or self.labels is None:
+            return set()
+        fg = self.labels > 0
+        pairs = np.unique(np.stack([self.labels[fg], self.groups[fg]]), axis=1)
+        gid, n = np.unique(pairs[1], return_counts=True)
+        shared = set(gid[n > 1].tolist())
+        return {int(o) for o, g in pairs.T if g in shared}
 
     def image_row(self) -> dict:
         t = self.tables.setdefault("image", [{}])

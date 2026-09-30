@@ -67,6 +67,7 @@ def separate(ctx, p):
         ctx.labels = np.zeros(binary.shape, np.int32)
         return
     _, comps = cv2.connectedComponents(binary, connectivity=8)
+    ctx.groups = comps
     thr = float(p["peak_threshold"]) * dist.max()
     md = int(p["min_distance"])
     if md <= 0:
