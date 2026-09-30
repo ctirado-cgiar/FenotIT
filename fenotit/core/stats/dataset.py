@@ -6,12 +6,15 @@ from collections import defaultdict
 import numpy as np
 
 
-def combine(results: list[tuple[str, dict[str, list[dict]]]], table: str = "objects") -> list[dict]:
-    """[(nombre_imagen, ctx.tables), ...] -> filas de 'table' con Image_ID (1..n) e Image_name."""
+def combine(results: list[tuple[str, dict[str, list[dict]]]], table: str = "objects",
+            meta: dict[str, dict] | None = None, key_column: str | None = None) -> list[dict]:
+    """[(nombre_imagen, ctx.tables), ...] -> filas de 'table' con Image_ID (1..n), Image_name
+    y, si hay tabla del usuario (meta: nombre -> fila), sus columnas (genotipo, rep...)."""
     rows = []
     for image_id, (name, tables) in enumerate(results, 1):
+        extra = {k: v for k, v in (meta or {}).get(name, {}).items() if k != key_column}
         for r in tables.get(table, []):
-            rows.append({"Image_ID": image_id, "Image_name": name, **r})
+            rows.append({"Image_ID": image_id, "Image_name": name, **extra, **r})
     return rows
 
 
