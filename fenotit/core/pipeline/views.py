@@ -157,4 +157,4 @@ def _draw_shape(d, shape: dict, box: tuple, size: int):
     mean_xy = to_xy(pts[-1]) + to_xy(pts[-1])[:1]
     lw = max(2, size // 5)
     d.line(mean_xy, fill=(255, 255, 255, 255), width=lw + 3)           # halo para que resalte
-    d.line(mean_xy, fill=(0, 90, 190, 255), width=lw)
+    d.line(mean_xy, fill=(215, 30, 30, 255), width=lw)
