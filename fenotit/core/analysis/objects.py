@@ -100,13 +100,13 @@ def _view_tables(ctx) -> dict[str, list[dict]]:
 
 
 register(
-    name="Análisis de objetos",
+    name="Objetos",
     func=run,
     description="Segmenta una vez y mide tamaño y forma, forma (Fourier), color y conteo",
     icon="shapes",
     params_schema=[
+        {"key": "hdr_objects", "label": "OBJETOS", "type": "header"},
         {"key": "touching", "label": "Los objetos se tocan", "type": "bool", "default": False},
-        {"key": "auto_threshold", "label": "Umbral automático (Otsu)", "type": "bool", "default": False},
         {"key": "filters", "label": "Filtros de objetos", "type": "section"},
         {"key": "area_min", "label": "Área mínima ({unit})", "type": "float", "default": 1000,
          "min": 0, "max": 100_000_000, "step": 1, "unit": "area", "group": "filters"},
@@ -114,6 +114,7 @@ register(
          "min": 0, "max": 1_000_000_000, "step": 1, "unit": "area", "group": "filters"},
         {"key": "exclude_border", "label": "Excluir objetos del borde", "type": "bool", "default": True,
          "group": "filters"},
+        {"key": "hdr_measure", "label": "MEDICIONES", "type": "header"},
         {"key": "measure_count", "label": "Conteo", "type": "bool", "default": True},
         {"key": "measure_size", "label": "Morfometría", "type": "bool", "default": True},
         {"key": "measure_touching", "label": "Medir también los que se tocan", "type": "bool",

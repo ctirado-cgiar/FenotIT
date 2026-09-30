@@ -20,6 +20,7 @@ class Segmentation:
     channel: int = 0
     min_val: int = 0
     max_val: int = 255
+    auto: bool = False            # umbral automático (Otsu) en el canal elegido
 
 
 @dataclass

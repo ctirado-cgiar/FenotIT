@@ -22,6 +22,7 @@ from fenotit.core.image_io import ImageScaler, load_image
 from fenotit.core.project import IMAGE_EXTS, PROJECT_EXT, Project, Scale, Segmentation
 from fenotit.gui.roi.selectors import ROISelector
 from fenotit.core.analysis.registry import ANALYSES, AnalysisResult
+from fenotit.core import pipeline
 from fenotit.core.export.exporter import Exporter
 from fenotit.gui.config_panel import ConfigPanel
 from fenotit.gui.zoom_controller import ZoomController
@@ -30,6 +31,7 @@ from fenotit.gui.corrections_dialog import CorrectionsDialog
 from fenotit.core.corrections import pipeline as corrections
 from fenotit.gui.export_dialog import ExportDialog
 from fenotit.gui.charts import IntraImageChartPanel, BatchChartWindow
+from fenotit.core import pipeline
 from fenotit.core.export.exporter import Exporter
 from fenotit.gui.theme import COLORS, FONTS
 
@@ -420,7 +422,7 @@ class MainWindow:
         self.project.mode = self.mode_var.get()
         self.project.segmentation = Segmentation(
             self.cs_var.get(), int(self.ch_var.get()),
-            int(self.min_slider.get()), int(self.max_slider.get()))
+            int(self.min_slider.get()), int(self.max_slider.get()), bool(self.auto_var.get()))
         if self.roi_selector:
             self.project.roi = self.roi_selector.to_dict()
         return self.project.to_dict()
@@ -508,6 +510,8 @@ class MainWindow:
         self.ch_var.set(seg.channel)
         self.min_slider.set(seg.min_val)
         self.max_slider.set(seg.max_val)
+        self.auto_var.set(seg.auto)
+        self._on_auto_change()
         self.mode_var.set(project.mode)
 
         name = _analysis_name(project.analysis) or self._selected_analysis()
@@ -787,72 +791,8 @@ class MainWindow:
     def _build_controls_bar(self):
         bar = self.controls_bar
 
-        tk.Label(bar, text=t("controls.space"),
-                 bg=COLORS["bg_panel"], fg=COLORS["text_muted"],
-                 font=FONTS["small"]).pack(side=tk.LEFT, padx=(10, 2))
-
-        self.cs_var = tk.StringVar(value="BGR")
-        cs_combo = ttk.Combobox(bar, textvariable=self.cs_var,
-                                values=list(CHANNEL_NAMES.keys()),
-                                state="readonly", width=7,
-                                font=FONTS["small"])
-        cs_combo.pack(side=tk.LEFT, padx=(0, 8), pady=4)
-        cs_combo.bind("<<ComboboxSelected>>", self._on_cs_change)
-
-        tk.Label(bar, text=t("controls.channel"),
-                 bg=COLORS["bg_panel"], fg=COLORS["text_muted"],
-                 font=FONTS["small"]).pack(side=tk.LEFT, padx=(0, 4))
-
-        self.ch_var = tk.IntVar(value=0)
-        self._ch_radios = []
-        for i in range(3):
-            rb = tk.Radiobutton(
-                bar, text="",
-                variable=self.ch_var, value=i,
-                command=self._on_slider_change,
-                bg=COLORS["bg_panel"], fg=COLORS["text"],
-                selectcolor=COLORS["bg_card"],
-                activebackground=COLORS["bg_panel"],
-                font=FONTS["small"])
-            rb.pack(side=tk.LEFT, padx=1)
-            self._ch_radios.append(rb)
-
-        self._update_channel_names()
-
-        tk.Frame(bar, bg=COLORS["border"], width=1).pack(
-            side=tk.LEFT, fill=tk.Y, pady=6, padx=8)
-
-        tk.Label(bar, text="Min:",
-                 bg=COLORS["bg_panel"], fg=COLORS["text_muted"],
-                 font=FONTS["small"]).pack(side=tk.LEFT, padx=(0, 2))
-        self.min_slider = tk.Scale(
-            bar, from_=0, to=255, orient=tk.HORIZONTAL,
-            bg=COLORS["bg_panel"], fg=COLORS["text"],
-            troughcolor=COLORS["slider_trough"],
-            activebackground=COLORS["accent"],
-            highlightthickness=0, showvalue=True,
-            font=FONTS["small"], length=120,
-            command=lambda _: self._on_slider_change())
-        self.min_slider.set(0)
-        self.min_slider.pack(side=tk.LEFT, padx=(0, 8))
-
-        tk.Label(bar, text="Max:",
-                 bg=COLORS["bg_panel"], fg=COLORS["text_muted"],
-                 font=FONTS["small"]).pack(side=tk.LEFT, padx=(0, 2))
-        self.max_slider = tk.Scale(
-            bar, from_=0, to=255, orient=tk.HORIZONTAL,
-            bg=COLORS["bg_panel"], fg=COLORS["text"],
-            troughcolor=COLORS["slider_trough"],
-            activebackground=COLORS["accent"],
-            highlightthickness=0, showvalue=True,
-            font=FONTS["small"], length=120,
-            command=lambda _: self._on_slider_change())
-        self.max_slider.set(255)
-        self.max_slider.pack(side=tk.LEFT)
-
         # ── Controles de zoom ─────────────────────────────────────────────
-        tk.Frame(bar, bg=COLORS["border"], width=1).pack(
-            side=tk.LEFT, fill=tk.Y, pady=6, padx=6)
+        tk.Frame(bar, width=4, bg=COLORS["bg_panel"]).pack(side=tk.LEFT)
 
         # Guardar referencias a los botones para poder actualizarlos
         # Los comandos usan self.do_zoom_* que son métodos reales
@@ -922,19 +862,25 @@ class MainWindow:
         max_val = self.max_slider.get()
 
         try:
-            if cs_code is not None:
-                converted = cv2.cvtColor(img_original, cs_code)
+            if self.auto_var.get():
+                ctx = pipeline.run(img_original, [{"step": "otsu", "params": {
+                    "color_space": self.cs_var.get(), "channel": int(ch_idx)}}])
+                mask = ctx.mask
+                self._otsu_value = int(ctx.extra.get("otsu_threshold", 0))
             else:
-                converted = img_original
+                if cs_code is not None:
+                    converted = cv2.cvtColor(img_original, cs_code)
+                else:
+                    converted = img_original
 
-            channel = converted[:, :, min(ch_idx, converted.shape[2]-1)] \
-                      if converted.ndim == 3 else converted
+                channel = converted[:, :, min(ch_idx, converted.shape[2]-1)] \
+                          if converted.ndim == 3 else converted
 
-            _, t_min = cv2.threshold(channel, min_val-1, 255,
-                                     cv2.THRESH_BINARY)
-            _, t_max = cv2.threshold(channel, max_val,   255,
-                                     cv2.THRESH_BINARY_INV)
-            mask = cv2.bitwise_and(t_min, t_max)
+                _, t_min = cv2.threshold(channel, min_val-1, 255,
+                                         cv2.THRESH_BINARY)
+                _, t_max = cv2.threshold(channel, max_val,   255,
+                                         cv2.THRESH_BINARY_INV)
+                mask = cv2.bitwise_and(t_min, t_max)
 
             # Aplicar ROI (en coords originales)
             roi = self.roi_selector.mask if self.roi_selector else None
@@ -962,7 +908,10 @@ class MainWindow:
 
             n_px = int(np.sum(mask > 0))
             pct  = round(n_px / mask.size * 100, 1)
-            self.preview_var.set(t("status.preview", px=f"{n_px:,}", pct=pct))
+            text = t("status.preview", px=f"{n_px:,}", pct=pct)
+            if self.auto_var.get():
+                text += "  ·  Otsu = " + str(getattr(self, "_otsu_value", ""))
+            self.preview_var.set(text)
 
         except Exception:
             _log.debug("Preview falló", exc_info=True)
@@ -1204,15 +1153,71 @@ class MainWindow:
 
     def _build_right_panel(self):
         rf = self.right_panel.content
-        self._section_lbl(rf, t("right.title"))
-        self._right_subtitle = tk.Label(rf, text="",
-                                        bg=COLORS["bg_panel"], fg=COLORS["text_muted"],
-                                        font=FONTS["small"], padx=10)
-        self._right_subtitle.pack(anchor="w")
-        self._divider(rf)
+        self._build_segmentation_block(rf)
         self.config_container = tk.Frame(rf, bg=COLORS["bg_panel"])
         self.config_container.pack(fill=tk.BOTH, expand=True, padx=4)
         self.config_panel: ConfigPanel | None = None
+
+    def _build_segmentation_block(self, rf):
+        """Espacio de color, canal y rango (o Otsu), con vista previa en vivo."""
+        bg, small = COLORS["bg_panel"], FONTS["small"]
+        self._section_lbl(rf, t("seg.title"))
+        box = tk.Frame(rf, bg=bg)
+        box.pack(fill=tk.X, padx=8, pady=(2, 4))
+
+        row = tk.Frame(box, bg=bg)
+        row.pack(fill=tk.X, pady=2)
+        tk.Label(row, text=t("controls.space"), bg=bg, fg=COLORS["text_muted"],
+                 font=small).pack(side=tk.LEFT)
+        self.cs_var = tk.StringVar(value="BGR")
+        cs_combo = ttk.Combobox(row, textvariable=self.cs_var, values=list(CHANNEL_NAMES.keys()),
+                                state="readonly", width=7, font=small)
+        cs_combo.pack(side=tk.LEFT, padx=(4, 8))
+        cs_combo.bind("<<ComboboxSelected>>", self._on_cs_change)
+        self.ch_var = tk.IntVar(value=0)
+        self._ch_radios = []
+        for i in range(3):
+            rb = tk.Radiobutton(row, text="", variable=self.ch_var, value=i,
+                                command=self._on_slider_change, bg=bg, fg=COLORS["text"],
+                                selectcolor=COLORS["bg_card"], activebackground=bg, font=small)
+            rb.pack(side=tk.LEFT)
+            self._ch_radios.append(rb)
+        self._update_channel_names()
+
+        self.auto_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(box, text=t("seg.auto"), variable=self.auto_var, command=self._on_auto_change,
+                       bg=bg, fg=COLORS["text"], selectcolor=COLORS["bg_card"],
+                       activebackground=bg, font=small, padx=0).pack(anchor="w", pady=(2, 0))
+
+        self.min_slider = self._range_row(box, t("seg.min"), 0)
+        self.max_slider = self._range_row(box, t("seg.max"), 255)
+
+    def _range_row(self, parent, label: str, value: int) -> tk.Scale:
+        """Deslizador 0-255 con botones ‹ › para mover de a uno."""
+        bg = COLORS["bg_panel"]
+        row = tk.Frame(parent, bg=bg)
+        row.pack(fill=tk.X)
+        tk.Label(row, text=label, bg=bg, fg=COLORS["text_muted"], font=FONTS["small"],
+                 width=4, anchor="w").pack(side=tk.LEFT, anchor="s", pady=(0, 4))
+        scale = tk.Scale(row, from_=0, to=255, orient=tk.HORIZONTAL, bg=bg, fg=COLORS["text"],
+                         troughcolor=COLORS["slider_trough"], activebackground=COLORS["accent"],
+                         highlightthickness=0, showvalue=True, font=FONTS["small"],
+                         command=lambda _: self._on_slider_change())
+        scale.set(value)
+        btn = dict(bg=COLORS["btn_bg"], fg=COLORS["accent"], relief="flat",
+                   font=FONTS["small"], width=2, cursor="hand2", padx=0, pady=0)
+        tk.Button(row, text="‹", command=lambda: scale.set(max(0, scale.get() - 1)),
+                  **btn).pack(side=tk.LEFT, anchor="s", pady=(0, 4))
+        scale.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2)
+        tk.Button(row, text="›", command=lambda: scale.set(min(255, scale.get() + 1)),
+                  **btn).pack(side=tk.LEFT, anchor="s", pady=(0, 4))
+        return scale
+
+    def _on_auto_change(self):
+        state = tk.DISABLED if self.auto_var.get() else tk.NORMAL
+        for s in (self.min_slider, self.max_slider):
+            s.config(state=state)
+        self._on_slider_change()
 
     # ── Helpers layout ────────────────────────────────────────────────────────
 
@@ -1409,7 +1414,6 @@ class MainWindow:
         self._store_panel_params()
         self.active_analysis = name
         self.project.analysis = _analysis_key(name)
-        self._right_subtitle.config(text=_analysis_label(name))
         for w in self.config_container.winfo_children():
             w.destroy()
         stored = self.project.params.get(self.project.analysis, {})
@@ -1445,6 +1449,7 @@ class MainWindow:
         if self.config_panel:
             p.update(self.config_panel.get_values())
             p["area_unit"] = getattr(self, "_panel_area_unit", "px")
+        p["auto_threshold"] = bool(self.auto_var.get())
         return p
 
     def _run_analysis(self):

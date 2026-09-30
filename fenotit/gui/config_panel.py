@@ -131,6 +131,12 @@ class ConfigPanel(tk.Frame):
         # Etiqueta + ?  (en los sí/no la casilla va en la misma línea)
         hdr = tk.Frame(row, bg=self.colors["bg_panel"])
         hdr.pack(fill=tk.X)
+        if typ == "header":
+            row.config(pady=0)
+            tk.Label(hdr, text=label, bg=self.colors["bg_panel"], fg=self.colors["accent"],
+                     font=("Segoe UI", 8, "bold"), pady=4).pack(side=tk.LEFT)
+            tk.Frame(row, bg=self.colors["border"], height=1).pack(fill=tk.X)
+            return
         if typ == "section":
             lbl = tk.Label(hdr, text=label, bg=self.colors["bg_panel"], fg=self.colors["text"],
                            font=("Segoe UI", 8), anchor="w", cursor="hand2")
