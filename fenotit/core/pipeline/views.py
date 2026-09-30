@@ -69,42 +69,79 @@ def _font(size: int, bold: bool = False):
     return ImageFont.load_default(size=size)
 
 
-def legend(image: np.ndarray, rows: list[tuple[str, tuple | None]], title: str = "",
-           inset: np.ndarray | None = None) -> np.ndarray:
-    """Recuadro de leyenda arriba a la izquierda: título, filas de texto (con muestra de
-    color BGR opcional) e imagen pequeña opcional (p. ej. forma media)."""
+COLOR_FORMATS = ("RGB", "Lab", "HEX")
+
+
+def _color_text(c: dict, fmt: str) -> str:
+    if fmt == "Lab":
+        return f"[{c['L']:.0f}, {c['a']:.0f}, {c['b']:.0f}]"
+    if fmt == "HEX":
+        return c["hex"]
+    return f"[{c['R']}, {c['G']}, {c['B']}]"
+
+
+def render_legend(image: np.ndarray, spec: dict, color_format: str = "RGB") -> np.ndarray:
+    """Recuadro semitransparente arriba a la izquierda, sobrio y con pocos datos.
+
+    spec = {"title": str, "rows": [(texto, color_bgr|None)], "colors": [{R,G,B,L,a,b,hex,pct}],
+            "shape": {"mean": Nx2, "others": [Nx2, ...]}}  (todas las claves opcionales)
+    """
     from PIL import Image, ImageDraw
     h, w = image.shape[:2]
-    size = max(12, round(max(h, w) / 90))
-    font, bold = _font(size), _font(round(size * 1.1), bold=True)
-    pad, gap, sw = size // 2, size // 3, size
-    lines = ([(title, None, bold)] if title else []) + [(txt, col, font) for txt, col in rows]
-    widths = [f.getbbox(txt)[2] + (sw + gap if col is not None else 0) for txt, col, f in lines]
+    size = max(11, round(max(h, w) / 110))
+    font, bold = _font(size), _font(size, bold=True)
+    pad, gap, sw = round(size * 0.8), round(size * 0.45), round(size * 0.9)
+    lines = [(txt, col) for txt, col in spec.get("rows", [])]
+    for c in spec.get("colors", []):
+        lines.append((f"{_color_text(c, color_format)}   {c['pct']:.1f} %", (c["B"], c["G"], c["R"])))
+    title = spec.get("title", "")
+    shape = spec.get("shape")
     line_h = size + gap
-    box_w = max(widths + [0]) + 2 * pad
-    box_h = len(lines) * line_h + 2 * pad
-    if inset is not None:
-        box_w = max(box_w, inset.shape[1] + 2 * pad)
-        box_h += inset.shape[0] + pad
-    box_w, box_h = min(box_w, w), min(box_h, h)
-    out = image.copy()
-    region = out[:box_h, :box_w]
-    region[:] = (region * 0.15 + 255 * 0.85).astype(np.uint8)
-    pil = Image.fromarray(cv2.cvtColor(region, cv2.COLOR_BGR2RGB))
-    draw = ImageDraw.Draw(pil)
-    y = pad
-    for txt, col, f in lines:
-        x = pad
-        if col is not None:
-            draw.rectangle([x, y + 2, x + sw, y + sw], fill=tuple(int(c) for c in col[::-1]), outline=(60, 60, 60))
-            x += sw + gap
-        draw.text((x, y), txt, fill=(20, 20, 20), font=f)
+    text_w = max([bold.getlength(title)] + [font.getlength(t) + (sw + gap if col else 0) for t, col in lines])
+    shape_h = round(size * 7) if shape else 0
+    box_w = int(max(text_w, shape_h * 0.6) + 2 * pad)
+    box_h = int(pad * 2 + (line_h if title else 0) + len(lines) * line_h + (shape_h + gap if shape else 0))
+    m = pad                                            # margen con el borde de la foto
+    box_w, box_h = min(box_w, w - 2 * m), min(box_h, h - 2 * m)
+    if box_w <= 0 or box_h <= 0:
+        return image
+
+    base = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB)).convert("RGBA")
+    layer = Image.new("RGBA", base.size, (0, 0, 0, 0))
+    d = ImageDraw.Draw(layer)
+    d.rounded_rectangle([m, m, m + box_w, m + box_h], radius=round(size * 0.6),
+                        fill=(255, 255, 255, 200), outline=(0, 0, 0, 40), width=1)
+    x0, y = m + pad, m + pad
+    if title:
+        d.text((x0, y), title, fill=(30, 30, 30, 255), font=bold)
         y += line_h
-    region[:] = cv2.cvtColor(np.asarray(pil), cv2.COLOR_RGB2BGR)
-    if inset is not None:
-        ih, iw = inset.shape[:2]
-        y0 = min(y + pad // 2, box_h - ih)
-        if y0 >= 0 and iw <= box_w:
-            out[y0:y0 + ih, pad:pad + iw] = inset
-    cv2.rectangle(out, (0, 0), (box_w - 1, box_h - 1), (120, 120, 120), 1)
-    return out
+    for txt, col in lines:
+        x = x0
+        if col is not None:
+            r = sw // 2
+            cy = y + size // 2 + 1
+            d.ellipse([x, cy - r, x + sw, cy + r], fill=tuple(int(v) for v in col[::-1]) + (255,),
+                      outline=(0, 0, 0, 90))
+            x += sw + gap
+        d.text((x, y), txt, fill=(45, 45, 45, 255), font=font)
+        y += line_h
+    if shape:
+        _draw_shape(d, shape, (x0, y + gap // 2, box_w - 2 * pad, shape_h), size)
+    out = Image.alpha_composite(base, layer).convert("RGB")
+    return cv2.cvtColor(np.asarray(out), cv2.COLOR_RGB2BGR)
+
+
+def _draw_shape(d, shape: dict, box: tuple, size: int):
+    """Forma media de pie (eje largo vertical), con las formas individuales tenues."""
+    x, y, bw, bh = box
+    mean = np.asarray(shape["mean"], float)
+    rot = lambda p: np.column_stack([p[:, 1], -p[:, 0]])           # 90°: queda de pie
+    pts = [rot(np.asarray(o, float)) for o in shape.get("others", [])[:150]] + [rot(mean)]
+    allp = np.vstack(pts)
+    lo, hi = allp.min(0), allp.max(0)
+    scale = min(bw / max(hi[0] - lo[0], 1e-9), bh / max(hi[1] - lo[1], 1e-9))
+    off = np.array([x + (bw - (hi[0] - lo[0]) * scale) / 2, y + (bh - (hi[1] - lo[1]) * scale) / 2])
+    to_xy = lambda p: [tuple(v) for v in ((p - lo) * scale + off)]
+    for p in pts[:-1]:
+        d.line(to_xy(p) + to_xy(p)[:1], fill=(110, 110, 110, 28), width=1)
+    d.line(to_xy(pts[-1]) + to_xy(pts[-1])[:1], fill=(0, 110, 200, 255), width=max(2, size // 6))

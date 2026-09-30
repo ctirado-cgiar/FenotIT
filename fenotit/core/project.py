@@ -44,6 +44,7 @@ class Project:
     roi: dict[str, list] = field(default_factory=dict)   # formas normalizadas 0-1
     corrections: Corrections = field(default_factory=Corrections)
     metadata: dict[str, str] = field(default_factory=dict)   # {"file": ruta, "key_column": col}
+    display: dict[str, Any] = field(default_factory=lambda: {"legend": True, "color_format": "RGB"})
 
     @property
     def current_image(self) -> Path | None:
@@ -82,6 +83,7 @@ class Project:
             "params": self.params,
             "roi": self.roi,
             "corrections": self.corrections.to_dict(),
+            "display": self.display,
             "metadata": ({**self.metadata, "file": self._rel(Path(self.metadata["file"]))}
                          if self.metadata.get("file") else {}),
         }
@@ -127,6 +129,7 @@ class Project:
             params=d.get("params", {}) or {},
             roi=d.get("roi", {}) or {},
             corrections=Corrections.from_dict(d.get("corrections"), folder),
+            display={"legend": True, "color_format": "RGB", **(d.get("display") or {})},
             metadata=({**d["metadata"], "file": str(resolve(d["metadata"]["file"]))}
                       if (d.get("metadata") or {}).get("file") else {}),
         )

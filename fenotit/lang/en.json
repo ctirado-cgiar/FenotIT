@@ -79,10 +79,6 @@
   "legend.image_colors": "Image colors",
   "legend.length": "Length",
   "legend.mean_shape": "Mean shape",
-  "legend.measured": "{n} measured of {total}",
-  "legend.n_objects": "{n} objects",
-  "legend.n_touching": "{n} touching (counted, not measured)",
-  "legend.shape_n": "{n} objects",
   "legend.width": "Width",
   "menu.about": "About {app}",
   "menu.cal_scale": "Scale: two points…",
@@ -232,6 +228,7 @@
   "topbar.analysis": "Analysis:",
   "topbar.mode": "Mode:",
   "topbar.run": "▶  Run",
+  "view.legend": "Legend",
   "wip.export_prefs": "Choice of color spaces to export\nand metrics (RGB, CIELab, %, luminance).",
   "wip.module": "⚠  Module in development — available in a future version",
   "wip.notice": "🚧  In development — available in a future version"

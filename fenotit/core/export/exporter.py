@@ -64,13 +64,15 @@ class Exporter:
         # {análisis: {nombre_imagen: {"tables": {...}}}} en orden de llegada
         self._data: dict[str, dict[str, Any]] = {}
 
-    def save_result(self, analysis_name: str, image_name: str, result, save_step_images: bool = True):
+    def save_result(self, analysis_name: str, image_name: str, result, save_step_images: bool = True,
+                    decorate=None):
+        """decorate(nombre_vista, imagen) -> imagen: p. ej. la leyenda, si está activada."""
         folders = result.extra.get("step_folders") or {}
         if save_step_images:
             for step, folder in folders.items():
                 img = result.step_images.get(step)
                 if img is not None:
-                    _save_img(self.output_root / folder, image_name, img)
+                    _save_img(self.output_root / folder, image_name, decorate(step, img) if decorate else img)
         self._data.setdefault(analysis_name, {})[image_name] = {
             "tables": result.extra.get("tables") or {}}
 

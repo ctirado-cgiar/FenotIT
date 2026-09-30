@@ -512,6 +512,8 @@ class MainWindow:
         self.max_slider.set(seg.max_val)
         self.auto_var.set(seg.auto)
         self._on_auto_change()
+        self.legend_var.set(project.display.get("legend", True))
+        self.color_fmt_var.set(project.display.get("color_format", "RGB"))
         self.mode_var.set(project.mode)
 
         name = _analysis_name(project.analysis) or self._selected_analysis()
@@ -1067,6 +1069,17 @@ class MainWindow:
                                       bg=COLORS["bg_panel"], fg=COLORS["accent"],
                                       relief="flat", font=FONTS["small"], cursor="hand2")
         self._results_btn.pack(side=tk.RIGHT, padx=4)
+        from fenotit.core.pipeline.views import COLOR_FORMATS
+        self.color_fmt_var = tk.StringVar(value="RGB")
+        fmt = ttk.Combobox(step_nav, textvariable=self.color_fmt_var, values=list(COLOR_FORMATS),
+                           state="readonly", width=4, font=FONTS["small"])
+        fmt.pack(side=tk.RIGHT, padx=(0, 6))
+        fmt.bind("<<ComboboxSelected>>", self._on_display_change)
+        self.legend_var = tk.BooleanVar(value=True)
+        tk.Checkbutton(step_nav, text=t("view.legend"), variable=self.legend_var,
+                       command=self._on_display_change, bg=COLORS["bg_panel"], fg=COLORS["text"],
+                       selectcolor=COLORS["bg_card"], activebackground=COLORS["bg_panel"],
+                       font=FONTS["small"]).pack(side=tk.RIGHT, padx=2)
         tk.Button(step_nav, text="▶", command=self._next_step,
                   bg=COLORS["bg_panel"], fg=COLORS["accent"],
                   relief="flat", font=FONTS["small"],
@@ -1567,7 +1580,7 @@ class MainWindow:
                 self._exporter = Exporter(self.output_root)
             self._exporter.save_result(
                 name, Path(path).name, result,
-                save_step_images=True)
+                save_step_images=True, decorate=self._decorate_fn(result))
             self._exporter.append_to_csv(
                 name, Path(path).name, result)
 
@@ -1598,7 +1611,7 @@ class MainWindow:
             if self._exporter is None:
                 self._exporter = Exporter(self.output_root)
             self._exporter.save_result(name, Path(path).name, result,
-                                       save_step_images=True)
+                                       save_step_images=True, decorate=self._decorate_fn(result))
             self._exporter.append_to_csv(name, Path(path).name, result)
             self._set_status(
                 t("status.done", name=_analysis_label(name), detail=self._exporter.results_dir))
@@ -1711,7 +1724,28 @@ class MainWindow:
         if self.last_result and self.step_names:
             self._jump_to_step(min(len(self.step_names) - 1, self.step_idx + 1))
 
+    def _decorate_fn(self, result: AnalysisResult):
+        """Dibuja la leyenda de cada vista si está activada (pantalla y exportación)."""
+        from fenotit.core.pipeline.views import render_legend
+        legends = result.extra.get("legends") or {}
+        disp = self.project.display
+
+        def decorate(name: str, img: np.ndarray) -> np.ndarray:
+            spec = legends.get(name)
+            if not spec or not disp.get("legend", True):
+                return img
+            return render_legend(img, spec, disp.get("color_format", "RGB"))
+        return decorate
+
+    def _on_display_change(self, _=None):
+        self.project.display = {"legend": bool(self.legend_var.get()),
+                                "color_format": self.color_fmt_var.get()}
+        if self.last_result and self.step_names:
+            self._jump_to_step(self.step_idx)
+
     def _show_step_img(self, name: str, img: np.ndarray):
+        if self.last_result is not None:
+            img = self._decorate_fn(self.last_result)(name, img)
         self.scaler_right.set_image(img)
         if self.zoom_ctrl:
             self.zoom_ctrl.set_right(img)

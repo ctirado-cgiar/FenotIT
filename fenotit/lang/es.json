@@ -79,10 +79,6 @@
   "legend.image_colors": "Colores de la imagen",
   "legend.length": "Largo",
   "legend.mean_shape": "Forma media",
-  "legend.measured": "{n} medidos de {total}",
-  "legend.n_objects": "{n} objetos",
-  "legend.n_touching": "{n} se tocaban (contados, no medidos)",
-  "legend.shape_n": "{n} objetos",
   "legend.width": "Ancho",
   "menu.about": "Acerca de {app}",
   "menu.cal_scale": "Escala: dos puntos…",
@@ -232,6 +228,7 @@
   "topbar.analysis": "Análisis:",
   "topbar.mode": "Modo:",
   "topbar.run": "▶  Ejecutar",
+  "view.legend": "Leyenda",
   "wip.export_prefs": "Selección de espacios de color a exportar\ny métricas (RGB, CIELab, %, luminancia).",
   "wip.module": "⚠  Módulo en desarrollo — disponible en próxima versión",
   "wip.notice": "🚧  En desarrollo — disponible en próxima versión"
