@@ -19,9 +19,10 @@ sys.path.insert(0, str(ROOT))
 
 with contextlib.redirect_stdout(io.StringIO()):
     from fenotit.core.analysis.registry import ANALYSES
+from fenotit.core import pipeline
 from fenotit.core.image_io import load_image
 
-IMAGES = sorted((ROOT / "tests" / "images").glob("*.jpg"))
+IMAGES = sorted((ROOT / "tests" / "images").glob("[0-9][0-9].jpg"))   # 23xxx: test_counts.py
 REF_DIR = ROOT / "tests" / "reference"
 TOL = 1e-6
 
@@ -45,8 +46,31 @@ def _defaults(name):
     return {p["key"]: p["default"] for p in ANALYSES[name].params_schema}
 
 
+CHAIN = [
+    {"step": "threshold", "params": {"color_space": "YCrCb", "channel": 1, "min_val": 122, "max_val": 255}},
+    {"step": "clean"},
+    {"step": "label"},
+    {"step": "filter"},
+    {"step": "morphometry"},
+    {"step": "color", "params": {"n_colors": 3}},
+    {"step": "count"},
+]
+PIPELINE_FILES = {"objects": "pipeline_objects.csv", "image": "pipeline_image.csv",
+                  "object_colors": "pipeline_object_colors.csv", "image_colors": "pipeline_image_colors.csv"}
+
+
+def run_pipeline():
+    out = {f: [] for f in PIPELINE_FILES.values()}
+    for img_path in IMAGES:
+        ctx = pipeline.run(load_image(str(img_path)), CHAIN)
+        for table, fname in PIPELINE_FILES.items():
+            for i, r in enumerate(ctx.tables.get(table, []), 1):
+                out[fname].append({"image": img_path.stem, "row": i, **r})
+    return out
+
+
 def run_all():
-    out = {}
+    out = run_pipeline()
     for name, fname in FILES.items():
         params = {**COMMON, **_defaults(name)}
         rows = []
