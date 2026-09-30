@@ -79,16 +79,10 @@ def morphometry(ctx, p):
             "centroid_y_px": int(round(cy + sl[0].start)),
         })
     measured = [r for r in rows.values() if f"area_{u}2" in r]
-    areas = [r[f"area_{u}2"] for r in measured]
-    lengths = [r[f"length_{u}"] for r in measured]
     ctx.image_row().update({
         "n_objects": len(rows),
         "n_touching": len(touching & set(rows)),
         "n_measured": len(measured),
-        f"area_mean_{u}2": round(float(np.mean(areas)), 3) if areas else None,
-        f"area_sd_{u}2": round(float(np.std(areas)), 3) if areas else None,
-        f"length_mean_{u}": round(float(np.mean(lengths)), 3) if lengths else None,
-        f"length_sd_{u}": round(float(np.std(lengths)), 3) if lengths else None,
     })
     _draw_ids(ctx, "objects")
 

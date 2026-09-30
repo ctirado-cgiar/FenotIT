@@ -58,7 +58,7 @@ CHAIN = [
 ]
 PIPELINE_FILES = {"objects": "pipeline_objects.csv", "image": "pipeline_image.csv",
                   "object_colors": "pipeline_object_colors.csv", "image_colors": "pipeline_image_colors.csv",
-                  "object_shape": "pipeline_object_shape.csv", "image_shape": "pipeline_image_shape.csv"}
+                  "object_shape": "pipeline_object_shape.csv"}
 
 
 def run_pipeline():

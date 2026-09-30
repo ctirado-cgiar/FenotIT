@@ -63,7 +63,8 @@ def test_morphometry_skips_touching():
 
 
 def test_shape_invariant_to_size_rotation_mirror():
-    from fenotit.core.pipeline.steps.shape import align, efd, normalize
+    from fenotit.core.efd import efd, normalize
+    from fenotit.core.stats.shape import align
     t = np.linspace(0, 2 * np.pi, 300, endpoint=False)
     r = 1 + 0.15 * np.cos(2 * t) + 0.08 * np.sin(3 * t)          # contorno asimétrico
     base = np.column_stack([r * np.cos(t), r * np.sin(t)])
@@ -78,12 +79,27 @@ def test_shape_invariant_to_size_rotation_mirror():
     assert np.abs(a - b).max() < 0.02 and np.abs(a - c).max() < 0.02
 
 
-def test_shape_tables():
+def test_shape_extraction_only_per_object():
     ctx = _run([{"step": "label"}, {"step": "filter", "params": {"area_min": 100}}, {"step": "shape"}])
-    assert len(ctx.tables["object_shape"]) == 3
-    row = ctx.tables["image_shape"][0]
-    assert row["n_objects"] == 3 and abs(row["efd_a1"] - 1) < 1e-6 and "efd_d20" in row
-    assert ctx.images["mean_shape"].shape == (400, 400, 3)
+    rows = ctx.tables["object_shape"]
+    assert len(rows) == 3 and "image_shape" not in ctx.tables
+    assert all(abs(r["efd_a1"] - 1) < 1e-6 and "efd_d20" in r for r in rows)
+
+
+def test_stats_by_image_and_by_set():
+    from fenotit.core import stats
+    from fenotit.core.stats.shape import mean_shapes
+    chain = [{"step": "label"}, {"step": "filter", "params": {"area_min": 100}},
+             {"step": "morphometry"}, {"step": "shape"}]
+    results = [(name, _run(chain).tables) for name in ("a.jpg", "b.jpg")]
+    objs = stats.combine(results)
+    assert [r["Image_ID"] for r in objs] == [1, 1, 1, 2, 2, 2] and objs[0]["Image_name"] == "a.jpg"
+    per_image = stats.summarize(objs, by="Image_ID", columns=["area_px2"])
+    whole_set = stats.summarize(objs, columns=["area_px2"])
+    assert [g["n"] for g in per_image] == [3, 3] and whole_set[0]["n"] == 6
+    assert whole_set[0]["area_px2_mean"] == per_image[0]["area_px2_mean"]
+    shapes = stats.combine(results, "object_shape")
+    assert len(mean_shapes(shapes, by="Image_ID")) == 2 and mean_shapes(shapes)[0]["n"] == 6
 
 
 def test_border_kept_when_disabled():
