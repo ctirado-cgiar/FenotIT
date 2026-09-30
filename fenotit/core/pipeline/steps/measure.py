@@ -4,26 +4,7 @@ import numpy as np
 from scipy.ndimage import find_objects
 
 from fenotit.core.pipeline.base import step
-
-
-def _regions(labels):
-    for oid, sl in enumerate(find_objects(labels), 1):
-        if sl is not None:
-            yield oid, sl, (labels[sl] == oid).astype(np.uint8)
-
-
-def _draw_ids(ctx, name, color=(0, 220, 100), touching_color=(0, 150, 255)):
-    """Contornos numerados; los objetos desagrupados (se tocaban) van en naranja."""
-    out = ctx.image.copy()
-    touching = ctx.touching_ids()
-    for oid, sl, m in _regions(ctx.labels):
-        cnts, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE,
-                                   offset=(sl[1].start, sl[0].start))
-        cv2.drawContours(out, cnts, -1, touching_color if oid in touching else color, 2)
-        ys, xs = np.nonzero(m)
-        cx, cy = int(xs.mean()) + sl[1].start, int(ys.mean()) + sl[0].start
-        cv2.putText(out, str(oid), (cx - 8, cy + 6), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-    ctx.images[name] = out
+from fenotit.core.pipeline.views import regions, included_view, inside_point, label_text, sizes
 
 
 @step("morphometry", "measurement", requires=("labels",), params=[
@@ -35,7 +16,7 @@ def morphometry(ctx, p):
     u, f = ctx.unit, ctx.scale
     rows = ctx.object_rows()
     touching = ctx.touching_ids()
-    for oid, sl, m in _regions(ctx.labels):
+    for oid, sl, m in regions(ctx.labels):
         rows[oid]["touching"] = int(oid in touching)
         if p["isolated_only"] and oid in touching:
             continue
@@ -84,7 +65,7 @@ def morphometry(ctx, p):
         "n_touching": len(touching & set(rows)),
         "n_measured": len(measured),
     })
-    _draw_ids(ctx, "objects")
+    included_view(ctx, "morphometry", {r["object_id"] for r in measured}, (0, 220, 100))
 
 
 def _lab(rgb):
@@ -98,7 +79,10 @@ def _kmeans(pixels_rgb, k):
     km = KMeans(n_clusters=k, n_init=10, random_state=134).fit(pixels_rgb)
     counts = np.bincount(km.labels_, minlength=k)
     order = np.argsort(-counts)
-    return [(tuple(int(v) for v in km.cluster_centers_[i]), counts[i] / counts.sum()) for i in order]
+    centers = [tuple(int(v) for v in km.cluster_centers_[i]) for i in order]
+    rank = np.empty(k, int)
+    rank[order] = np.arange(k)
+    return [(centers[j], counts[order[j]] / counts.sum()) for j in range(k)], rank[km.labels_]
 
 
 def _color_row(rgb, frac):
@@ -115,25 +99,45 @@ def color(ctx, p):
     rgb_img = cv2.cvtColor(ctx.image, cv2.COLOR_BGR2RGB)
     rows = ctx.object_rows()
     per_obj, all_px = [], []
-    for oid, sl, m in _regions(ctx.labels):
+    view = (ctx.image * 0.35).astype(np.uint8)         # fondo atenuado
+    for oid, sl, m in regions(ctx.labels):
         px = rgb_img[sl][m > 0].reshape(-1, 3)
         all_px.append(px)
         mean = tuple(int(v) for v in px.mean(axis=0))
         L, a, b = _lab(mean)
         rows[oid].update({"mean_R": mean[0], "mean_G": mean[1], "mean_B": mean[2],
                           "mean_L": L, "mean_a": a, "mean_b": b})
-        for i, (c, frac) in enumerate(_kmeans(px, p["n_colors"]), 1):
+        clusters, lab = _kmeans(px, p["n_colors"])
+        for i, (c, frac) in enumerate(clusters, 1):
             per_obj.append({"object_id": oid, "cluster": i, **_color_row(c, frac)})
+        # vista: cada píxel del objeto pintado con su color KMeans
+        palette = np.array([c[::-1] for c, _ in clusters], np.uint8)
+        region = view[sl]
+        region[m > 0] = palette[lab]
     ctx.tables["object_colors"] = per_obj
+    ctx.images["color"] = view
     if all_px:
         px = np.concatenate(all_px)
+        clusters, _ = _kmeans(px, p["n_colors"])
         ctx.tables["image_colors"] = [{"cluster": i, **_color_row(c, frac)}
-                                      for i, (c, frac) in enumerate(_kmeans(px, p["n_colors"]), 1)]
+                                      for i, (c, frac) in enumerate(clusters, 1)]
 
 
-@step("count", "measurement", requires=("labels",))
+@step("count", "measurement", requires=("labels",), params=[
+    {"key": "numbers", "type": "bool", "default": True},
+])
 def count(ctx, p):
     ids = {i for i, s in enumerate(find_objects(ctx.labels), 1) if s is not None}
     ctx.image_row().update({"n_objects": len(ids), "n_touching": len(ctx.touching_ids() & ids)})
-    if "objects" not in ctx.images:
-        _draw_ids(ctx, "objects")
+    # vista de conteo: un punto por objeto contado (dos puntos en una semilla = partida;
+    # una semilla sin punto = no contada)
+    out = ctx.image.copy()
+    _, radius, scale = sizes(out)
+    for oid, sl, m in regions(ctx.labels):
+        x, y = inside_point(m)
+        x, y = x + sl[1].start, y + sl[0].start
+        cv2.circle(out, (x, y), radius + 2, (0, 0, 0), -1, cv2.LINE_AA)
+        cv2.circle(out, (x, y), radius, (255, 0, 255), -1, cv2.LINE_AA)
+        if p["numbers"]:
+            label_text(out, str(oid), x + radius, y, scale)
+    ctx.images["count"] = out

@@ -9,7 +9,8 @@ from fenotit.core import pipeline
 from fenotit.core.analysis.registry import AnalysisResult, register
 from fenotit.i18n import t
 
-STEP_FOLDERS = {"mask": "mask", "distance": "mask", "objects": "objects"}
+STEP_FOLDERS = {"mask": "mask", "distance": "mask", "morphometry": "morphometry",
+                "shape": "shape", "color": "color", "count": "count"}
 
 
 def _area_px(params: dict, key: str, default: float) -> int:
@@ -53,7 +54,7 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
                        roi=params.get("roi_mask"), exclusions=exclusions)
     res = AnalysisResult()
     names = {}
-    for key in ("mask", "distance", "objects"):
+    for key in STEP_FOLDERS:          # el último (conteo) es el que se muestra primero
         img = ctx.images.get(key)
         if img is not None:
             label = t(f"step.{key}", key)

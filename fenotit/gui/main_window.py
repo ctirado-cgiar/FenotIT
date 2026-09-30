@@ -1185,9 +1185,10 @@ class MainWindow:
     def _build_right_panel(self):
         rf = self.right_panel.content
         self._section_lbl(rf, t("right.title"))
-        tk.Label(rf, text=t("right.subtitle"),
-                 bg=COLORS["bg_panel"], fg=COLORS["text_muted"],
-                 font=FONTS["small"], padx=10).pack(anchor="w")
+        self._right_subtitle = tk.Label(rf, text="",
+                                        bg=COLORS["bg_panel"], fg=COLORS["text_muted"],
+                                        font=FONTS["small"], padx=10)
+        self._right_subtitle.pack(anchor="w")
         self._divider(rf)
         self.config_container = tk.Frame(rf, bg=COLORS["bg_panel"])
         self.config_container.pack(fill=tk.BOTH, expand=True, padx=4)
@@ -1409,6 +1410,7 @@ class MainWindow:
         self._store_panel_params()
         self.active_analysis = name
         self.project.analysis = _analysis_key(name)
+        self._right_subtitle.config(text=_analysis_label(name))
         for w in self.config_container.winfo_children():
             w.destroy()
         stored = self.project.params.get(self.project.analysis, {})

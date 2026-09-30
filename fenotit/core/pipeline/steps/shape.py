@@ -5,6 +5,7 @@ import numpy as np
 
 from fenotit.core import efd
 from fenotit.core.pipeline.base import step
+from fenotit.core.pipeline.views import included_view
 
 
 @step("shape", "measurement", requires=("labels",), params=[
@@ -26,3 +27,4 @@ def shape(ctx, p):
         if len(cnt) >= 2 * order + 2:
             rows.append({"object_id": oid, **efd.columns(efd.normalize(efd.efd(cnt, order)))})
     ctx.tables["object_shape"] = rows
+    included_view(ctx, "shape", {r["object_id"] for r in rows}, (255, 160, 0))
