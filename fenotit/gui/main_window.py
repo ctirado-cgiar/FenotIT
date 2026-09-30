@@ -1075,6 +1075,10 @@ class MainWindow:
                            state="readonly", width=4, font=FONTS["small"])
         fmt.pack(side=tk.RIGHT, padx=(0, 6))
         fmt.bind("<<ComboboxSelected>>", self._on_display_change)
+        size_kw = dict(bg=COLORS["bg_panel"], fg=COLORS["accent"], relief="flat",
+                       font=FONTS["small"], cursor="hand2", padx=2, pady=0)
+        tk.Button(step_nav, text="A+", command=lambda: self._legend_size(1.25), **size_kw).pack(side=tk.RIGHT)
+        tk.Button(step_nav, text="A−", command=lambda: self._legend_size(0.8), **size_kw).pack(side=tk.RIGHT)
         self.legend_var = tk.BooleanVar(value=True)
         tk.Checkbutton(step_nav, text=t("view.legend"), variable=self.legend_var,
                        command=self._on_display_change, bg=COLORS["bg_panel"], fg=COLORS["text"],
@@ -1734,14 +1738,20 @@ class MainWindow:
             spec = legends.get(name)
             if not spec or not disp.get("legend", True):
                 return img
-            return render_legend(img, spec, disp.get("color_format", "RGB"))
+            return render_legend(img, spec, disp.get("color_format", "RGB"), disp.get("legend_scale", 1.0))
         return decorate
 
     def _on_display_change(self, _=None):
-        self.project.display = {"legend": bool(self.legend_var.get()),
+        self.project.display = {**self.project.display, "legend": bool(self.legend_var.get()),
                                 "color_format": self.color_fmt_var.get()}
         if self.last_result and self.step_names:
             self._jump_to_step(self.step_idx)
+
+    def _legend_size(self, factor: float):
+        """A− / A+: tamaño de la leyenda (se guarda en el proyecto)."""
+        scale = self.project.display.get("legend_scale", 1.0) * factor
+        self.project.display = {**self.project.display, "legend_scale": round(min(4.0, max(0.4, scale)), 2)}
+        self._on_display_change()
 
     def _show_step_img(self, name: str, img: np.ndarray):
         if self.last_result is not None:
