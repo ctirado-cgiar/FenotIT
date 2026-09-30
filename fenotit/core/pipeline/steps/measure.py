@@ -91,16 +91,29 @@ def _color_row(rgb, frac):
             "L": L, "a": a, "b": b, "pct": round(100 * frac, 2)}
 
 
+def _core(m: np.ndarray, trim: int) -> np.ndarray:
+    """Quita el borde del objeto: esos píxeles mezclan objeto y fondo."""
+    if trim < 0:
+        trim = max(1, round(0.04 * np.sqrt(m.sum())))
+    if trim == 0:
+        return m
+    inner = cv2.erode(np.pad(m, 1), np.ones((3, 3), np.uint8), iterations=trim)[1:-1, 1:-1]
+    return inner if inner.sum() >= 20 else m
+
+
 @step("color", "measurement", requires=("labels",), params=[
     {"key": "n_colors", "type": "int", "default": 3, "min": 1, "max": 10},
+    {"key": "edge_trim", "type": "int", "default": -1, "min": -1, "max": 50},
 ])
 def color(ctx, p):
-    """Colores dominantes (KMeans) por objeto y de todos los objetos juntos."""
+    """Colores dominantes (KMeans) por objeto y de todos los objetos juntos. Solo usa
+    píxeles del objeto, sin el borde (edge_trim px; -1 = automático, ~4 % del tamaño)."""
     rgb_img = cv2.cvtColor(ctx.image, cv2.COLOR_BGR2RGB)
     rows = ctx.object_rows()
     per_obj, all_px = [], []
     view = (ctx.image * 0.35).astype(np.uint8)         # fondo atenuado
     for oid, sl, m in regions(ctx.labels):
+        m = _core(m, int(p["edge_trim"]))
         px = rgb_img[sl][m > 0].reshape(-1, 3)
         all_px.append(px)
         mean = tuple(int(v) for v in px.mean(axis=0))
