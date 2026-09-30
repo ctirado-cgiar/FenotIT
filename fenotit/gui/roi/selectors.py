@@ -198,6 +198,11 @@ class ROISelector:
             self.final_shapes.append(self.canvas.create_polygon(
                 *flat, outline=hexc, fill=hexc, stipple="gray50", width=2, tags="roi_final"))
 
+    def exclusions_normalized(self) -> list[tuple]:
+        """Zonas de exclusión con coordenadas 0-1 (sirven para cualquier tamaño de imagen)."""
+        size = np.array([max(self._img_w, 1), max(self._img_h, 1)], float)
+        return [(np.asarray(pts, float) / size, color) for pts, color in self._exclusion_zones]
+
     def get_combined_params(self) -> dict:
         """
         Retorna dict con inclusión y exclusiones para pasar a análisis.

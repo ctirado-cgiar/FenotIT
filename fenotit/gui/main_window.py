@@ -1385,6 +1385,7 @@ class MainWindow:
 
     def _build_params(self) -> dict:
         p = {
+            "color_space":      self.cs_var.get(),
             "color_space_code": CV2_CODES.get(self.cs_var.get()),
             "channel_idx":      self.ch_var.get(),
             "min_val":          self.min_slider.get(),
@@ -1398,6 +1399,7 @@ class MainWindow:
             p["roi_mask"] = None
         # Exclusiones
         if self.roi_selector and self.roi_selector.has_exclusions:
+            p["exclusions_norm"] = self.roi_selector.exclusions_normalized()
             p["_roi_selector"] = self.roi_selector
             p["_scaler_left"]  = self.scaler_left
         if self.config_panel:

@@ -64,8 +64,23 @@ class ConfigPanel(tk.Frame):
                      pady=8).pack(fill=tk.X, padx=8)
             return
 
+        self._rows: dict[str, tk.Frame] = {}
         for item in schema:
             self._add_param(self.inner, item)
+            self._rows[item["key"]] = self._last_row
+        for item in schema:          # "requires": se muestra solo si esa casilla está marcada
+            parent = item.get("requires")
+            if parent in self._vars:
+                self._vars[parent].trace_add(
+                    "write", lambda *_, k=item["key"], p=parent: self._toggle_row(k, p))
+                self._toggle_row(item["key"], parent)
+
+    def _toggle_row(self, key: str, parent: str):
+        row, visible = self._rows[key], bool(self._vars[parent].get())
+        if visible and not row.winfo_manager():
+            row.pack(fill=tk.X, padx=8, pady=2, after=self._rows[parent])
+        elif not visible and row.winfo_manager():
+            row.pack_forget()
 
     def _add_param(self, parent, item: dict):
         key     = item["key"]
@@ -78,15 +93,25 @@ class ConfigPanel(tk.Frame):
 
         row = tk.Frame(parent, bg=self.colors["bg_panel"])
         row.pack(fill=tk.X, padx=8, pady=2)
+        self._last_row = row
 
-        # Etiqueta + ?
+        # Etiqueta + ?  (en los sí/no la casilla va en la misma línea)
         hdr = tk.Frame(row, bg=self.colors["bg_panel"])
         hdr.pack(fill=tk.X)
-        tk.Label(hdr, text=label,
-                 bg=self.colors["bg_panel"],
-                 fg=self.colors["text"],
-                 font=("Segoe UI", 8),
-                 anchor="w").pack(side=tk.LEFT)
+        if typ == "bool":
+            var = tk.BooleanVar(value=bool(default))
+            tk.Checkbutton(hdr, variable=var, text=label,
+                           bg=self.colors["bg_panel"],
+                           fg=self.colors["text"],
+                           selectcolor=self.colors["bg_card"],
+                           activebackground=self.colors["bg_panel"],
+                           font=("Segoe UI", 8), padx=0).pack(side=tk.LEFT)
+        else:
+            tk.Label(hdr, text=label,
+                     bg=self.colors["bg_panel"],
+                     fg=self.colors["text"],
+                     font=("Segoe UI", 8),
+                     anchor="w").pack(side=tk.LEFT)
         if tooltip:
             tip_btn = tk.Label(hdr, text=" ?",
                                bg=self.colors["bg_panel"],
@@ -99,13 +124,7 @@ class ConfigPanel(tk.Frame):
                 self._show_tip(e, l, t))
 
         if typ == "bool":
-            var = tk.BooleanVar(value=bool(default))
-            tk.Checkbutton(row, variable=var,
-                           bg=self.colors["bg_panel"],
-                           fg=self.colors["text"],
-                           selectcolor=self.colors["bg_card"],
-                           activebackground=self.colors["bg_panel"],
-                           font=("Segoe UI", 8)).pack(anchor="w")
+            pass
         else:
             # Entrada de texto + botones ▲▼
             var = tk.DoubleVar(value=float(default)) \
@@ -167,8 +186,8 @@ class ConfigPanel(tk.Frame):
                       **btn_kw).pack(side=tk.TOP)
 
         self._vars[key] = var
-        tk.Frame(parent, bg=self.colors["border"],
-                 height=1).pack(fill=tk.X, padx=6, pady=(2,0))
+        tk.Frame(row, bg=self.colors["border"],
+                 height=1).pack(fill=tk.X, pady=(2, 0))
 
     def get_values(self, warn: bool = True) -> dict[str, Any]:
         out = {}

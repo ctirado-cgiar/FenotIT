@@ -123,6 +123,11 @@ def list_names() -> list[str]:
 
 def _load_modules():
     try:
+        from . import objects          # noqa: F401  cadena de piezas (etapa 4)
+    except Exception as e:
+        _log.error("objects no disponible: %s", e)
+
+    try:
         from . import morphometry      # noqa: F401  scripts 08/09
     except Exception as e:
         _log.error("morphometry no disponible: %s", e)

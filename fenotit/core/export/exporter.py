@@ -219,12 +219,13 @@ class Exporter:
         stem = _stem(image_name)
 
         # Guardar imágenes de pasos
+        folders = result.extra.get("step_folders") or {}
         if save_step_images and result.step_images:
             steps_to_save = STEP_SAVE.get(analysis_name,
                                           list(result.step_images.keys()))
             for step_name in steps_to_save:
                 if step_name in result.step_images:
-                    folder_name = STEP_FOLDERS.get(
+                    folder_name = folders.get(step_name) or STEP_FOLDERS.get(
                         step_name, "Procesadas")
                     folder = self.output_root / folder_name
                     _save_img(str(folder), image_name,
@@ -250,6 +251,13 @@ class Exporter:
         """
         stem = _stem(image_name)
         self.results_dir.mkdir(parents=True, exist_ok=True)
+
+        tables = result.extra.get("tables")
+        if tables:   # análisis de objetos: una tabla CSV por nivel
+            for table, rows in tables.items():
+                _append_csv(str(self.results_dir / f"{table}.csv"),
+                            [{"Image_name": image_name, **r} for r in rows])
+            return
 
         if analysis_name == "Morfometría":
             rows = []
