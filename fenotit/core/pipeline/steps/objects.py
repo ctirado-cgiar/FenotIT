@@ -32,10 +32,28 @@ def clean(ctx, p):
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8),
                                 iterations=int(p["open_iterations"]))
     if p["fill_holes"]:
-        cnts, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        mask = np.zeros_like(mask)
-        cv2.drawContours(mask, cnts, -1, 255, -1)
+        mask = _fill_small_holes(mask)
     ctx.mask = mask
+
+
+def _fill_small_holes(mask, frac=0.2):
+    """Rellena huecos menores que frac × el área típica de un objeto. Los huecos
+    grandes suelen ser fondo encerrado por un anillo de objetos que se tocan."""
+    n, _, stats, _ = cv2.connectedComponentsWithStats((mask > 0).astype(np.uint8), connectivity=8)
+    if n < 2:
+        return mask
+    typical = float(np.median(stats[1:, cv2.CC_STAT_AREA]))
+    inv = (mask == 0).astype(np.uint8)
+    k, lab, hs, _ = cv2.connectedComponentsWithStats(inv, connectivity=4)
+    h, w = mask.shape
+    out = mask.copy()
+    for i in range(1, k):
+        x, y, bw, bh, a = hs[i]
+        if x == 0 or y == 0 or x + bw == w or y + bh == h:
+            continue
+        if a < frac * typical:
+            out[lab == i] = 255
+    return out
 
 
 @step("label", "processor", requires=("mask",), provides=("labels",))
@@ -48,6 +66,7 @@ def label(ctx, p):
     {"key": "peak_threshold", "type": "float", "default": 0.2, "min": 0.05, "max": 0.95},
     {"key": "merge_ratio", "type": "float", "default": 0.95, "min": 0.5, "max": 1.0},
     {"key": "split_large", "type": "bool", "default": True},
+    {"key": "use_shadows", "type": "bool", "default": True},
 ])
 def separate(ctx, p):
     """Separa objetos pegados: un pico de la transformada de distancia por objeto + watershed.
@@ -57,17 +76,22 @@ def separate(ctx, p):
     fracción del grosor de la más delgada (evita cortar objetos alargados).
     split_large: corta por las muescas los objetos de área ≥ 1.6 × la mediana
     (p. ej. dos semillas lado a lado, que la distancia ve como un solo objeto).
+    use_shadows: en objetos claros, las sombras oscuras entre ellos marcan la
+    frontera (solo si los píxeles oscuros son minoría dentro de la máscara).
     """
     from skimage.feature import peak_local_max
     from skimage.segmentation import watershed
 
     binary = (ctx.mask > 0).astype(np.uint8)
-    dist = cv2.distanceTransform(binary, cv2.DIST_L2, 5)
-    if dist.max() == 0:
+    if not binary.any():
         ctx.labels = np.zeros(binary.shape, np.int32)
         return
     _, comps = cv2.connectedComponents(binary, connectivity=8)
     ctx.groups = comps
+    core = _without_shadows(ctx.image, binary, comps) if p["use_shadows"] else binary
+    dist = cv2.distanceTransform(core, cv2.DIST_L2, 5)
+    if dist.max() == 0:
+        dist = cv2.distanceTransform(binary, cv2.DIST_L2, 5)
     thr = float(p["peak_threshold"]) * dist.max()
     md = int(p["min_distance"])
     if md <= 0:
@@ -78,11 +102,52 @@ def separate(ctx, p):
     markers = np.zeros(binary.shape, np.int32)
     markers[tuple(peaks.T)] = np.arange(1, len(peaks) + 1)
     labels = watershed(-dist, markers, mask=binary > 0).astype(np.int32)
-    labels = _merge_flat_necks(labels, dist, float(p["merge_ratio"]))
+    owner = None
+    if core is not binary:   # partes separadas por sombras nunca se vuelven a unir
+        _, cc = cv2.connectedComponents(core, connectivity=8)
+        owner = _majority(labels, cc)
+        dist = cv2.distanceTransform(binary, cv2.DIST_L2, 5)
+    labels = _merge_flat_necks(labels, dist, float(p["merge_ratio"]), owner)
     if p["split_large"]:
         labels = _split_large(labels, float(np.median(dist[tuple(peaks.T)])) if len(peaks) else 0)
     ctx.labels = labels
     ctx.images["distance"] = cv2.normalize(dist, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+
+
+def _without_shadows(image, binary, comps, max_dark=0.35):
+    """En grupos grandes (≥1.6× el área típica) quita las zonas oscuras conectadas con
+    el fondo: sombras entre objetos claros. Los objetos sueltos no se tocan."""
+    if image is None or image.ndim != 3:
+        return binary
+    areas = np.bincount(comps.ravel())
+    areas[0] = 0
+    if (areas > 0).sum() < 3:
+        return binary
+    big = np.flatnonzero(areas >= 1.6 * np.median(areas[areas > 0]))
+    if not len(big):
+        return binary
+    in_groups = np.isin(comps, big)
+    light = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)[:, :, 0]
+    vals = light[binary > 0].reshape(-1, 1)
+    t, _ = cv2.threshold(vals, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    dark = float((vals < t).mean())
+    if not 0.02 < dark < max_dark:
+        return binary
+    dark_px = (in_groups & (light < t)).astype(np.uint8)
+    n, lab, stats, _ = cv2.connectedComponentsWithStats(dark_px, connectivity=8)
+    edge = cv2.dilate((binary == 0).astype(np.uint8), np.ones((3, 3), np.uint8)) > 0
+    typical = float(np.median(areas[areas > 0]))
+    shadow_ids = []
+    for i in np.unique(lab[edge & (dark_px > 0)]):
+        if i == 0:
+            continue
+        a, w, h = stats[i, cv2.CC_STAT_AREA], stats[i, cv2.CC_STAT_WIDTH], stats[i, cv2.CC_STAT_HEIGHT]
+        # sombra = línea larga o zona grande; un hilo compacto (hilum) no cuenta
+        if a >= 0.1 * typical or (a >= 0.01 * typical and max(w, h) ** 2 / max(a, 1) >= 4):
+            shadow_ids.append(i)
+    shadow = np.isin(lab, shadow_ids)
+    core = ((binary > 0) & ~shadow).astype(np.uint8)
+    return cv2.morphologyEx(core, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
 
 
 def _solidity(m):
@@ -170,17 +235,38 @@ def _split_large(labels, radius):
     return labels
 
 
-def _merge_flat_necks(labels, dist, ratio):
+def _majority(labels, other):
+    """Para cada etiqueta, el valor más frecuente (≠0) de 'other' en sus píxeles."""
+    m = (labels > 0) & (other > 0)
+    base = int(other.max()) + 1
+    keys, n = np.unique(labels[m].astype(np.int64) * base + other[m], return_counts=True)
+    lab, o = keys // base, keys % base
+    out = np.zeros(labels.max() + 1, np.int64)
+    order = np.lexsort((n, lab))          # por etiqueta, la de más píxeles al final
+    out[lab[order]] = o[order]
+    return out
+
+
+def _merge_flat_necks(labels, dist, ratio, owner=None):
     from scipy.ndimage import maximum
     if ratio >= 1.0 or labels.max() < 2:
         return labels
-    saddle = {}
+    xs, ys, vs = [], [], []
     for a, b, da, db in ((labels[:, :-1], labels[:, 1:], dist[:, :-1], dist[:, 1:]),
                          (labels[:-1, :], labels[1:, :], dist[:-1, :], dist[1:, :])):
         m = (a != b) & (a > 0) & (b > 0)
-        for x, y, v in zip(a[m], b[m], np.minimum(da[m], db[m])):
-            k = (min(x, y), max(x, y))
-            saddle[k] = max(saddle.get(k, 0.0), v)
+        xs.append(np.minimum(a[m], b[m]))
+        ys.append(np.maximum(a[m], b[m]))
+        vs.append(np.minimum(da[m], db[m]))
+    xs, ys, vs = np.concatenate(xs), np.concatenate(ys), np.concatenate(vs)
+    if not len(xs):
+        return labels
+    key = xs.astype(np.int64) * (int(labels.max()) + 1) + ys
+    uniq, inv = np.unique(key, return_inverse=True)
+    top = np.zeros(len(uniq))
+    np.maximum.at(top, inv, vs)
+    n1 = int(labels.max()) + 1
+    saddle = {(int(k // n1), int(k % n1)): v for k, v in zip(uniq, top)}
     peak = maximum(dist, labels, index=np.arange(labels.max() + 1))
     parent = np.arange(labels.max() + 1)
 
@@ -190,6 +276,8 @@ def _merge_flat_necks(labels, dist, ratio):
             i = parent[i]
         return i
     for (a, b), v in saddle.items():
+        if owner is not None and owner[a] != owner[b]:
+            continue
         if v >= ratio * min(peak[a], peak[b]):
             parent[root(a)] = root(b)
     roots = np.array([root(i) for i in range(len(parent))])

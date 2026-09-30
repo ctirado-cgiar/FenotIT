@@ -57,11 +57,18 @@ class Context:
         """Objetos que salieron de desagrupar un grupo (se tocaban con otro)."""
         if self.groups is None or self.labels is None:
             return set()
+        cache = self.extra.get("_touching")
+        if cache is not None and cache[0] is self.labels:
+            return cache[1]
         fg = self.labels > 0
-        pairs = np.unique(np.stack([self.labels[fg], self.groups[fg]]), axis=1)
-        gid, n = np.unique(pairs[1], return_counts=True)
-        shared = set(gid[n > 1].tolist())
-        return {int(o) for o, g in pairs.T if g in shared}
+        lab, grp = self.labels[fg].astype(np.int64), self.groups[fg].astype(np.int64)
+        pairs = np.unique(lab * (int(grp.max()) + 1) + grp)
+        objs, grps = pairs // (int(grp.max()) + 1), pairs % (int(grp.max()) + 1)
+        gid, n = np.unique(grps, return_counts=True)
+        shared = gid[n > 1]
+        result = {int(o) for o in objs[np.isin(grps, shared)]}
+        self.extra["_touching"] = (self.labels, result)
+        return result
 
     def image_row(self) -> dict:
         t = self.tables.setdefault("image", [{}])
