@@ -44,44 +44,64 @@ def label(ctx, p):
 
 
 @step("separate", "processor", requires=("mask",), provides=("labels",), params=[
-    {"key": "depth", "type": "float", "default": 0.4, "min": 0.05, "max": 0.95},
+    {"key": "min_distance", "type": "int", "default": 0, "min": 0, "max": 1000},
+    {"key": "peak_threshold", "type": "float", "default": 0.2, "min": 0.05, "max": 0.95},
+    {"key": "merge_ratio", "type": "float", "default": 0.95, "min": 0.5, "max": 1.0},
 ])
 def separate(ctx, p):
-    """Separa objetos pegados: watershed con marcadores h-máximos de la distancia.
+    """Separa objetos pegados: un pico de la transformada de distancia por objeto + watershed.
 
-    depth: cuánto debe estrecharse el cuello entre dos objetos, como fracción del
-    grosor máximo del grupo (0.4 = el cuello mide menos del 60 % del grosor).
+    min_distance (px) entre centros; 0 = automático (~ radio típico de los objetos).
+    merge_ratio: vuelve a unir dos partes si el cuello entre ellas es al menos esa
+    fracción del grosor de la más delgada (evita cortar objetos alargados).
     """
-    from scipy.ndimage import find_objects
-    from skimage.morphology import reconstruction
+    from skimage.feature import peak_local_max
     from skimage.segmentation import watershed
 
     binary = (ctx.mask > 0).astype(np.uint8)
+    dist = cv2.distanceTransform(binary, cv2.DIST_L2, 5)
+    if dist.max() == 0:
+        ctx.labels = np.zeros(binary.shape, np.int32)
+        return
     _, comps = cv2.connectedComponents(binary, connectivity=8)
-    out = np.zeros(binary.shape, np.int32)
-    dist_img = np.zeros(binary.shape, np.float32)
-    n = 0
-    for cid, sl in enumerate(find_objects(comps), 1):
-        if sl is None:
-            continue
-        sl = tuple(slice(max(s.start - 1, 0), s.stop + 1) for s in sl)
-        m = (comps[sl] == cid).astype(np.uint8)
-        d = cv2.distanceTransform(m, cv2.DIST_L2, 5).astype(np.float64)
-        dist_img[sl] = np.maximum(dist_img[sl], d)
-        h = float(p["depth"]) * d.max()
-        r = reconstruction(d - h, d, method="dilation")                 # h-máximos:
-        peaks = ((r - reconstruction(r - 0.01, r, method="dilation")) > 0.005) & (m > 0)  # máximos regionales
-        k, markers = cv2.connectedComponents(peaks.astype(np.uint8), connectivity=8)
-        if k <= 2:
-            out[sl][m > 0] = n + 1
-            n += 1
-            continue
-        ws = watershed(-d, markers, mask=m > 0)
-        region = out[sl]
-        region[ws > 0] = ws[ws > 0] + n
-        n += k - 1
-    ctx.labels = out
-    ctx.images["distance"] = cv2.normalize(dist_img, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+    thr = float(p["peak_threshold"]) * dist.max()
+    md = int(p["min_distance"])
+    if md <= 0:
+        rough = peak_local_max(dist, min_distance=5, threshold_abs=thr, labels=comps)
+        md = max(3, int(0.9 * np.median(dist[tuple(rough.T)]))) if len(rough) else 5
+    ctx.extra["separate_min_distance"] = md
+    peaks = peak_local_max(dist, min_distance=md, threshold_abs=thr, labels=comps)
+    markers = np.zeros(binary.shape, np.int32)
+    markers[tuple(peaks.T)] = np.arange(1, len(peaks) + 1)
+    labels = watershed(-dist, markers, mask=binary > 0).astype(np.int32)
+    ctx.labels = _merge_flat_necks(labels, dist, float(p["merge_ratio"]))
+    ctx.images["distance"] = cv2.normalize(dist, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+
+
+def _merge_flat_necks(labels, dist, ratio):
+    from scipy.ndimage import maximum
+    if ratio >= 1.0 or labels.max() < 2:
+        return labels
+    saddle = {}
+    for a, b, da, db in ((labels[:, :-1], labels[:, 1:], dist[:, :-1], dist[:, 1:]),
+                         (labels[:-1, :], labels[1:, :], dist[:-1, :], dist[1:, :])):
+        m = (a != b) & (a > 0) & (b > 0)
+        for x, y, v in zip(a[m], b[m], np.minimum(da[m], db[m])):
+            k = (min(x, y), max(x, y))
+            saddle[k] = max(saddle.get(k, 0.0), v)
+    peak = maximum(dist, labels, index=np.arange(labels.max() + 1))
+    parent = np.arange(labels.max() + 1)
+
+    def root(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+    for (a, b), v in saddle.items():
+        if v >= ratio * min(peak[a], peak[b]):
+            parent[root(a)] = root(b)
+    roots = np.array([root(i) for i in range(len(parent))])
+    return roots[labels].astype(np.int32)
 
 
 @step("filter", "processor", requires=("labels",), provides=("labels",), params=[
