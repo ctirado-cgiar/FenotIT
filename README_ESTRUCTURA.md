@@ -1,125 +1,91 @@
 # FenotIT — Estructura del proyecto
 
-## Cómo agregar un nuevo análisis
+## Cómo funciona un análisis
 
-1. **Crear el módulo** en `fenotit/core/analysis/mi_analisis.py`
+Un análisis es una **cadena de piezas** (`fenotit/core/pipeline/`):
 
-```python
-import numpy as np
-from .registry import register, AnalysisResult
+| Tipo | Hace | Piezas actuales |
+|---|---|---|
+| `segmenter` | produce la máscara (o detecciones) | `threshold`, `otsu` |
+| `processor` | transforma máscara u objetos | `roi`, `clean`, `label`, `separate`, `filter` |
+| `measurement` | lee los objetos y agrega tablas e imágenes | `count`, `morphometry`, `shape`, `color` |
 
-def run(image: np.ndarray, params: dict) -> AnalysisResult:
-    result = AnalysisResult()
-    # ... lógica del análisis ...
-    result.step_images["paso 1"] = imagen_intermedia
-    result.measurements = [{"index": 1, "valor": 42}]
-    result.stats = {"total": 1}
-    return result
-
-register(
-    name="Mi Análisis",
-    func=run,
-    description="Qué hace este análisis",
-    supports_batch=True,
-    icon="chart-bar",
-    params_schema=[
-        {
-            "key":     "mi_parametro",
-            "label":   "Nombre visible en UI",
-            "type":    "int",           # int | float | bool
-            "default": 100,
-            "min":     1,
-            "max":     1000,
-            "tooltip": "Explica qué hace este parámetro y cómo afecta el resultado.",
-        },
-    ],
-)
-```
-
-2. **Registrar el import** en `fenotit/core/analysis/registry.py`, sección `_load_modules()`:
+Todo pasa por un `Context` (imagen, `mask`, `labels`, `groups`, tablas `objects`/`image`/..., imágenes de vista).
+`pipeline.run(image, chain)` corre la cadena y valida que cada pieza tenga lo que necesita.
+`pipeline.ChainCache` recalcula solo lo que cambió.
 
 ```python
-try:
-    from . import mi_analisis   # noqa: F401
-except Exception as e:
-    print(f"[registry] mi_analisis no disponible: {e}")
+from fenotit.core import pipeline
+chain = [{"step": "otsu", "params": {"color_space": "LAB", "channel": 2}},
+         {"step": "clean"}, {"step": "separate"}, {"step": "filter"},
+         {"step": "morphometry"}, {"step": "count"}]
+ctx = pipeline.run(image, chain, mm_per_px=0.05)
+ctx.tables["objects"]      # una fila por objeto
 ```
 
-Eso es todo. La UI detecta el nuevo análisis automáticamente.
+## Cómo agregar una pieza
 
----
+Un archivo en `fenotit/core/pipeline/steps/`; se descubre sola:
 
-## Estructura de carpetas
+```python
+from fenotit.core.pipeline.base import step
+
+@step("mi_medicion", "measurement", requires=("labels",), params=[
+    {"key": "umbral", "type": "float", "default": 0.5, "min": 0, "max": 1},
+])
+def mi_medicion(ctx, p):
+    rows = ctx.object_rows()                     # {object_id: fila}
+    for oid in rows:
+        rows[oid]["mi_valor"] = ...
+    ctx.images["mi_medicion"] = vista            # imagen para revisar el resultado
+```
+
+Columnas en inglés y con unidad (`length_mm`, `area_px2`). Una medición solo lee objetos:
+no depende de otras mediciones.
+
+## Cómo agregar un análisis a la interfaz
+
+Un análisis de la lista es un **tipo de muestra** (hoy: objetos; después: raíces, conteo con IA).
+Cada uno es un módulo en `fenotit/core/analysis/` que arma su cadena y llama `register(...)`
+con su esquema de parámetros; ver `objects.py`. Se importa en `registry._load_modules()`.
+
+Esquema de parámetros del panel: `type` (`int`, `float`, `bool`, `section`), `default`, `min`, `max`,
+`step`, `group` (se muestra con ▸ bajo esa casilla), `requires`, `unit` (`area` → px² o mm²).
+Textos en `fenotit/lang/*.json`: `param.<análisis>.<clave>.label` y `.tip`.
+
+## Análisis posterior
+
+`fenotit/core/stats/` trabaja sobre tablas, sin imágenes: `combine` (varias imágenes, con
+`Image_ID`/`Image_name` y columnas de la tabla del usuario), `summarize(by=...)`,
+`stats.shape.mean_shapes(by=...)`. `fenotit/core/metadata.py` lee la tabla del usuario (CSV/Excel).
+
+## Carpetas
 
 ```
 FenotIT/
 ├── main.py                       # Lanzador (equivale a `python -m fenotit`)
-├── pyproject.toml
 ├── fenotit/
-│   ├── __init__.py               # __version__
-│   ├── cli.py                    # Línea de comandos; sin argumentos abre la GUI
-│   ├── assets/                   # logo.ico, about.txt
 │   ├── core/                     # Sin tkinter
-│   │   ├── image_io.py           # Loader Unicode-safe + ImageScaler
-│   │   ├── analysis/
-│   │   │   ├── registry.py       # Registro central + AnalysisResult
-│   │   │   ├── morphometry.py
-│   │   │   ├── color_kmeans.py
-│   │   │   └── seed_counter.py
-│   │   ├── corrections/          # distortion, color_card, aruco, scale
-│   │   └── export/exporter.py
-│   └── gui/                      # tkinter
-│       ├── app.py                # Splash + ventana principal
-│       ├── main_window.py
-│       ├── config_panel.py, charts.py, calibration_dialogs.py, ...
-│       └── roi/selectors.py
+│   │   ├── pipeline/             # base, cache, views, steps/
+│   │   ├── analysis/             # registry + objects (análisis de la interfaz)
+│   │   ├── stats/                # análisis posterior
+│   │   ├── corrections/          # distorsión, perspectiva ArUco, tarjeta de color, escala
+│   │   ├── efd.py, metadata.py, colorspaces.py, project.py, image_io.py
+│   │   └── export/exporter.py    # una tabla CSV por nivel + Excel
+│   ├── gui/                      # tkinter
+│   └── lang/                     # en.json, es.json
 └── tests/
-    ├── images/                   # Imágenes de prueba
-    ├── reference/                # Resultados de referencia
-    └── reference.py              # Compara contra la referencia
+    ├── images/                   # 01-10 (sueltas) y 23xxx (pegadas)
+    ├── reference/                # tablas de referencia de las 10 fotos
+    ├── reference.py, test_pipeline.py, test_counts.py, ...
 ```
-
-## Estructura de params{}
-
-Todos los módulos de análisis reciben un dict `params` con:
-
-| Clave              | Fuente           | Descripción                          |
-|--------------------|------------------|--------------------------------------|
-| `color_space_code` | selector UI      | Código cv2 de conversión de espacio  |
-| `channel_idx`      | radio buttons    | Índice de canal (0, 1, 2)            |
-| `min_val`          | slider           | Umbral mínimo (0-255)                |
-| `max_val`          | slider           | Umbral máximo (0-255)                |
-| `roi_mask`         | ROI selector     | Máscara en coordenadas originales    |
-| `mm_per_pixel`     | calibración      | Factor de escala (None = píxeles)    |
-| `*`                | config panel     | Parámetros específicos del análisis  |
-
-## Escalado de imágenes
-
-`fenotit/core/image_io.ImageScaler` maneja todo el escalado:
-- `scaler.original` → imagen full-res para análisis
-- `scaler.display`  → imagen escalada al canvas para visualización
-- `scaler.display_to_original(x, y)` → convierte coords de click → originales
-- `scaler.scale_mask_to_original(mask)` → ROI display → ROI para análisis
-
-Los módulos de análisis **siempre reciben la imagen original** y el ROI
-convertido a coordenadas originales. El escalado es 100% transparente.
 
 ## Exportación
 
-La estructura de carpetas de salida es **idéntica al pipeline**:
-
 ```
 RUTA/
-├── Morfometria/
-│   ├── metricasCompletas.csv
-│   └── pasos/
-│       └── nombre_imagen/
-│           ├── canal_seleccionado.jpg
-│           ├── mascara_binaria.jpg
-│           └── contornos_detectados.jpg
-├── Colorimetria/
-│   ├── analisis_colores.csv
-│   └── pasos/...
-└── conteo/
-    └── reporte_20260101_120000.csv
+├── mask/  count/  morphometry/  shape/  color/     imágenes de cada vista
+└── results/
+    ├── objects.csv  image.csv  object_colors.csv  image_colors.csv  object_shape.csv
+    └── results.xlsx                                una hoja por tabla
 ```

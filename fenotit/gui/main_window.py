@@ -30,7 +30,7 @@ from fenotit.gui.corrections_dialog import CorrectionsDialog
 from fenotit.core.corrections import pipeline as corrections
 from fenotit.gui.export_dialog import ExportDialog
 from fenotit.gui.charts import IntraImageChartPanel, BatchChartWindow
-from fenotit.core.export.exporter import Exporter, quick_export_csv
+from fenotit.core.export.exporter import Exporter
 from fenotit.gui.theme import COLORS, FONTS
 
 from fenotit import APP_NAME, __version__, log
@@ -1633,7 +1633,7 @@ class MainWindow:
         if n_skipped:
             msg += "  ·  " + t("status.skipped", n=n_skipped)
         if self.output_root:
-            msg += f" — {Path(self.output_root) / 'resultados'}"
+            msg += f" — {Path(self.output_root) / 'results'}"
         self._set_status(msg)
         if n_skipped:
             messagebox.showwarning(t("corr.skip_title"), t("corr.skip_summary", n=n_skipped), parent=self.root)

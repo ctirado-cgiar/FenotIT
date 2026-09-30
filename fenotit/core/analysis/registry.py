@@ -127,36 +127,5 @@ def _load_modules():
     except Exception as e:
         _log.error("objects no disponible: %s", e)
 
-    try:
-        from . import morphometry      # noqa: F401  scripts 08/09
-    except Exception as e:
-        _log.error("morphometry no disponible: %s", e)
-
-    try:
-        from . import color_kmeans     # noqa: F401  script 10.0
-    except Exception as e:
-        _log.error("color_kmeans no disponible: %s", e)
-
-    try:
-        from . import seed_counter     # noqa: F401  script 15
-    except Exception as e:
-        _log.error("seed_counter no disponible: %s", e)
-
-    # ── Futuros — descomenta cuando el módulo esté listo ──────────────────
-    # try:
-    #     from . import color_distance   # noqa: F401  script 10.1
-    # except Exception as e:
-    #     _log.error("color_distance no disponible: %s", e)
-
-    # try:
-    #     from . import shape_analysis   # noqa: F401  scripts 11.x / 12
-    # except Exception as e:
-    #     _log.error("shape_analysis no disponible: %s", e)
-
-    # try:
-    #     from . import yolo_detector    # noqa: F401  modelo futuro
-    # except Exception as e:
-    #     _log.error("yolo_detector no disponible: %s", e)
-
 
 _load_modules()

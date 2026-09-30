@@ -193,7 +193,7 @@ class ExportDialog(tk.Toplevel):
         # Actualizar output_root del exporter
         from pathlib import Path as _Path
         self._exporter.output_root = _Path(folder)
-        self._exporter.results_dir = _Path(folder) / "resultados"
+        self._exporter.results_dir = _Path(folder) / "results"
 
         try:
             if self._export_all_var.get():

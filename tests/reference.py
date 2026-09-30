@@ -5,46 +5,22 @@ Resultados de referencia para detectar cambios en los números.
     python tests/reference.py          compara contra la referencia guardada
 """
 import argparse
-import contextlib
 import csv
 import io
 import math
 import sys
 from pathlib import Path
 
-import cv2
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-with contextlib.redirect_stdout(io.StringIO()):
-    from fenotit.core.analysis.registry import ANALYSES
 from fenotit.core import pipeline
 from fenotit.core.image_io import load_image
 
 IMAGES = sorted((ROOT / "tests" / "images").glob("[0-9][0-9].jpg"))   # 23xxx: test_counts.py
 REF_DIR = ROOT / "tests" / "reference"
 TOL = 1e-6
-
-COMMON = {
-    "color_space_code": cv2.COLOR_BGR2YCrCb,
-    "channel_idx": 1,
-    "min_val": 122,
-    "max_val": 255,
-    "mm_per_pixel": None,
-    "roi_mask": None,
-}
-
-FILES = {
-    "Morfometría": "morphometry.csv",
-    "Color KMeans": "color_kmeans.csv",
-    "Contador de semillas": "seed_counter.csv",
-}
-
-
-def _defaults(name):
-    return {p["key"]: p["default"] for p in ANALYSES[name].params_schema}
-
 
 CHAIN = [
     {"step": "threshold", "params": {"color_space": "YCrCb", "channel": 1, "min_val": 122, "max_val": 255}},
@@ -72,21 +48,7 @@ def run_pipeline():
 
 
 def run_all():
-    out = run_pipeline()
-    for name, fname in FILES.items():
-        params = {**COMMON, **_defaults(name)}
-        rows = []
-        for img_path in IMAGES:
-            res = ANALYSES[name].func(load_image(str(img_path)), params)
-            if res.status != "ok":
-                rows.append({"image": img_path.stem, "row": 0, "status": res.status or res.error})
-                continue
-            items = res.measurements or [res.stats]
-            for i, m in enumerate(items, 1):
-                rows.append({"image": img_path.stem, "row": i,
-                             **{k: v for k, v in m.items() if not k.startswith("_")}})
-        out[fname] = rows
-    return out
+    return run_pipeline()
 
 
 def _write(path, rows):

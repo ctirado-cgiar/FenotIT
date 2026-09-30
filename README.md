@@ -8,10 +8,13 @@ Developed by the Physiology team of the Bean Breeding Program, Alliance of Biove
 
 ## Features
 
-- **Morphometry:** area, length, width, perimeter and shape descriptors per object
-- **Color:** dominant colors with KMeans, reported in RGB, CIELab, luminance and % of area
-- **Object counting** with distance transform and local peaks
-- **Segmentation** by thresholding any channel of BGR, HSV, LAB, YCrCb, HLS, XYZ, YUV or LUV
+- **One analysis, several measurements:** segment once, then tick what to measure
+  - **Count:** one dot per object, to check at a glance what was counted
+  - **Morphometry:** area, length, width, perimeter, circularity, solidity and more per object
+  - **Shape:** elliptic Fourier descriptors per object, and mean shape by image, batch or group
+  - **Color:** dominant colors (KMeans) per object and per image, in RGB and CIELab
+- **Touching objects:** optional declumping (distance peaks + watershed + notch cuts); touching objects are counted but not measured
+- **Segmentation** by manual or automatic (Otsu) threshold on any channel of BGR, HSV, LAB, YCrCb, HLS, XYZ, YUV or LUV
 - **Regions of interest:** rectangle, square, polygon, holes and exclusion zones
 - **Optional corrections:** lens distortion (chessboard), perspective (ArUco), color card and scale
 - **Projects** (`.fenotit`) that keep images, thresholds, parameters, ROI and scale
@@ -40,15 +43,17 @@ python main.py MyTrial.fenotit      # open a project
 python -m fenotit --version
 ```
 
-Typical workflow: load an image or a folder → choose color space, channel and threshold → draw a ROI (optional) → pick an analysis and its parameters → run on one image or on the whole batch → export. Save everything with **File → Save project**.
+Typical workflow: load an image or a folder → choose color space, channel and threshold → draw a ROI (optional) → tick the measurements → run on one image or on the whole batch → export. Save everything with **File → Save project**.
 
 ## Development
 
-- Code layout and how to add a new analysis: [`README_ESTRUCTURA.md`](README_ESTRUCTURA.md)
+- Code layout and how to add a new step or analysis: [`README_ESTRUCTURA.md`](README_ESTRUCTURA.md)
 - After any change, check that results did not change unexpectedly:
 
 ```bash
 python tests/reference.py        # compares against tests/reference/
+python tests/test_pipeline.py    # steps on synthetic shapes
+python tests/test_counts.py      # counts on real photos with touching seeds
 python tests/test_project.py
 python tests/test_i18n.py
 ```
