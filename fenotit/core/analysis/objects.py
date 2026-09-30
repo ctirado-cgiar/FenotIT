@@ -12,6 +12,15 @@ from fenotit.i18n import t
 STEP_FOLDERS = {"mask": "mask", "distance": "mask", "objects": "objects"}
 
 
+def _area_px(params: dict, key: str, default: float) -> int:
+    """Las áreas del panel vienen en mm² cuando hay escala (area_unit = "mm")."""
+    value = float(params.get(key, default))
+    mpp = params.get("mm_per_pixel")
+    if params.get("area_unit") == "mm" and mpp:
+        value /= mpp * mpp
+    return int(round(value))
+
+
 def build_chain(params: dict) -> list[dict]:
     space = params.get("color_space", "BGR")
     channel = int(params.get("channel_idx", 0))
@@ -23,8 +32,8 @@ def build_chain(params: dict) -> list[dict]:
                                                "max_val": int(params.get("max_val", 255))}}
     chain = [seg, {"step": "roi"}, {"step": "clean"},
              {"step": "separate"} if params.get("touching") else {"step": "label"},
-             {"step": "filter", "params": {"area_min": int(params.get("area_min", 1000)),
-                                           "area_max": int(params.get("area_max", 500_000)),
+             {"step": "filter", "params": {"area_min": _area_px(params, "area_min", 1000),
+                                           "area_max": _area_px(params, "area_max", 500_000),
                                            "exclude_border": bool(params.get("exclude_border", True))}}]
     if params.get("measure_size", True):
         chain.append({"step": "morphometry"})
@@ -64,28 +73,20 @@ register(
     description="Segmenta una vez y mide tamaño y forma, forma (Fourier), color y conteo",
     icon="shapes",
     params_schema=[
-        {"key": "touching", "label": "Los objetos se tocan", "type": "bool", "default": False,
-         "tooltip": "Actívalo si hay objetos pegados: se desagrupan. Déjalo apagado para "
-                    "objetos sueltos o de forma irregular (flores, hojas)."},
-        {"key": "auto_threshold", "label": "Umbral automático (Otsu)", "type": "bool", "default": False,
-         "tooltip": "Calcula el umbral en el canal elegido en vez de usar el rango manual."},
-        {"key": "measure_size", "label": "Tamaño y forma", "type": "bool", "default": True,
-         "tooltip": "Área, largo, ancho, perímetro, circularidad, solidez, etc."},
-        {"key": "measure_shape", "label": "Forma (Fourier elíptico)", "type": "bool", "default": False,
-         "tooltip": "Coeficientes elípticos de Fourier por objeto, para comparar formas."},
-        {"key": "harmonics", "label": "Armónicos", "type": "int", "default": 20, "min": 1, "max": 50,
-         "requires": "measure_shape",
-         "tooltip": "Más armónicos = más detalle del contorno."},
-        {"key": "measure_color", "label": "Color", "type": "bool", "default": False,
-         "tooltip": "Color medio y colores dominantes (KMeans) de cada objeto y de la imagen."},
-        {"key": "n_colors", "label": "Colores por objeto", "type": "int", "default": 3, "min": 1, "max": 10,
-         "requires": "measure_color",
-         "tooltip": "Número de colores dominantes (KMeans)."},
-        {"key": "area_min", "label": "Área mínima (px²)", "type": "int", "default": 1000,
-         "min": 0, "max": 10_000_000, "tooltip": "Objetos más pequeños se ignoran (polvo, restos)."},
-        {"key": "area_max", "label": "Área máxima (px²)", "type": "int", "default": 500_000,
-         "min": 1, "max": 100_000_000, "tooltip": "Objetos más grandes se ignoran."},
+        {"key": "touching", "label": "Los objetos se tocan", "type": "bool", "default": False},
+        {"key": "auto_threshold", "label": "Umbral automático (Otsu)", "type": "bool", "default": False},
+        {"key": "measure_size", "label": "Morfometría", "type": "bool", "default": True},
+        {"key": "measure_shape", "label": "Forma", "type": "bool", "default": False},
+        {"key": "measure_color", "label": "Color", "type": "bool", "default": False},
+        {"key": "area_min", "label": "Área mínima ({unit})", "type": "float", "default": 1000,
+         "min": 0, "max": 100_000_000, "step": 1, "unit": "area", "advanced": True},
+        {"key": "area_max", "label": "Área máxima ({unit})", "type": "float", "default": 500_000,
+         "min": 0, "max": 1_000_000_000, "step": 1, "unit": "area", "advanced": True},
         {"key": "exclude_border", "label": "Excluir objetos del borde", "type": "bool", "default": True,
-         "tooltip": "Ignora objetos cortados por el borde de la foto."},
-    ],
+         "advanced": True},
+        {"key": "harmonics", "label": "Armónicos", "type": "int", "default": 20, "min": 1, "max": 50,
+         "requires": "measure_shape", "advanced": True},
+        {"key": "n_colors", "label": "Colores por objeto", "type": "int", "default": 3, "min": 1, "max": 10,
+         "requires": "measure_color", "advanced": True},
+],
 )

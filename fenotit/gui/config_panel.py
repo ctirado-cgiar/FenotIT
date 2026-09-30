@@ -19,12 +19,14 @@ _log = log.get("gui.config_panel")
 class ConfigPanel(tk.Frame):
 
     def __init__(self, parent, schema: list[dict],
-                 colors: dict, prefix: str = "", **kwargs):
+                 colors: dict, prefix: str = "", units: dict | None = None, **kwargs):
         super().__init__(parent, bg=colors["bg_panel"], **kwargs)
         self.colors = colors
         self._vars: dict[str, tk.Variable] = {}
         self._tips: list[tk.Toplevel]      = []
         self._prefix = prefix
+        self._units = units or {}
+        self._labels: dict[str, tuple[tk.Widget, dict]] = {}
         self._build(schema)
 
     def _build(self, schema):
@@ -64,27 +66,65 @@ class ConfigPanel(tk.Frame):
                      pady=8).pack(fill=tk.X, padx=8)
             return
 
+        bg = self.colors["bg_panel"]
+        self._schema = schema
         self._rows: dict[str, tk.Frame] = {}
+        self._main = tk.Frame(self.inner, bg=bg)
+        self._main.pack(fill=tk.X)
+        advanced = [i for i in schema if i.get("advanced")]
+        self._adv = tk.Frame(self.inner, bg=bg)
+        if advanced:
+            self._adv_open = tk.BooleanVar(value=False)
+            self._adv_btn = tk.Label(self.inner, bg=bg, fg=self.colors["accent"],
+                                     font=("Segoe UI", 8), cursor="hand2", anchor="w")
+            self._adv_btn.pack(fill=tk.X, padx=8, pady=(6, 2))
+            self._adv_btn.bind("<Button-1>", lambda e=None: self._toggle_advanced())
+            self._update_adv_btn()
         for item in schema:
-            self._add_param(self.inner, item)
+            self._add_param(self._adv if item.get("advanced") else self._main, item)
             self._rows[item["key"]] = self._last_row
         for item in schema:          # "requires": se muestra solo si esa casilla está marcada
             parent = item.get("requires")
             if parent in self._vars:
-                self._vars[parent].trace_add(
-                    "write", lambda *_, k=item["key"], p=parent: self._toggle_row(k, p))
-                self._toggle_row(item["key"], parent)
+                self._vars[parent].trace_add("write", lambda *_: self._refresh_rows())
+        self._refresh_rows()
 
-    def _toggle_row(self, key: str, parent: str):
-        row, visible = self._rows[key], bool(self._vars[parent].get())
-        if visible and not row.winfo_manager():
-            row.pack(fill=tk.X, padx=8, pady=2, after=self._rows[parent])
-        elif not visible and row.winfo_manager():
+    def _toggle_advanced(self):
+        self._adv_open.set(not self._adv_open.get())
+        if self._adv_open.get():
+            self._adv.pack(fill=tk.X, after=self._adv_btn)
+        else:
+            self._adv.pack_forget()
+        self._update_adv_btn()
+
+    def _update_adv_btn(self):
+        arrow = "▾" if self._adv_open.get() else "▸"
+        self._adv_btn.config(text=f"{arrow} {t('config.advanced')}")
+
+    def _refresh_rows(self):
+        """Vuelve a empacar las filas en el orden del esquema, ocultando las que
+        dependen de una casilla desmarcada."""
+        for row in self._rows.values():
             row.pack_forget()
+        for item in self._schema:
+            parent = item.get("requires")
+            if parent in self._vars and not self._vars[parent].get():
+                continue
+            self._rows[item["key"]].pack(fill=tk.X, padx=8, pady=2)
+
+    def set_units(self, units: dict):
+        """Cambia las unidades en las etiquetas (p. ej. {"area": "mm²"})."""
+        self._units = units
+        for key, (widget, item) in self._labels.items():
+            widget.config(text=self._label_text(item))
+
+    def _label_text(self, item: dict) -> str:
+        return t(f"param.{self._prefix}.{item['key']}.label", item.get("label", item["key"]),
+                 unit=self._units.get(item.get("unit"), ""))
 
     def _add_param(self, parent, item: dict):
         key     = item["key"]
-        label   = t(f"param.{self._prefix}.{key}.label", item.get("label", key))
+        label   = self._label_text(item)
         typ     = item.get("type", "int")
         default = item.get("default", 0)
         tooltip = t(f"param.{self._prefix}.{key}.tip", item.get("tooltip", ""))
@@ -92,7 +132,6 @@ class ConfigPanel(tk.Frame):
         vmax    = item.get("max")
 
         row = tk.Frame(parent, bg=self.colors["bg_panel"])
-        row.pack(fill=tk.X, padx=8, pady=2)
         self._last_row = row
 
         # Etiqueta + ?  (en los sí/no la casilla va en la misma línea)
@@ -100,18 +139,20 @@ class ConfigPanel(tk.Frame):
         hdr.pack(fill=tk.X)
         if typ == "bool":
             var = tk.BooleanVar(value=bool(default))
-            tk.Checkbutton(hdr, variable=var, text=label,
+            lbl = tk.Checkbutton(hdr, variable=var, text=label,
+                                 bg=self.colors["bg_panel"],
+                                 fg=self.colors["text"],
+                                 selectcolor=self.colors["bg_card"],
+                                 activebackground=self.colors["bg_panel"],
+                                 font=("Segoe UI", 8), padx=0)
+        else:
+            lbl = tk.Label(hdr, text=label,
                            bg=self.colors["bg_panel"],
                            fg=self.colors["text"],
-                           selectcolor=self.colors["bg_card"],
-                           activebackground=self.colors["bg_panel"],
-                           font=("Segoe UI", 8), padx=0).pack(side=tk.LEFT)
-        else:
-            tk.Label(hdr, text=label,
-                     bg=self.colors["bg_panel"],
-                     fg=self.colors["text"],
-                     font=("Segoe UI", 8),
-                     anchor="w").pack(side=tk.LEFT)
+                           font=("Segoe UI", 8),
+                           anchor="w")
+        lbl.pack(side=tk.LEFT)
+        self._labels[key] = (lbl, item)
         if tooltip:
             tip_btn = tk.Label(hdr, text=" ?",
                                bg=self.colors["bg_panel"],
@@ -133,7 +174,7 @@ class ConfigPanel(tk.Frame):
             ctrl_row = tk.Frame(row, bg=self.colors["bg_panel"])
             ctrl_row.pack(fill=tk.X)
 
-            entry = tk.Entry(ctrl_row, textvariable=var, width=7,
+            entry = tk.Entry(ctrl_row, textvariable=var, width=10,
                              bg=self.colors["bg_card"],
                              fg=self.colors["text"],
                              insertbackground=self.colors["text"],
@@ -145,7 +186,7 @@ class ConfigPanel(tk.Frame):
             btn_frame = tk.Frame(ctrl_row, bg=self.colors["bg_panel"])
             btn_frame.pack(side=tk.LEFT, padx=2)
 
-            step = 0.1 if typ == "float" else 1
+            step = item.get("step", 0.1 if typ == "float" else 1)
 
             def make_up(v=var, s=step, mn=vmin, mx=vmax):
                 def up():

@@ -337,6 +337,7 @@ class MainWindow:
         if self.current_image_path:
             self._load_single(self.current_image_path)
         self._update_corr_indicator()
+        self._sync_area_units()
 
     def _invalidate_results(self):
         self._corr_info.clear()
@@ -350,6 +351,7 @@ class MainWindow:
         self.project.scale = Scale()
         self._set_status(t("status.scale_cleared"))
         self._update_corr_indicator()
+        self._sync_area_units()
 
     def _update_corr_indicator(self):
         parts = [t(f"corr.short.{n}") for n in self.project.corrections.active()]
@@ -365,7 +367,40 @@ class MainWindow:
     def _store_panel_params(self):
         panel = getattr(self, "config_panel", None)
         if panel is not None and self.active_analysis in ANALYSES:
-            self.project.params[_analysis_key(self.active_analysis)] = panel.get_values(warn=False)
+            values = panel.get_values(warn=False)
+            if self._has_area_units():
+                values["_area_unit"] = self._panel_area_unit
+            self.project.params[_analysis_key(self.active_analysis)] = values
+
+    # ── Unidades de área en el panel (px² sin escala, mm² con escala) ────────
+
+    def _area_unit(self) -> str:
+        return "mm" if self.project.scale.source != "none" else "px"
+
+    def _has_area_units(self) -> bool:
+        return any(i.get("unit") == "area"
+                   for i in ANALYSES[self.active_analysis].params_schema) if self.active_analysis in ANALYSES else False
+
+    def _sync_area_units(self):
+        """Si cambió la escala, convierte las áreas del panel y cambia la etiqueta."""
+        panel = getattr(self, "config_panel", None)
+        if panel is None or not self._has_area_units():
+            return
+        new = self._area_unit()
+        if new != self._panel_area_unit:
+            # al quitar la escala se convierte con la última escala usada
+            mpp = self.mm_per_pixel if new == "mm" else getattr(self, "_panel_mpp", None)
+            if mpp:
+                factor = mpp * mpp if new == "mm" else 1 / (mpp * mpp)
+                keys = [i["key"] for i in ANALYSES[self.active_analysis].params_schema if i.get("unit") == "area"]
+                vals = panel.get_values(warn=False)
+                panel.set_values({k: round(vals[k] * factor, 4) for k in keys if k in vals})
+            else:
+                _log.info("Sin mm/px para convertir áreas; se conservan los números")
+            self._panel_area_unit = new
+        if new == "mm" and self.mm_per_pixel:
+            self._panel_mpp = self.mm_per_pixel
+        panel.set_units({"area": "mm²" if new == "mm" else "px²"})
 
     def _collect_state(self) -> dict:
         self._store_panel_params()
@@ -1376,12 +1411,16 @@ class MainWindow:
         self.project.analysis = _analysis_key(name)
         for w in self.config_container.winfo_children():
             w.destroy()
+        stored = self.project.params.get(self.project.analysis, {})
+        self._panel_area_unit = stored.get("_area_unit", "px")
         self.config_panel = ConfigPanel(
             self.config_container,
             schema=ANALYSES[name].params_schema,
-            colors=COLORS, prefix=_analysis_key(name))
-        self.config_panel.set_values(self.project.params.get(self.project.analysis, {}))
+            colors=COLORS, prefix=_analysis_key(name),
+            units={"area": "mm²" if self._panel_area_unit == "mm" else "px²"})
+        self.config_panel.set_values({k: v for k, v in stored.items() if not k.startswith("_")})
         self.config_panel.pack(fill=tk.BOTH, expand=True)
+        self._sync_area_units()
 
     def _build_params(self) -> dict:
         p = {
@@ -1404,6 +1443,7 @@ class MainWindow:
             p["_scaler_left"]  = self.scaler_left
         if self.config_panel:
             p.update(self.config_panel.get_values())
+            p["area_unit"] = getattr(self, "_panel_area_unit", "px")
         return p
 
     def _run_analysis(self):
@@ -1771,6 +1811,7 @@ class MainWindow:
             scale_result.unit_per_px * UNIT_TO_MM.get(scale_result.unit, 1.0),
             "two_points", scale_result.format())
         self._update_corr_indicator()
+        self._sync_area_units()
         self.scale_result = scale_result
         self._set_status(t("status.scale", scale=scale_result.format()))
 
@@ -1782,6 +1823,7 @@ class MainWindow:
         if val:
             self.project.scale = Scale(val, "manual")
             self._update_corr_indicator()
+            self._sync_area_units()
             self._set_status(t("status.scale", scale=f"{val:.6f} mm/px"))
 
     def _wip(self, title: str, desc: str):
