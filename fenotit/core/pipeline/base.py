@@ -101,7 +101,7 @@ def discover() -> dict[str, Step]:
 
 def run(image: np.ndarray, chain: list[dict], mm_per_px: float | None = None,
         roi: np.ndarray | None = None, exclusions: list | None = None) -> Context:
-    if not REGISTRY:
+    if any(item["step"] not in REGISTRY for item in chain):
         discover()
     ctx = Context(image=image, mm_per_px=mm_per_px, roi=roi, exclusions=exclusions or [])
     for item in chain:

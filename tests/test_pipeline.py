@@ -43,6 +43,17 @@ def test_separate_touching():
     assert ctx.image_row()["n_objects"] == 4
 
 
+def test_split_side_by_side():
+    img = np.full((500, 900, 3), 255, np.uint8)
+    for x in (100, 250, 400, 550):
+        cv2.ellipse(img, (x, 120), (55, 30), 0, 0, 360, (0, 0, 200), -1)
+    cv2.ellipse(img, (300, 330), (55, 30), 0, 0, 360, (0, 0, 200), -1)   # dos pegadas a lo largo
+    cv2.ellipse(img, (300, 388), (55, 30), 0, 0, 360, (0, 0, 200), -1)
+    ctx = pipeline.run(img, [SEG, {"step": "separate"}, {"step": "filter", "params": {"area_min": 100}},
+                             {"step": "count"}])
+    assert ctx.image_row()["n_objects"] == 6, ctx.image_row()
+
+
 def test_border_kept_when_disabled():
     ctx = _run([{"step": "label"}, {"step": "filter", "params": {"area_min": 100, "exclude_border": False}},
                 {"step": "count"}])

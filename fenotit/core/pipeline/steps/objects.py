@@ -47,6 +47,7 @@ def label(ctx, p):
     {"key": "min_distance", "type": "int", "default": 0, "min": 0, "max": 1000},
     {"key": "peak_threshold", "type": "float", "default": 0.2, "min": 0.05, "max": 0.95},
     {"key": "merge_ratio", "type": "float", "default": 0.95, "min": 0.5, "max": 1.0},
+    {"key": "split_large", "type": "bool", "default": True},
 ])
 def separate(ctx, p):
     """Separa objetos pegados: un pico de la transformada de distancia por objeto + watershed.
@@ -54,6 +55,8 @@ def separate(ctx, p):
     min_distance (px) entre centros; 0 = automático (~ radio típico de los objetos).
     merge_ratio: vuelve a unir dos partes si el cuello entre ellas es al menos esa
     fracción del grosor de la más delgada (evita cortar objetos alargados).
+    split_large: corta por las muescas los objetos de área ≥ 1.6 × la mediana
+    (p. ej. dos semillas lado a lado, que la distancia ve como un solo objeto).
     """
     from skimage.feature import peak_local_max
     from skimage.segmentation import watershed
@@ -74,8 +77,96 @@ def separate(ctx, p):
     markers = np.zeros(binary.shape, np.int32)
     markers[tuple(peaks.T)] = np.arange(1, len(peaks) + 1)
     labels = watershed(-dist, markers, mask=binary > 0).astype(np.int32)
-    ctx.labels = _merge_flat_necks(labels, dist, float(p["merge_ratio"]))
+    labels = _merge_flat_necks(labels, dist, float(p["merge_ratio"]))
+    if p["split_large"]:
+        labels = _split_large(labels, float(np.median(dist[tuple(peaks.T)])) if len(peaks) else 0)
+    ctx.labels = labels
     ctx.images["distance"] = cv2.normalize(dist, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+
+
+def _solidity(m):
+    cnts, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    c = max(cnts, key=cv2.contourArea)
+    hull = cv2.contourArea(cv2.convexHull(c))
+    return cv2.contourArea(c) / hull if hull else 0.0
+
+
+def _cut_by_notches(m, radius, single):
+    """Corta una máscara en 2 partes por una muesca profunda: elige el corte recto
+    (de muesca a muesca o de muesca al borde) que deja dos partes convexas y de área
+    cercana a la de un objeto típico (single)."""
+    min_area = 0.35 * single
+    cnts, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    cnt = max(cnts, key=cv2.contourArea)
+    if len(cnt) < 5:
+        return None
+    try:
+        defects = cv2.convexityDefects(cnt, cv2.convexHull(cnt, returnPoints=False))
+    except cv2.error:
+        return None
+    if defects is None:
+        return None
+    pts = [tuple(cnt[f][0]) for *_, f, d in defects[:, 0] if d / 256 >= 0.25 * radius]
+    if not pts:
+        return None
+    border = [tuple(q[0]) for q in cnt[::3]]
+    cands = {(a, b) for a in pts for b in pts + border if a != b}
+    best, best_score = None, -np.inf
+    for p0, p1 in cands:
+        length = np.hypot(p0[0] - p1[0], p0[1] - p1[1])
+        if not 3 <= length <= 4 * radius:
+            continue
+        line = np.zeros_like(m)
+        cv2.line(line, p0, p1, 1, 1)
+        if m[line > 0].mean() < 0.9:
+            continue
+        cut = m.copy()
+        cv2.line(cut, p0, p1, 0, 2)
+        n, lab, stats, _ = cv2.connectedComponentsWithStats(cut, connectivity=4)
+        big = [k for k in range(1, n) if stats[k, cv2.CC_STAT_AREA] >= min_area]
+        if len(big) != 2:
+            continue
+        score = (min(_solidity((lab == k).astype(np.uint8)) for k in big)
+                 - 0.1 * sum(abs(stats[k, cv2.CC_STAT_AREA] / single - 1) for k in big)
+                 - 0.01 * length / radius)
+        if score > best_score:
+            best, best_score = (lab, big), score
+    if best is None:
+        return None
+    lab, big = best
+    out = np.zeros(m.shape, np.int32)
+    out[lab == big[0]], out[lab == big[1]] = 1, 2
+    from skimage.segmentation import expand_labels
+    return np.where(m > 0, expand_labels(out, 2), 0)
+
+
+def _split_large(labels, radius):
+    """Divide objetos ~2× la mediana cortando entre sus muescas (repite hasta 3 veces)."""
+    from scipy.ndimage import find_objects
+    if radius <= 0 or labels.max() < 3:
+        return labels
+    ids, areas = np.unique(labels[labels > 0], return_counts=True)
+    single = float(np.median(areas))
+    labels = labels.copy()
+    nxt = int(labels.max()) + 1
+    queue = [(int(i), 0) for i, a in zip(ids, areas) if a >= 1.6 * single]
+    while queue:
+        oid, level = queue.pop()
+        sls = find_objects((labels == oid).astype(np.uint8))
+        if not sls or sls[0] is None:
+            continue
+        sl = tuple(slice(max(s.start - 2, 0), s.stop + 2) for s in sls[0])
+        m = (labels[sl] == oid).astype(np.uint8)
+        parts = _cut_by_notches(m, radius, single)
+        if parts is None:
+            continue
+        region = labels[sl]
+        region[parts == 2] = nxt
+        for k, a in ((oid, (parts == 1).sum()), (nxt, (parts == 2).sum())):
+            if a >= 1.6 * single and level < 3:
+                queue.append((k, level + 1))
+        nxt += 1
+    return labels
 
 
 def _merge_flat_necks(labels, dist, ratio):
