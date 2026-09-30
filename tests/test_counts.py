@@ -1,4 +1,5 @@
-"""Conteo en fotos reales con objetos que se tocan. Esperados: conteo actual revisado a ojo."""
+"""Conteo en fotos reales con objetos que se tocan. 23455 verificado por el usuario;
+el resto revisado a ojo (el método anterior daba 200, 381, 98 y 634)."""
 import sys
 from pathlib import Path
 
