@@ -62,6 +62,30 @@ def test_morphometry_skips_touching():
     assert all(("area_px2" in r) == (not r["touching"]) for r in ctx.tables["objects"])
 
 
+def test_shape_invariant_to_size_rotation_mirror():
+    from fenotit.core.pipeline.steps.shape import align, efd, normalize
+    t = np.linspace(0, 2 * np.pi, 300, endpoint=False)
+    r = 1 + 0.15 * np.cos(2 * t) + 0.08 * np.sin(3 * t)          # contorno asimétrico
+    base = np.column_stack([r * np.cos(t), r * np.sin(t)])
+
+    def pose(scale, ang, mirror):
+        pts = base * [1, -1 if mirror else 1]
+        c, s = np.cos(ang), np.sin(ang)
+        pts = pts @ [[c, -s], [s, c]] * scale + 500
+        return pts[::-1] if mirror else pts
+    coeffs = [normalize(efd(pose(*args), 10)) for args in ((80, 0, False), (200, 1.1, False), (50, 2.5, True))]
+    a, b, c = align(coeffs)
+    assert np.abs(a - b).max() < 0.02 and np.abs(a - c).max() < 0.02
+
+
+def test_shape_tables():
+    ctx = _run([{"step": "label"}, {"step": "filter", "params": {"area_min": 100}}, {"step": "shape"}])
+    assert len(ctx.tables["object_shape"]) == 3
+    row = ctx.tables["image_shape"][0]
+    assert row["n_objects"] == 3 and abs(row["efd_a1"] - 1) < 1e-6 and "efd_d20" in row
+    assert ctx.images["mean_shape"].shape == (400, 400, 3)
+
+
 def test_border_kept_when_disabled():
     ctx = _run([{"step": "label"}, {"step": "filter", "params": {"area_min": 100, "exclude_border": False}},
                 {"step": "count"}])

@@ -53,10 +53,12 @@ CHAIN = [
     {"step": "filter"},
     {"step": "morphometry"},
     {"step": "color", "params": {"n_colors": 3}},
+    {"step": "shape"},
     {"step": "count"},
 ]
 PIPELINE_FILES = {"objects": "pipeline_objects.csv", "image": "pipeline_image.csv",
-                  "object_colors": "pipeline_object_colors.csv", "image_colors": "pipeline_image_colors.csv"}
+                  "object_colors": "pipeline_object_colors.csv", "image_colors": "pipeline_image_colors.csv",
+                  "object_shape": "pipeline_object_shape.csv", "image_shape": "pipeline_image_shape.csv"}
 
 
 def run_pipeline():
