@@ -11,6 +11,9 @@ from fenotit.i18n import t
 
 STEP_FOLDERS = {"mask": "mask", "distance": "mask", "count": "count", "morphometry": "morphometry",
                 "shape": "shape", "color": "color"}
+# Últimas imágenes en memoria: al cambiar solo una medición no se vuelve a segmentar
+# (cada imagen guardada ocupa ~100-200 MB en fotos de 8 MP; por eso solo 2).
+_CACHE = pipeline.ChainCache(size=2)
 MEASUREMENTS = {"count": "measure_count", "morphometry": "measure_size",
                 "shape": "measure_shape", "color": "measure_color"}
 
@@ -53,8 +56,8 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
     h, w = image.shape[:2]
     exclusions = [((np.asarray(pts, float) * [w, h]).astype(np.int32), color)
                   for pts, color in params.get("exclusions_norm") or []]
-    ctx = pipeline.run(image, build_chain(params), mm_per_px=params.get("mm_per_pixel"),
-                       roi=params.get("roi_mask"), exclusions=exclusions)
+    ctx = _CACHE.run(image, build_chain(params), mm_per_px=params.get("mm_per_pixel"),
+                     roi=params.get("roi_mask"), exclusions=exclusions)
     res = AnalysisResult()
     chosen = [v for v, key in MEASUREMENTS.items() if params.get(key, v in ("count", "morphometry"))]
     tables = _view_tables(ctx)
@@ -74,6 +77,7 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
     res.extra["view_tables"] = view_tables
     res.extra["default_view"] = t(f"step.{chosen[0]}", chosen[0]) if chosen else None
     res.extra["chain"] = build_chain(params)
+    res.extra["reused"] = list(_CACHE.hits)
     return res
 
 

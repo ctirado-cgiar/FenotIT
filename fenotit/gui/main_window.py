@@ -1600,6 +1600,10 @@ class MainWindow:
                 t("status.done", name=_analysis_label(name), detail=self._exporter.results_dir))
         else:
             self._set_status(t("status.done", name=_analysis_label(name), detail=result.stats))
+        reused = result.extra.get("reused")
+        if reused:
+            items = ", ".join(t(f"step.{k}", k) for k in reused)
+            self._set_status(self.status_var.get() + "  ·  " + t("status.reused", items=items))
         self._refresh_history()
         self._update_step_active(3)
         self._log_process(name)

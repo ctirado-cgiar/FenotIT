@@ -73,16 +73,25 @@ def _lab(rgb):
     return round(L * 100 / 255, 2), a - 128, b - 128
 
 
-def _kmeans(pixels_rgb, k):
+def _kmeans(pixels_rgb, k, sample=3000):
+    """KMeans ajustado sobre una muestra (máx. `sample` píxeles, semilla fija) y aplicado
+    a todos los píxeles. Devuelve [(color, fracción)] de mayor a menor y la etiqueta
+    (rango) de cada píxel."""
     from sklearn.cluster import KMeans
-    k = int(min(k, len(np.unique(pixels_rgb, axis=0))))
-    km = KMeans(n_clusters=k, n_init=10, random_state=134).fit(pixels_rgb)
-    counts = np.bincount(km.labels_, minlength=k)
+    px = np.asarray(pixels_rgb)
+    fit = px
+    if len(px) > sample:
+        fit = px[np.random.default_rng(134).choice(len(px), sample, replace=False)]
+    packed = (fit[:, 0].astype(np.int64) << 16) | (fit[:, 1].astype(np.int64) << 8) | fit[:, 2]
+    k = int(min(k, len(np.unique(packed))))
+    km = KMeans(n_clusters=k, n_init=3, random_state=134).fit(fit.astype(float))
+    labels = km.predict(px.astype(float))
+    counts = np.bincount(labels, minlength=k)
     order = np.argsort(-counts)
     centers = [tuple(int(v) for v in km.cluster_centers_[i]) for i in order]
     rank = np.empty(k, int)
     rank[order] = np.arange(k)
-    return [(centers[j], counts[order[j]] / counts.sum()) for j in range(k)], rank[km.labels_]
+    return [(centers[j], counts[order[j]] / counts.sum()) for j in range(k)], rank[labels]
 
 
 def _color_row(rgb, frac):

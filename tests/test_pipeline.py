@@ -102,6 +102,23 @@ def test_stats_by_image_and_by_set():
     assert len(mean_shapes(shapes, by="Image_ID")) == 2 and mean_shapes(shapes)[0]["n"] == 6
 
 
+def test_cache_reuses_objects_and_other_measurements():
+    full = [{"step": "separate"}, {"step": "filter", "params": {"area_min": 100}},
+            {"step": "morphometry"}, {"step": "color", "params": {"n_colors": 2}}, {"step": "count"}]
+    cache = pipeline.ChainCache()
+    a = cache.run(_scene(), [SEG, *full])
+    ref = _run(full)
+    assert a.tables["objects"] == ref.tables["objects"] and a.tables["image"] == ref.tables["image"]
+    assert a.tables["object_colors"] == ref.tables["object_colors"]
+    assert list(a.tables["objects"][0]) == list(ref.tables["objects"][0])
+    changed = [*full[:3], {"step": "color", "params": {"n_colors": 3}}, full[4]]
+    b = cache.run(_scene(), [SEG, *changed])
+    assert cache.hits == ["objects", "morphometry", "count"]
+    assert b.tables["objects"] == _run(changed).tables["objects"]
+    cache.run(_scene(), [SEG, {"step": "label"}, *changed[1:]])
+    assert cache.hits == []
+
+
 def test_border_kept_when_disabled():
     ctx = _run([{"step": "label"}, {"step": "filter", "params": {"area_min": 100, "exclude_border": False}},
                 {"step": "count"}])
