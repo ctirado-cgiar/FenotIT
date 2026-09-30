@@ -141,12 +141,20 @@ def color(ctx, p):
 ])
 def count(ctx, p):
     ids = {i for i, s in enumerate(find_objects(ctx.labels), 1) if s is not None}
-    ctx.image_row().update({"n_objects": len(ids), "n_touching": len(ctx.touching_ids() & ids)})
+    touching = ctx.touching_ids()
+    ctx.image_row().update({"n_objects": len(ids), "n_touching": len(touching & ids)})
+    rows = ctx.object_rows()
     # vista de conteo: un punto por objeto contado (dos puntos en una semilla = partida;
     # una semilla sin punto = no contada)
     out = ctx.image.copy()
     _, radius, scale = sizes(out)
     for oid, sl, m in regions(ctx.labels):
+        row = rows[oid]
+        row.setdefault("touching", int(oid in touching))
+        if "centroid_x_px" not in row:
+            ys, xs = np.nonzero(m)
+            row["centroid_x_px"] = int(round(xs.mean() + sl[1].start))
+            row["centroid_y_px"] = int(round(ys.mean() + sl[0].start))
         x, y = inside_point(m)
         x, y = x + sl[1].start, y + sl[0].start
         cv2.circle(out, (x, y), radius + 2, (0, 0, 0), -1, cv2.LINE_AA)

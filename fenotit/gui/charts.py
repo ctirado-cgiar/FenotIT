@@ -81,7 +81,8 @@ def _numeric_cols(measurements: list[dict]) -> list[str]:
     seen = set()
     cols = []
     skip = {"index", "_total", "centroid_x", "centroid_y",
-            "centroid_x (display)", "centroid_y (display)"}
+            "centroid_x (display)", "centroid_y (display)",
+            "object_id", "touching", "centroid_x_px", "centroid_y_px", "Image_ID"}
     for row in measurements:
         for k, v in row.items():
             if k not in seen and k not in skip                     and isinstance(v, (int, float)):

@@ -9,8 +9,10 @@ from fenotit.core import pipeline
 from fenotit.core.analysis.registry import AnalysisResult, register
 from fenotit.i18n import t
 
-STEP_FOLDERS = {"mask": "mask", "distance": "mask", "morphometry": "morphometry",
-                "shape": "shape", "color": "color", "count": "count"}
+STEP_FOLDERS = {"mask": "mask", "distance": "mask", "count": "count", "morphometry": "morphometry",
+                "shape": "shape", "color": "color"}
+MEASUREMENTS = {"count": "measure_count", "morphometry": "measure_size",
+                "shape": "measure_shape", "color": "measure_color"}
 
 
 def _area_px(params: dict, key: str, default: float) -> int:
@@ -37,7 +39,8 @@ def build_chain(params: dict) -> list[dict]:
                                            "area_max": _area_px(params, "area_max", 500_000),
                                            "exclude_border": bool(params.get("exclude_border", True))}}]
     if params.get("measure_size", True):
-        chain.append({"step": "morphometry"})
+        chain.append({"step": "morphometry",
+                      "params": {"isolated_only": not params.get("measure_touching", False)}})
     if params.get("measure_shape"):
         chain.append({"step": "shape", "params": {"harmonics": int(params.get("harmonics", 20))}})
     if params.get("measure_color"):
@@ -53,19 +56,43 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
     ctx = pipeline.run(image, build_chain(params), mm_per_px=params.get("mm_per_pixel"),
                        roi=params.get("roi_mask"), exclusions=exclusions)
     res = AnalysisResult()
-    names = {}
-    for key in STEP_FOLDERS:          # el último (conteo) es el que se muestra primero
+    chosen = [v for v, key in MEASUREMENTS.items() if params.get(key, v in ("count", "morphometry"))]
+    tables = _view_tables(ctx)
+    names, view_tables = {}, {}
+    for key in STEP_FOLDERS:
         img = ctx.images.get(key)
-        if img is not None:
-            label = t(f"step.{key}", key)
-            res.step_images[label] = img if img.ndim == 3 else cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
-            names[label] = STEP_FOLDERS[key]
-    res.measurements = ctx.tables.get("objects", [])
+        if img is None or (key in MEASUREMENTS and key not in chosen):
+            continue
+        label = t(f"step.{key}", key)
+        res.step_images[label] = img if img.ndim == 3 else cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+        names[label] = STEP_FOLDERS[key]
+        view_tables[label] = tables.get(key, tables["image"])
+    res.measurements = tables.get("morphometry", [])        # lo que se puede graficar
     res.stats = dict(ctx.image_row())
     res.extra["tables"] = {k: v for k, v in ctx.tables.items() if v}
     res.extra["step_folders"] = names
+    res.extra["view_tables"] = view_tables
+    res.extra["default_view"] = t(f"step.{chosen[0]}", chosen[0]) if chosen else None
     res.extra["chain"] = build_chain(params)
     return res
+
+
+def _view_tables(ctx) -> dict[str, list[dict]]:
+    """La tabla que acompaña a cada vista: solo las columnas de esa medición."""
+    objects = ctx.tables.get("objects", [])
+    out = {"image": ctx.tables.get("image", []),
+           "count": [{k: r.get(k) for k in ("object_id", "touching", "centroid_x_px", "centroid_y_px")}
+                     for r in objects]}
+    measured = [r for r in objects if any(k.startswith("area_") for k in r)]
+    if measured:
+        cols = [k for k in measured[0] if k not in ("touching", "centroid_x_px", "centroid_y_px")
+                and not k.startswith("mean_")]
+        out["morphometry"] = [{k: r.get(k) for k in cols} for r in measured]
+    if ctx.tables.get("object_shape"):
+        out["shape"] = ctx.tables["object_shape"]
+    if ctx.tables.get("object_colors"):
+        out["color"] = ctx.tables["object_colors"]
+    return out
 
 
 register(
@@ -76,18 +103,22 @@ register(
     params_schema=[
         {"key": "touching", "label": "Los objetos se tocan", "type": "bool", "default": False},
         {"key": "auto_threshold", "label": "Umbral automático (Otsu)", "type": "bool", "default": False},
-        {"key": "measure_size", "label": "Morfometría", "type": "bool", "default": True},
-        {"key": "measure_shape", "label": "Forma", "type": "bool", "default": False},
-        {"key": "measure_color", "label": "Color", "type": "bool", "default": False},
+        {"key": "filters", "label": "Filtros de objetos", "type": "section"},
         {"key": "area_min", "label": "Área mínima ({unit})", "type": "float", "default": 1000,
-         "min": 0, "max": 100_000_000, "step": 1, "unit": "area", "advanced": True},
+         "min": 0, "max": 100_000_000, "step": 1, "unit": "area", "group": "filters"},
         {"key": "area_max", "label": "Área máxima ({unit})", "type": "float", "default": 500_000,
-         "min": 0, "max": 1_000_000_000, "step": 1, "unit": "area", "advanced": True},
+         "min": 0, "max": 1_000_000_000, "step": 1, "unit": "area", "group": "filters"},
         {"key": "exclude_border", "label": "Excluir objetos del borde", "type": "bool", "default": True,
-         "advanced": True},
+         "group": "filters"},
+        {"key": "measure_count", "label": "Conteo", "type": "bool", "default": True},
+        {"key": "measure_size", "label": "Morfometría", "type": "bool", "default": True},
+        {"key": "measure_touching", "label": "Medir también los que se tocan", "type": "bool",
+         "default": False, "group": "measure_size"},
+        {"key": "measure_shape", "label": "Forma", "type": "bool", "default": False},
         {"key": "harmonics", "label": "Armónicos", "type": "int", "default": 20, "min": 1, "max": 50,
-         "requires": "measure_shape", "advanced": True},
+         "group": "measure_shape"},
+        {"key": "measure_color", "label": "Color", "type": "bool", "default": False},
         {"key": "n_colors", "label": "Colores por objeto", "type": "int", "default": 3, "min": 1, "max": 10,
-         "requires": "measure_color", "advanced": True},
+         "group": "measure_color"},
 ],
 )

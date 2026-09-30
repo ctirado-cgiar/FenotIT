@@ -1101,6 +1101,10 @@ class MainWindow:
         tk.Label(step_nav, textvariable=self.step_label_var,
                  bg=COLORS["bg_panel"], fg=COLORS["text"],
                  font=FONTS["small"]).pack(side=tk.LEFT, expand=True)
+        self._results_btn = tk.Button(step_nav, command=self._toggle_results_panel,
+                                      bg=COLORS["bg_panel"], fg=COLORS["accent"],
+                                      relief="flat", font=FONTS["small"], cursor="hand2")
+        self._results_btn.pack(side=tk.RIGHT, padx=4)
         tk.Button(step_nav, text="▶", command=self._next_step,
                   bg=COLORS["bg_panel"], fg=COLORS["accent"],
                   relief="flat", font=FONTS["small"],
@@ -1122,6 +1126,9 @@ class MainWindow:
 
         bottom_nb = ttk.Notebook(cf, style="Bottom.TNotebook")
         bottom_nb.pack(fill=tk.BOTH, expand=False, padx=6, pady=(2,0))
+        self._bottom_nb = bottom_nb
+        self._results_visible = True
+        self._results_btn.config(text=f"▾ {t('results.panel')}")
         # Altura mínima del panel de tabla/gráficos
         bottom_nb.configure(height=220)
 
@@ -1140,7 +1147,7 @@ class MainWindow:
         ysb.config(command=self.table.yview)
         xsb.pack(side=tk.BOTTOM, fill=tk.X)
         ysb.pack(side=tk.RIGHT,  fill=tk.Y)
-        self.table.pack(fill=tk.BOTH)
+        self.table.pack(fill=tk.BOTH, expand=True)
 
         self.stats_var = tk.StringVar(value="")
         tk.Label(tab_table, textvariable=self.stats_var,
@@ -1324,28 +1331,7 @@ class MainWindow:
 
         # Restaurar resultado previo si existe en cache
         if path in self.results_cache:
-            self.last_result = self.results_cache[path]
-            self.step_names  = self.step_names_cache.get(path, [])
-            self.step_idx    = len(self.step_names) - 1
-
-            # Mostrar último paso del resultado en canvas derecho
-            if self.step_names and self.last_result:
-                last_name = self.step_names[-1]
-                last_img  = self.last_result.step_images.get(last_name)
-                if last_img is not None:
-                    self.scaler_right = ImageScaler()
-                    self.scaler_right.set_image(last_img)
-                    self.canvas_right.update_idletasks()
-                    cw = max(self.canvas_right.winfo_width(), 100)
-                    ch = max(self.canvas_right.winfo_height(), 100)
-                    self.scaler_right.set_canvas_size(cw, ch)
-                    self._show_on(self.canvas_right,
-                                  self.scaler_right.display, "_photo_right")
-                self.step_label_var.set(
-                    f"{self.step_names[-1]}  ({len(self.step_names)} pasos)")
-            self._update_table(self.last_result)
-            self.stats_var.set("   |   ".join(
-                f"{k}: {v}" for k, v in self.last_result.stats.items()))
+            self._display_result(self.results_cache[path], self.step_names_cache.get(path, []))
         else:
             # Nueva imagen sin resultados previos
             self.last_result = None
@@ -1571,18 +1557,7 @@ class MainWindow:
 
         # Si es la imagen que está visible ahora, actualizar display
         if path == self.current_image_path and result.status == "ok":
-            self.last_result = result
-            self.step_names  = step_names
-            self.step_idx    = len(step_names) - 1
-            if step_names:
-                last_img = result.step_images.get(step_names[-1])
-                if last_img is not None:
-                    self._show_step_img(step_names[-1], last_img)
-                    self.step_label_var.set(
-                        f"{step_names[-1]}  ({len(step_names)} pasos)")
-            self._update_table(result)
-            self.stats_var.set("   |   ".join(
-                f"{k}: {v}" for k, v in result.stats.items()))
+            self._display_result(result, step_names)
 
     def _on_result(self, name: str, result: AnalysisResult, path: str):
         self.root.config(cursor="")
@@ -1601,14 +1576,7 @@ class MainWindow:
         if name not in self.all_results_by_analysis:
             self.all_results_by_analysis[name] = {}
         self.all_results_by_analysis[name][path] = result
-        if self.step_names:
-            self._show_step_img(self.step_names[-1],
-                                result.step_images[self.step_names[-1]])
-            self.step_label_var.set(
-                f"{self.step_names[-1]}  ({len(self.step_names)} pasos)")
-        self._update_table(result)
-        self.stats_var.set("   |   ".join(
-            f"{k}: {v}" for k, v in result.stats.items()))
+        self._display_result(result, self.step_names)
         if self.output_root:
             if self._exporter is None:
                 self._exporter = Exporter(self.output_root)
@@ -1640,19 +1608,7 @@ class MainWindow:
         if cur and cur in self.results_cache:
             result = self.results_cache[cur]
             if result.status == "ok":
-                self.last_result = result
-                self.step_names  = self.step_names_cache.get(cur, [])
-                self.step_idx    = len(self.step_names) - 1
-                if self.step_names:
-                    last_img = result.step_images.get(self.step_names[-1])
-                    if last_img is not None:
-                        self._show_step_img(self.step_names[-1], last_img)
-                        self.step_label_var.set(
-                            f"{self.step_names[-1]}  "
-                            f"({len(self.step_names)} pasos)")
-                self._update_table(result)
-                self.stats_var.set("   |   ".join(
-                    f"{k}: {v}" for k, v in result.stats.items()))
+                self._display_result(result, self.step_names_cache.get(cur, []))
                 self._refresh_history()
                 self._update_step_active(3)
 
@@ -1665,38 +1621,67 @@ class MainWindow:
         if n_skipped:
             messagebox.showwarning(t("corr.skip_title"), t("corr.skip_summary", n=n_skipped), parent=self.root)
 
+    def _toggle_results_panel(self):
+        """Oculta o muestra la tabla y los gráficos para dar espacio a las imágenes."""
+        self._results_visible = not self._results_visible
+        if self._results_visible:
+            self._bottom_nb.pack(fill=tk.BOTH, expand=False, padx=6, pady=(2, 0))
+        else:
+            self._bottom_nb.pack_forget()
+        arrow = "▾" if self._results_visible else "▴"
+        self._results_btn.config(text=f"{arrow} {t('results.panel')}")
+        self.root.after(50, self._refit_images)
+
+    def _refit_images(self):
+        self._do_resize()
+        if self.zoom_ctrl and self.scaler_left.has_image:
+            self.do_zoom_fit()
+
+    def _display_result(self, result: AnalysisResult, step_names: list[str]):
+        """Muestra un resultado: la vista de la primera medición elegida (o el último
+        paso), su tabla y el resumen de la imagen."""
+        self.last_result = result
+        self.step_names = list(step_names)
+        self.stats_var.set("   |   ".join(f"{k}: {v}" for k, v in result.stats.items()))
+        if not self.step_names:
+            self._update_table(result)
+            return
+        default = result.extra.get("default_view")
+        self._jump_to_step(self.step_names.index(default) if default in self.step_names
+                           else len(self.step_names) - 1)
+
     # ── Tabla ─────────────────────────────────────────────────────────────────
 
-    def _update_table(self, result: AnalysisResult):
+    def _update_table(self, result: AnalysisResult, view: str | None = None):
+        """Cada vista tiene su tabla (Conteo, Morfometría, Forma, Color...)."""
         self.table.delete(*self.table.get_children())
-        if not result.measurements:
+        rows = (result.extra.get("view_tables") or {}).get(view)
+        if rows is None:
+            rows = result.measurements
+            cols = result.table_columns or (list(rows[0].keys()) if rows else [])
+        else:
+            cols = list(dict.fromkeys(k for r in rows for k in r))
+        self.table["columns"] = cols
+        if not rows:
             return
-        cols = result.table_columns or list(result.measurements[0].keys())
+        rows_src = rows
         self.table["columns"] = cols
         for col in cols:
             self.table.heading(col, text=col, anchor="w")
             self.table.column(col, width=max(80, len(col)*8), anchor="w")
-        for row in result.measurements:
+        for row in rows_src:
             self.table.insert("", "end",
-                              values=[str(row.get(c,"")) for c in cols])
+                              values=["" if row.get(c) is None else str(row.get(c)) for c in cols])
 
     # ── Navegación pasos ──────────────────────────────────────────────────────
 
     def _prev_step(self):
         if self.last_result and self.step_names:
-            self.step_idx = max(0, self.step_idx - 1)
-            n = self.step_names[self.step_idx]
-            self._show_step_img(n, self.last_result.step_images[n])
-            self.step_label_var.set(
-                f"{n}  ({self.step_idx+1}/{len(self.step_names)})")
+            self._jump_to_step(max(0, self.step_idx - 1))
 
     def _next_step(self):
         if self.last_result and self.step_names:
-            self.step_idx = min(len(self.step_names)-1, self.step_idx+1)
-            n = self.step_names[self.step_idx]
-            self._show_step_img(n, self.last_result.step_images[n])
-            self.step_label_var.set(
-                f"{n}  ({self.step_idx+1}/{len(self.step_names)})")
+            self._jump_to_step(min(len(self.step_names) - 1, self.step_idx + 1))
 
     def _show_step_img(self, name: str, img: np.ndarray):
         self.scaler_right.set_image(img)
@@ -1780,6 +1765,7 @@ class MainWindow:
         self._show_step_img(name, self.last_result.step_images[name])
         self.step_label_var.set(
             f"{name}  ({idx+1}/{len(self.step_names)})")
+        self._update_table(self.last_result, name)
 
     # ── ROI ───────────────────────────────────────────────────────────────────
 

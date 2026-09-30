@@ -66,51 +66,45 @@ class ConfigPanel(tk.Frame):
                      pady=8).pack(fill=tk.X, padx=8)
             return
 
-        bg = self.colors["bg_panel"]
         self._schema = schema
         self._rows: dict[str, tk.Frame] = {}
-        self._main = tk.Frame(self.inner, bg=bg)
-        self._main.pack(fill=tk.X)
-        advanced = [i for i in schema if i.get("advanced")]
-        self._adv = tk.Frame(self.inner, bg=bg)
-        if advanced:
-            self._adv_open = tk.BooleanVar(value=False)
-            self._adv_btn = tk.Label(self.inner, bg=bg, fg=self.colors["accent"],
-                                     font=("Segoe UI", 8), cursor="hand2", anchor="w")
-            self._adv_btn.pack(fill=tk.X, padx=8, pady=(6, 2))
-            self._adv_btn.bind("<Button-1>", lambda e=None: self._toggle_advanced())
-            self._update_adv_btn()
+        self._arrows: dict[str, tk.Label] = {}
+        self._children = {i["group"] for i in schema if i.get("group")}
+        self._open = {g: False for g in self._children}
         for item in schema:
-            self._add_param(self._adv if item.get("advanced") else self._main, item)
+            self._add_param(self.inner, item)
             self._rows[item["key"]] = self._last_row
-        for item in schema:          # "requires": se muestra solo si esa casilla está marcada
+        for item in schema:          # casillas con opciones: se refresca al marcar/desmarcar
+            if item["key"] in self._children and item["key"] in self._vars:
+                self._vars[item["key"]].trace_add("write", lambda *_: self._refresh_rows())
             parent = item.get("requires")
             if parent in self._vars:
                 self._vars[parent].trace_add("write", lambda *_: self._refresh_rows())
         self._refresh_rows()
 
-    def _toggle_advanced(self):
-        self._adv_open.set(not self._adv_open.get())
-        if self._adv_open.get():
-            self._adv.pack(fill=tk.X, after=self._adv_btn)
-        else:
-            self._adv.pack_forget()
-        self._update_adv_btn()
+    def _toggle_group(self, key: str):
+        self._open[key] = not self._open[key]
+        self._refresh_rows()
 
-    def _update_adv_btn(self):
-        arrow = "▾" if self._adv_open.get() else "▸"
-        self._adv_btn.config(text=f"{arrow} {t('config.advanced')}")
+    def _group_active(self, key: str) -> bool:
+        """Una casilla con opciones solo las muestra si está marcada; una sección siempre."""
+        return key not in self._vars or bool(self._vars[key].get())
 
     def _refresh_rows(self):
-        """Vuelve a empacar las filas en el orden del esquema, ocultando las que
-        dependen de una casilla desmarcada."""
+        """Empaca las filas en el orden del esquema. Las opciones de un grupo (▸) solo se
+        ven si el grupo está abierto y activo; las de "requires", si esa casilla está marcada."""
         for row in self._rows.values():
             row.pack_forget()
+        for key, arrow in self._arrows.items():
+            active = self._group_active(key)
+            arrow.config(text=("▾" if self._open[key] else "▸") if active else "")
         for item in self._schema:
-            parent = item.get("requires")
+            group, parent = item.get("group"), item.get("requires")
+            if group and not (self._open.get(group) and self._group_active(group)):
+                continue
             if parent in self._vars and not self._vars[parent].get():
                 continue
-            self._rows[item["key"]].pack(fill=tk.X, padx=8, pady=2)
+            self._rows[item["key"]].pack(fill=tk.X, padx=(24, 8) if group else 8, pady=2)
 
     def set_units(self, units: dict):
         """Cambia las unidades en las etiquetas (p. ej. {"area": "mm²"})."""
@@ -137,7 +131,11 @@ class ConfigPanel(tk.Frame):
         # Etiqueta + ?  (en los sí/no la casilla va en la misma línea)
         hdr = tk.Frame(row, bg=self.colors["bg_panel"])
         hdr.pack(fill=tk.X)
-        if typ == "bool":
+        if typ == "section":
+            lbl = tk.Label(hdr, text=label, bg=self.colors["bg_panel"], fg=self.colors["text"],
+                           font=("Segoe UI", 8), anchor="w", cursor="hand2")
+            lbl.bind("<Button-1>", lambda e=None, k=key: self._toggle_group(k))
+        elif typ == "bool":
             var = tk.BooleanVar(value=bool(default))
             lbl = tk.Checkbutton(hdr, variable=var, text=label,
                                  bg=self.colors["bg_panel"],
@@ -153,6 +151,12 @@ class ConfigPanel(tk.Frame):
                            anchor="w")
         lbl.pack(side=tk.LEFT)
         self._labels[key] = (lbl, item)
+        if key in self._children:
+            arrow = tk.Label(hdr, text="▸", bg=self.colors["bg_panel"], fg=self.colors["accent"],
+                             font=("Segoe UI", 9, "bold"), cursor="hand2", padx=4)
+            arrow.pack(side=tk.LEFT)
+            arrow.bind("<Button-1>", lambda e=None, k=key: self._toggle_group(k))
+            self._arrows[key] = arrow
         if tooltip:
             tip_btn = tk.Label(hdr, text=" ?",
                                bg=self.colors["bg_panel"],
@@ -164,7 +168,7 @@ class ConfigPanel(tk.Frame):
                 lambda e, t=tooltip, l=label:
                 self._show_tip(e, l, t))
 
-        if typ == "bool":
+        if typ in ("bool", "section"):
             pass
         else:
             # Entrada de texto + botones ▲▼
@@ -226,7 +230,8 @@ class ConfigPanel(tk.Frame):
                       command=make_dn(),
                       **btn_kw).pack(side=tk.TOP)
 
-        self._vars[key] = var
+        if typ != "section":
+            self._vars[key] = var
         tk.Frame(row, bg=self.colors["border"],
                  height=1).pack(fill=tk.X, pady=(2, 0))
 
