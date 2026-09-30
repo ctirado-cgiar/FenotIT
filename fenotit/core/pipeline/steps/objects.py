@@ -64,7 +64,7 @@ def label(ctx, p):
 @step("separate", "processor", requires=("mask",), provides=("labels",), params=[
     {"key": "min_distance", "type": "int", "default": 0, "min": 0, "max": 1000},
     {"key": "peak_threshold", "type": "float", "default": 0.2, "min": 0.05, "max": 0.95},
-    {"key": "merge_ratio", "type": "float", "default": 0.95, "min": 0.5, "max": 1.0},
+    {"key": "merge_ratio", "type": "float", "default": 0.9, "min": 0.5, "max": 1.0},
     {"key": "split_large", "type": "bool", "default": True},
     {"key": "use_shadows", "type": "bool", "default": True},
 ])

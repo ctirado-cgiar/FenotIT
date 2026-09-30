@@ -14,7 +14,7 @@ CHAIN = [{"step": "otsu", "params": {"color_space": "LAB", "channel": 2}},
          {"step": "separate"},
          {"step": "filter", "params": {"area_min": 300}},
          {"step": "count"}]
-EXPECTED = {"23379.jpg": 204, "23455.jpg": 399, "23507.jpg": 699}   # sin objetos de borde
+EXPECTED = {"23379.jpg": 204, "23455.jpg": 399, "23505.jpg": 89, "23507.jpg": 699}   # sin objetos de borde
 TOLERANCE = 0.01
 
 
