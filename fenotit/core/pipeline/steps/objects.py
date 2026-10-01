@@ -92,13 +92,22 @@ def separate(ctx, p):
     dist = cv2.distanceTransform(core, cv2.DIST_L2, 5)
     if dist.max() == 0:
         dist = cv2.distanceTransform(binary, cv2.DIST_L2, 5)
-    thr = float(p["peak_threshold"]) * dist.max()
+    # umbral de picos relativo al grosor de CADA grupo (un objeto grande, p. ej. una
+    # etiqueta, no debe esconder los picos de los objetos delgados)
+    from scipy.ndimage import maximum
+    comp_max = np.asarray(maximum(dist, comps, index=np.arange(comps.max() + 1)))
+    rel = float(p["peak_threshold"])
+
+    def _peaks(min_distance):
+        found = peak_local_max(dist, min_distance=min_distance, threshold_abs=0.5, labels=comps)
+        keep = dist[tuple(found.T)] >= rel * comp_max[comps[tuple(found.T)]]
+        return found[keep]
     md = int(p["min_distance"])
     if md <= 0:
-        rough = peak_local_max(dist, min_distance=5, threshold_abs=thr, labels=comps)
+        rough = _peaks(5)
         md = max(3, int(0.9 * np.median(dist[tuple(rough.T)]))) if len(rough) else 5
     ctx.extra["separate_min_distance"] = md
-    peaks = peak_local_max(dist, min_distance=md, threshold_abs=thr, labels=comps)
+    peaks = _peaks(md)
     markers = np.zeros(binary.shape, np.int32)
     markers[tuple(peaks.T)] = np.arange(1, len(peaks) + 1)
     labels = watershed(-dist, markers, mask=binary > 0).astype(np.int32)
@@ -108,6 +117,11 @@ def separate(ctx, p):
         owner = _majority(labels, cc)
         dist = cv2.distanceTransform(binary, cv2.DIST_L2, 5)
     labels = _merge_flat_necks(labels, dist, float(p["merge_ratio"]), owner)
+    radius = float(np.median(dist[tuple(peaks.T)])) if len(peaks) else 0
+    labels = _merge_without_notches(labels, binary, radius, owner,
+                                    cv2.distanceTransform(binary, cv2.DIST_L2, 5))
+    labels = _merge_fragments(labels, comps)
+    labels = _keep_single_sized_groups(labels, comps)
     if p["split_large"]:
         labels = _split_large(labels, float(np.median(dist[tuple(peaks.T)])) if len(peaks) else 0)
     ctx.labels = labels
@@ -200,6 +214,11 @@ def _cut_by_notches(m, radius, single):
     if best is None:
         return None
     lab, big = best
+    # el corte debe dejar partes claramente más convexas que el todo (dos semillas
+    # pegadas sí; una vaina curva cortada en dos no)
+    parts_solidity = min(_solidity((lab == k).astype(np.uint8)) for k in big)
+    if parts_solidity < 0.85 or parts_solidity < _solidity(m) + 0.03:
+        return None
     out = np.zeros(m.shape, np.int32)
     out[lab == big[0]], out[lab == big[1]] = 1, 2
     from skimage.segmentation import expand_labels
@@ -233,6 +252,117 @@ def _split_large(labels, radius):
                 queue.append((k, level + 1))
         nxt += 1
     return labels
+
+
+def _keep_single_sized_groups(labels, comps, max_ratio=1.5):
+    """Un grupo del tamaño de un solo objeto no se parte: se vuelve a unir.
+    El tamaño típico sale de los grupos que no se partieron (objetos sueltos);
+    p. ej. una vaina con cintura no se cuenta como dos."""
+    fg = labels > 0
+    if not fg.any():
+        return labels
+    keys = np.unique(comps[fg].astype(np.int64) * (int(labels.max()) + 1) + labels[fg])
+    grp = keys // (int(labels.max()) + 1)
+    gid, nparts = np.unique(grp, return_counts=True)
+    area = np.bincount(comps[fg], minlength=int(comps.max()) + 1)
+    single = gid[nparts == 1]
+    if len(single) < 3:
+        return labels
+    typical = float(np.median(area[single]))
+    merge = gid[(nparts > 1) & (area[gid] < max_ratio * typical)]
+    if not len(merge):
+        return labels
+    labels = labels.copy()
+    sel = np.isin(comps, merge) & fg
+    labels[sel] = (comps[sel] + int(labels.max()) + 1).astype(labels.dtype)
+    return labels
+
+
+def _merge_fragments(labels, comps, frac=0.35):
+    """Une a su vecino las partes muy pequeñas (< frac × el área típica de un objeto
+    suelto) que salieron de partir un grupo: puntas y colas de objetos alargados."""
+    ids, areas = np.unique(labels[labels > 0], return_counts=True)
+    if len(ids) < 2:
+        return labels
+    group = dict(zip(*np.unique(np.stack([labels[labels > 0], comps[labels > 0]]), axis=1)))
+    per_group = np.bincount(np.array([group[i] for i in ids]))
+    alone = [a for i, a in zip(ids, areas) if per_group[group[i]] == 1]
+    typical = float(np.median(alone if alone else areas))
+    labels = labels.copy()
+    small = sorted((a, i) for i, a in zip(ids, areas) if a < frac * typical and per_group[group[i]] > 1)
+    kernel = np.ones((3, 3), np.uint8)
+    for _, i in small:
+        m = (labels == i).astype(np.uint8)
+        if not m.any():
+            continue
+        ring = (cv2.dilate(m, kernel) > 0) & (m == 0)
+        neigh, n = np.unique(labels[ring], return_counts=True)
+        keep = neigh > 0
+        if keep.any():
+            labels[m > 0] = neigh[keep][np.argmax(n[keep])]
+    return labels
+
+
+def _merge_without_notches(labels, binary, radius, owner=None, dist=None, rel_depth=0.2,
+                           min_neck=0.6):
+    """Une dos partes vecinas si el corte entre ellas no termina en muescas.
+
+    Dos objetos que se tocan dejan una muesca a cada lado del contacto; un objeto
+    alargado o curvo (vaina) cortado por la mitad no: al menos un extremo del corte
+    queda sobre el borde convexo. Se mide la profundidad de cada extremo respecto al
+    casco convexo de la unión de las dos partes. Solo se une si además el cuello es
+    ancho (≥ min_neck del grosor de la parte más delgada): en montones de semillas
+    encimadas el contacto es angosto aunque no deje muesca."""
+    if radius <= 0 or labels.max() < 2:
+        return labels
+    min_depth = max(2.0, rel_depth * radius)
+    bg = binary == 0
+    near_bg = cv2.dilate(bg.astype(np.uint8), np.ones((3, 3), np.uint8)) > 0
+    pairs: dict[tuple[int, int], list] = {}
+    for a, b, sl_a, sl_b in ((labels[:, :-1], labels[:, 1:], np.s_[:, :-1], np.s_[:, 1:]),
+                             (labels[:-1, :], labels[1:, :], np.s_[:-1, :], np.s_[1:, :])):
+        m = (a != b) & (a > 0) & (b > 0)
+        ys, xs = np.nonzero(m)
+        for y, x, u, v in zip(ys, xs, a[m], b[m]):
+            pairs.setdefault((min(u, v), max(u, v)), []).append((x, y))
+    parent = np.arange(labels.max() + 1)
+
+    def root(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+    from scipy.ndimage import find_objects, maximum
+    slices = find_objects(labels)
+    peak = np.asarray(maximum(dist, labels, index=np.arange(labels.max() + 1))) if dist is not None else None
+    for (a, b), pts in pairs.items():
+        if owner is not None and owner[a] != owner[b]:
+            continue
+        pts = np.asarray(pts)
+        if peak is not None and dist[pts[:, 1], pts[:, 0]].max() < min_neck * min(peak[a], peak[b]):
+            continue
+        ends = pts[near_bg[pts[:, 1], pts[:, 0]]]
+        if len(ends) == 0:                       # corte interno (entre 3+ objetos): se respeta
+            continue
+        sa, sb = slices[a - 1], slices[b - 1]
+        y0, y1 = min(sa[0].start, sb[0].start), max(sa[0].stop, sb[0].stop)
+        x0, x1 = min(sa[1].start, sb[1].start), max(sa[1].stop, sb[1].stop)
+        union = np.isin(labels[y0:y1, x0:x1], (a, b)).astype(np.uint8)
+        cnts, _ = cv2.findContours(union, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        hull = cv2.convexHull(max(cnts, key=cv2.contourArea))
+        # extremos: los puntos del corte junto al fondo, agrupados en sus dos puntas
+        far = ends[np.argmax(np.hypot(*(ends - ends[0]).T))]
+        groups = [ends[np.hypot(*(ends - far).T) > np.hypot(*(ends - ends[0]).T)],
+                  ends[np.hypot(*(ends - far).T) <= np.hypot(*(ends - ends[0]).T)]]
+        depths = []
+        for g in groups:
+            if len(g):
+                depths.append(max(cv2.pointPolygonTest(hull, (float(x - x0), float(y - y0)), True)
+                                  for x, y in g))
+        if min(depths) < min_depth:
+            parent[root(a)] = root(b)
+    roots = np.array([root(i) for i in range(len(parent))])
+    return roots[labels].astype(np.int32)
 
 
 def _majority(labels, other):

@@ -60,7 +60,9 @@ class Context:
         cache = self.extra.get("_touching")
         if cache is not None and cache[0] is self.labels:
             return cache[1]
-        fg = self.labels > 0
+        fg = (self.labels > 0) & (self.groups > 0)
+        if not fg.any():
+            return set()
         lab, grp = self.labels[fg].astype(np.int64), self.groups[fg].astype(np.int64)
         pairs = np.unique(lab * (int(grp.max()) + 1) + grp)
         objs, grps = pairs // (int(grp.max()) + 1), pairs % (int(grp.max()) + 1)
