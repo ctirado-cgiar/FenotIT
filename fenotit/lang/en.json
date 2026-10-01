@@ -254,6 +254,8 @@
   "topbar.run": "▶  Run",
   "view.left_panel": "Left panel",
   "view.legend": "Legend",
+  "view.legend_bigger": "Bigger legend",
+  "view.legend_smaller": "Smaller legend",
   "view.pan": "Pan (hand)",
   "view.results_panel": "Results panel",
   "view.right_panel": "Right panel",

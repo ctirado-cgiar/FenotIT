@@ -254,6 +254,8 @@
   "topbar.run": "▶  Ejecutar",
   "view.left_panel": "Panel izquierdo",
   "view.legend": "Leyenda",
+  "view.legend_bigger": "Leyenda más grande",
+  "view.legend_smaller": "Leyenda más pequeña",
   "view.pan": "Mover (mano)",
   "view.results_panel": "Panel de resultados",
   "view.right_panel": "Panel derecho",

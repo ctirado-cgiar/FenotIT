@@ -371,6 +371,7 @@ class MainWindow:
         self.all_results_by_analysis.clear()
         self.last_result = None
         self.canvas_right.delete("all")
+        self._show_results_ui(False)
 
     def _clear_scale(self):
         self.project.scale = Scale()
@@ -717,10 +718,6 @@ class MainWindow:
             (t("roi.exclude_polygon"), lambda: self._set_roi_mode("exclusión")),
             (t("roi.clear"), self._clear_roi),
         ])
-        self._drop(self.topbar, t("menu.analysis"), [
-            (t("run.current"), lambda: self._run_analysis(False), "Ctrl+Enter"),
-            (t("run.all"), lambda: self._run_analysis(True), "Ctrl+Shift+Enter"),
-        ])
         self._drop(self.topbar, t("menu.view"), [
             (t("view.toggle_legend"), self._toggle_legend),
             (t("view.left_panel"), lambda: self.left_panel.toggle()),
@@ -983,17 +980,13 @@ class MainWindow:
         # Referencia para que ZoomController informe al ROI
         self.canvas_left._roi_selector_ref = self.roi_selector
 
-        # Barra inferior: pan + navegador de pasos
-        bottom_bar = tk.Frame(cf, bg=COLORS["bg_panel"], height=28)
-        bottom_bar.pack(fill=tk.X)
-        bottom_bar.pack_propagate(False)
-        tk.Frame(bottom_bar, bg=COLORS["border"],
-                 height=1).pack(fill=tk.X, side=tk.TOP)
+        self._canvas_row = canvas_row
+        self._build_view_controls()
 
-        # Navegador de pasos
-        step_nav = bottom_bar
-        step_nav.pack(fill=tk.X)
+        # Barra de vistas (◀ vista ▶ · Resultados): solo cuando hay resultados
+        step_nav = tk.Frame(cf, bg=COLORS["bg_panel"], height=28)
         step_nav.pack_propagate(False)
+        self._results_bar = step_nav
         tk.Frame(step_nav, bg=COLORS["border"],
                  height=1).pack(fill=tk.X, side=tk.TOP)
         tk.Button(step_nav, text="◀", command=self._prev_step,
@@ -1008,21 +1001,6 @@ class MainWindow:
                                       bg=COLORS["bg_panel"], fg=COLORS["accent"],
                                       relief="flat", font=FONTS["small"], cursor="hand2")
         self._results_btn.pack(side=tk.RIGHT, padx=4)
-        from fenotit.core.pipeline.views import COLOR_FORMATS
-        self.color_fmt_var = tk.StringVar(value="RGB")
-        fmt = ttk.Combobox(step_nav, textvariable=self.color_fmt_var, values=list(COLOR_FORMATS),
-                           state="readonly", width=4, font=FONTS["small"])
-        fmt.pack(side=tk.RIGHT, padx=(0, 6))
-        fmt.bind("<<ComboboxSelected>>", self._on_display_change)
-        size_kw = dict(bg=COLORS["bg_panel"], fg=COLORS["accent"], relief="flat",
-                       font=FONTS["small"], cursor="hand2", padx=2, pady=0)
-        tk.Button(step_nav, text="A+", command=lambda: self._legend_size(1.25), **size_kw).pack(side=tk.RIGHT)
-        tk.Button(step_nav, text="A−", command=lambda: self._legend_size(0.8), **size_kw).pack(side=tk.RIGHT)
-        self.legend_var = tk.BooleanVar(value=True)
-        tk.Checkbutton(step_nav, text=t("view.legend"), variable=self.legend_var,
-                       command=self._on_display_change, bg=COLORS["bg_panel"], fg=COLORS["text"],
-                       selectcolor=COLORS["bg_card"], activebackground=COLORS["bg_panel"],
-                       font=FONTS["small"]).pack(side=tk.RIGHT, padx=2)
         tk.Button(step_nav, text="▶", command=self._next_step,
                   bg=COLORS["bg_panel"], fg=COLORS["accent"],
                   relief="flat", font=FONTS["small"],
@@ -1043,9 +1021,9 @@ class MainWindow:
                      foreground=[("selected", COLORS["accent"])])
 
         bottom_nb = ttk.Notebook(cf, style="Bottom.TNotebook")
-        bottom_nb.pack(fill=tk.BOTH, expand=False, padx=6, pady=(2,0))
         self._bottom_nb = bottom_nb
-        self._results_visible = True
+        self._results_visible = True          # preferencia del usuario (▾/▴)
+        self._results_shown = False           # hay resultados para esta imagen
         self._results_btn.config(text=f"▾ {t('results.panel')}")
         # Altura mínima del panel de tabla/gráficos
         bottom_nb.configure(height=220)
@@ -1348,6 +1326,7 @@ class MainWindow:
             self.step_idx    = 0
             self.scaler_right = ImageScaler()
             self.step_label_var.set("—")
+            self._show_results_ui(False)
             # No limpiar canvas derecho — mantener último resultado visible
             # (solo se limpia si no hay nada cacheado en ninguna imagen)
             if not any(self.results_cache.values()):
@@ -1637,13 +1616,64 @@ class MainWindow:
     def _toggle_results_panel(self):
         """Oculta o muestra la tabla y los gráficos para dar espacio a las imágenes."""
         self._results_visible = not self._results_visible
-        if self._results_visible:
-            self._bottom_nb.pack(fill=tk.BOTH, expand=False, padx=6, pady=(2, 0))
-        else:
-            self._bottom_nb.pack_forget()
+        self._layout_results()
+        self.root.after(50, self._refit_images)
+
+    def _layout_results(self):
+        """Barra de vistas y tabla/gráficos: ocultas hasta que la imagen tenga resultados."""
+        self._results_bar.pack_forget()
+        self._bottom_nb.pack_forget()
+        if self._results_shown:
+            self._results_bar.pack(fill=tk.X, after=self._canvas_row)
+            if self._results_visible:
+                self._bottom_nb.pack(fill=tk.BOTH, expand=False, padx=6, pady=(2, 0), after=self._results_bar)
         arrow = "▾" if self._results_visible else "▴"
         self._results_btn.config(text=f"{arrow} {t('results.panel')}")
+
+    def _show_results_ui(self, on: bool):
+        if on == self._results_shown:
+            return
+        self._results_shown = on
+        if not on:
+            self._view_ctrl.place_forget()
+        self._layout_results()
         self.root.after(50, self._refit_images)
+
+    def _build_view_controls(self):
+        """Controles de la leyenda dentro del recuadro de resultado (esquina inferior derecha)."""
+        from fenotit.core.pipeline.views import COLOR_FORMATS
+        bg = COLORS["bg_card"]
+        box = tk.Frame(self.canvas_right, bg=bg, highlightthickness=1,
+                       highlightbackground=COLORS["border"], padx=2)
+        self._view_ctrl = box
+        self.legend_var = tk.BooleanVar(value=True)
+        tk.Checkbutton(box, text=t("view.legend"), variable=self.legend_var,
+                       command=self._on_display_change, bg=bg, fg=COLORS["text"],
+                       selectcolor=bg, activebackground=bg, font=FONTS["small"]).pack(side=tk.LEFT)
+        size_kw = dict(bg=bg, fg=COLORS["accent"], relief="flat", bd=0,
+                       font=FONTS["small"], cursor="hand2", padx=3, pady=0)
+        a_minus = tk.Button(box, text="A−", command=lambda: self._legend_size(0.8), **size_kw)
+        a_plus = tk.Button(box, text="A+", command=lambda: self._legend_size(1.25), **size_kw)
+        a_minus.pack(side=tk.LEFT)
+        a_plus.pack(side=tk.LEFT)
+        Tooltip(a_minus, t("view.legend_smaller"))
+        Tooltip(a_plus, t("view.legend_bigger"))
+        self.color_fmt_var = tk.StringVar(value="RGB")
+        self._fmt_combo = ttk.Combobox(box, textvariable=self.color_fmt_var, values=list(COLOR_FORMATS),
+                                       state="readonly", width=4, font=FONTS["small"])
+        self._fmt_combo.bind("<<ComboboxSelected>>", self._on_display_change)
+
+    def _update_view_controls(self, name: str):
+        """Solo si la vista tiene leyenda; el formato de color solo en la vista de color."""
+        spec = (self.last_result.extra.get("legends") or {}).get(name) if self.last_result else None
+        if not spec:
+            self._view_ctrl.place_forget()
+            return
+        if spec.get("colors") is not None:
+            self._fmt_combo.pack(side=tk.LEFT, padx=(2, 1), pady=1)
+        else:
+            self._fmt_combo.pack_forget()
+        self._view_ctrl.place(relx=1.0, rely=1.0, anchor="se", x=-6, y=-6)
 
     def _after_panel_toggle(self):
         self.root.after(50, self._refit_images)
@@ -1659,6 +1689,7 @@ class MainWindow:
         prev = self.step_names[self.step_idx] if self.step_names and 0 <= self.step_idx < len(self.step_names) else None
         self.last_result = result
         self.step_names = list(step_names)
+        self._show_results_ui(True)
         self.stats_var.set("   |   ".join(f"{k}: {v}" for k, v in result.stats.items()))
         if not self.step_names:
             self._update_table(result)
@@ -1812,6 +1843,7 @@ class MainWindow:
         self.step_idx = idx
         name = self.step_names[idx]
         self._show_step_img(name, self.last_result.step_images[name])
+        self._update_view_controls(name)
         self.step_label_var.set(
             f"{name}  ({idx+1}/{len(self.step_names)})")
         self._update_table(self.last_result, name)

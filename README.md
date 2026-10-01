@@ -15,9 +15,10 @@ Developed by the Physiology team of the Bean Breeding Program, Alliance of Biove
   - **Color:** dominant colors (KMeans) per object and per image, in RGB and CIELab
 - **Touching objects:** optional declumping (distance peaks + watershed + notch cuts); touching objects are counted but not measured
 - **Segmentation** by manual or automatic (Otsu) threshold on any channel of BGR, HSV, LAB, YCrCb, HLS, XYZ, YUV or LUV
-- **Regions of interest:** rectangle, square, polygon, holes and exclusion zones
+- **Analysis area and excluded areas** (rectangle or polygon)
 - **Optional corrections:** lens distortion (chessboard), perspective (ArUco), color card and scale
-- **Projects** (`.fenotit`) that keep images, thresholds, parameters, ROI and scale
+- **Projects** (`.fenotit`) that keep images, thresholds, parameters, areas and scale
+- **Export** to CSV and Excel, one table per level (object, image), with the result images
 - **Interface in English and Spanish**
 - 100 % local processing, no internet required
 
@@ -43,7 +44,7 @@ python main.py MyTrial.fenotit      # open a project
 python -m fenotit --version
 ```
 
-Typical workflow: load an image or a folder → choose color space, channel and threshold → draw a ROI (optional) → tick the measurements → run on one image or on the whole batch → export. Save everything with **File → Save project**.
+Typical workflow: add images → set the segmentation (channel and threshold, or Otsu) → optionally draw the analysis area → tick the measurements → **▶ Run** (this image or all) → **File → Export**. **Help → Shortcuts** lists the keyboard shortcuts.
 
 ## Development
 
