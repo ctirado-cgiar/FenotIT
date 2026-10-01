@@ -29,6 +29,7 @@ from fenotit.core import pipeline
 from fenotit.core.export.exporter import Exporter
 from fenotit.gui.config_panel import ConfigPanel
 from fenotit.gui.zoom_controller import ZoomController
+from fenotit.gui.toolbar import IconButton, Tooltip
 from fenotit.gui.calibration_dialogs import ScaleDialog
 from fenotit.gui.corrections_dialog import CorrectionsDialog
 from fenotit.core.corrections import pipeline as corrections
@@ -725,7 +726,13 @@ class MainWindow:
             (t("view.left_panel"), lambda: self.left_panel.toggle()),
             (t("view.right_panel"), lambda: self.right_panel.toggle()),
             (t("view.results_panel"), self._toggle_results_panel),
-            (t("view.zoom_fit"), self.do_zoom_fit, "0"),
+            None,
+            (t("view.zoom_in"), self.do_zoom_in, "Ctrl++"),
+            (t("view.zoom_out"), self.do_zoom_out, "Ctrl+−"),
+            (t("view.zoom_fit"), self.do_zoom_fit, "Ctrl+0"),
+            (t("view.zoom_100"), self.do_zoom_100, "Ctrl+1"),
+            (t("view.zoom_area"), lambda: self._set_zoom_tool("zoom_area"), "Z"),
+            (t("view.pan"), lambda: self._set_zoom_tool("pan"), "H"),
             None,
             (t("menu.language"), self._choose_language),
         ])
@@ -761,6 +768,32 @@ class MainWindow:
         tk.Label(self.topbar, text=t("topbar.analysis"),
                  bg=COLORS["bg_topbar"], fg="#CCCCCC",
                  font=FONTS["small"]).pack(side=tk.RIGHT, padx=(6, 2))
+        tk.Frame(self.topbar, bg="#4a8fd4", width=1).pack(side=tk.RIGHT, fill=tk.Y, pady=8, padx=6)
+        self._build_zoom_tools()
+
+    def _build_zoom_tools(self):
+        """Zoom en la barra superior: acercar, alejar, ajustar, zoom a un área, mano y el %."""
+        bar = tk.Frame(self.topbar, bg=COLORS["bg_topbar"])
+        bar.pack(side=tk.RIGHT)
+        size = max(16, int(round(18 * self.root.winfo_fpixels("1i") / 96)))
+        kw = dict(bg=COLORS["bg_topbar"], hover="#3a7cc4", active="#0d3f75", size=size)
+        pct = tk.Label(bar, textvariable=self._zoom_pct_var, bg=COLORS["bg_topbar"], fg="#FFFFFF",
+                       font=FONTS["small"], width=6, cursor="hand2")
+        self._zoom_tools = {}
+        for name, cmd, tip in (
+                ("zoom_in", self.do_zoom_in, f"{t('view.zoom_in')}  (Ctrl++)"),
+                ("zoom_out", self.do_zoom_out, f"{t('view.zoom_out')}  (Ctrl+−)"),
+                ("fit", self.do_zoom_fit, f"{t('view.zoom_fit')}  (Ctrl+0)"),
+                ("zoom_area", lambda: self._set_zoom_tool("zoom_area"), f"{t('view.zoom_area')}  (Z)"),
+                ("pan", lambda: self._set_zoom_tool("pan"), f"{t('view.pan')}  (H)")):
+            b = IconButton(bar, name, cmd, tip, **kw)
+            b.pack(side=tk.LEFT, padx=1, pady=6)
+            if name in ("zoom_area", "pan"):
+                self._zoom_tools[name] = b
+        pct.pack(side=tk.LEFT, padx=(4, 0))
+        pct.bind("<Button-1>", lambda e: self.do_zoom_100())
+        Tooltip(pct, f"{t('view.zoom_100')}  (Ctrl+1)")
+        self._zoom_tools["pan"].select(True)
 
     def _vdiv(self):
         tk.Frame(self.topbar, bg="#4a8fd4", width=1).pack(
@@ -908,23 +941,6 @@ class MainWindow:
 
     # ── Panel central ─────────────────────────────────────────────────────────
 
-    def _build_zoom_column(self, parent):
-        """Columna angosta entre Entrada y Resultado: zoom + − ajustar y % de zoom."""
-        col = tk.Frame(parent, bg=COLORS["bg"])
-        col.pack(side=tk.LEFT, fill=tk.Y)
-        inner = tk.Frame(col, bg=COLORS["bg"])
-        inner.place(relx=0.5, rely=0.5, anchor="center")
-        for text, cmd in (("+", self.do_zoom_in), ("−", self.do_zoom_out), ("⊡", self.do_zoom_fit)):
-            b = tk.Button(inner, text=text, command=cmd, bg=COLORS["btn_bg"], fg=COLORS["accent"],
-                          relief="flat", font=("Segoe UI", 10, "bold"), width=2, cursor="hand2")
-            b.pack(pady=2)
-            b.bind("<Enter>", lambda e, w=b: w.config(bg=COLORS["btn_hover"]))
-            b.bind("<Leave>", lambda e, w=b: w.config(bg=COLORS["btn_bg"]))
-        tk.Label(inner, textvariable=self._zoom_pct_var, bg=COLORS["bg"], fg=COLORS["text_muted"],
-                 font=("Segoe UI", 7)).pack(pady=(4, 0))
-        col.config(width=34)
-        col.pack_propagate(False)
-
     def _build_center_panel(self):
         cf = self.center_frame
 
@@ -953,7 +969,6 @@ class MainWindow:
                               expand=True, padx=(0, 2))
         self.canvas_right.pack(side=tk.RIGHT, fill=tk.BOTH,
                                expand=True, padx=(2, 0))
-        self._build_zoom_column(canvas_row)
 
         self.roi_selector = ROISelector(
             self.canvas_left, self._on_roi_change)
@@ -964,6 +979,7 @@ class MainWindow:
             self.canvas_left, self.canvas_right,
             on_redraw=self._on_zoom_redraw)
         self.zoom_ctrl.set_zoom_var(self._zoom_pct_var)
+        self.zoom_ctrl.on_tool_change = self._on_zoom_tool_change
         # Referencia para que ZoomController informe al ROI
         self.canvas_left._roi_selector_ref = self.roi_selector
 
@@ -1263,21 +1279,24 @@ class MainWindow:
 
     # ── Métodos de zoom (llamados por botones) ───────────────────────────────
 
-    def _do_pan(self, dx: int, dy: int):
-        """Pan de la imagen — llamado por botones de flecha."""
+    def _set_zoom_tool(self, tool: str):
         if self.zoom_ctrl is None:
             return
-        img = self.zoom_ctrl._img_left if self.zoom_ctrl._img_left is not None \
-              else self.zoom_ctrl._img_right
-        if img is None:
-            return
-        self.zoom_ctrl.cl.update_idletasks()
-        cw = max(self.zoom_ctrl.cl.winfo_width(),  1)
-        ch = max(self.zoom_ctrl.cl.winfo_height(), 1)
-        ih, iw = img.shape[:2]
-        self.zoom_ctrl.state.pan(dx, dy, cw, ch, iw, ih)
-        # Redibujar con overlay si hay preview activo
-        self._show_preview()
+        if self.roi_selector and self.roi_selector.active:
+            self.roi_selector.stop()
+        self.zoom_ctrl.set_tool(tool)
+        if tool == "zoom_area":
+            self._set_status(t("view.zoom_area_hint"))
+
+    def _on_zoom_tool_change(self, tool: str):
+        for name, btn in getattr(self, "_zoom_tools", {}).items():
+            btn.select(name == tool)
+        if tool == "pan":
+            self._set_status(t("status.ready"))
+
+    def do_zoom_100(self):
+        if self.zoom_ctrl:
+            self.zoom_ctrl.actual_size()
 
     def do_zoom_in(self):
         if self.zoom_ctrl is None:
@@ -1815,6 +1834,8 @@ class MainWindow:
             return
         self.roi_selector.set_mode(mode)
         if self.zoom_ctrl:
+            if self.zoom_ctrl.tool != "pan":
+                self.zoom_ctrl.set_tool("pan")
             self.zoom_ctrl._update_cursor(self.canvas_left)
         hint = "roi.hint_polygon" if mode in ("polígono", "exclusión") else "roi.hint_rect"
         self._set_status(t(hint))
@@ -1856,7 +1877,9 @@ class MainWindow:
         rows = [("Ctrl+Enter", t("run.current")), ("Ctrl+Shift+Enter", t("run.all")),
                 ("Ctrl+O", t("menu.add_images")), ("Ctrl+S", t("menu.save_project")),
                 ("Ctrl+E", t("menu.export")), ("← →", t("help.key_images")),
-                ("+  −  0", t("help.key_zoom")), (t("help.mouse_wheel"), t("help.key_zoom")),
+                ("Ctrl+ +  −", t("help.key_zoom")), ("Ctrl+0", t("view.zoom_fit")),
+                ("Ctrl+1", t("view.zoom_100")), ("Z", t("view.zoom_area")), ("H", t("view.pan")),
+                (t("help.mouse_wheel"), t("help.key_zoom")), ("Shift + " + t("help.mouse_wheel"), t("help.key_pan")),
                 (t("help.mouse_drag"), t("help.key_pan")), ("Esc", t("help.key_esc"))]
         messagebox.showinfo(t("help.shortcuts"), "\n".join(f"{k:<18}  {v}" for k, v in rows),
                             parent=self.root)
@@ -1876,13 +1899,22 @@ class MainWindow:
         r.bind_all("<Control-e>", lambda e=None: self._export_results())
         r.bind_all("<Left>", key(self._prev_image))
         r.bind_all("<Right>", key(self._next_image))
-        r.bind_all("<plus>", key(self.do_zoom_in))
-        r.bind_all("<KP_Add>", key(self.do_zoom_in))
-        r.bind_all("<minus>", key(self.do_zoom_out))
-        r.bind_all("<KP_Subtract>", key(self.do_zoom_out))
-        r.bind_all("<Key-0>", key(self.do_zoom_fit))
-        r.bind_all("<Escape>", lambda e=None: self.roi_selector.stop()
-                   if self.roi_selector and self.roi_selector.active else None)
+        # Zoom: Ctrl + / − / 0 / 1 (también sin Ctrl y con el teclado numérico)
+        for seq, fn in (("plus", self.do_zoom_in), ("equal", self.do_zoom_in), ("KP_Add", self.do_zoom_in),
+                        ("minus", self.do_zoom_out), ("KP_Subtract", self.do_zoom_out),
+                        ("Key-0", self.do_zoom_fit), ("KP_0", self.do_zoom_fit),
+                        ("Key-1", self.do_zoom_100), ("KP_1", self.do_zoom_100)):
+            r.bind_all(f"<Control-{seq}>", lambda e=None, f=fn: (f(), "break")[1])
+            r.bind_all(f"<{seq}>", key(fn))
+        r.bind_all("<Key-z>", key(lambda: self._set_zoom_tool("zoom_area")))
+        r.bind_all("<Key-h>", key(lambda: self._set_zoom_tool("pan")))
+        r.bind_all("<Escape>", lambda e=None: self._on_escape())
+
+    def _on_escape(self):
+        if self.roi_selector and self.roi_selector.active:
+            self.roi_selector.stop()
+        elif self.zoom_ctrl and self.zoom_ctrl.tool != "pan":
+            self.zoom_ctrl.set_tool("pan")
 
     def _on_roi_change(self, mask):
         self._update_step_active(2)
