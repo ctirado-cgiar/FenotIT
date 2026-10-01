@@ -64,6 +64,9 @@ class AnalysisDescriptor:
     params_schema: list[dict] = field(default_factory=list)
     # Íconos Tabler para el botón del menú (nombre sin 'ti-')
     icon: str = "chart-bar"
+    # Bloque de segmentación que usa ("threshold" = umbral/Otsu compartido; None = no segmenta,
+    # p. ej. color de la foto completa). Un modelo de IA tendría su propio bloque.
+    segmentation: str | None = "threshold"
 
 
 # ── Registro global ───────────────────────────────────────────────────────────
@@ -78,6 +81,7 @@ def register(
     supports_batch: bool = True,
     params_schema: list[dict] | None = None,
     icon: str = "chart-bar",
+    segmentation: str | None = "threshold",
 ) -> AnalysisDescriptor:
     """
     Registra un módulo de análisis.
@@ -104,6 +108,7 @@ def register(
         supports_batch=supports_batch,
         params_schema=params_schema or [],
         icon=icon,
+        segmentation=segmentation,
     )
     ANALYSES[name] = descriptor
     _log.debug("Análisis registrado: %s", name)

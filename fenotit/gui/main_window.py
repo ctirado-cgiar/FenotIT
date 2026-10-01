@@ -756,15 +756,6 @@ class MainWindow:
         ], COLORS, arrow_only=True).pack(side=tk.LEFT)
 
         self.analysis_var = tk.StringVar()
-        self.analysis_combo = ttk.Combobox(
-            self.topbar, textvariable=self.analysis_var,
-            state="readonly", width=14, font=FONTS["body"])
-        self.analysis_combo.pack(side=tk.RIGHT, padx=4, pady=8)
-        self.analysis_combo.bind("<<ComboboxSelected>>",
-                                 self._on_analysis_selected)
-        tk.Label(self.topbar, text=t("topbar.analysis"),
-                 bg=COLORS["bg_topbar"], fg="#CCCCCC",
-                 font=FONTS["small"]).pack(side=tk.RIGHT, padx=(6, 2))
         tk.Frame(self.topbar, bg="#4a8fd4", width=1).pack(side=tk.RIGHT, fill=tk.Y, pady=8, padx=6)
         self._build_zoom_tools()
 
@@ -827,6 +818,9 @@ class MainWindow:
         superpuesta en verde semitransparente, respetando el zoom actual.
         """
         if not self.scaler_left.has_image or self.zoom_ctrl is None:
+            return
+        if not self._uses_threshold():
+            self.zoom_ctrl.redraw_with_overlay(overlay_left=None)
             return
 
         img_original = self.scaler_left.original
@@ -1086,8 +1080,15 @@ class MainWindow:
     # ── Panel derecho ─────────────────────────────────────────────────────────
 
     def _build_right_panel(self):
+        """ANÁLISIS (lista de tipos) → los bloques que pide el análisis elegido."""
         rf = self.right_panel.content
-        self._build_segmentation_block(rf)
+        self._section_lbl(rf, t("panel.analysis"))
+        self._analysis_cards = tk.Frame(rf, bg=COLORS["bg_panel"])
+        self._analysis_cards.pack(fill=tk.X, padx=6, pady=(2, 6))
+        self._analysis_list_open = False
+        self._seg_block = tk.Frame(rf, bg=COLORS["bg_panel"])
+        self._seg_block.pack(fill=tk.X)
+        self._build_segmentation_block(self._seg_block)
         self.config_container = tk.Frame(rf, bg=COLORS["bg_panel"])
         self.config_container.pack(fill=tk.BOTH, expand=True, padx=4)
         self.config_panel: ConfigPanel | None = None
@@ -1367,11 +1368,51 @@ class MainWindow:
 
     def _populate_analysis_menu(self):
         names = list(ANALYSES.keys())
-        self.analysis_combo["values"] = [_analysis_label(n) for n in names]
         if names:
             self.analysis_var.set(_analysis_label(names[0]))
             self.active_analysis = names[0]
             self._on_analysis_selected(None)
+
+    def _render_analysis_cards(self):
+        """El análisis elegido como tarjeta; ▾ abre la lista para cambiarlo."""
+        box = self._analysis_cards
+        for w in box.winfo_children():
+            w.destroy()
+        current = self._selected_analysis()
+        names = list(ANALYSES) if self._analysis_list_open else [current]
+        for name in names:
+            sel = name == current
+            bg = COLORS["accent_light"] if sel else COLORS["bg_card"]
+            card = tk.Frame(box, bg=bg, highlightthickness=1, cursor="hand2",
+                            highlightbackground=COLORS["accent"] if sel else COLORS["border"])
+            card.pack(fill=tk.X, pady=1)
+            top = tk.Frame(card, bg=bg)
+            top.pack(fill=tk.X, padx=8, pady=(4, 0))
+            tk.Label(top, text=_analysis_label(name), bg=bg, fg=COLORS["accent"] if sel else COLORS["text"],
+                     font=("Segoe UI", 9, "bold"), anchor="w").pack(side=tk.LEFT)
+            if sel and not self._analysis_list_open:
+                tk.Label(top, text="▾", bg=bg, fg=COLORS["accent"], font=("Segoe UI", 9)).pack(side=tk.RIGHT)
+            desc = t(f"analysis.{_analysis_key(name)}.desc", ANALYSES[name].description)
+            tk.Label(card, text=desc, bg=bg, fg=COLORS["text_muted"], font=FONTS["small"], anchor="w",
+                     justify="left", wraplength=230).pack(fill=tk.X, padx=8, pady=(0, 4))
+            handler = (lambda e, n=name: self._choose_analysis(n))
+            for w in (card, top, *top.winfo_children(), *card.winfo_children()):
+                w.bind("<Button-1>", handler)
+
+    def _choose_analysis(self, name: str):
+        if not self._analysis_list_open:
+            self._analysis_list_open = True
+        else:
+            self._analysis_list_open = False
+            if name != self._selected_analysis():
+                self.analysis_var.set(_analysis_label(name))
+                self._on_analysis_selected(None)
+                return
+        self._render_analysis_cards()
+
+    def _uses_threshold(self) -> bool:
+        name = self._selected_analysis()
+        return name is None or ANALYSES[name].segmentation == "threshold"
 
     def _selected_analysis(self) -> str | None:
         label = self.analysis_var.get()
@@ -1384,6 +1425,11 @@ class MainWindow:
         self._store_panel_params()
         self.active_analysis = name
         self.project.analysis = _analysis_key(name)
+        self._render_analysis_cards()
+        if self._uses_threshold():
+            self._seg_block.pack(fill=tk.X, before=self.config_container)
+        else:
+            self._seg_block.pack_forget()
         for w in self.config_container.winfo_children():
             w.destroy()
         stored = self.project.params.get(self.project.analysis, {})
