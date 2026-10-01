@@ -131,6 +131,10 @@ def _load_modules():
         from . import objects          # noqa: F401  cadena de piezas (etapa 4)
     except Exception as e:
         _log.error("objects no disponible: %s", e)
+    try:
+        from . import image_color      # noqa: F401  color de toda la foto, sin segmentar
+    except Exception as e:
+        _log.error("image_color no disponible: %s", e)
 
 
 _load_modules()

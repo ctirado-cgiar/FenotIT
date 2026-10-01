@@ -56,8 +56,14 @@ def _fill_small_holes(mask, frac=0.2):
     return out
 
 
-@step("label", "processor", requires=("mask",), provides=("labels",))
+@step("label", "processor", requires=("mask",), provides=("labels",), params=[
+    {"key": "single", "type": "bool", "default": False},
+])
 def label(ctx, p):
+    """Un objeto por región conectada; single = todo lo que quedó en la máscara es un objeto."""
+    if p["single"]:
+        ctx.labels = (ctx.mask > 0).astype(np.int32)
+        return
     _, ctx.labels = cv2.connectedComponents((ctx.mask > 0).astype(np.uint8), connectivity=8)
 
 

@@ -70,7 +70,7 @@ def morphometry(ctx, p):
 
 def _lab(rgb):
     L, a, b = cv2.cvtColor(np.uint8([[rgb[::-1]]]), cv2.COLOR_BGR2LAB)[0, 0].astype(int)
-    return round(L * 100 / 255, 2), a - 128, b - 128
+    return round(float(L) * 100 / 255, 2), int(a) - 128, int(b) - 128
 
 
 def _kmeans(pixels_rgb, k, sample=3000):
@@ -111,7 +111,7 @@ def _core(m: np.ndarray, trim: int) -> np.ndarray:
 
 
 @step("color", "measurement", requires=("labels",), params=[
-    {"key": "n_colors", "type": "int", "default": 3, "min": 1, "max": 10},
+    {"key": "n_colors", "type": "int", "default": 3, "min": 1, "max": 20},
     {"key": "edge_trim", "type": "int", "default": -1, "min": -1, "max": 50},
 ])
 def color(ctx, p):

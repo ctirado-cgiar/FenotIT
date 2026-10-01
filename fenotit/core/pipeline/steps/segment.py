@@ -21,6 +21,12 @@ def threshold(ctx, p):
     ctx.images["mask"] = mask
 
 
+@step("whole", "segmenter", provides=("mask",))
+def whole(ctx, p):
+    """Toda la imagen (luego "roi" aplica el área de análisis y las exclusiones)."""
+    ctx.mask = np.full(ctx.image.shape[:2], 255, np.uint8)
+
+
 @step("otsu", "segmenter", provides=("mask",), params=[
     _SPACE, _CHANNEL,
     {"key": "invert", "type": "bool", "default": False},

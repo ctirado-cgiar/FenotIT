@@ -294,6 +294,10 @@ class MainWindow:
         self._bind_resize()
         self._bind_shortcuts()
         self._populate_analysis_menu()
+        # Al abrir no hay nada que mostrar: los paneles aparecen al agregar imágenes
+        # (izquierdo) o al elegir un análisis (derecho).
+        self._show_panel(self.left_panel, False)
+        self._show_panel(self.right_panel, False)
         self._saved_state = self._collect_state()
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         self._update_title()
@@ -539,6 +543,8 @@ class MainWindow:
         if self.roi_selector:
             self.roi_selector.restore_when_ready(project.roi if project.current_image else None)
         self._update_batch_list()
+        self._show_panel(self.left_panel, bool(project.images))
+        self._show_panel(self.right_panel, bool(project.images))
         if project.current_image:
             if project.mode == "batch":
                 self.output_root = str(project.images[0].parent)
@@ -718,10 +724,12 @@ class MainWindow:
             (t("roi.exclude_polygon"), lambda: self._set_roi_mode("exclusión")),
             (t("roi.clear"), self._clear_roi),
         ])
+        self._drop(self.topbar, t("menu.analysis"), [
+            (_analysis_label(n), lambda n=n: self._open_analysis(n)) for n in ANALYSES])
         self._drop(self.topbar, t("menu.view"), [
             (t("view.toggle_legend"), self._toggle_legend),
-            (t("view.left_panel"), lambda: self.left_panel.toggle()),
-            (t("view.right_panel"), lambda: self.right_panel.toggle()),
+            (t("view.left_panel"), lambda: self._toggle_panel(self.left_panel)),
+            (t("view.analysis_panel"), lambda: self._toggle_panel(self.right_panel)),
             (t("view.results_panel"), self._toggle_results_panel),
             None,
             (t("view.zoom_in"), self.do_zoom_in, "Ctrl++"),
@@ -1232,6 +1240,7 @@ class MainWindow:
         self.project.images = [Path(p) for p in current + new]
         self.project.current_index = len(current)
         self._update_batch_list()
+        self._show_panel(self.left_panel, True)
         self._load_single(new[0])
         self._sync_listbox()
 
@@ -1255,6 +1264,7 @@ class MainWindow:
             self.project.current_index = 0
             self._invalidate_results()
             self._update_batch_list()
+            self._show_panel(self.left_panel, False)
 
     # ── Métodos de zoom (llamados por botones) ───────────────────────────────
 
@@ -1409,6 +1419,22 @@ class MainWindow:
                 self._on_analysis_selected(None)
                 return
         self._render_analysis_cards()
+
+    def _open_analysis(self, name: str):
+        if name != self._selected_analysis():
+            self.analysis_var.set(_analysis_label(name))
+            self._on_analysis_selected(None)
+        self._show_panel(self.right_panel, True)
+
+    def _show_panel(self, panel, on: bool):
+        self.paned.paneconfigure(panel, hide=not on)
+        if on and not panel._expanded:
+            panel.expand()
+        self._after_panel_toggle()
+
+    def _toggle_panel(self, panel):
+        hidden = str(self.paned.panecget(panel, "hide")) in ("1", "true")
+        self._show_panel(panel, hidden)
 
     def _uses_threshold(self) -> bool:
         name = self._selected_analysis()
