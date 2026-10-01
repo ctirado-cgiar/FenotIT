@@ -4,7 +4,7 @@ import numpy as np
 from scipy.ndimage import find_objects
 
 from fenotit.core.pipeline.base import step
-from fenotit.core.pipeline.views import regions, included_view, inside_point, label_text, sizes
+from fenotit.core.pipeline.views import regions, included_view, inside_point, add_overlay
 
 
 @step("morphometry", "measurement", requires=("labels",), params=[
@@ -65,7 +65,7 @@ def morphometry(ctx, p):
         "n_touching": len(touching & set(rows)),
         "n_measured": len(measured),
     })
-    included_view(ctx, "morphometry", {r["object_id"] for r in measured}, (0, 220, 100))
+    included_view(ctx, "morphometry", {r["object_id"] for r in measured})
 
 
 def _lab(rgb):
@@ -155,8 +155,8 @@ def count(ctx, p):
     rows = ctx.object_rows()
     # vista de conteo: un punto por objeto contado (dos puntos en una semilla = partida;
     # una semilla sin punto = no contada)
-    out = ctx.image.copy()
-    _, radius, scale = sizes(out)
+    from fenotit.core.pipeline import overlay
+    ov = overlay.empty()
     for oid, sl, m in regions(ctx.labels):
         row = rows[oid]
         row.setdefault("touching", int(oid in touching))
@@ -166,8 +166,7 @@ def count(ctx, p):
             row["centroid_y_px"] = int(round(ys.mean() + sl[0].start))
         x, y = inside_point(m)
         x, y = x + sl[1].start, y + sl[0].start
-        cv2.circle(out, (x, y), radius + 2, (0, 0, 0), -1, cv2.LINE_AA)
-        cv2.circle(out, (x, y), radius, (255, 0, 255), -1, cv2.LINE_AA)
+        ov["dots"].append((x, y))
         if p["numbers"]:
-            label_text(out, str(oid), x + radius, y, scale)
-    ctx.images["count"] = out
+            ov["labels"].append((x, y, str(oid), True))
+    add_overlay(ctx, "count", ov)

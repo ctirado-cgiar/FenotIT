@@ -141,6 +141,7 @@ class ScaleDialog(BaseDialog):
         self._photo      = None
         self._scale_result = None
         self._display_scale = 1.0
+        self._img_full = None
         self._build_body()
         if current_image is not None:
             self._load_image(current_image)
@@ -155,32 +156,17 @@ class ScaleDialog(BaseDialog):
         from fenotit.gui.widgets import ImagePicker
         ImagePicker(b, self._paths, self._path, self._pick_image).pack(anchor="w", pady=2)
 
-        # Botones zoom para el canvas
-        zoom_f = tk.Frame(b, bg=COLORS["bg_card"])
-        zoom_f.pack(fill=tk.X, pady=2)
-        def _zi(): self._canvas.zoom_in();  self._canvas.focus_set()
-        def _zo(): self._canvas.zoom_out(); self._canvas.focus_set()
-        def _zf(): self._canvas.fit();      self._canvas.focus_set()
-
-        for txt, cmd, w in [
-            ("+",  _zi, 2),
-            ("−",  _zo, 2),
-            ("⊡",  _zf, 2),
-            (f"✕ {t('scale.clear')}", self._clear_points, 10),
-        ]:
-            tk.Button(zoom_f, text=txt, command=cmd,
-                      bg=COLORS["btn_bg"], fg=COLORS["accent"],
-                      relief="flat",
-                      font=("Segoe UI", 9, "bold") if w==2 else FONTS["small"],
-                      width=w, cursor="hand2").pack(side=tk.LEFT, padx=1)
-
-        # Canvas interactivo — altura generosa, fill=BOTH
-        self._canvas = ZoomableCanvas(b, bg=COLORS["bg_card"],
-                                      highlightthickness=1,
-                                      highlightbackground=COLORS["border"],
-                                      cursor="crosshair")
+        bar = tk.Frame(b, bg=COLORS["bg_card"])
+        bar.pack(fill=tk.X, pady=2)
+        self._canvas = ZoomableCanvas(b, bg=COLORS["bg_card"], highlightthickness=1,
+                                      highlightbackground=COLORS["border"], cursor="crosshair",
+                                      on_click=self._on_click, on_overlay=self._draw_points)
+        from fenotit.gui.toolbar import zoom_bar
+        zoom_bar(bar, self._canvas, COLORS)
+        tk.Button(bar, text=f"✕ {t('scale.clear')}", command=self._clear_points,
+                  bg=COLORS["btn_bg"], fg=COLORS["accent"], relief="flat", font=FONTS["small"],
+                  cursor="hand2").pack(side=tk.LEFT, padx=4)
         self._canvas.pack(fill=tk.BOTH, expand=True, pady=4)
-        self._canvas.bind("<Button-1>", self._on_click, add="+")
 
         self._pts_label = tk.Label(
             b, text=t("scale.step2"),
@@ -265,75 +251,34 @@ class ScaleDialog(BaseDialog):
         self._canvas.set_image(img)
 
     def _redraw(self):
-        if self._img_full is None:
-            return
-        img = self._img_full.copy()
-
-        if len(self._points) >= 1:
-            # Punto 1 — círculo azul visible
-            cv2.circle(img, self._points[0], 10, (220, 80, 0), -1)
-            cv2.circle(img, self._points[0], 12, (255, 255, 255), 2)
-            cv2.putText(img, "1", 
-                       (self._points[0][0]+14, self._points[0][1]+5),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.8,
-                       (220, 80, 0), 2, cv2.LINE_AA)
-
-        if len(self._points) == 2:
-            # Punto 2
-            cv2.circle(img, self._points[1], 10, (0, 160, 220), -1)
-            cv2.circle(img, self._points[1], 12, (255, 255, 255), 2)
-            cv2.putText(img, "2",
-                       (self._points[1][0]+14, self._points[1][1]+5),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.8,
-                       (0, 160, 220), 2, cv2.LINE_AA)
-            # Línea entre puntos
-            cv2.line(img, self._points[0], self._points[1],
-                     (255, 255, 255), 3, cv2.LINE_AA)
-            cv2.line(img, self._points[0], self._points[1],
-                     (0, 120, 220), 2, cv2.LINE_AA)
-            # Etiqueta si hay resultado
-            if self._scale_result:
-                mid_x = (self._points[0][0] + self._points[1][0]) // 2
-                mid_y = (self._points[0][1] + self._points[1][1]) // 2
-                label = (f"{self._dist_var.get():.1f} "
-                         f"{self._unit_var.get()}")
-                (tw, th), _ = cv2.getTextSize(
-                    label, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
-                cv2.rectangle(img,
-                    (mid_x - tw//2 - 4, mid_y - th - 8),
-                    (mid_x + tw//2 + 4, mid_y + 4),
-                    (255, 255, 255), -1)
-                cv2.putText(img, label,
-                    (mid_x - tw//2, mid_y - 4),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7,
-                    (0, 120, 220), 2, cv2.LINE_AA)
-        # ZoomableCanvas preserva zoom/pan al actualizar imagen
-        self._canvas._img_bgr = img
         self._canvas._redraw()
 
-    def _on_click(self, event):
+    def _draw_points(self, c):
+        """Puntos y línea a tamaño fijo de pantalla, con halo (se ven con cualquier zoom)."""
+        pts = [c.to_screen(*p) for p in self._points]
+        if len(pts) == 2:
+            c.create_line(*pts[0], *pts[1], fill="#FFFFFF", width=5)
+            c.create_line(*pts[0], *pts[1], fill="#0078DC", width=2)
+        for i, (x, y) in enumerate(pts):
+            fill = ("#0050DC", "#DCA000")[i]
+            c.create_oval(x - 7, y - 7, x + 7, y + 7, fill=fill, outline="#FFFFFF", width=2)
+            c.create_text(x + 16, y - 10, text=str(i + 1), fill="#000000", font=("Segoe UI", 11, "bold"))
+            c.create_text(x + 15, y - 11, text=str(i + 1), fill="#FFFFFF", font=("Segoe UI", 11, "bold"))
+        if len(pts) == 2 and self._scale_result:
+            mx, my = (pts[0][0] + pts[1][0]) / 2, (pts[0][1] + pts[1][1]) / 2
+            label = f"{self._dist_var.get():.1f} {self._unit_var.get()}"
+            tid = c.create_text(mx, my - 14, text=label, fill="#0050A0", font=("Segoe UI", 10, "bold"))
+            x0, y0, x1, y1 = c.bbox(tid)
+            c.tag_lower(c.create_rectangle(x0 - 4, y0 - 2, x1 + 4, y1 + 2, fill="#FFFFFF", outline=""), tid)
+
+    def _on_click(self, x, y):
         if self._img_full is None:
             return
         if len(self._points) >= 2:
             self._points = []
             self._scale_result = None
             self._result_var.set("—")
-
-        # Convertir coords canvas → imagen original via ZoomableCanvas state
-        state = self._canvas._state
-        ih, iw = self._img_full.shape[:2]
-        cw = max(self._canvas.winfo_width(), 1)
-        ch = max(self._canvas.winfo_height(), 1)
-        ox, oy = state.image_offset(cw, ch, iw, ih)
-        # Coord en imagen original
-        x = int(round((event.x - ox) / state.zoom))
-        y = int(round((event.y - oy) / state.zoom))
-        x = max(0, min(x, iw - 1))
-        y = max(0, min(y, ih - 1))
         self._points.append((x, y))
-        # Dar foco al canvas para que funcionen las flechas
-        self._canvas.focus_set()
-
         if len(self._points) == 2:
             p1, p2 = self._points
             dist_px = ((p2[0]-p1[0])**2 + (p2[1]-p1[1])**2)**0.5
@@ -341,7 +286,6 @@ class ScaleDialog(BaseDialog):
                 text=t("scale.two_points", p1=p1, p2=p2, d=f"{dist_px:.1f}"))
         else:
             self._pts_label.config(text=t("scale.one_point", p1=self._points[0]))
-
         self._redraw()
 
     def _compute(self):
@@ -356,6 +300,7 @@ class ScaleDialog(BaseDialog):
                 self._unit_var.get())
             self._scale_result = result
             self._result_var.set(result.format())
+            self._redraw()
         except Exception as e:
             _log.exception("Error calculando escala")
             self._result_var.set(f"{t('common.error')}: {e}")

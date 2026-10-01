@@ -40,18 +40,30 @@ def label_text(out, text, x, y, scale, color=(255, 255, 255)):
     cv2.putText(out, text, (x + 4, y - 4), cv2.FONT_HERSHEY_SIMPLEX, scale, color, th, cv2.LINE_AA)
 
 
-def included_view(ctx, name, included, color):
+def included_view(ctx, name, included, color=None):
     """Objetos incluidos en una medición: contorno de color y número; los demás
-    (se tocaban) en gris, para ver qué entró y qué no."""
-    out = ctx.image.copy()
-    width, _, scale = sizes(out)
+    (se tocaban) en gris, para ver qué entró y qué no. Las marcas quedan como datos
+    (ctx.extra["overlays"]) para dibujarlas al mostrar con el estilo del usuario."""
+    from fenotit.core.pipeline import overlay
+    ov = overlay.empty()
     for oid, sl, m in regions(ctx.labels):
         ok = oid in included
-        _outline(out, m, sl, color if ok else (150, 150, 150), width if ok else 1)
+        cnts, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE,
+                                   offset=(sl[1].start, sl[0].start))
+        for c in cnts:
+            ov["outlines"].append((c.reshape(-1, 2), ok))
         x, y = inside_point(m)
-        label_text(out, str(oid), x + sl[1].start, y + sl[0].start, scale,
-               (255, 255, 255) if ok else (190, 190, 190))
-    ctx.images[name] = out
+        ov["labels"].append((x + sl[1].start, y + sl[0].start, str(oid), ok))
+    add_overlay(ctx, name, ov)
+
+
+def add_overlay(ctx, name, ov):
+    """Guarda las marcas y una imagen ya dibujada con el estilo por defecto."""
+    from fenotit.core.pipeline import overlay
+    ov["size"] = overlay.typical_size(ctx.labels)
+    ctx.extra.setdefault("overlays", {})[name] = ov
+    colors = overlay.resolve(None, ctx.image, ctx.labels > 0)
+    ctx.images[name] = overlay.draw(ctx.image.copy(), ov, colors)
 
 
 _FONTS = {False: ("segoeui.ttf", "arial.ttf", "DejaVuSans.ttf", "LiberationSans-Regular.ttf"),

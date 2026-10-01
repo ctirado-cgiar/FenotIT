@@ -61,7 +61,8 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
     res = AnalysisResult()
     chosen = [v for v, key in MEASUREMENTS.items() if params.get(key, v in ("count", "morphometry"))]
     tables = _view_tables(ctx)
-    names, view_tables, legends = {}, {}, {}
+    names, view_tables, legends, overlays = {}, {}, {}, {}
+    marks = ctx.extra.get("overlays", {})
     for key in STEP_FOLDERS:
         img = ctx.images.get(key)
         if img is None or (key in MEASUREMENTS and key not in chosen):
@@ -72,6 +73,8 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
         if spec:
             legends[label] = spec
         names[label] = STEP_FOLDERS[key]
+        if key in marks:
+            overlays[label] = marks[key]
         view_tables[label] = tables.get(key, tables["image"])
     res.measurements = tables.get("morphometry", [])        # lo que se puede graficar
     res.stats = dict(ctx.image_row())
@@ -79,6 +82,11 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
     res.extra["step_folders"] = names
     res.extra["view_tables"] = view_tables
     res.extra["legends"] = legends
+    res.extra["overlays"] = overlays          # marcas como datos: se dibujan con el estilo elegido
+    res.extra["base_image"] = ctx.image
+    if ctx.labels is not None:
+        from fenotit.core.pipeline import overlay
+        res.extra["contrast"] = overlay.contrast_color(ctx.image, ctx.labels > 0)
     # vista a mostrar: la medición que se recalculó (si las demás se reutilizaron);
     # si se recalculó todo o nada, la interfaz conserva la vista que estaba viendo
     changed = [v for v in chosen if v not in _CACHE.hits]

@@ -732,6 +732,8 @@ class MainWindow:
             (t("view.analysis_panel"), lambda: self._toggle_panel(self.right_panel)),
             (t("view.results_panel"), self._toggle_results_panel),
             None,
+            (t("style.title"), self._open_style),
+            None,
             (t("view.zoom_in"), self.do_zoom_in, "Ctrl++"),
             (t("view.zoom_out"), self.do_zoom_out, "Ctrl+−"),
             (t("view.zoom_fit"), self.do_zoom_fit, "Ctrl+0"),
@@ -787,6 +789,10 @@ class MainWindow:
             if name in ("zoom_area", "pan"):
                 self._zoom_tools[name] = b
         pct.pack(side=tk.LEFT, padx=(4, 0))
+        tk.Frame(bar, bg="#4a8fd4", width=1).pack(side=tk.LEFT, fill=tk.Y, pady=8, padx=(6, 4))
+        self._style_btn = IconButton(bar, "palette", self._open_style, f"{t('style.title')}", **kw)
+        self._style_btn.pack(side=tk.LEFT, padx=1, pady=6)
+        self._style_popup = None
         pct.bind("<Button-1>", lambda e: self.do_zoom_100())
         Tooltip(pct, f"{t('view.zoom_100')}  (Ctrl+1)")
         self._zoom_tools["pan"].select(True)
@@ -869,15 +875,9 @@ class MainWindow:
                         interpolation=cv2.INTER_NEAREST)
                 mask = cv2.bitwise_and(mask, mask, mask=roi_full)
 
-            # Superposición verde sobre imagen original
-            overlay = img_original.copy()
-            overlay[mask > 0] = (
-                overlay[mask > 0] * 0.5 +
-                np.array([0, 180, 80], dtype=np.float32) * 0.5
-            ).astype(np.uint8)
-            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL,
-                                           cv2.CHAIN_APPROX_SIMPLE)
-            cv2.drawContours(overlay, contours, -1, (0, 160, 60), 1)
+            from fenotit.core.pipeline import overlay as marks
+            colors = marks.resolve(self.project.display.get("style"), img_original, mask)
+            overlay = marks.tint(img_original, mask, colors)
 
             # Pasar al zoom controller — renderiza con zoom actual
             self.zoom_ctrl.redraw_with_overlay(overlay_left=overlay)
@@ -1281,6 +1281,22 @@ class MainWindow:
             btn.select(name == tool)
         if tool == "pan":
             self._set_status(t("status.ready"))
+
+    def _open_style(self):
+        """Colores de la máscara, contornos y puntos (se guardan en el proyecto)."""
+        from fenotit.gui.style_popup import StylePopup
+        if self._style_popup is not None and self._style_popup.winfo_exists():
+            self._style_popup.destroy()
+            self._style_popup = None
+            return
+        self._style_popup = StylePopup(self.root, self._style_btn, self.project.display.get("style"),
+                                       COLORS, self._on_style_change)
+
+    def _on_style_change(self, style: dict):
+        self.project.display = {**self.project.display, "style": style}
+        if self.last_result and self.step_names:
+            self._jump_to_step(self.step_idx)
+        self._show_preview()
 
     def do_zoom_100(self):
         if self.zoom_ctrl:
@@ -1785,13 +1801,25 @@ class MainWindow:
         if self.last_result and self.step_names:
             self._jump_to_step(min(len(self.step_names) - 1, self.step_idx + 1))
 
+    def _mark_colors(self, result: AnalysisResult) -> dict:
+        from fenotit.core.pipeline import overlay
+        return overlay.resolve(self.project.display.get("style"), auto=result.extra.get("contrast"))
+
     def _decorate_fn(self, result: AnalysisResult):
-        """Dibuja la leyenda de cada vista si está activada (pantalla y exportación)."""
+        """Marcas (contornos, puntos, números) con el estilo elegido y leyenda si está
+        activada. Al exportar se dibujan a escala de la imagen; en pantalla, aparte."""
+        from fenotit.core.pipeline import overlay
         from fenotit.core.pipeline.views import render_legend
         legends = result.extra.get("legends") or {}
+        marks = result.extra.get("overlays") or {}
+        base = result.extra.get("base_image")
         disp = self.project.display
 
-        def decorate(name: str, img: np.ndarray) -> np.ndarray:
+        def decorate(name: str, img: np.ndarray, with_marks: bool = True) -> np.ndarray:
+            if name in marks and base is not None:
+                img = base.copy()
+                if with_marks:
+                    img = overlay.draw(img, marks[name], self._mark_colors(result))
             spec = legends.get(name)
             if not spec or not disp.get("legend", True):
                 return img
@@ -1811,11 +1839,15 @@ class MainWindow:
         self._on_display_change()
 
     def _show_step_img(self, name: str, img: np.ndarray):
+        marks = None
         if self.last_result is not None:
-            img = self._decorate_fn(self.last_result)(name, img)
+            ovs = self.last_result.extra.get("overlays") or {}
+            if name in ovs and self.last_result.extra.get("base_image") is not None:
+                marks = (ovs[name], self._mark_colors(self.last_result))
+            img = self._decorate_fn(self.last_result)(name, img, with_marks=False)
         self.scaler_right.set_image(img)
         if self.zoom_ctrl:
-            self.zoom_ctrl.set_right(img)
+            self.zoom_ctrl.set_right(img, marks)
         else:
             self.canvas_right.update_idletasks()
             cw = max(self.canvas_right.winfo_width(),  100)

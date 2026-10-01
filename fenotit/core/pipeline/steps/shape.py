@@ -27,4 +27,4 @@ def shape(ctx, p):
         if len(cnt) >= 2 * order + 2:
             rows.append({"object_id": oid, **efd.columns(efd.normalize(efd.efd(cnt, order)))})
     ctx.tables["object_shape"] = rows
-    included_view(ctx, "shape", {r["object_id"] for r in rows}, (255, 160, 0))
+    included_view(ctx, "shape", {r["object_id"] for r in rows})

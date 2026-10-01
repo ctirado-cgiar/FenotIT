@@ -138,7 +138,7 @@ def wheel_factor(event) -> float:
     return ZoomState.WHEEL_STEP ** notches
 
 
-def render(img_bgr: np.ndarray, state: ZoomState, cw: int, ch: int):
+def render(img_bgr: np.ndarray, state: ZoomState, cw: int, ch: int, post=None):
     """Solo la parte visible, ya escalada: (rgb, x, y) o None. Así un zoom de 3200 % en una
     foto de 8 MP no intenta crear una imagen gigante."""
     ih, iw = img_bgr.shape[:2]
@@ -154,6 +154,9 @@ def render(img_bgr: np.ndarray, state: ZoomState, cw: int, ch: int):
     out = cv2.resize(crop, (dw, dh), interpolation=interp)
     if out.ndim == 2:
         out = cv2.cvtColor(out, cv2.COLOR_GRAY2BGR)
+    if post is not None:                      # marcas a tamaño de pantalla (overlay.draw)
+        out = np.ascontiguousarray(out) if out is not crop else out.copy()
+        post(out, (x0, y0), z)
     return cv2.cvtColor(out, cv2.COLOR_BGR2RGB), ox + int(round(x0 * z)), oy + int(round(y0 * z))
 
 
@@ -183,6 +186,7 @@ class ZoomController:
         self._img_left:  np.ndarray | None = None
         self._img_right: np.ndarray | None = None
         self._overlay_left: np.ndarray | None = None
+        self._marks_right = None              # (overlay, colores): se dibujan a tamaño de pantalla
         self._photo_left  = None
         self._photo_right = None
         self._zoom_var: tk.StringVar | None = None
@@ -305,8 +309,9 @@ class ZoomController:
         else:
             self._redraw()
 
-    def set_right(self, img_bgr: np.ndarray | None):
+    def set_right(self, img_bgr: np.ndarray | None, marks=None):
         self._img_right = img_bgr
+        self._marks_right = marks
         self._redraw()
 
     def set_images(self, left: np.ndarray | None,
@@ -381,7 +386,7 @@ class ZoomController:
         self._draw_canvas(self.cl,  left,
                           "_photo_left",  left=True)
         self._draw_canvas(self.cr,  self._right_aligned(),
-                          "_photo_right", left=False)
+                          "_photo_right", left=False, marks=self._marks_right)
         if self._zoom_var is not None:
             self._zoom_var.set(f"{self.state.zoom_pct}%")
         if self.on_redraw:
@@ -389,7 +394,7 @@ class ZoomController:
 
     def _draw_canvas(self, canvas: tk.Canvas,
                      img_bgr: np.ndarray | None,
-                     attr: str, left: bool):
+                     attr: str, left: bool, marks=None):
         canvas.update_idletasks()
         cw = max(canvas.winfo_width(),  1)
         ch = max(canvas.winfo_height(), 1)
@@ -398,7 +403,12 @@ class ZoomController:
             return
         ih, iw = img_bgr.shape[:2]
         try:
-            view = render(img_bgr, self.state, cw, ch)
+            post = None
+            if marks is not None:
+                from fenotit.core.pipeline import overlay
+                ov, colors = marks
+                post = lambda out, origin, z: overlay.draw(out, ov, colors, origin, z, screen=True)
+            view = render(img_bgr, self.state, cw, ch, post)
             if view is not None:
                 rgb, x, y = view
                 photo = ImageTk.PhotoImage(Image.fromarray(rgb))
@@ -430,45 +440,99 @@ class ZoomController:
 # ── ZoomableCanvas para ventanas de calibración ───────────────────────────────
 
 class ZoomableCanvas(tk.Canvas):
-    """
-    Canvas con zoom/pan para ventanas de calibración.
-    Zoom: botones externos o métodos fit/zoom_in/zoom_out.
-    Pan: flechas del teclado.
-    """
+    """Canvas con el mismo zoom que la ventana principal: rueda en el cursor, arrastrar
+    para mover (izquierdo si se mueve más de unos píxeles; medio siempre), clic =
+    `on_click(x, y)` en coordenadas de la imagen. `on_overlay(canvas)` dibuja marcas a
+    tamaño de pantalla después de cada redibujo (usar `to_screen`)."""
 
-    PAN_STEP = 20
+    PAN_STEP = 40
+    DRAG_PX = 4
 
-    def __init__(self, parent, **kw):
+    def __init__(self, parent, on_click=None, on_overlay=None, on_zoom=None, **kw):
         super().__init__(parent, **kw)
         self._img_bgr: np.ndarray | None = None
         self._photo   = None
         self._state   = ZoomState()
         self._fitted  = False
+        self.on_click, self.on_overlay, self.on_zoom = on_click, on_overlay, on_zoom
+        self._press = None
+        self._moved = False
 
         self.config(takefocus=True)
-        self.bind("<Left>",  self._on_arrow)
-        self.bind("<Right>", self._on_arrow)
-        self.bind("<Up>",    self._on_arrow)
-        self.bind("<Down>",  self._on_arrow)
-        self.bind("<ButtonPress-1>",
-                  lambda e=None: e.widget.focus_set(), add="+")
+        for key in ("<Left>", "<Right>", "<Up>", "<Down>"):
+            self.bind(key, self._on_arrow)
         self.bind("<Configure>", lambda e=None: self._fit_if_needed())
         self.bind("<MouseWheel>", self._on_wheel)
+        self.bind("<Shift-MouseWheel>", self._on_hwheel)
         self.bind("<Button-4>", self._on_wheel)
         self.bind("<Button-5>", self._on_wheel)
+        for b in ("1", "2"):
+            self.bind(f"<ButtonPress-{b}>", lambda e, b=b: self._down(e, b))
+            self.bind(f"<B{b}-Motion>", self._drag)
+            self.bind(f"<ButtonRelease-{b}>", lambda e, b=b: self._up(e, b))
+
+    # coordenadas
+    def _size(self):
+        self.update_idletasks()
+        ih, iw = self._img_bgr.shape[:2]
+        return max(self.winfo_width(), 1), max(self.winfo_height(), 1), iw, ih
+
+    def to_image(self, x, y):
+        cw, ch, iw, ih = self._size()
+        ox, oy = self._state.image_offset(cw, ch, iw, ih)
+        return ((x - ox) / self._state.zoom, (y - oy) / self._state.zoom)
+
+    def to_screen(self, x, y):
+        cw, ch, iw, ih = self._size()
+        ox, oy = self._state.image_offset(cw, ch, iw, ih)
+        return (ox + x * self._state.zoom, oy + y * self._state.zoom)
+
+    # mouse
+    def _down(self, e, b):
+        self.focus_set()
+        self._press, self._moved = (e.x, e.y, b), False
+
+    def _drag(self, e):
+        if self._press is None or self._img_bgr is None:
+            return
+        x0, y0, _ = self._press
+        if not self._moved and abs(e.x - x0) + abs(e.y - y0) < self.DRAG_PX:
+            return
+        self._moved = True
+        self._state.pan(e.x - x0, e.y - y0, *self._size())
+        self._press = (e.x, e.y, self._press[2])
+        self._redraw()
+
+    def _up(self, e, b):
+        click = self._press is not None and not self._moved and b == "1"
+        self._press = None
+        if click and self._img_bgr is not None and self.on_click:
+            x, y = self.to_image(e.x, e.y)
+            ih, iw = self._img_bgr.shape[:2]
+            if 0 <= x < iw and 0 <= y < ih:
+                self.on_click(int(round(x)), int(round(y)))
 
     def _on_wheel(self, event):
         if self._img_bgr is None:
             return
-        self.update_idletasks()
-        ih, iw = self._img_bgr.shape[:2]
-        self._state.zoom_at(event.x, event.y, max(self.winfo_width(), 1), max(self.winfo_height(), 1),
-                            iw, ih, wheel_factor(event))
+        self._state.zoom_at(event.x, event.y, *self._size(), wheel_factor(event))
+        self._state.clamp_pan(*self._size())
         self._redraw()
 
-    def set_image(self, img_bgr: np.ndarray | None):
+    def _on_hwheel(self, event):
+        if self._img_bgr is None:
+            return "break"
+        self._state.pan(getattr(event, "delta", 0) / 120 * self.PAN_STEP, 0, *self._size())
+        self._redraw()
+        return "break"
+
+    # API
+    def set_image(self, img_bgr: np.ndarray | None, keep_view: bool = False):
         self._img_bgr = img_bgr
-        self._fitted  = False
+        if keep_view and self._fitted:
+            self._redraw()
+            return
+        self._fitted = False
         self._fit_and_draw()
 
     def zoom_in(self):
@@ -477,18 +541,17 @@ class ZoomableCanvas(tk.Canvas):
     def zoom_out(self):
         self._zoom(1.0 / ZoomState.ZOOM_STEP)
 
+    def actual_size(self):
+        self._zoom(1.0 / self._state.zoom)
+
     def fit(self):
         self._fit_and_draw()
 
     def _zoom(self, factor: float):
         if self._img_bgr is None:
             return
-        self.update_idletasks()
-        cw = max(self.winfo_width(),  1)
-        ch = max(self.winfo_height(), 1)
-        ih, iw = self._img_bgr.shape[:2]
-        self._state.zoom_at_center(cw, ch, iw, ih, factor)
-        self._state.clamp_pan(cw, ch, iw, ih)
+        self._state.zoom_at_center(*self._size(), factor)
+        self._state.clamp_pan(*self._size())
         self._redraw()
 
     def _fit_if_needed(self):
@@ -511,17 +574,10 @@ class ZoomableCanvas(tk.Canvas):
     def _on_arrow(self, event):
         if not self._state.is_zoomed or self._img_bgr is None:
             return
-        self.update_idletasks()
-        cw = max(self.winfo_width(),  1)
-        ch = max(self.winfo_height(), 1)
-        ih, iw = self._img_bgr.shape[:2]
         step = self.PAN_STEP
-        dx, dy = 0, 0
-        if event.keysym == "Left":  dx =  step
-        if event.keysym == "Right": dx = -step
-        if event.keysym == "Up":    dy =  step
-        if event.keysym == "Down":  dy = -step
-        self._state.pan(dx, dy, cw, ch, iw, ih)
+        dx = {"Left": step, "Right": -step}.get(event.keysym, 0)
+        dy = {"Up": step, "Down": -step}.get(event.keysym, 0)
+        self._state.pan(dx, dy, *self._size())
         self._redraw()
 
     def _redraw(self):
@@ -539,3 +595,7 @@ class ZoomableCanvas(tk.Canvas):
                 self.create_image(x, y, anchor="nw", image=self._photo)
         except Exception:
             _log.debug("ignorado", exc_info=True)
+        if self.on_overlay:
+            self.on_overlay(self)
+        if self.on_zoom:
+            self.on_zoom(self._state.zoom_pct)

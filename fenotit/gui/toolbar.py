@@ -59,7 +59,18 @@ def _zoom_area(d: ImageDraw.ImageDraw, s: int, w: int, color):
     d.line((cx, cy - k, cx, cy + k), fill=color, width=max(1, int(w * 0.8)))
 
 
-_DRAW = {"zoom_in": lambda d, s, w, c: _magnifier(d, s, w, c, "+"),
+def _palette(d: ImageDraw.ImageDraw, s: int, w: int, color):
+    """Paleta de pintor rellena, con muesca, hueco para el pulgar y manchas caladas."""
+    clear = (0, 0, 0, 0)
+    d.ellipse((s * 0.06, s * 0.14, s * 0.94, s * 0.86), fill=color)
+    d.ellipse((s * 0.62, s * 0.50, s * 1.02, s * 0.84), fill=clear)          # muesca
+    d.ellipse((s * 0.50, s * 0.52, s * 0.66, s * 0.68), fill=clear)          # pulgar
+    r = s * 0.075
+    for cx, cy in ((0.24, 0.42), (0.40, 0.28), (0.60, 0.27), (0.76, 0.38), (0.30, 0.64)):
+        d.ellipse((s * cx - r, s * cy - r, s * cx + r, s * cy + r), fill=clear)
+
+
+_DRAW = {"palette": _palette, "zoom_in": lambda d, s, w, c: _magnifier(d, s, w, c, "+"),
          "zoom_out": lambda d, s, w, c: _magnifier(d, s, w, c, "-"),
          "pan": _hand, "fit": _fit, "zoom_area": _zoom_area}
 
@@ -106,14 +117,42 @@ class Tooltip:
             self._tip = None
 
 
+def zoom_bar(parent, canvas, colors: dict, extra=()):
+    """Barra de zoom para ventanas con imagen (mismos íconos y atajos que la principal).
+    `canvas` es un ZoomableCanvas. Devuelve la etiqueta del %."""
+    top = parent.winfo_toplevel()
+    size = max(16, int(round(16 * top.winfo_fpixels("1i") / 96)))
+    kw = dict(bg=colors["bg_card"], hover=colors["btn_hover"], active=colors["accent_light"],
+              size=size, color=colors["accent"])
+    from fenotit.i18n import t
+
+    def act(fn):
+        return lambda: (fn(), canvas.focus_set())
+    for name, fn, tip in (("zoom_in", canvas.zoom_in, f"{t('view.zoom_in')}  (Ctrl++)"),
+                          ("zoom_out", canvas.zoom_out, f"{t('view.zoom_out')}  (Ctrl+−)"),
+                          ("fit", canvas.fit, f"{t('view.zoom_fit')}  (Ctrl+0)")):
+        IconButton(parent, name, act(fn), tip, **kw).pack(side=tk.LEFT, padx=1)
+    pct = tk.Label(parent, text="", bg=colors["bg_card"], fg=colors["text_muted"], font=("Segoe UI", 8),
+                   width=6, cursor="hand2")
+    pct.pack(side=tk.LEFT, padx=(4, 8))
+    pct.bind("<Button-1>", lambda e: act(canvas.actual_size)())
+    Tooltip(pct, f"{t('view.zoom_100')}  (Ctrl+1)")
+    canvas.on_zoom = lambda p: pct.config(text=f"{p}%")
+    for seq, fn in (("plus", canvas.zoom_in), ("equal", canvas.zoom_in), ("KP_Add", canvas.zoom_in),
+                    ("minus", canvas.zoom_out), ("KP_Subtract", canvas.zoom_out),
+                    ("Key-0", canvas.fit), ("KP_0", canvas.fit), ("Key-1", canvas.actual_size)):
+        top.bind(f"<Control-{seq}>", lambda e, f=fn: (f(), "break")[1])
+    return pct
+
+
 class IconButton(tk.Label):
     """Botón de ícono para la barra superior; `selected` lo marca como herramienta activa."""
 
     def __init__(self, parent, name: str, command, tip: str, bg: str, hover: str, active: str,
-                 size: int = 18):
+                 size: int = 18, color: str = "#FFFFFF"):
         super().__init__(parent, bg=bg, cursor="hand2", padx=4, pady=3)
         self._colors = (bg, hover, active)
-        self._photo = ImageTk.PhotoImage(icon(name, size))
+        self._photo = ImageTk.PhotoImage(icon(name, size, color))
         self.config(image=self._photo)
         self.selected = False
         self.bind("<Button-1>", lambda e: command())
