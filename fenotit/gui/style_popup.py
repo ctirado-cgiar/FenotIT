@@ -45,6 +45,12 @@ class StylePopup(tk.Toplevel):
                 sw.bind("<Button-1>", lambda e, r=role, n=name: self._pick(r, n))
                 cells[name] = sw
             self._cells[role] = cells
+            if role == "outline":
+                self._width = tk.IntVar(value=int(self._style["width"]))
+                tk.Scale(box, from_=1, to=6, resolution=1, orient=tk.HORIZONTAL, showvalue=True,
+                         variable=self._width, command=lambda _v: self._set_width(), length=200,
+                         bg=colors["bg_card"], highlightthickness=0, troughcolor=colors["bg_panel"],
+                         label=t("style.width"), font=("Segoe UI", 7)).pack(fill=tk.X)
             if role == "mask":
                 self._alpha = tk.DoubleVar(value=self._style["mask_alpha"])
                 tk.Scale(box, from_=0.1, to=0.9, resolution=0.05, orient=tk.HORIZONTAL, showvalue=False,
@@ -79,6 +85,10 @@ class StylePopup(tk.Toplevel):
     def _pick(self, role: str, name: str):
         self._style[role] = name
         self._paint()
+        self._on_change(dict(self._style))
+
+    def _set_width(self):
+        self._style["width"] = int(self._width.get())
         self._on_change(dict(self._style))
 
     def _set_alpha(self):

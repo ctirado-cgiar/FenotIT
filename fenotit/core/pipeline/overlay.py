@@ -16,7 +16,7 @@ PALETTE = {                      # BGR
     "blue": (230, 120, 0), "white": (255, 255, 255), "black": (20, 20, 20),
 }
 ROLES = ("mask", "outline", "dot")
-DEFAULT_STYLE = {"mask": "green", "outline": "auto", "dot": "magenta", "mask_alpha": 0.45}
+DEFAULT_STYLE = {"mask": "green", "outline": "auto", "dot": "magenta", "mask_alpha": 0.45, "width": 2}
 _EXCLUDED = (150, 150, 150)
 _AUTO_CANDIDATES = ("green", "magenta", "yellow", "cyan", "red", "orange", "blue")
 
@@ -55,7 +55,7 @@ def contrast_color(image: np.ndarray, mask: np.ndarray | None = None) -> tuple[i
 def resolve(style: dict | None, image: np.ndarray | None = None, mask=None, auto=None) -> dict:
     """Colores BGR por rol; "auto" se resuelve con la imagen (o usa `auto` ya calculado)."""
     s = {**DEFAULT_STYLE, **(style or {})}
-    out = {"mask_alpha": float(s["mask_alpha"])}
+    out = {"mask_alpha": float(s["mask_alpha"]), "width": int(s["width"])}
     for role in ROLES:
         name = s[role]
         if name == "auto":
@@ -83,10 +83,27 @@ def _text(out, text, x, y, scale, color):
 
 
 def draw(img: np.ndarray, ov: dict, colors: dict, origin=(0, 0), zoom: float = 1.0,
-         screen: bool = False) -> np.ndarray:
+         screen: bool = False, keep=()) -> np.ndarray:
     """Dibuja `ov` sobre `img` (BGR, se modifica). Las coordenadas de `ov` son de la
-    imagen completa; `origin` y `zoom` las llevan al recorte que se está mostrando."""
+    imagen completa; `origin` y `zoom` las llevan al recorte que se está mostrando.
+    `keep`: rectángulos (x0, y0, x1, y1, en px de imagen) que no se tapan (la leyenda)."""
+    saved = []
+    for bx0, by0, bx1, by1 in keep:
+        r = (slice(max(0, int((by0 - origin[1]) * zoom)), max(0, int((by1 - origin[1]) * zoom) + 1)),
+             slice(max(0, int((bx0 - origin[0]) * zoom)), max(0, int((bx1 - origin[0]) * zoom) + 1)))
+        saved.append((r, img[r].copy()))
+    _draw(img, ov, colors, origin, zoom, screen)
+    for r, patch in saved:
+        img[r] = patch
+    return img
+
+
+def _draw(img, ov, colors, origin, zoom, screen):
     width, radius, scale = _sizes_screen() if screen else _sizes_image(img)
+    lw = colors.get("width", 2)                     # grosor elegido (2 = el de siempre)
+    width = lw if screen else max(1, round(width * lw / 2))
+    if screen and ov.get("size"):                   # al alejar, la línea no tapa objetos chicos
+        width = int(np.clip(ov["size"] * zoom * 0.08, 1, width))
     if screen and ov.get("size"):              # el punto no tapa el objeto al alejar
         radius = int(np.clip(ov["size"] * zoom * 0.2, 2, radius))
     ox, oy = origin
@@ -97,7 +114,7 @@ def draw(img: np.ndarray, ov: dict, colors: dict, origin=(0, 0), zoom: float = 1
     for cnt, included in ov.get("outlines", []):
         p = tr(cnt).reshape(-1, 1, 2)
         if included:
-            cv2.polylines(img, [p], True, (0, 0, 0), width + 2, cv2.LINE_AA)
+            cv2.polylines(img, [p], True, (0, 0, 0), width + 1, cv2.LINE_AA)
             cv2.polylines(img, [p], True, colors["outline"], width, cv2.LINE_AA)
         else:
             cv2.polylines(img, [p], True, _EXCLUDED, 1, cv2.LINE_AA)

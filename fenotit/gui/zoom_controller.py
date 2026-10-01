@@ -406,8 +406,8 @@ class ZoomController:
             post = None
             if marks is not None:
                 from fenotit.core.pipeline import overlay
-                ov, colors = marks
-                post = lambda out, origin, z: overlay.draw(out, ov, colors, origin, z, screen=True)
+                ov, colors, keep = marks
+                post = lambda out, origin, z: overlay.draw(out, ov, colors, origin, z, screen=True, keep=keep)
             view = render(img_bgr, self.state, cw, ch, post)
             if view is not None:
                 rgb, x, y = view

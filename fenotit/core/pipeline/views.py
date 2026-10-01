@@ -92,7 +92,8 @@ def _color_text(c: dict, fmt: str) -> str:
     return f"[{c['R']}, {c['G']}, {c['B']}]"
 
 
-def render_legend(image: np.ndarray, spec: dict, color_format: str = "RGB", scale: float = 1.0) -> np.ndarray:
+def render_legend(image: np.ndarray, spec: dict, color_format: str = "RGB", scale: float = 1.0,
+                  box: list | None = None) -> np.ndarray:
     """Recuadro semitransparente arriba a la izquierda, sobrio y con pocos datos.
 
     spec = {"title": str, "rows": [(texto, color_bgr|None)], "colors": [{R,G,B,L,a,b,hex,pct}],
@@ -125,6 +126,8 @@ def render_legend(image: np.ndarray, spec: dict, color_format: str = "RGB", scal
     if box_w <= 0 or box_h <= 0:
         return image
 
+    if box is not None:                                # zona de la leyenda: las marcas no la tapan
+        box.append((0, 0, m + box_w + 2, m + box_h + 2))
     base = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB)).convert("RGBA")
     layer = Image.new("RGBA", base.size, (0, 0, 0, 0))
     d = ImageDraw.Draw(layer)

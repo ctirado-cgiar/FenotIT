@@ -1815,7 +1815,7 @@ class MainWindow:
         base = result.extra.get("base_image")
         disp = self.project.display
 
-        def decorate(name: str, img: np.ndarray, with_marks: bool = True) -> np.ndarray:
+        def decorate(name: str, img: np.ndarray, with_marks: bool = True, box: list | None = None) -> np.ndarray:
             if name in marks and base is not None:
                 img = base.copy()
                 if with_marks:
@@ -1823,7 +1823,8 @@ class MainWindow:
             spec = legends.get(name)
             if not spec or not disp.get("legend", True):
                 return img
-            return render_legend(img, spec, disp.get("color_format", "RGB"), disp.get("legend_scale", 1.0))
+            return render_legend(img, spec, disp.get("color_format", "RGB"), disp.get("legend_scale", 1.0),
+                                 box=box)
         return decorate
 
     def _on_display_change(self, _=None):
@@ -1842,9 +1843,10 @@ class MainWindow:
         marks = None
         if self.last_result is not None:
             ovs = self.last_result.extra.get("overlays") or {}
+            keep = []
+            img = self._decorate_fn(self.last_result)(name, img, with_marks=False, box=keep)
             if name in ovs and self.last_result.extra.get("base_image") is not None:
-                marks = (ovs[name], self._mark_colors(self.last_result))
-            img = self._decorate_fn(self.last_result)(name, img, with_marks=False)
+                marks = (ovs[name], self._mark_colors(self.last_result), keep)
         self.scaler_right.set_image(img)
         if self.zoom_ctrl:
             self.zoom_ctrl.set_right(img, marks)
