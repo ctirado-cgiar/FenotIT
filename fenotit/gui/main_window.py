@@ -1093,7 +1093,6 @@ class MainWindow:
         self._section_lbl(rf, t("panel.analysis"))
         self._analysis_cards = tk.Frame(rf, bg=COLORS["bg_panel"])
         self._analysis_cards.pack(fill=tk.X, padx=6, pady=(2, 6))
-        self._analysis_list_open = False
         self._seg_block = tk.Frame(rf, bg=COLORS["bg_panel"])
         self._seg_block.pack(fill=tk.X)
         self._build_segmentation_block(self._seg_block)
@@ -1384,41 +1383,21 @@ class MainWindow:
             self._on_analysis_selected(None)
 
     def _render_analysis_cards(self):
-        """El análisis elegido como tarjeta; ▾ abre la lista para cambiarlo."""
+        """Encabezado del panel: solo el análisis elegido (se cambia en el menú Análisis)."""
         box = self._analysis_cards
         for w in box.winfo_children():
             w.destroy()
-        current = self._selected_analysis()
-        names = list(ANALYSES) if self._analysis_list_open else [current]
-        for name in names:
-            sel = name == current
-            bg = COLORS["accent_light"] if sel else COLORS["bg_card"]
-            card = tk.Frame(box, bg=bg, highlightthickness=1, cursor="hand2",
-                            highlightbackground=COLORS["accent"] if sel else COLORS["border"])
-            card.pack(fill=tk.X, pady=1)
-            top = tk.Frame(card, bg=bg)
-            top.pack(fill=tk.X, padx=8, pady=(4, 0))
-            tk.Label(top, text=_analysis_label(name), bg=bg, fg=COLORS["accent"] if sel else COLORS["text"],
-                     font=("Segoe UI", 9, "bold"), anchor="w").pack(side=tk.LEFT)
-            if sel and not self._analysis_list_open:
-                tk.Label(top, text="▾", bg=bg, fg=COLORS["accent"], font=("Segoe UI", 9)).pack(side=tk.RIGHT)
-            desc = t(f"analysis.{_analysis_key(name)}.desc", ANALYSES[name].description)
-            tk.Label(card, text=desc, bg=bg, fg=COLORS["text_muted"], font=FONTS["small"], anchor="w",
-                     justify="left", wraplength=230).pack(fill=tk.X, padx=8, pady=(0, 4))
-            handler = (lambda e, n=name: self._choose_analysis(n))
-            for w in (card, top, *top.winfo_children(), *card.winfo_children()):
-                w.bind("<Button-1>", handler)
-
-    def _choose_analysis(self, name: str):
-        if not self._analysis_list_open:
-            self._analysis_list_open = True
-        else:
-            self._analysis_list_open = False
-            if name != self._selected_analysis():
-                self.analysis_var.set(_analysis_label(name))
-                self._on_analysis_selected(None)
-                return
-        self._render_analysis_cards()
+        name = self._selected_analysis()
+        if name is None:
+            return
+        bg = COLORS["accent_light"]
+        card = tk.Frame(box, bg=bg, highlightthickness=1, highlightbackground=COLORS["accent"])
+        card.pack(fill=tk.X, pady=1)
+        tk.Label(card, text=_analysis_label(name), bg=bg, fg=COLORS["accent"],
+                 font=("Segoe UI", 9, "bold"), anchor="w").pack(fill=tk.X, padx=8, pady=(4, 0))
+        desc = t(f"analysis.{_analysis_key(name)}.desc", ANALYSES[name].description)
+        tk.Label(card, text=desc, bg=bg, fg=COLORS["text_muted"], font=FONTS["small"], anchor="w",
+                 justify="left", wraplength=230).pack(fill=tk.X, padx=8, pady=(0, 4))
 
     def _open_analysis(self, name: str):
         if name != self._selected_analysis():
