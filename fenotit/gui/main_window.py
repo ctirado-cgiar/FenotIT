@@ -8,10 +8,13 @@ Cambios vs v1.2:
   - Tooltips del config_panel ya no se salen de pantalla (fix en config_panel.py)
 """
 
+import os
+import platform
+import subprocess
+import sys
+import threading
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
-import platform
-import threading
 from pathlib import Path
 
 import cv2
@@ -31,8 +34,6 @@ from fenotit.gui.corrections_dialog import CorrectionsDialog
 from fenotit.core.corrections import pipeline as corrections
 from fenotit.gui.export_dialog import ExportDialog
 from fenotit.gui.charts import IntraImageChartPanel, BatchChartWindow
-from fenotit.core import pipeline
-from fenotit.core.export.exporter import Exporter
 from fenotit.gui.theme import COLORS, FONTS
 
 from fenotit import APP_NAME, __version__, log
@@ -82,14 +83,15 @@ def _assets() -> Path:
 # ── DropMenu (igual que v1.2) ─────────────────────────────────────────────────
 
 class DropMenu(tk.Frame):
-    def __init__(self, parent, text, items, colors, **kw):
-        super().__init__(parent, bg=colors["bg_topbar"], **kw)
+    def __init__(self, parent, text, items, colors, arrow_only=False, **kw):
+        bg = "#FFFFFF" if arrow_only else colors["bg_topbar"]
+        super().__init__(parent, bg=bg, **kw)
         self.colors = colors
         self.items  = items
         self._popup = None
         self.btn = tk.Button(
-            self, text=f"  {text}  ▾",
-            bg=colors["bg_topbar"], fg="#FFFFFF",
+            self, text=" ▾ " if arrow_only else f"  {text}  ▾",
+            bg=bg, fg=colors["accent"] if arrow_only else "#FFFFFF",
             font=FONTS["body"], relief="flat", bd=0,
             activebackground="#1a5490",
             activeforeground="#FFFFFF",
@@ -107,6 +109,8 @@ class DropMenu(tk.Frame):
         self.update_idletasks()
         x = self.winfo_rootx()
         y = self.winfo_rooty() + self.winfo_height()
+        if x + 260 > self.winfo_screenwidth():          # menú pegado al borde derecho
+            x = self.winfo_screenwidth() - 270
         popup = tk.Toplevel(self)
         popup.wm_overrideredirect(True)
         popup.configure(bg=self.colors["border"])
@@ -123,7 +127,8 @@ class DropMenu(tk.Frame):
                          height=1).pack(fill=tk.X, pady=2)
                 continue
             label, cmd, *rest = item
-            disabled = rest[0] if rest else False
+            disabled = bool(rest and rest[0] is True)
+            shortcut = next((r for r in rest if isinstance(r, str)), "")
             fg = self.colors["text_muted"] if disabled else self.colors["text"]
             row = tk.Frame(inner, bg=self.colors["bg_card"])
             row.pack(fill=tk.X)
@@ -131,6 +136,10 @@ class DropMenu(tk.Frame):
                            bg=self.colors["bg_card"], fg=fg,
                            font=FONTS["body"], anchor="w", pady=4, padx=4)
             lbl.pack(fill=tk.X)
+            if shortcut:
+                tk.Label(row, text=shortcut, bg=self.colors["bg_card"], fg=self.colors["text_muted"],
+                         font=("Segoe UI", 8), padx=8).place(relx=1.0, rely=0.5, anchor="e")
+                lbl.config(text=f"  {label.strip()}" + " " * (len(shortcut) + 10))
             if disabled:
                 tk.Label(row, text=t("common.wip_badge"),
                          bg="#FFF3CD", fg="#856404",
@@ -278,11 +287,11 @@ class MainWindow:
 
         self._build_layout()
         self._build_topbar()
-        self._build_controls_bar()
         self._build_left_panel()
         self._build_center_panel()
         self._build_right_panel()
         self._bind_resize()
+        self._bind_shortcuts()
         self._populate_analysis_menu()
         self._saved_state = self._collect_state()
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -419,7 +428,6 @@ class MainWindow:
 
     def _collect_state(self) -> dict:
         self._store_panel_params()
-        self.project.mode = self.mode_var.get()
         self.project.segmentation = Segmentation(
             self.cs_var.get(), int(self.ch_var.get()),
             int(self.min_slider.get()), int(self.max_slider.get()), bool(self.auto_var.get()))
@@ -514,7 +522,6 @@ class MainWindow:
         self._on_auto_change()
         self.legend_var.set(project.display.get("legend", True))
         self.color_fmt_var.set(project.display.get("color_format", "RGB"))
-        self.mode_var.set(project.mode)
 
         name = _analysis_name(project.analysis) or self._selected_analysis()
         self.analysis_var.set(_analysis_label(name))
@@ -543,8 +550,12 @@ class MainWindow:
         self._saved_state = self._collect_state()
 
     def _on_close(self):
-        if self._confirm_discard():
-            self.root.destroy()
+        if self._is_dirty():
+            if not self._confirm_discard():
+                return
+        elif not messagebox.askyesno(t("close.title"), t("close.msg"), parent=self.root):
+            return
+        self.root.destroy()
 
     # ── Setup ─────────────────────────────────────────────────────────────────
 
@@ -603,13 +614,6 @@ class MainWindow:
         self.topbar.pack(fill=tk.X, side=tk.TOP)
         self.topbar.pack_propagate(False)
 
-        self.controls_bar = tk.Frame(self.root, bg=COLORS["bg_panel"],
-                                     height=36)
-        self.controls_bar.pack(fill=tk.X, side=tk.TOP)
-        self.controls_bar.pack_propagate(False)
-        tk.Frame(self.controls_bar, bg=COLORS["border"],
-                 height=1).pack(fill=tk.X, side=tk.BOTTOM)
-
         # PanedWindow horizontal para los 3 paneles
         self.paned = tk.PanedWindow(
             self.root,
@@ -654,6 +658,12 @@ class MainWindow:
                                     bg=COLORS["bg_panel"], fg=COLORS["accent"],
                                     font=FONTS["small"], padx=10)
         self._corr_label.pack(side=tk.RIGHT)
+        self.preview_var = tk.StringVar(value="")
+        tk.Label(self.statusbar, textvariable=self.preview_var, bg=COLORS["bg_panel"],
+                 fg=COLORS["accent2"], font=FONTS["small"], padx=8).pack(side=tk.RIGHT)
+        self.image_info_var = tk.StringVar(value="")
+        tk.Label(self.statusbar, textvariable=self.image_info_var, bg=COLORS["bg_panel"],
+                 fg=COLORS["text"], font=FONTS["small"], padx=8).pack(side=tk.RIGHT)
         tk.Label(self.statusbar, textvariable=self.status_var,
                  bg=COLORS["bg_panel"], fg=COLORS["text_muted"],
                  font=FONTS["small"], anchor="w",
@@ -678,108 +688,79 @@ class MainWindow:
                      side=tk.LEFT, padx=(0, 8))
         self._vdiv()
 
-        # Archivo
         self._drop(self.topbar, t("menu.file"), [
-            (t("menu.new_project"),      self._new_project),
-            (t("menu.open_project"),     self._open_project),
-            (t("menu.save_project"),    self._save_project),
+            (t("menu.new_project"), self._new_project),
+            (t("menu.open_project"), self._open_project),
+            (t("menu.save_project"), self._save_project, "Ctrl+S"),
             (t("menu.save_project_as"), self._save_project_as),
             None,
-            (t("menu.load_image"),       self._open_image),
-            (t("menu.load_folder"),      self._open_folder),
+            (t("menu.add_images"), self._open_image, "Ctrl+O"),
+            (t("menu.add_folder"), self._open_folder),
+            (t("menu.remove_image"), self._remove_current_image),
+            (t("menu.clear_images"), self._clear_images),
             None,
-            (t("menu.export_image"),     self._export_results),
-            (t("menu.export_batch"),       self._export_batch),
+            (t("menu.export"), self._export_results, "Ctrl+E"),
             None,
-            (t("menu.exit"),              self._on_close),
+            (t("menu.exit"), self._on_close),
         ])
-
-        # Configuración
-        self._drop(self.topbar, t("menu.settings"), [
+        self._drop(self.topbar, t("menu.image"), [
             (t("menu.corrections"), self._open_corrections),
             None,
-            (t("menu.cal_scale"),
-             lambda: ScaleDialog(
-                 self.root,
-                 current_image=self.scaler_left.original
-                     if self.scaler_left.has_image else None,
-                 current_path=self.current_image_path,
-                 on_scale_set=self._on_scale_set,
-                 loader=self._load_corrected_image,
-                 paths=self.batch_paths)),
+            (t("menu.cal_scale"), self._open_scale_dialog),
             (t("menu.scale_manual"), self._calibrate_scale),
             (t("menu.scale_clear"), self._clear_scale),
             None,
-            (t("menu.export_prefs"),
-             lambda: self._wip(t("menu.export_prefs"), t("wip.export_prefs")), True),
+            (t("roi.area_rect"), lambda: self._set_roi_mode("rectángulo"), t("roi.shift_square")),
+            (t("roi.area_polygon"), lambda: self._set_roi_mode("polígono")),
+            (t("roi.exclude_rect"), lambda: self._set_roi_mode("exclusión_rect")),
+            (t("roi.exclude_polygon"), lambda: self._set_roi_mode("exclusión")),
+            (t("roi.clear"), self._clear_roi),
+        ])
+        self._drop(self.topbar, t("menu.analysis"), [
+            (t("run.current"), lambda: self._run_analysis(False), "Ctrl+Enter"),
+            (t("run.all"), lambda: self._run_analysis(True), "Ctrl+Shift+Enter"),
+        ])
+        self._drop(self.topbar, t("menu.view"), [
+            (t("view.toggle_legend"), self._toggle_legend),
+            (t("view.left_panel"), lambda: self.left_panel.toggle()),
+            (t("view.right_panel"), lambda: self.right_panel.toggle()),
+            (t("view.results_panel"), self._toggle_results_panel),
+            (t("view.zoom_fit"), self.do_zoom_fit, "0"),
+            None,
             (t("menu.language"), self._choose_language),
+        ])
+        self._drop(self.topbar, t("menu.help"), [
+            (t("help.shortcuts"), self._show_shortcuts),
+            (t("help.log"), self._open_log_folder),
             None,
-            (t("menu.about"),      self._about),
+            (t("menu.about"), self._about),
         ])
 
-        # ROI
-        self._drop(self.topbar, t("menu.roi"), [
-            (t("roi.menu.rect"),
-             lambda: self._set_roi_mode("rectángulo")),
-            (t("roi.menu.square"),
-             lambda: self._set_roi_mode("cuadrado")),
-            (t("roi.menu.polygon"),
-             lambda: self._set_roi_mode("polígono")),
-            (t("roi.menu.hole"),
-             lambda: self._set_roi_mode("hueco")),
-            None,
-            (t("roi.menu.exclusion"),
-             lambda: self._set_roi_mode("exclusión")),
-            (t("roi.menu.exclusion_color"),
-             self._pick_exclusion_color),
-            (t("roi.menu.clear_exclusions"),
-             self._clear_exclusions),
-            None,
-            (t("roi.menu.ai"),    self._ai_segmentation),
-            None,
-            (t("roi.menu.clear_all"),
-             lambda: self.roi_selector.clear()
-             if self.roi_selector else None),
-        ])
+        # Derecha: tipo de análisis y Ejecutar (con margen para no quedar junto a la X)
+        tk.Frame(self.topbar, bg=COLORS["bg_topbar"], width=24).pack(side=tk.RIGHT)
+        run = tk.Frame(self.topbar, bg="#FFFFFF")
+        run.pack(side=tk.RIGHT, padx=(6, 0), pady=8)
+        tk.Button(run, text=t("topbar.run"), command=lambda: self._run_analysis(False),
+                  bg="#FFFFFF", fg=COLORS["accent"], font=("Segoe UI", 9, "bold"),
+                  relief="flat", bd=0, activebackground=COLORS["accent_light"],
+                  activeforeground=COLORS["accent"], padx=10, pady=2,
+                  cursor="hand2").pack(side=tk.LEFT)
+        tk.Frame(run, bg=COLORS["border"], width=1).pack(side=tk.LEFT, fill=tk.Y, pady=3)
+        DropMenu(run, "", [
+            (t("run.current"), lambda: self._run_analysis(False), "Ctrl+Enter"),
+            (t("run.all"), lambda: self._run_analysis(True), "Ctrl+Shift+Enter"),
+        ], COLORS, arrow_only=True).pack(side=tk.LEFT)
 
-        self._vdiv()
-
-        # Análisis
-        tk.Label(self.topbar, text=t("topbar.analysis"),
-                 bg=COLORS["bg_topbar"], fg="#CCCCCC",
-                 font=FONTS["small"]).pack(side=tk.LEFT, padx=(6, 2))
         self.analysis_var = tk.StringVar()
         self.analysis_combo = ttk.Combobox(
             self.topbar, textvariable=self.analysis_var,
-            state="readonly", width=20, font=FONTS["body"])
-        self.analysis_combo.pack(side=tk.LEFT, padx=4, pady=8)
+            state="readonly", width=14, font=FONTS["body"])
+        self.analysis_combo.pack(side=tk.RIGHT, padx=4, pady=8)
         self.analysis_combo.bind("<<ComboboxSelected>>",
                                  self._on_analysis_selected)
-
-        tk.Button(self.topbar, text=t("topbar.run"),
-                  command=self._run_analysis,
-                  bg="#FFFFFF", fg=COLORS["accent"],
-                  font=("Segoe UI", 9, "bold"),
-                  relief="flat", bd=0,
-                  activebackground=COLORS["accent_light"],
-                  activeforeground=COLORS["accent"],
-                  padx=10, pady=2,
-                  cursor="hand2").pack(side=tk.LEFT, padx=6, pady=8)
-
-        self._vdiv()
-
-        tk.Label(self.topbar, text=t("topbar.mode"),
+        tk.Label(self.topbar, text=t("topbar.analysis"),
                  bg=COLORS["bg_topbar"], fg="#CCCCCC",
-                 font=FONTS["small"]).pack(side=tk.LEFT, padx=(8, 2))
-        self.mode_var = tk.StringVar(value="individual")
-        for val, lbl in [("individual", t("mode.individual")), ("batch", t("mode.batch"))]:
-            tk.Radiobutton(
-                self.topbar, text=lbl,
-                variable=self.mode_var, value=val,
-                bg=COLORS["bg_topbar"], fg="#FFFFFF",
-                selectcolor=COLORS["bg_topbar"],
-                activebackground=COLORS["bg_topbar"],
-                font=FONTS["small"]).pack(side=tk.LEFT, padx=2)
+                 font=FONTS["small"]).pack(side=tk.RIGHT, padx=(6, 2))
 
     def _vdiv(self):
         tk.Frame(self.topbar, bg="#4a8fd4", width=1).pack(
@@ -787,45 +768,6 @@ class MainWindow:
 
     def _drop(self, parent, text, items):
         DropMenu(parent, text, items, COLORS).pack(side=tk.LEFT)
-
-    # ── Barra de controles compacta ───────────────────────────────────────────
-
-    def _build_controls_bar(self):
-        bar = self.controls_bar
-
-        # ── Controles de zoom ─────────────────────────────────────────────
-        tk.Frame(bar, width=4, bg=COLORS["bg_panel"]).pack(side=tk.LEFT)
-
-        # Guardar referencias a los botones para poder actualizarlos
-        # Los comandos usan self.do_zoom_* que son métodos reales
-        for label, method_name in [
-            ("−",  "do_zoom_out"),
-            ("+",  "do_zoom_in"),
-            ("⊡",  "do_zoom_fit"),
-        ]:
-            btn = tk.Button(bar, text=label,
-                            command=lambda m=method_name: getattr(self, m)(),
-                            bg=COLORS["btn_bg"], fg=COLORS["accent"],
-                            relief="flat", font=("Segoe UI", 10, "bold"),
-                            width=2, cursor="hand2")
-            btn.pack(side=tk.LEFT, padx=1)
-            btn.bind("<Enter>",
-                     lambda e, b=btn: b.config(bg=COLORS["btn_hover"]))
-            btn.bind("<Leave>",
-                     lambda e, b=btn: b.config(bg=COLORS["btn_bg"]))
-
-        tk.Label(bar, textvariable=self._zoom_pct_var,
-                 bg=COLORS["bg_panel"], fg=COLORS["text_muted"],
-                 font=FONTS["small"], width=5).pack(
-                     side=tk.LEFT, padx=2)
-
-
-
-        # Indicador de modo preview
-        self.preview_var = tk.StringVar(value="")
-        tk.Label(bar, textvariable=self.preview_var,
-                 bg=COLORS["bg_panel"], fg=COLORS["accent2"],
-                 font=FONTS["small"]).pack(side=tk.LEFT, padx=8)
 
     def _update_channel_names(self):
         cs    = self.cs_var.get()
@@ -926,45 +868,18 @@ class MainWindow:
     def _build_left_panel(self):
         lf = self.left_panel.content
 
-        self._section_lbl(lf, t("left.workflow"))
-        self.step_labels = []
-        for num, name in [("①", t("step.corrections")), ("②", t("step.load")),
-                          ("③", t("step.roi")), ("④", t("step.analysis")), ("⑤", t("step.export"))]:
-            f = tk.Frame(lf, bg=COLORS["bg_panel"])
-            f.pack(fill=tk.X, padx=10, pady=1)
-            tk.Label(f, text=num, bg=COLORS["bg_panel"],
-                     fg=COLORS["accent"],
-                     font=("Segoe UI", 9, "bold"),
-                     width=2).pack(side=tk.LEFT)
-            lbl = tk.Label(f, text=name, bg=COLORS["bg_panel"],
-                           fg=COLORS["text_muted"], font=FONTS["body"],
-                           anchor="w")
-            lbl.pack(side=tk.LEFT, fill=tk.X, expand=True)
-            self.step_labels.append(lbl)
-
-        self._divider(lf)
-        self._section_lbl(lf, t("left.history"))
-        self.history_frame = tk.Frame(lf, bg=COLORS["bg_panel"])
-        self.history_frame.pack(fill=tk.X, padx=6)
-
-        self._divider(lf)
-        self._section_lbl(lf, t("left.batch"))
-
+        # Imágenes: lista (agregar suma), contador y navegación
+        self._section_lbl(lf, t("left.images"))
         nav = tk.Frame(lf, bg=COLORS["bg_panel"])
-        nav.pack(fill=tk.X, padx=10, pady=2)
-        tk.Button(nav, text="◀", command=self._prev_image,
-                  bg=COLORS["btn_bg"], fg=COLORS["accent"],
-                  relief="flat", font=FONTS["small"],
-                  width=2, cursor="hand2").pack(side=tk.LEFT)
-        self.batch_label = tk.Label(nav, text="—",
-                                    bg=COLORS["bg_panel"],
-                                    fg=COLORS["text_muted"],
-                                    font=FONTS["small"])
+        nav.pack(fill=tk.X, padx=8, pady=2)
+        btn = dict(bg=COLORS["btn_bg"], fg=COLORS["accent"], relief="flat",
+                   font=FONTS["small"], cursor="hand2")
+        tk.Button(nav, text="＋", command=self._open_image, width=2, **btn).pack(side=tk.LEFT)
+        tk.Button(nav, text="◀", command=self._prev_image, width=2, **btn).pack(side=tk.LEFT, padx=(6, 0))
+        self.batch_label = tk.Label(nav, text="—", bg=COLORS["bg_panel"],
+                                    fg=COLORS["text_muted"], font=FONTS["small"])
         self.batch_label.pack(side=tk.LEFT, expand=True)
-        tk.Button(nav, text="▶", command=self._next_image,
-                  bg=COLORS["btn_bg"], fg=COLORS["accent"],
-                  relief="flat", font=FONTS["small"],
-                  width=2, cursor="hand2").pack(side=tk.RIGHT)
+        tk.Button(nav, text="▶", command=self._next_image, width=2, **btn).pack(side=tk.RIGHT)
 
         list_f = tk.Frame(lf, bg=COLORS["bg_panel"])
         list_f.pack(fill=tk.BOTH, expand=True, padx=6, pady=4)
@@ -978,13 +893,37 @@ class MainWindow:
             highlightthickness=1,
             highlightcolor=COLORS["border"],
             highlightbackground=COLORS["border"],
+            activestyle="none", exportselection=False,
             yscrollcommand=sb.set)
         sb.config(command=self.batch_listbox.yview)
         self.batch_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         sb.pack(side=tk.RIGHT, fill=tk.Y)
         self.batch_listbox.bind("<<ListboxSelect>>", self._on_batch_select)
+        self.batch_listbox.bind("<Delete>", lambda e=None: self._remove_current_image())
+
+        # Vistas del resultado de la imagen actual
+        self._section_lbl(lf, t("left.history"))
+        self.history_frame = tk.Frame(lf, bg=COLORS["bg_panel"], height=150)
+        self.history_frame.pack(fill=tk.X, padx=6, pady=(0, 6))
 
     # ── Panel central ─────────────────────────────────────────────────────────
+
+    def _build_zoom_column(self, parent):
+        """Columna angosta entre Entrada y Resultado: zoom + − ajustar y % de zoom."""
+        col = tk.Frame(parent, bg=COLORS["bg"])
+        col.pack(side=tk.LEFT, fill=tk.Y)
+        inner = tk.Frame(col, bg=COLORS["bg"])
+        inner.place(relx=0.5, rely=0.5, anchor="center")
+        for text, cmd in (("+", self.do_zoom_in), ("−", self.do_zoom_out), ("⊡", self.do_zoom_fit)):
+            b = tk.Button(inner, text=text, command=cmd, bg=COLORS["btn_bg"], fg=COLORS["accent"],
+                          relief="flat", font=("Segoe UI", 10, "bold"), width=2, cursor="hand2")
+            b.pack(pady=2)
+            b.bind("<Enter>", lambda e, w=b: w.config(bg=COLORS["btn_hover"]))
+            b.bind("<Leave>", lambda e, w=b: w.config(bg=COLORS["btn_bg"]))
+        tk.Label(inner, textvariable=self._zoom_pct_var, bg=COLORS["bg"], fg=COLORS["text_muted"],
+                 font=("Segoe UI", 7)).pack(pady=(4, 0))
+        col.config(width=34)
+        col.pack_propagate(False)
 
     def _build_center_panel(self):
         cf = self.center_frame
@@ -1011,12 +950,14 @@ class MainWindow:
             highlightthickness=1,
             highlightbackground=COLORS["border"])
         self.canvas_left.pack(side=tk.LEFT, fill=tk.BOTH,
-                              expand=True, padx=(0, 3))
+                              expand=True, padx=(0, 2))
         self.canvas_right.pack(side=tk.RIGHT, fill=tk.BOTH,
-                               expand=True, padx=(3, 0))
+                               expand=True, padx=(2, 0))
+        self._build_zoom_column(canvas_row)
 
         self.roi_selector = ROISelector(
             self.canvas_left, self._on_roi_change)
+        self.roi_selector.on_done = self._on_roi_tool_done
 
         # ZoomController sincroniza ambos canvas
         self.zoom_ctrl = ZoomController(
@@ -1032,24 +973,6 @@ class MainWindow:
         bottom_bar.pack_propagate(False)
         tk.Frame(bottom_bar, bg=COLORS["border"],
                  height=1).pack(fill=tk.X, side=tk.TOP)
-
-        # Botones de pan — izquierda de la barra inferior
-        pan_kw = dict(bg=COLORS["bg_panel"], fg=COLORS["accent"],
-                      relief="flat", font=("Segoe UI", 7),
-                      width=2, height=1, cursor="hand2",
-                      padx=0, pady=0)
-        tk.Button(bottom_bar, text="◀",
-                  command=lambda: self._do_pan(30, 0),
-                  **pan_kw).pack(side=tk.LEFT, padx=1)
-        tk.Button(bottom_bar, text="▲",
-                  command=lambda: self._do_pan(0, 30),
-                  **pan_kw).pack(side=tk.LEFT, padx=1)
-        tk.Button(bottom_bar, text="▼",
-                  command=lambda: self._do_pan(0, -30),
-                  **pan_kw).pack(side=tk.LEFT, padx=1)
-        tk.Button(bottom_bar, text="▶",
-                  command=lambda: self._do_pan(-30, 0),
-                  **pan_kw).pack(side=tk.LEFT, padx=1)
 
         # Navegador de pasos
         step_nav = bottom_bar
@@ -1278,15 +1201,12 @@ class MainWindow:
     # ── Carga ─────────────────────────────────────────────────────────────────
 
     def _open_image(self):
-        path = filedialog.askopenfilename(
+        paths = filedialog.askopenfilenames(
             title=t("dlg.select_image"),
-            filetypes=[(t("common.images"),"*.jpg *.jpeg *.png *.bmp *.tif *.tiff"),
-                       (t("common.all_files"),"*.*")])
-        if path:
-            self.project.set_images([path], "individual")
-            self._update_batch_list()
-            self._load_single(path)
-            self.mode_var.set("individual")
+            filetypes=[(t("common.images"), "*.jpg *.jpeg *.png *.bmp *.tif *.tiff"),
+                       (t("common.all_files"), "*.*")])
+        if paths:
+            self._add_images(list(paths))
 
     def _open_folder(self):
         folder = filedialog.askdirectory(title=t("dlg.image_folder"))
@@ -1298,13 +1218,48 @@ class MainWindow:
             messagebox.showwarning(t("msg.no_images_title"),
                                    t("msg.no_images"))
             return
-        self.project.set_images(paths, "batch")
-        self.output_root = folder
-        self._update_batch_list()
-        self._load_single(paths[0])
-        self.mode_var.set("batch")
-        self._exporter = Exporter(folder)
+        if not self.output_root:
+            self.output_root = folder
+            self._exporter = Exporter(folder)
+        self._add_images(paths)
         self._set_status(t("status.folder_loaded", n=len(paths), folder=folder))
+
+    def _add_images(self, paths: list[str]):
+        """Agrega imágenes a la lista (sin repetir) y muestra la primera nueva."""
+        current = [str(p) for p in self.project.images]
+        new = [p for p in paths if str(p) not in current]
+        if not new:
+            if paths:
+                self.batch_index = current.index(str(paths[0]))
+                self._load_single(self.batch_paths[self.batch_index])
+                self._sync_listbox()
+            return
+        self.project.images = [Path(p) for p in current + new]
+        self.project.current_index = len(current)
+        self._update_batch_list()
+        self._load_single(new[0])
+        self._sync_listbox()
+
+    def _remove_current_image(self):
+        path = self.current_image_path
+        if not path:
+            return
+        images = [p for p in self.project.images if str(p) != str(path)]
+        self.results_cache.pop(path, None)
+        self.project.images = images
+        self.project.current_index = min(self.project.current_index, max(len(images) - 1, 0))
+        self._update_batch_list()
+        if images:
+            self._load_single(self.batch_paths[self.batch_index])
+            self._sync_listbox()
+
+    def _clear_images(self):
+        if self.project.images and messagebox.askyesno(
+                t("menu.clear_images"), t("msg.clear_images"), parent=self.root):
+            self.project.images = []
+            self.project.current_index = 0
+            self._invalidate_results()
+            self._update_batch_list()
 
     # ── Métodos de zoom (llamados por botones) ───────────────────────────────
 
@@ -1348,6 +1303,7 @@ class MainWindow:
 
     def _load_single(self, path: str):
         self.current_image_path = path
+        self.image_info_var.set(Path(path).name)
         img, info = self._load_corrected(path)
         if img is None:
             messagebox.showerror(t("common.error"), t("msg.image_unreadable", name=Path(path).name),
@@ -1361,8 +1317,7 @@ class MainWindow:
         if self.zoom_ctrl:
             self.zoom_ctrl._img_right = None
             self.zoom_ctrl.set_left(self.scaler_left.original)
-        else:
-            self._show_preview()
+        self._on_slider_change()          # vista previa de la segmentación en la nueva imagen
 
         # Restaurar resultado previo si existe en cache
         if path in self.results_cache:
@@ -1469,25 +1424,26 @@ class MainWindow:
         p["auto_threshold"] = bool(self.auto_var.get())
         return p
 
-    def _run_analysis(self):
+    def _run_analysis(self, all_images: bool = False):
+        """Ejecutar: la imagen actual; con all_images, todas las de la lista."""
         name = self._selected_analysis()
         if name not in ANALYSES:
             messagebox.showwarning(t("msg.no_analysis_title"),
                                    t("msg.no_analysis"))
             return
-        if self.mode_var.get() == "batch":
+        if all_images:
             self._run_batch(name)
-        else:
-            if not self.scaler_left.has_image:
-                messagebox.showwarning(t("msg.no_image_title"),
-                                       t("msg.no_image"))
-                return
-            reason = self._skip_reason(self._corr_info.get(self.current_image_path))
-            if reason:
-                messagebox.showwarning(t("corr.skip_title"), reason, parent=self.root)
-                return
-            self._run_single(name, self.scaler_left.original,
-                             self.current_image_path or "imagen")
+            return
+        if not self.scaler_left.has_image:
+            messagebox.showwarning(t("msg.no_image_title"),
+                                   t("msg.no_image"))
+            return
+        reason = self._skip_reason(self._corr_info.get(self.current_image_path))
+        if reason:
+            messagebox.showwarning(t("corr.skip_title"), reason, parent=self.root)
+            return
+        self._run_single(name, self.scaler_left.original,
+                         self.current_image_path or "imagen")
 
     def _run_single(self, name: str, image: np.ndarray, path: str):
         self._set_status(t("status.running", name=_analysis_label(name)))
@@ -1579,20 +1535,26 @@ class MainWindow:
         self.all_results_by_analysis[name][path] = result
 
         # Exportar CSV en tiempo real y guardar imágenes de pasos
-        if self.output_root and result.status == 'ok':
-            if self._exporter is None:
-                self._exporter = Exporter(self.output_root)
-            self._exporter.save_result(
-                name, Path(path).name, result,
-                save_step_images=True, decorate=self._decorate_fn(result))
-            self._exporter.append_to_csv(
-                name, Path(path).name, result)
+        if result.status == 'ok':
+            self._remember_result(name, path, result)
 
         self._set_status(f"{name}: {i+1}/{total}…")
+        self._update_batch_list()
 
         # Si es la imagen que está visible ahora, actualizar display
         if path == self.current_image_path and result.status == "ok":
             self._display_result(result, step_names, fresh=True)
+
+    def _remember_result(self, name: str, path: str, result: AnalysisResult):
+        """Guarda el resultado para exportar. Con carpeta de salida, además escribe
+        imágenes y CSV al momento; sin ella queda en memoria hasta Exportar."""
+        if self._exporter is None:
+            self._exporter = Exporter(self.output_root or ".")
+        live = bool(self.output_root)
+        self._exporter.save_result(name, Path(path).name, result, save_step_images=live,
+                                   decorate=self._decorate_fn(result))
+        if live:
+            self._exporter.append_to_csv(name, Path(path).name, result)
 
     def _on_result(self, name: str, result: AnalysisResult, path: str):
         self.root.config(cursor="")
@@ -1611,16 +1573,10 @@ class MainWindow:
             self.all_results_by_analysis[name] = {}
         self.all_results_by_analysis[name][path] = result
         self._display_result(result, names, fresh=True)
-        if self.output_root:
-            if self._exporter is None:
-                self._exporter = Exporter(self.output_root)
-            self._exporter.save_result(name, Path(path).name, result,
-                                       save_step_images=True, decorate=self._decorate_fn(result))
-            self._exporter.append_to_csv(name, Path(path).name, result)
-            self._set_status(
-                t("status.done", name=_analysis_label(name), detail=self._exporter.results_dir))
-        else:
-            self._set_status(t("status.done", name=_analysis_label(name), detail=result.stats))
+        self._update_batch_list()
+        self._remember_result(name, path, result)
+        self._set_status(t("status.done", name=_analysis_label(name),
+                           detail=self._exporter.results_dir if self.output_root else result.stats))
         reused = result.extra.get("reused")
         if reused:
             items = ", ".join(t(f"step.{k}", k) for k in reused)
@@ -1795,11 +1751,13 @@ class MainWindow:
         self._update_batch_label()
 
     def _update_batch_list(self):
+        """Lista de imágenes; ✓ = ya analizada en esta sesión."""
         self.batch_listbox.delete(0, tk.END)
         for p in self.batch_paths:
-            self.batch_listbox.insert(tk.END, Path(p).name)
+            mark = "✓ " if p in self.results_cache else "   "
+            self.batch_listbox.insert(tk.END, mark + Path(p).name)
         if self.batch_paths:
-            self.batch_listbox.selection_set(0)
+            self.batch_listbox.selection_set(min(self.batch_index, len(self.batch_paths) - 1))
         self._update_batch_label()
 
     def _update_batch_label(self):
@@ -1852,10 +1810,79 @@ class MainWindow:
             self.roi_selector.clear_exclusions()
 
     def _set_roi_mode(self, mode: str):
+        """Activa una herramienta de ROI; al terminar la forma se vuelve a mover la imagen."""
+        if not self.roi_selector:
+            return
+        self.roi_selector.set_mode(mode)
+        if self.zoom_ctrl:
+            self.zoom_ctrl._update_cursor(self.canvas_left)
+        hint = "roi.hint_polygon" if mode in ("polígono", "exclusión") else "roi.hint_rect"
+        self._set_status(t(hint))
+
+    def _on_roi_tool_done(self):
+        if self.zoom_ctrl:
+            self.zoom_ctrl._update_cursor(self.canvas_left)
+        self._set_status(t("status.ready"))
+
+    def _clear_roi(self):
         if self.roi_selector:
-            self.roi_selector.set_mode(mode)
-        self._update_step_active(2)
-        self._set_status(t("status.roi_mode", mode=t(f"roi.mode.{mode}", mode)))
+            self.roi_selector.stop()
+            self.roi_selector.clear()
+
+    def _open_scale_dialog(self):
+        ScaleDialog(self.root,
+                    current_image=self.scaler_left.original if self.scaler_left.has_image else None,
+                    current_path=self.current_image_path,
+                    on_scale_set=self._on_scale_set,
+                    loader=self._load_corrected_image,
+                    paths=self.batch_paths)
+
+    def _toggle_legend(self):
+        self.legend_var.set(not self.legend_var.get())
+        self._on_display_change()
+
+    def _open_log_folder(self):
+        folder = Path(log.log_file()).parent
+        try:
+            if sys.platform.startswith("win"):
+                os.startfile(folder)            # noqa: S606 (solo Windows)
+            else:
+                subprocess.Popen(["xdg-open" if sys.platform != "darwin" else "open", str(folder)])
+        except Exception:
+            _log.exception("No se pudo abrir %s", folder)
+            messagebox.showinfo(t("help.log"), str(folder), parent=self.root)
+
+    def _show_shortcuts(self):
+        rows = [("Ctrl+Enter", t("run.current")), ("Ctrl+Shift+Enter", t("run.all")),
+                ("Ctrl+O", t("menu.add_images")), ("Ctrl+S", t("menu.save_project")),
+                ("Ctrl+E", t("menu.export")), ("← →", t("help.key_images")),
+                ("+  −  0", t("help.key_zoom")), (t("help.mouse_wheel"), t("help.key_zoom")),
+                (t("help.mouse_drag"), t("help.key_pan")), ("Esc", t("help.key_esc"))]
+        messagebox.showinfo(t("help.shortcuts"), "\n".join(f"{k:<18}  {v}" for k, v in rows),
+                            parent=self.root)
+
+    def _bind_shortcuts(self):
+        def typing() -> bool:
+            w = self.root.focus_get()
+            return isinstance(w, (tk.Entry, ttk.Entry, ttk.Combobox, tk.Spinbox, tk.Text))
+
+        def key(handler):
+            return lambda e=None: None if typing() else (handler(), "break")[1]
+        r = self.root
+        r.bind_all("<Control-Return>", lambda e=None: self._run_analysis(False))
+        r.bind_all("<Control-Shift-Return>", lambda e=None: self._run_analysis(True))
+        r.bind_all("<Control-o>", lambda e=None: self._open_image())
+        r.bind_all("<Control-s>", lambda e=None: self._save_project())
+        r.bind_all("<Control-e>", lambda e=None: self._export_results())
+        r.bind_all("<Left>", key(self._prev_image))
+        r.bind_all("<Right>", key(self._next_image))
+        r.bind_all("<plus>", key(self.do_zoom_in))
+        r.bind_all("<KP_Add>", key(self.do_zoom_in))
+        r.bind_all("<minus>", key(self.do_zoom_out))
+        r.bind_all("<KP_Subtract>", key(self.do_zoom_out))
+        r.bind_all("<Key-0>", key(self.do_zoom_fit))
+        r.bind_all("<Escape>", lambda e=None: self.roi_selector.stop()
+                   if self.roi_selector and self.roi_selector.active else None)
 
     def _on_roi_change(self, mask):
         self._update_step_active(2)

@@ -53,6 +53,19 @@ class ZoomState:
         self.pan_y = cy - img_y * new_zoom - (canvas_h - img_h * new_zoom) / 2
         self.zoom   = new_zoom
 
+    def zoom_at(self, px: float, py: float, canvas_w: int, canvas_h: int,
+                img_w: int, img_h: int, factor: float):
+        """Zoom manteniendo fijo el punto (px, py) del canvas (p. ej. el cursor)."""
+        new_zoom = max(self.ZOOM_MIN, min(self.ZOOM_MAX, self.zoom * factor))
+        if abs(new_zoom - self.zoom) < 1e-6:
+            return
+        off_x = (canvas_w - img_w * self.zoom) / 2 + self.pan_x
+        off_y = (canvas_h - img_h * self.zoom) / 2 + self.pan_y
+        img_x, img_y = (px - off_x) / self.zoom, (py - off_y) / self.zoom
+        self.pan_x = px - img_x * new_zoom - (canvas_w - img_w * new_zoom) / 2
+        self.pan_y = py - img_y * new_zoom - (canvas_h - img_h * new_zoom) / 2
+        self.zoom = new_zoom
+
     def pan(self, dx: float, dy: float,
             canvas_w: int, canvas_h: int,
             img_w: int, img_h: int):
@@ -119,16 +132,64 @@ class ZoomController:
         self._photo_right = None
         self._zoom_var: tk.StringVar | None = None
 
-        # Solo flechas — no interferimos con clics
-        canvas_left.bind("<Left>",  self._on_arrow)
-        canvas_left.bind("<Right>", self._on_arrow)
-        canvas_left.bind("<Up>",    self._on_arrow)
-        canvas_left.bind("<Down>",  self._on_arrow)
-        canvas_left.config(takefocus=True)
-        # Clic izquierdo da foco al canvas (necesario para flechas)
-        # IMPORTANTE: add="+" para no reemplazar el bind del ROI
-        canvas_left.bind("<ButtonPress-1>",
-                         lambda e=None: e.widget.focus_set(), add="+")
+        # Rueda = zoom en el cursor; arrastrar = mover (izquierdo si no se está dibujando
+        # una ROI, o botón del medio siempre). Mismo zoom y posición en ambos lados.
+        self._drag = None
+        for c in (canvas_left, canvas_right):
+            c.config(takefocus=True)
+            c.bind("<MouseWheel>", self._on_wheel, add="+")
+            c.bind("<Button-4>", self._on_wheel, add="+")
+            c.bind("<Button-5>", self._on_wheel, add="+")
+            for btn in ("1", "2"):
+                c.bind(f"<ButtonPress-{btn}>", lambda e, b=btn: self._drag_start(e, b), add="+")
+                c.bind(f"<B{btn}-Motion>", lambda e, b=btn: self._drag_move(e, b), add="+")
+                c.bind(f"<ButtonRelease-{btn}>", self._drag_end, add="+")
+            c.bind("<Enter>", lambda e: self._update_cursor(e.widget), add="+")
+
+    def _roi_drawing(self, canvas) -> bool:
+        roi = getattr(self.cl, "_roi_selector_ref", None)
+        return canvas is self.cl and roi is not None and roi.active
+
+    def _update_cursor(self, canvas):
+        canvas.config(cursor="crosshair" if self._roi_drawing(canvas) else "fleur")
+
+    def _ref_size(self):
+        img = self._img_left if self._img_left is not None else self._img_right
+        if img is None:
+            return None
+        self.cl.update_idletasks()
+        return (max(self.cl.winfo_width(), 1), max(self.cl.winfo_height(), 1),
+                img.shape[1], img.shape[0])
+
+    def _on_wheel(self, event):
+        size = self._ref_size()
+        if size is None:
+            return
+        up = getattr(event, "num", 0) == 4 or getattr(event, "delta", 0) > 0
+        factor = ZoomState.ZOOM_STEP if up else 1 / ZoomState.ZOOM_STEP
+        self.state.zoom_at(event.x, event.y, *size, factor)
+        self.state.clamp_pan(*size)
+        self._redraw()
+
+    def _drag_start(self, event, button):
+        event.widget.focus_set()
+        if button == "1" and self._roi_drawing(event.widget):
+            return
+        self._drag = (event.x, event.y)
+
+    def _drag_move(self, event, button):
+        if self._drag is None or (button == "1" and self._roi_drawing(event.widget)):
+            return
+        size = self._ref_size()
+        if size is None:
+            return
+        dx, dy = event.x - self._drag[0], event.y - self._drag[1]
+        self._drag = (event.x, event.y)
+        self.state.pan(dx, dy, *size)
+        self._redraw()
+
+    def _drag_end(self, _event=None):
+        self._drag = None
 
     # ── API pública ───────────────────────────────────────────────────────────
 

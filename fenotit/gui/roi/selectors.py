@@ -24,7 +24,7 @@ ROI_COLOR_EXCLUDE = "#E67E00"
 
 
 class ROISelector:
-    MODES = ["rectángulo", "cuadrado", "polígono", "hueco", "exclusión"]
+    MODES = ["rectángulo", "cuadrado", "polígono", "hueco", "exclusión", "exclusión_rect"]
 
     def __init__(self, canvas: tk.Canvas,
                  on_roi_change: Callable | None = None):
@@ -32,6 +32,8 @@ class ROISelector:
         self.on_roi_change = on_roi_change
 
         self.mode          = "rectángulo"
+        self.active        = False      # solo se dibuja con una herramienta elegida
+        self.on_done: Callable | None = None   # al terminar una forma (vuelve a "mover")
         self.drawing       = False
         self.start_pt      = None
         self.points        = []
@@ -65,7 +67,16 @@ class ROISelector:
     def set_mode(self, mode: str):
         assert mode in self.MODES, f"Modo inválido: {mode}"
         self.mode = mode
-        # No limpiar al cambiar de modo — permitir combinar
+        self.active = True
+
+    def stop(self):
+        """Deja de dibujar (Esc o al terminar una forma)."""
+        self.active = False
+        self.drawing = False
+        self.points = []
+        self._clear_temp()
+        if self.on_done:
+            self.on_done()
 
     def set_canvas_size(self, w: int, h: int):
         self._canvas_w = w
@@ -262,16 +273,21 @@ class ROISelector:
         return ix + self._img_x, iy + self._img_y
 
     def _on_press(self, event):
+        if not self.active:
+            return
         if self._double_click_pending:
             self._double_click_pending = False
             return
         ix, iy = self._canvas_to_img(event.x, event.y)
-        if self.mode in ("rectángulo", "cuadrado"):
+        if self.mode in ("rectángulo", "cuadrado", "exclusión_rect"):
             self.drawing  = True
             self.start_pt = (ix, iy)
         elif self.mode in ("polígono", "hueco", "exclusión"):
             self.points.append((ix, iy))
             self._draw_polygon_temp()
+
+    def _square(self, event) -> bool:
+        return self.mode == "cuadrado" or bool(event.state & 0x0001)     # Shift
 
     def _on_drag(self, event):
         if not self.drawing:
@@ -279,13 +295,13 @@ class ROISelector:
         self._clear_temp()
         x0, y0 = self.start_pt
         ix, iy  = self._canvas_to_img(event.x, event.y)
-        if self.mode == "cuadrado":
+        if self._square(event):
             size = min(abs(ix - x0), abs(iy - y0))
             ix   = x0 + (size if ix >= x0 else -size)
             iy   = y0 + (size if iy >= y0 else -size)
         cx0, cy0 = self._img_to_canvas(x0, y0)
         cx1, cy1 = self._img_to_canvas(ix, iy)
-        color = ROI_COLOR_RECT
+        color = ROI_COLOR_EXCLUDE if self.mode == "exclusión_rect" else ROI_COLOR_RECT
         sid = self.canvas.create_rectangle(
             cx0, cy0, cx1, cy1,
             outline=color, dash=(6, 3), width=2, tags="roi_temp")
@@ -297,13 +313,21 @@ class ROISelector:
         self.drawing = False
         x0, y0 = self.start_pt
         ix, iy  = self._canvas_to_img(event.x, event.y)
-        if self.mode == "cuadrado":
+        if self._square(event):
             size = min(abs(ix - x0), abs(iy - y0))
             ix   = x0 + (size if ix >= x0 else -size)
             iy   = y0 + (size if iy >= y0 else -size)
         self._clear_temp()
         x_min, x_max = sorted([x0, ix])
         y_min, y_max = sorted([y0, iy])
+        if x_max - x_min < 3 or y_max - y_min < 3:
+            return
+        if self.mode == "exclusión_rect":            # un rectángulo de exclusión = polígono de 4 puntos
+            self.points = [(x_min, y_min), (x_max, y_min), (x_max, y_max), (x_min, y_max)]
+            mode, self.mode = self.mode, "exclusión"
+            self._finalize_polygon()
+            self.mode = mode
+            return
         cx0, cy0 = self._img_to_canvas(x_min, y_min)
         cx1, cy1 = self._img_to_canvas(x_max, y_max)
         sid = self.canvas.create_rectangle(
@@ -312,8 +336,11 @@ class ROISelector:
         self.final_shapes.append(sid)
         self._inclusion_ops = [self._op("rect", [(x_min, y_min), (x_max, y_max)])]
         self._build_rect_mask(x_min, y_min, x_max, y_max)
+        self.stop()
 
     def _on_double_click(self, event):
+        if not self.active:
+            return
         self._double_click_pending = True
         if self.mode in ("polígono", "hueco", "exclusión") \
                 and len(self.points) >= 3:
@@ -322,7 +349,7 @@ class ROISelector:
             self._double_click_pending = False
 
     def _on_right_click(self, event):
-        if self.mode in ("polígono", "hueco", "exclusión") \
+        if self.active and self.mode in ("polígono", "hueco", "exclusión") \
                 and self.points:
             self.points.pop()
             self._draw_polygon_temp()
@@ -410,6 +437,7 @@ class ROISelector:
         self._double_click_pending = False
         if self.on_roi_change:
             self.on_roi_change(self._inclusion_mask)
+        self.stop()
 
     def _redraw_all(self):
         """Redibuja todo desde cero (usado al limpiar exclusiones)."""
