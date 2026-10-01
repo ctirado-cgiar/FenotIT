@@ -90,6 +90,7 @@ class DropMenu(tk.Frame):
         self.colors = colors
         self.items  = items
         self._popup = None
+        self._arrow_only = arrow_only
         self.btn = tk.Button(
             self, text=" ▾ " if arrow_only else f"  {text}  ▾",
             bg=bg, fg=colors["accent"] if arrow_only else "#FFFFFF",
@@ -110,8 +111,6 @@ class DropMenu(tk.Frame):
         self.update_idletasks()
         x = self.winfo_rootx()
         y = self.winfo_rooty() + self.winfo_height()
-        if x + 260 > self.winfo_screenwidth():          # menú pegado al borde derecho
-            x = self.winfo_screenwidth() - 270
         popup = tk.Toplevel(self)
         popup.wm_overrideredirect(True)
         popup.configure(bg=self.colors["border"])
@@ -168,6 +167,16 @@ class DropMenu(tk.Frame):
                         widget.bind("<Button-1>", click)
                 _bind(row)
 
+        # Que quede dentro de la ventana: el menú de ▾ (junto al borde derecho) se abre
+        # hacia la izquierda, alineado con el botón.
+        popup.update_idletasks()
+        pw = popup.winfo_reqwidth()
+        top = self.winfo_toplevel()
+        right = top.winfo_rootx() + top.winfo_width()
+        if self._arrow_only or x + pw > right - 4:
+            x = self.winfo_rootx() + self.winfo_width() - pw
+        x = max(top.winfo_rootx() + 4, min(x, right - pw - 4))
+        popup.wm_geometry(f"+{x}+{y}")
         popup.bind("<FocusOut>", lambda e=None: popup.destroy())
         popup.focus_set()
 
@@ -793,6 +802,7 @@ class MainWindow:
         self._style_btn = IconButton(bar, "palette", self._open_style, f"{t('style.title')}", **kw)
         self._style_btn.pack(side=tk.LEFT, padx=1, pady=6)
         self._style_popup = None
+        self.root.bind("<ButtonPress-1>", self._close_style_popup, add="+")
         pct.bind("<Button-1>", lambda e: self.do_zoom_100())
         Tooltip(pct, f"{t('view.zoom_100')}  (Ctrl+1)")
         self._zoom_tools["pan"].select(True)
@@ -1291,6 +1301,13 @@ class MainWindow:
             return
         self._style_popup = StylePopup(self.root, self._style_btn, self.project.display.get("style"),
                                        COLORS, self._on_style_change)
+
+    def _close_style_popup(self, event=None):
+        if event is not None and event.widget is self._style_btn:
+            return
+        if self._style_popup is not None and self._style_popup.winfo_exists():
+            self._style_popup.destroy()
+        self._style_popup = None
 
     def _on_style_change(self, style: dict):
         self.project.display = {**self.project.display, "style": style}

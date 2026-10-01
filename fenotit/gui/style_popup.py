@@ -64,17 +64,10 @@ class StylePopup(tk.Toplevel):
         x = anchor.winfo_rootx() + anchor.winfo_width() - self.winfo_reqwidth()
         y = anchor.winfo_rooty() + anchor.winfo_height() + 2
         self.wm_geometry(f"+{max(4, x)}+{y}")
+        self.attributes("-topmost", True)
         self.bind("<Escape>", lambda e: self.destroy())
-        self.bind("<FocusOut>", lambda e: self.after(150, self._close_if_outside))
-        self.focus_force()
-
-    def _close_if_outside(self):
-        try:
-            focus = self.focus_get()
-        except (KeyError, tk.TclError):
-            focus = None
-        if focus is None or not str(focus).startswith(str(self)):
-            self.destroy()
+        # Se cierra con Esc, con el ícono o al hacer clic en la ventana principal (no con
+        # la pérdida de foco: en Windows una ventana sin marco no siempre recibe el foco).
 
     def _paint(self):
         for role, cells in self._cells.items():
