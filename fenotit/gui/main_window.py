@@ -286,7 +286,6 @@ class MainWindow:
         self.last_result:  AnalysisResult | None = None
         self.step_names:   list[str] = []
         self.step_idx:     int = 0
-        self.step_history: dict[str, list] = {}
         # Cache de resultados por imagen — para restaurar al navegar
         # resultados por análisis y por foto: al cambiar de análisis no se pierden los otros
         self._results: dict[str, dict[str, AnalysisResult]] = {}
@@ -556,6 +555,7 @@ class MainWindow:
             self.last_result, self.step_names, self.step_idx = None, [], 0
             self._show_results_ui(False)
             self.canvas_right.delete("all")
+        self._refresh_history()
         self._update_batch_list()
         self._sync_listbox()
 
@@ -1693,7 +1693,6 @@ class MainWindow:
         step_names = list(result.step_images.keys())
         self.results_cache[path]    = result
         self.step_names_cache[path] = step_names
-        self.step_history[path]     = step_names
         # Guardar en índice combinado por análisis
         if name not in self.all_results_by_analysis:
             self.all_results_by_analysis[name] = {}
@@ -1729,7 +1728,6 @@ class MainWindow:
             self._set_status(f"{t('common.error')}: {result.error}")
             return
         names = list(result.step_images.keys())
-        self.step_history[path] = names
         # Guardar en cache para restaurar al navegar
         self.results_cache[path]    = result
         self.step_names_cache[path] = names
@@ -2102,24 +2100,37 @@ class MainWindow:
     # ── Historial ─────────────────────────────────────────────────────────────
 
     def _refresh_history(self):
+        """Vistas de la foto actual, agrupadas por análisis (solo los que ya tienen
+        resultado). Tocar una vista de otro análisis lo activa y la muestra al instante."""
         for w in self.history_frame.winfo_children():
             w.destroy()
         path = self.current_image_path
-        if not path or path not in self.step_history:
+        if not path:
             return
-        for i, step_name in enumerate(self.step_history[path]):
-            btn = tk.Label(self.history_frame,
-                           text=f"  ▸  {step_name}",
-                           bg=COLORS["bg_panel"], fg=COLORS["text"],
-                           font=FONTS["small"], anchor="w",
-                           padx=4, pady=2, cursor="hand2")
-            btn.pack(fill=tk.X)
-            btn.bind("<Button-1>",
-                     lambda e, idx=i: self._jump_to_step(idx))
-            btn.bind("<Enter>",
-                     lambda e, b=btn: b.config(bg=COLORS["accent_light"]))
-            btn.bind("<Leave>",
-                     lambda e, b=btn: b.config(bg=COLORS["bg_panel"]))
+        done = [n for n in ANALYSES if path in self._results.get(n, {})]
+        for name in done:
+            current = name == getattr(self, "active_analysis", None)
+            if len(done) > 1:
+                tk.Label(self.history_frame, text=_analysis_label(name), bg=COLORS["bg_panel"],
+                         fg=COLORS["accent"] if current else COLORS["text_muted"],
+                         font=("Segoe UI", 8, "italic"), anchor="w", padx=6).pack(fill=tk.X, pady=(4, 0))
+            for i, view in enumerate(self._step_names.get(name, {}).get(path, [])):
+                sel = current and i == self.step_idx
+                bg = COLORS["accent_light"] if sel else COLORS["bg_panel"]
+                btn = tk.Label(self.history_frame, text=f"  ▸  {view}", bg=bg,
+                               fg=COLORS["text"] if current else COLORS["text_muted"],
+                               font=FONTS["small"], anchor="w", padx=4, pady=2, cursor="hand2")
+                btn.pack(fill=tk.X)
+                btn.bind("<Button-1>", lambda e, a=name, v=view: self._open_view(a, v))
+                btn.bind("<Enter>", lambda e, b=btn: b.config(bg=COLORS["accent_light"]))
+                btn.bind("<Leave>", lambda e, b=btn, c=bg: b.config(bg=c))
+
+    def _open_view(self, analysis: str, view: str):
+        if analysis != self.active_analysis:
+            self.analysis_var.set(_analysis_label(analysis))
+            self._on_analysis_selected(None)
+        if view in self.step_names:
+            self._jump_to_step(self.step_names.index(view))
 
     def _jump_to_step(self, idx: int):
         if not self.last_result or idx >= len(self.step_names):
@@ -2131,6 +2142,7 @@ class MainWindow:
         self.step_label_var.set(
             f"{name}  ({idx+1}/{len(self.step_names)})")
         self._update_table(self.last_result, name)
+        self._refresh_history()
 
     # ── ROI ───────────────────────────────────────────────────────────────────
 
