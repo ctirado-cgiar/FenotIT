@@ -104,7 +104,29 @@ def _select(d, s, w, color):
     d.polygon(arrow, fill=color)
 
 
-_DRAW = {"palette": _palette, "select": _select,
+def _photo(d, s, w, color):
+    d.rounded_rectangle((s * 0.08, s * 0.18, s * 0.92, s * 0.82), radius=s * 0.08, outline=color, width=w)
+    d.polygon([(s * 0.16, s * 0.74), (s * 0.40, s * 0.44), (s * 0.56, s * 0.62), (s * 0.66, s * 0.52),
+               (s * 0.84, s * 0.74)], fill=color)
+    d.ellipse((s * 0.62, s * 0.28, s * 0.74, s * 0.40), fill=color)
+
+
+def _folder(d, s, w, color):
+    d.polygon([(s * 0.08, s * 0.22), (s * 0.38, s * 0.22), (s * 0.46, s * 0.32), (s * 0.92, s * 0.32),
+               (s * 0.92, s * 0.80), (s * 0.08, s * 0.80)], outline=color, width=w)
+    d.line((s * 0.08, s * 0.42, s * 0.92, s * 0.42), fill=color, width=w)
+
+
+def _project(d, s, w, color):
+    """Documento con esquina doblada (abrir un proyecto guardado)."""
+    d.polygon([(s * 0.22, s * 0.08), (s * 0.60, s * 0.08), (s * 0.80, s * 0.28), (s * 0.80, s * 0.92),
+               (s * 0.22, s * 0.92)], outline=color, width=w)
+    d.line((s * 0.60, s * 0.08, s * 0.60, s * 0.28, s * 0.80, s * 0.28), fill=color, width=w)
+    for y in (0.48, 0.62, 0.76):
+        d.line((s * 0.34, s * y, s * 0.68, s * y), fill=color, width=w)
+
+
+_DRAW = {"palette": _palette, "select": _select, "photo": _photo, "folder": _folder, "project": _project,
          "area_rect": lambda d, s, w, c: _area(d, s, w, c, "rect", False),
          "area_poly": lambda d, s, w, c: _area(d, s, w, c, "poly", False),
          "excl_rect": lambda d, s, w, c: _area(d, s, w, c, "rect", True),

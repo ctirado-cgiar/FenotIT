@@ -131,14 +131,14 @@ def _legend_spec(key: str, ctx) -> dict | None:
         return {"title": t("legend.image_colors"), "colors": ctx.tables.get("image_colors", [])}
     if key == "shape":
         shapes = ctx.tables.get("object_shape", [])
-        if len(shapes) < 2:
+        if not shapes:
             return None
         from fenotit.core.efd import contour_points, from_row
         from fenotit.core.stats.shape import align
         coeffs = align([from_row(r) for r in shapes])
-        return {"title": t("legend.mean_shape"), "rows": [(f"n = {len(shapes)}", (255, 160, 0))],
+        return {"title": t("legend.mean_shape") if len(shapes) > 1 else t("step.shape"), "rows": [(f"n = {len(shapes)}", (255, 160, 0))],
                 "shape": {"mean": contour_points(np.mean(coeffs, axis=0)),
-                          "others": [contour_points(c, 80) for c in coeffs]}}
+                          "others": [contour_points(c, 80) for c in coeffs] if len(coeffs) > 1 else []}}
     return None
 
 

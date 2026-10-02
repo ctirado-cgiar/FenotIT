@@ -37,3 +37,14 @@ def set(key: str, value) -> None:
             yaml.safe_dump(data, f, allow_unicode=True)
     except OSError:
         pass
+
+
+def recent_projects() -> list[str]:
+    """Proyectos abiertos o guardados hace poco (los que todavía existen)."""
+    return [p for p in get("recent_projects", []) or [] if Path(p).exists()]
+
+
+def add_recent_project(path) -> None:
+    path = str(Path(path).resolve())
+    items = [path] + [p for p in get("recent_projects", []) or [] if p != path]
+    set("recent_projects", items[:8])

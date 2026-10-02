@@ -37,7 +37,7 @@ from fenotit.gui.export_dialog import ExportDialog
 from fenotit.gui.charts import IntraImageChartPanel, BatchChartWindow
 from fenotit.gui.theme import COLORS, FONTS
 
-from fenotit import APP_NAME, __version__, log
+from fenotit import APP_NAME, __version__, log, settings
 from fenotit.i18n import t
 from fenotit import i18n
 
@@ -307,6 +307,7 @@ class MainWindow:
         # (izquierdo) o al elegir un análisis (derecho).
         self._show_panel(self.left_panel, False)
         self._show_panel(self.right_panel, False)
+        self._update_start()
         self._saved_state = self._collect_state()
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         self._update_title()
@@ -490,6 +491,7 @@ class MainWindow:
             messagebox.showerror(t("common.error"), t("project.save_error", error=e), parent=self.root)
             return False
         self._saved_state = self.project.to_dict()
+        settings.add_recent_project(self.project.file)
         self._set_status(t("project.saved", path=self.project.file))
         return True
 
@@ -516,6 +518,22 @@ class MainWindow:
         if path:
             self.open_project_path(path)
 
+    def _open_recent(self, path: str):
+        if self._confirm_discard():
+            self.open_project_path(path)
+
+    def _update_start(self):
+        """Pantalla de inicio mientras no haya fotos; con fotos, Entrada y Resultado."""
+        start = getattr(self, "_start", None)
+        if start is None:
+            return
+        if self.project.images:
+            start.place_forget()
+        else:
+            start.refresh()
+            start.place(relx=0, rely=0, relwidth=1, relheight=1)
+            start.lift()
+
     def open_project_path(self, path):
         try:
             project = Project.load(path)
@@ -533,6 +551,8 @@ class MainWindow:
             project.images = [p for p in project.images if p.exists()]
             project.current_index = min(project.current_index, max(len(project.images) - 1, 0))
         self._apply_project(project)
+        if project.file:
+            settings.add_recent_project(project.file)
         self._set_status(t("project.opened", path=project.file))
 
     def _apply_project(self, project: Project):
@@ -573,6 +593,7 @@ class MainWindow:
             self.current_image_path = None
             self.canvas_left.delete("all")
         self._update_corr_indicator()
+        self._update_start()
         self._saved_state = self._collect_state()
 
     def _on_close(self):
@@ -1005,6 +1026,9 @@ class MainWindow:
         self._build_area_tools()
 
         self._canvas_row = canvas_row
+        from fenotit.gui.start_screen import StartScreen
+        self._start = StartScreen(cf, COLORS, FONTS, self._open_image, self._open_folder,
+                                  self._open_project, self._open_recent)
         self._build_view_controls()
 
         # Barra de vistas (◀ vista ▶ · Resultados): solo cuando hay resultados
@@ -1260,6 +1284,7 @@ class MainWindow:
         self.project.current_index = len(current)
         self._update_batch_list()
         self._show_panel(self.left_panel, True)
+        self._update_start()
         self._load_single(new[0])
         self._sync_listbox()
 
@@ -1309,6 +1334,7 @@ class MainWindow:
         self._show_results_ui(False)
         self.image_info_var.set("")
         self.preview_var.set("")
+        self._update_start()
 
     # ── Métodos de zoom (llamados por botones) ───────────────────────────────
 
