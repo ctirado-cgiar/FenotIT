@@ -15,6 +15,7 @@ from fenotit.gui.toolbar import icon
 from fenotit.i18n import t
 
 _THUMB = (88, 66)
+_SERIF = "Georgia"          # títulos en cursiva; si no existe, Tk usa una parecida
 
 
 def _project_info(path: Path) -> tuple[int, Path | None]:
@@ -77,7 +78,7 @@ class StartScreen(tk.Frame):
         except Exception:
             pass
         tk.Label(inner, text=APP_NAME, bg=c["bg_topbar"], fg="#FFFFFF", font=("Segoe UI", 26, "bold")).pack()
-        tk.Label(inner, text=t("start.subtitle"), bg=c["bg_topbar"], fg="#D6E4F5", font=("Segoe UI", 10),
+        tk.Label(inner, text=t("start.subtitle"), bg=c["bg_topbar"], fg="#E3EDF9", font=(_SERIF, 12, "italic"),
                  wraplength=240, justify="center").pack(pady=(4, 18))
         tk.Label(inner, text=t("start.tagline"), bg=c["bg_topbar"], fg="#B9CFEA", font=("Segoe UI", 8),
                  wraplength=230, justify="center").pack()
@@ -101,15 +102,15 @@ class StartScreen(tk.Frame):
         body = tk.Frame(m, bg=c["bg"])
         body.place(relx=0.5, rely=0.42, anchor="center")
 
-        tk.Label(body, text=t("start.begin"), bg=c["bg"], fg=c["text"],
-                 font=("Segoe UI", 16, "bold")).pack(anchor="w", pady=(0, 10))
+        tk.Label(body, text=t("start.begin"), bg=c["bg"], fg=c["text_muted"],
+                 font=(_SERIF, 14, "italic")).pack(anchor="w", pady=(0, 10))
         row = tk.Frame(body, bg=c["bg"])
         row.pack(anchor="w")
         self._new_tile(row, on_photos, on_folder)
         self._tile(row, "project", t("start.open"), t("start.open_hint"), on_open)
 
-        tk.Label(body, text=t("start.recent"), bg=c["bg"], fg=c["text"],
-                 font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(22, 6))
+        tk.Label(body, text=t("start.recent"), bg=c["bg"], fg=c["text_muted"],
+                 font=(_SERIF, 12, "italic")).pack(anchor="w", pady=(22, 6))
         recent = settings.recent_projects()
         if not recent:
             tk.Label(body, text=t("start.no_recent"), bg=c["bg"], fg=c["text_muted"],
