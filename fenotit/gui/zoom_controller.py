@@ -255,6 +255,10 @@ class ZoomController:
 
     def _press(self, event, button):
         event.widget.focus_set()
+        if button == "1" and self._in_minimap(event):
+            self._mini_drag = True
+            self._minimap_goto(event)
+            return "break"
         if button == "1" and self._roi_drawing(event.widget):
             return
         if button == "1" and self.tool == "zoom_area":
@@ -263,6 +267,9 @@ class ZoomController:
         self._drag = (event.x, event.y)
 
     def _motion(self, event, button):
+        if getattr(self, "_mini_drag", False):
+            self._minimap_goto(event)
+            return "break"
         if button == "1" and self._roi_drawing(event.widget):
             return
         if self._rect_start and button == "1":
@@ -284,6 +291,9 @@ class ZoomController:
 
     def _release(self, event, button):
         self._drag = None
+        if getattr(self, "_mini_drag", False):
+            self._mini_drag = False
+            return "break"
         if not (self._rect_start and button == "1"):
             return
         _, x0, y0 = self._rect_start
@@ -393,6 +403,7 @@ class ZoomController:
                           "_photo_left",  left=True)
         self._draw_canvas(self.cr,  self._right_aligned(),
                           "_photo_right", left=False, marks=self._marks_right)
+        self._draw_minimap()
         if self._zoom_var is not None:
             self._zoom_var.set(f"{self.state.zoom_pct}%")
         if self.on_redraw:
@@ -427,6 +438,62 @@ class ZoomController:
             dw, dh = self.state.display_size(iw, ih)
             ox, oy = self.state.image_offset(cw, ch, iw, ih)
             canvas._roi_selector_ref.set_image_offset(ox, oy, dw, dh)
+
+    # ── Minimapa ──────────────────────────────────────────────────────────────
+
+    MINI = 110            # lado mayor del minimapa (px)
+
+    def _draw_minimap(self):
+        """Con zoom: proporción de la foto y rectángulo de lo que se ve, en la esquina de
+        abajo a la derecha del lado visible de más a la derecha. Sin la foto, semitransparente.
+        Clic o arrastre en él = ir a ese lugar."""
+        self._mini = None
+        img = self._img_left if self._img_left is not None else self._img_right
+        canvas = self.cr if self.cr.winfo_ismapped() and self._img_right is not None else self.cl
+        for c in (self.cl, self.cr):
+            c.delete("minimap")
+        if img is None or not canvas.winfo_ismapped():
+            return
+        cw, ch = max(canvas.winfo_width(), 1), max(canvas.winfo_height(), 1)
+        ih, iw = img.shape[:2]
+        z = self.state.zoom
+        if iw * z <= cw + 1 and ih * z <= ch + 1:
+            return
+        k = self.MINI / max(iw, ih)
+        mw, mh = max(8, int(iw * k)), max(8, int(ih * k))
+        x, y = cw - mw - 12, ch - mh - 12
+        ox, oy = self.state.image_offset(cw, ch, iw, ih)
+        vx0, vy0 = max(0.0, -ox / z), max(0.0, -oy / z)
+        vx1, vy1 = min(iw, (cw - ox) / z), min(ih, (ch - oy) / z)
+        tag = "minimap"
+        canvas.create_rectangle(x - 1, y - 1, x + mw + 1, y + mh + 1, outline="#000000", width=1, tags=tag)
+        canvas.create_rectangle(x, y, x + mw, y + mh, outline="#FFFFFF", fill="#FFFFFF", stipple="gray50",
+                                width=1, tags=tag)
+        rx0, ry0, rx1, ry1 = x + vx0 * k, y + vy0 * k, x + vx1 * k, y + vy1 * k
+        canvas.create_rectangle(rx0, ry0, rx1, ry1, outline="#1F5FA8", fill="#1F5FA8", stipple="gray25",
+                                width=2, tags=tag)
+        self._mini = (canvas, x, y, mw, mh, k)
+
+    def _in_minimap(self, event) -> bool:
+        m = getattr(self, "_mini", None)
+        if not m or event.widget is not m[0]:
+            return False
+        _, x, y, mw, mh, _ = m
+        return x - 2 <= event.x <= x + mw + 2 and y - 2 <= event.y <= y + mh + 2
+
+    def _minimap_goto(self, event):
+        m, size = getattr(self, "_mini", None), self._ref_size()
+        if not m or size is None:
+            return
+        canvas, x, y, mw, mh, k = m
+        cw, ch, iw, ih = size
+        px = min(max((event.x - x) / k, 0), iw)
+        py = min(max((event.y - y) / k, 0), ih)
+        z = self.state.zoom
+        self.state.pan_x = cw / 2 - px * z - (cw - iw * z) / 2
+        self.state.pan_y = ch / 2 - py * z - (ch - ih * z) / 2
+        self.state.clamp_pan(*size)
+        self._redraw()
 
     def _right_aligned(self) -> np.ndarray | None:
         """Imagen derecha llevada al tamaño de la izquierda para que el zoom coincida."""
