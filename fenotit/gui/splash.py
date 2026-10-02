@@ -8,11 +8,10 @@ import tkinter as tk
 from pathlib import Path
 
 from fenotit import APP_NAME, __version__, log
+from fenotit.gui.decor import BLUE, mosaic
 from fenotit.i18n import t
 
 _log = log.get("gui.splash")
-_BAR, _TRACK = "#2A7587", "#E6ECEE"       # azul petróleo del logo
-_TEXT, _MUTED = "#22343B", "#7A858A"
 
 
 def _assets() -> Path:
@@ -30,43 +29,49 @@ class SplashScreen:
     def show(self):
         self._t0 = time.monotonic()
         w = self.window = tk.Toplevel(self.root)
-        W, H = 440, 290
+        W, H = 500, 300
         sw, sh = self.root.winfo_screenwidth(), self.root.winfo_screenheight()
         w.geometry(f"{W}x{H}+{(sw - W) // 2}+{(sh - H) // 2}")
         w.overrideredirect(True)
-        w.configure(bg="#FFFFFF", highlightthickness=1, highlightbackground="#D9DEE0")
         w.attributes("-topmost", True)
-        ico = _assets() / "logo.ico"
+        c = self._c = tk.Canvas(w, width=W, height=H, bg="#FFFFFF", highlightthickness=1,
+                                highlightbackground="#D5DEE8")
+        c.pack(fill=tk.BOTH, expand=True)
+        c.create_rectangle(0, 0, W, 6, fill=BLUE, width=0)
+        mosaic(c, W, 6, 13, [7, 5, 4, 3, 2, 2, 1], mirror=True)
+        x0 = 40
         try:
             from PIL import Image, ImageTk
-            img = Image.open(ico).convert("RGBA").resize((64, 64), Image.LANCZOS)
+            img = Image.open(_assets() / "logo.ico").convert("RGBA").resize((64, 64), Image.LANCZOS)
             self._logo = ImageTk.PhotoImage(img)
-            tk.Label(w, image=self._logo, bg="#FFFFFF").pack(pady=(34, 8))
+            c.create_image(x0, 70, image=self._logo, anchor="nw")
+            x1 = x0 + 78
         except Exception:
             _log.debug("logo", exc_info=True)
-        tk.Label(w, text=APP_NAME, bg="#FFFFFF", fg=_TEXT, font=("Segoe UI", 24, "bold")).pack()
-        tk.Label(w, text=t("start.subtitle"), bg="#FFFFFF", fg=_BAR,
-                 font=("Georgia", 11, "italic")).pack(pady=(2, 0))
-
-        foot = tk.Frame(w, bg="#FFFFFF")
-        foot.pack(side=tk.BOTTOM, fill=tk.X, padx=36, pady=(0, 14))
-        tk.Label(foot, text=f"v{__version__}  ·  Alliance Bioversity & CIAT", bg="#FFFFFF", fg="#A9B1B5",
-                 font=("Segoe UI", 7)).pack(side=tk.RIGHT)
-        self._track = tk.Frame(w, bg=_TRACK, height=4)
-        self._track.pack(side=tk.BOTTOM, fill=tk.X, padx=36, pady=(4, 14))
-        self._fill = tk.Frame(self._track, bg=_BAR)
-        self._fill.place(x=0, y=0, relheight=1, relwidth=0)
-        self.msg = tk.StringVar(value=t("splash.loading"))
-        tk.Label(w, textvariable=self.msg, bg="#FFFFFF", fg=_MUTED, font=("Segoe UI", 8),
-                 anchor="w").pack(side=tk.BOTTOM, fill=tk.X, padx=36)
+            x1 = x0
+        c.create_text(x1, 66, text=APP_NAME, anchor="nw", fill=BLUE, font=("Segoe UI", 28, "bold"))
+        c.create_text(x1 + 2, 112, text=t("start.subtitle"), anchor="nw", fill="#4A4A4A",
+                      font=("Georgia", 11, "italic"))
+        c.create_text(x0, 160, text="Alliance of Bioversity International & CIAT", anchor="nw",
+                      fill="#8A8A8A", font=("Segoe UI", 8))
+        c.create_line(x0, 186, W - x0, 186, fill="#E3E8EE")
+        self._msg = c.create_text(x0, 204, text=t("splash.loading"), anchor="nw", fill="#666666",
+                                  font=("Segoe UI", 8))
+        self._bar = (x0, 226, W - x0, 230)
+        c.create_rectangle(*self._bar, fill="#E8EEF5", width=0)
+        self._fill = c.create_rectangle(x0, 226, x0, 230, fill=BLUE, width=0)
+        c.create_text(W - x0, H - 18, text=f"v{__version__}", anchor="e", fill="#B0B0B0",
+                      font=("Segoe UI", 7))
+        c.create_rectangle(0, H - 4, W, H, fill=BLUE, width=0)
         self._set(0.03)
         w.update()
 
     def _set(self, frac: float, msg: str | None = None):
         self._frac = max(self._frac, min(1.0, frac))
         if msg:
-            self.msg.set(msg)
-        self._fill.place_configure(relwidth=self._frac)
+            self._c.itemconfig(self._msg, text=msg)
+        x0, y0, x1, y1 = self._bar
+        self._c.coords(self._fill, x0, y0, x0 + (x1 - x0) * self._frac, y1)
         self.window.update_idletasks()
 
     def load(self, stages):

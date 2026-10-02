@@ -11,6 +11,7 @@ import yaml
 from PIL import Image, ImageTk
 
 from fenotit import APP_NAME, __version__, settings
+from fenotit.gui.decor import BLUE, mosaic
 from fenotit.gui.toolbar import icon
 from fenotit.i18n import t
 
@@ -64,30 +65,34 @@ class StartScreen(tk.Frame):
         self.refresh()
 
     def _build_hero(self):
+        """Franja blanca con el azul en los textos, una línea arriba y el mosaico del logo."""
         c = self.c
-        hero = tk.Frame(self, bg=c["bg_topbar"], width=300)
+        tk.Frame(self, bg=BLUE, height=4).pack(side=tk.TOP, fill=tk.X)
+        hero = tk.Canvas(self, bg="#FFFFFF", width=300, highlightthickness=0)
         hero.pack(side=tk.LEFT, fill=tk.Y)
-        hero.pack_propagate(False)
-        inner = tk.Frame(hero, bg=c["bg_topbar"])
+        tk.Frame(self, bg="#DDE3EA", width=1).pack(side=tk.LEFT, fill=tk.Y)
+        mosaic(hero, 300, 0, 14, [7, 5, 4, 3, 2, 2, 1], mirror=True)
+        inner = tk.Frame(hero, bg="#FFFFFF")
         inner.place(relx=0.5, rely=0.45, anchor="center")
         try:
             from fenotit.gui.main_window import _assets
-            logo = Image.open(_assets() / "logo.ico").convert("RGBA").resize((72, 72), Image.LANCZOS)
+            logo = Image.open(_assets() / "logo.ico").convert("RGBA").resize((80, 80), Image.LANCZOS)
             self._img["logo"] = ImageTk.PhotoImage(logo)
-            tk.Label(inner, image=self._img["logo"], bg=c["bg_topbar"]).pack(pady=(0, 10))
+            tk.Label(inner, image=self._img["logo"], bg="#FFFFFF").pack(pady=(0, 10))
         except Exception:
             pass
-        tk.Label(inner, text=APP_NAME, bg=c["bg_topbar"], fg="#FFFFFF", font=("Segoe UI", 26, "bold")).pack()
-        tk.Label(inner, text=t("start.subtitle"), bg=c["bg_topbar"], fg="#E3EDF9", font=(_SERIF, 12, "italic"),
-                 wraplength=240, justify="center").pack(pady=(4, 18))
-        tk.Label(inner, text=t("start.tagline"), bg=c["bg_topbar"], fg="#B9CFEA", font=("Segoe UI", 8),
+        tk.Label(inner, text=APP_NAME, bg="#FFFFFF", fg=BLUE, font=("Segoe UI", 26, "bold")).pack()
+        tk.Label(inner, text=t("start.subtitle"), bg="#FFFFFF", fg="#4A4A4A", font=(_SERIF, 12, "italic"),
+                 wraplength=250, justify="center").pack(pady=(4, 14))
+        tk.Frame(inner, bg=BLUE, width=36, height=2).pack(pady=(0, 14))
+        tk.Label(inner, text=t("start.tagline"), bg="#FFFFFF", fg="#7A7A7A", font=("Segoe UI", 8),
                  wraplength=230, justify="center").pack()
-        tk.Label(hero, text=f"v{__version__}  ·  Alliance Bioversity & CIAT", bg=c["bg_topbar"], fg="#9FBBE0",
-                 font=("Segoe UI", 7)).pack(side=tk.BOTTOM, pady=(4, 10))
-        links = tk.Frame(hero, bg=c["bg_topbar"])          # idioma y acerca de (sin la barra de menús)
-        links.pack(side=tk.BOTTOM)
-        for i, (text, cmd) in enumerate(self._links):
-            lbl = tk.Label(links, text=text.strip("… ").split("  ")[-1], bg=c["bg_topbar"], fg="#FFFFFF",
+        tk.Label(hero, text=f"v{__version__}  ·  Alliance Bioversity & CIAT", bg="#FFFFFF", fg="#A8A8A8",
+                 font=("Segoe UI", 7)).place(relx=0.5, rely=1.0, y=-12, anchor="s")
+        links = tk.Frame(hero, bg="#FFFFFF")          # idioma y acerca de (sin la barra de menús)
+        links.place(relx=0.5, rely=1.0, y=-34, anchor="s")
+        for text, cmd in self._links:
+            lbl = tk.Label(links, text=text.strip("… ").split("  ")[-1], bg="#FFFFFF", fg=BLUE,
                            font=("Segoe UI", 8, "underline"), cursor="hand2")
             lbl.pack(side=tk.LEFT, padx=8)
             lbl.bind("<Button-1>", lambda e, f=cmd: f())
