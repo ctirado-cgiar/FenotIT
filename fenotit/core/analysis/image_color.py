@@ -33,7 +33,9 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
     row = ctx.object_rows().get(1, {})
     res.stats = {k: row[k] for k in ("mean_R", "mean_G", "mean_B", "mean_L", "mean_a", "mean_b") if k in row}
     res.extra["tables"] = {"image_colors": colors,
-                           "image": [{**res.stats, "pixels": int((ctx.labels > 0).sum())}]}
+                           "image": [{"image_width_px": w, "image_height_px": h,
+                                      "mm_per_px": params.get("mm_per_pixel") or "",
+                                      **res.stats, "pixels": int((ctx.labels > 0).sum())}]}
     res.extra["chain"] = build_chain(params)
     return res
 

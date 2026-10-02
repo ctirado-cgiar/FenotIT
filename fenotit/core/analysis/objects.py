@@ -71,7 +71,8 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
                      roi=roi_mask, exclusions=exclusions)
     res = AnalysisResult()
     chosen = [v for v, key in MEASUREMENTS.items() if params.get(key, v in ("count", "morphometry"))]
-    tables = _view_tables(ctx)
+    ctx.image_row().update(_image_info(image, params))
+    tables = _view_tables(ctx, params.get("color_mode", "object"))
     names, view_tables, legends, overlays = {}, {}, {}, {}
     marks = ctx.extra.get("overlays", {})
     for key in STEP_FOLDERS:
@@ -141,7 +142,22 @@ def _legend_spec(key: str, ctx) -> dict | None:
     return None
 
 
-def _view_tables(ctx) -> dict[str, list[dict]]:
+def _image_info(image, params) -> dict:
+    """Resolución y escala de la foto (quedan en la tabla de imagen y en la exportación)."""
+    h, w = image.shape[:2]
+    return {"image_width_px": w, "image_height_px": h, "mm_per_px": params.get("mm_per_pixel") or ""}
+
+
+def _pooled_wide(rows: list[dict], palette: list[dict]) -> list[dict]:
+    """Paleta común: una fila por objeto con el % de cada color (columnas = colores)."""
+    names = {c["cluster"]: f'{c["cluster"]} {c["hex"]} %' for c in palette}
+    out: dict[int, dict] = {}
+    for r in rows:
+        out.setdefault(r["object_id"], {"object_id": r["object_id"]})[names.get(r["cluster"], str(r["cluster"]))] = r["pct"]
+    return list(out.values())
+
+
+def _view_tables(ctx, color_mode: str = "object") -> dict[str, list[dict]]:
     """La tabla que acompaña a cada vista: solo las columnas de esa medición."""
     objects = ctx.tables.get("objects", [])
     out = {"image": ctx.tables.get("image", []),
@@ -155,7 +171,8 @@ def _view_tables(ctx) -> dict[str, list[dict]]:
     if ctx.tables.get("object_shape"):
         out["shape"] = ctx.tables["object_shape"]
     if ctx.tables.get("object_colors"):
-        out["color"] = ctx.tables["object_colors"]
+        out["color"] = (_pooled_wide(ctx.tables["object_colors"], ctx.tables.get("image_colors", []))
+                        if color_mode == "pooled" else ctx.tables["object_colors"])
     return out
 
 

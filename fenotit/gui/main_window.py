@@ -729,19 +729,20 @@ class MainWindow:
             None,
             (t("menu.exit"), self._on_close),
         ])
-        self._drop(self.topbar, t("menu.image"), [
+        self._drop(self.topbar, t("menu.calibration"), [
             (t("menu.corrections"), self._open_corrections),
             None,
             (t("menu.cal_scale"), self._open_scale_dialog),
             (t("menu.scale_manual"), self._calibrate_scale),
             (t("menu.scale_clear"), self._clear_scale),
+        ])
+        self._drop(self.topbar, t("menu.areas"), [
+            (t("roi.area_rect"), lambda: self._set_roi_mode("include_rect"), "R"),
+            (t("roi.area_polygon"), lambda: self._set_roi_mode("include_poly"), "P"),
+            (t("roi.exclude_rect"), lambda: self._set_roi_mode("exclude_rect"), "X"),
+            (t("roi.exclude_polygon"), lambda: self._set_roi_mode("exclude_poly"), "Shift+X"),
             None,
-            (t("roi.area_rect"), lambda: self._set_roi_mode("include_rect"), t("roi.shift_square")),
-            (t("roi.area_polygon"), lambda: self._set_roi_mode("include_poly")),
-            (t("roi.exclude_rect"), lambda: self._set_roi_mode("exclude_rect")),
-            (t("roi.exclude_polygon"), lambda: self._set_roi_mode("exclude_poly")),
             (t("roi.select"), lambda: self._set_roi_mode("select"), "S"),
-            None,
             (t("roi.apply_all"), self._apply_areas_to_all),
             (t("roi.clear"), self._clear_roi),
         ])
@@ -1268,21 +1269,46 @@ class MainWindow:
             return
         images = [p for p in self.project.images if str(p) != str(path)]
         self.results_cache.pop(path, None)
+        self.step_names_cache.pop(path, None)
+        self.project.image_roi.pop(self.project.key(path), None)
+        self.project.image_scale.pop(self.project.key(path), None)
         self.project.images = images
         self.project.current_index = min(self.project.current_index, max(len(images) - 1, 0))
         self._update_batch_list()
         if images:
             self._load_single(self.batch_paths[self.batch_index])
             self._sync_listbox()
+        else:
+            self._show_no_image()
 
     def _clear_images(self):
         if self.project.images and messagebox.askyesno(
                 t("menu.clear_images"), t("msg.clear_images"), parent=self.root):
             self.project.images = []
             self.project.current_index = 0
+            self.project.image_roi, self.project.image_scale = {}, {}
             self._invalidate_results()
             self._update_batch_list()
+            self._show_no_image()
             self._show_panel(self.left_panel, False)
+
+    def _show_no_image(self):
+        """Sin fotos: entrada y resultado vacíos y nada que ejecutar."""
+        self.current_image_path = None
+        self.scaler_left = ImageScaler()
+        self.scaler_right = ImageScaler()
+        self.last_result, self.step_names = None, []
+        if self.zoom_ctrl:
+            self.zoom_ctrl.set_images(None, None)
+        self.canvas_left.delete("all")
+        self.canvas_right.delete("all")
+        if self.areas:
+            self.areas.stop()
+            self.areas.set_shapes([])
+        self._update_area_scope()
+        self._show_results_ui(False)
+        self.image_info_var.set("")
+        self.preview_var.set("")
 
     # ── Métodos de zoom (llamados por botones) ───────────────────────────────
 
@@ -1981,24 +2007,10 @@ class MainWindow:
         self._set_status(t("roi.applied_all", n=len(self.project.images)))
 
     def _build_area_tools(self):
-        """Herramientas de áreas en la esquina de la imagen de entrada y, abajo, de qué
-        fotos son las áreas (esta foto / todas) con "Aplicar a todas"."""
-        from fenotit.gui.toolbar import IconButton
+        """Abajo a la izquierda de la entrada: de qué fotos son las áreas (esta foto /
+        todas) con "Aplicar a todas" y "Borrar". Las herramientas están en el menú Áreas."""
         bg = COLORS["bg_card"]
-        box = tk.Frame(self.canvas_left, bg=bg, highlightthickness=1, highlightbackground=COLORS["border"])
-        box.place(x=6, y=6)
-        size = max(16, int(round(16 * self.root.winfo_fpixels("1i") / 96)))
-        kw = dict(bg=bg, hover=COLORS["btn_hover"], active=COLORS["accent_light"], size=size,
-                  color=COLORS["accent"])
         self._area_btns = {}
-        for mode, ico, tip in (("include_rect", "area_rect", t("roi.area_rect") + "  (Shift = □)"),
-                               ("include_poly", "area_poly", t("roi.area_polygon")),
-                               ("exclude_rect", "excl_rect", t("roi.exclude_rect")),
-                               ("exclude_poly", "excl_poly", t("roi.exclude_polygon")),
-                               ("select", "select", t("roi.select") + "  (S · Supr)")):
-            b = IconButton(box, ico, lambda m=mode: self._toggle_area_tool(m), tip, **kw)
-            b.pack(side=tk.TOP, padx=1, pady=1)
-            self._area_btns[mode] = b
         scope = tk.Frame(self.canvas_left, bg=bg, highlightthickness=1, highlightbackground=COLORS["border"])
         self._area_scope = scope
         self._area_scope_var = tk.StringVar()
@@ -2097,6 +2109,10 @@ class MainWindow:
         r.bind_all("<Key-z>", key(lambda: self._set_zoom_tool("zoom_area")))
         r.bind_all("<Key-h>", key(lambda: self._set_zoom_tool("pan")))
         r.bind_all("<Key-s>", key(lambda: self._toggle_area_tool("select")))
+        r.bind_all("<Key-r>", key(lambda: self._toggle_area_tool("include_rect")))
+        r.bind_all("<Key-p>", key(lambda: self._toggle_area_tool("include_poly")))
+        r.bind_all("<Key-x>", key(lambda: self._toggle_area_tool("exclude_rect")))
+        r.bind_all("<Key-X>", key(lambda: self._toggle_area_tool("exclude_poly")))
         r.bind_all("<Delete>", key(self._on_delete_key))
         r.bind_all("<Escape>", lambda e=None: self._on_escape())
 
@@ -2133,8 +2149,33 @@ class MainWindow:
         n = self.project.others_with_own_scale(path)
         if n and not messagebox.askyesno(t("scale.apply_all"), t("scale.apply_all_warn", n=n), parent=self.root):
             return False
+        odd = self._other_resolutions(path) if sc.mm_per_pixel else []
+        if odd:
+            names = "\n".join(f"  {name}  ({w}×{h})" for name, w, h in odd[:10])
+            more = t("scale.res_more", n=len(odd) - 10) if len(odd) > 10 else ""
+            if not messagebox.askyesno(t("scale.apply_all"), t("scale.res_warn", n=len(odd), names=names + more),
+                                       parent=self.root):
+                return False
         self.project.apply_scale_to_all(sc)
         return True
+
+    def _other_resolutions(self, path: str | None) -> list[tuple[str, int, int]]:
+        """Fotos con resolución distinta a la de `path` (solo se lee el encabezado)."""
+        def size(p):
+            try:
+                with Image.open(p) as im:
+                    return im.size
+            except Exception:
+                return None
+        ref = size(path) if path else None
+        if ref is None:
+            return []
+        out = []
+        for p in self.project.images:
+            sz = size(p)
+            if sz and sz != ref and sz != ref[::-1]:
+                out.append((Path(p).name, *sz))
+        return out
 
     def _calibrate_scale(self):
         val = simpledialog.askfloat(

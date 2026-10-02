@@ -32,6 +32,8 @@ class AreaEditor:
                         ("<ButtonRelease-1>", self._release), ("<Double-Button-1>", self._double),
                         ("<Button-3>", self._undo_point), ("<Motion>", self._hover)):
             canvas.bind(seq, fn, add="+")
+        canvas.tag_bind("area_del", "<Enter>", lambda e: self._hover_delete(True))
+        canvas.tag_bind("area_del", "<Leave>", lambda e: self._hover_delete(False))
 
     # ── estado ────────────────────────────────────────────────────────────────
 
@@ -106,13 +108,26 @@ class AreaEditor:
                              fill=EXCLUDE if s["kind"] == "exclude" else "",
                              stipple="gray25" if s["kind"] == "exclude" else "",
                              dash=(6, 3) if s["kind"] == "exclude" else ())
-            xs, ys = [p[0] for p in pts], [p[1] for p in pts]
-            bx, by = max(xs), min(ys)                     # × en la esquina superior derecha
-            c.create_oval(bx - 8, by - 8, bx + 8, by + 8, fill="#FFFFFF", outline=color, width=2,
-                          tags=("area", "area_del", f"area_del_{i}"))
-            c.create_text(bx, by, text="×", fill=color, font=("Segoe UI", 10, "bold"),
-                          tags=("area", "area_del", f"area_del_{i}"))
+            # × sobre el vértice de arriba a la derecha (siempre sobre la forma)
+            bx, by = max(pts, key=lambda q: q[0] - q[1])
+            c.create_oval(bx - 6, by - 6, bx + 6, by + 6, fill="#FFFFFF", outline="#777777", width=1,
+                          tags=("area", "area_del", "area_del_bg", f"area_del_{i}"))
+            c.create_text(bx, by - 1, text="×", fill="#555555", font=("Segoe UI", 8, "bold"),
+                          tags=("area", "area_del", "area_del_x", f"area_del_{i}"))
         self._draw_temp()
+
+    def _hover_delete(self, on: bool):
+        """La × se pone roja bajo el mouse (clic = borrar esa área)."""
+        c = self.canvas
+        tags = [tg for tg in c.gettags("current") if tg.startswith("area_del_") and tg[9:].isdigit()]
+        for tg in tags:
+            for item in c.find_withtag(tg):
+                kind = c.gettags(item)
+                if "area_del_bg" in kind:
+                    c.itemconfig(item, fill="#D32F2F" if on else "#FFFFFF", outline="#D32F2F" if on else "#777777")
+                elif "area_del_x" in kind:
+                    c.itemconfig(item, fill="#FFFFFF" if on else "#555555")
+        c.config(cursor="hand2" if on else "")
 
     def _draw_temp(self, cursor=None):
         c = self.canvas
@@ -134,8 +149,8 @@ class AreaEditor:
     def _hit_delete(self, event) -> int | None:
         for item in self.canvas.find_overlapping(event.x - 1, event.y - 1, event.x + 1, event.y + 1):
             for tag in self.canvas.gettags(item):
-                if tag.startswith("area_del_"):
-                    return int(tag.rsplit("_", 1)[1])
+                if tag.startswith("area_del_") and tag[9:].isdigit():
+                    return int(tag[9:])
         return None
 
     def _press(self, event):
