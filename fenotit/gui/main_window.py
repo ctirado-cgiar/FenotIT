@@ -2492,44 +2492,8 @@ class MainWindow:
                  scale=scale, log=log.log_file())
 
     def _about(self):
-        about_file = _assets() / f"about_{i18n.current()}.txt"
-        if not about_file.exists():
-            about_file = _assets() / "about_en.txt"
-        text = about_file.read_text(encoding="utf-8") if about_file.exists() else ""
-        win = tk.Toplevel(self.root)
-        win.title(t("menu.about"))
-        win.configure(bg=COLORS["bg_card"])
-        sw, sh = win.winfo_screenwidth(), win.winfo_screenheight()
-        try: win.iconbitmap(str(_assets()/"logo.ico"))
-        except Exception: _log.debug("ignorado", exc_info=True)
-        tk.Frame(win, bg=COLORS["accent"], height=4).pack(fill=tk.X)
-        body = tk.Frame(win, bg=COLORS["bg_card"])
-        body.pack(fill=tk.BOTH, expand=True, padx=20, pady=16)
-        tk.Label(body, text=APP_NAME,
-                 bg=COLORS["bg_card"], fg=COLORS["accent"],
-                 font=("Segoe UI", 16, "bold")).pack(anchor="w")
-        tk.Label(body, text="Digital Phenotyping Platform",
-                 bg=COLORS["bg_card"], fg=COLORS["text_muted"],
-                 font=FONTS["body"]).pack(anchor="w")
-        tk.Frame(body, bg=COLORS["border"], height=1).pack(
-            fill=tk.X, pady=10)
-        tk.Label(body, text=text,
-                 bg=COLORS["bg_card"], fg=COLORS["text"],
-                 font=FONTS["small"], justify="left",
-                 wraplength=380).pack(anchor="w")
-        tk.Frame(body, bg=COLORS["border"], height=1).pack(
-            fill=tk.X, pady=10)
-        tk.Label(body, text=self._system_info(),
-                 bg=COLORS["bg_card"], fg=COLORS["text_muted"],
-                 font=FONTS["small"], justify="left",
-                 wraplength=380).pack(anchor="w")
-        tk.Button(body, text=t("common.close"), command=win.destroy,
-                  bg=COLORS["btn_bg"], fg=COLORS["accent"],
-                  relief="flat", font=FONTS["body"],
-                  cursor="hand2", padx=12).pack(anchor="e", pady=(12, 0))
-        win.update_idletasks()
-        w, h = win.winfo_reqwidth(), min(win.winfo_reqheight(), sh - 80)
-        win.geometry(f"{w}x{h}+{(sw - w) // 2}+{(sh - h) // 2}")
+        from fenotit.gui import about_dialog
+        about_dialog.show(self.root, _assets() / "logo.ico", self._system_info())
 
     # ── Exportación ───────────────────────────────────────────────────────────
 

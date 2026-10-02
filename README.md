@@ -1,8 +1,8 @@
-# FenotIT — Digital Phenotyping from Images
+# FenotIT — Digital Plant Phenotyping Platform
 
 Desktop software for image-based plant phenotyping. It segments objects (seeds, leaves, roots…) and measures their shape, color and number, one image at a time or in batches.
 
-Developed by the Physiology team of the Bean Breeding Program, Alliance of Bioversity International and CIAT (Palmira, Colombia).
+Developed by Cristian Tirado-Murcia (software development and analysis methods), in collaboration with the Physiology Team of the Bean Program, Alliance of Bioversity International & CIAT (Palmira, Colombia).
 
 > **Status:** under active development towards v1.0. Results and file formats may still change.
 
