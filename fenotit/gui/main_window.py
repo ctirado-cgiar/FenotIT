@@ -15,6 +15,7 @@ import sys
 import threading
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
+import tkinter.font as tkfont
 from pathlib import Path
 
 import cv2
@@ -63,6 +64,15 @@ CV2_CODES = {
     "XYZ":   cv2.COLOR_BGR2XYZ,
     "YUV":   cv2.COLOR_BGR2YUV,
 }
+
+
+def _cell(v) -> str:
+    """Texto de una celda: decimales recortados para que la tabla se lea."""
+    if v is None:
+        return ""
+    if isinstance(v, float):
+        return f"{v:.4g}" if abs(v) < 1e-3 and v != 0 else f"{v:.3f}".rstrip("0").rstrip(".")
+    return str(v)
 
 
 def _analysis_key(name: str) -> str:
@@ -1879,7 +1889,9 @@ class MainWindow:
     # ── Tabla ─────────────────────────────────────────────────────────────────
 
     def _update_table(self, result: AnalysisResult, view: str | None = None):
-        """Cada vista tiene su tabla (Conteo, Morfometría, Forma, Color...)."""
+        """Cada vista tiene su tabla (Conteo, Morfometría, Forma, Color...). Columnas de
+        ancho fijo (las que no caben se ven con la barra de abajo) y clic en el título
+        ordena de menor a mayor / de mayor a menor."""
         self.table.delete(*self.table.get_children())
         rows = (result.extra.get("view_tables") or {}).get(view)
         if rows is None:
@@ -1888,16 +1900,41 @@ class MainWindow:
         else:
             cols = list(dict.fromkeys(k for r in rows for k in r))
         self.table["columns"] = cols
+        self._table_rows, self._table_cols, self._table_sort = list(rows or []), cols, (None, False)
         if not rows:
             return
-        rows_src = rows
-        self.table["columns"] = cols
+        font, head = tkfont.nametofont("TkDefaultFont"), tkfont.nametofont("TkHeadingFont")
         for col in cols:
-            self.table.heading(col, text=col, anchor="w")
-            self.table.column(col, width=max(80, len(col)*8), anchor="w")
-        for row in rows_src:
-            self.table.insert("", "end",
-                              values=["" if row.get(c) is None else str(row.get(c)) for c in cols])
+            sample = [_cell(r.get(col)) for r in rows[:200]]
+            width = max([head.measure(col + " ▼") + 20] + [font.measure(v) + 14 for v in sample])
+            self.table.heading(col, text=col, anchor="w", command=lambda c=col: self._sort_table(c))
+            self.table.column(col, width=min(max(width, 60), 260), minwidth=50, stretch=False, anchor="w")
+        self._fill_table()
+
+    def _fill_table(self):
+        self.table.delete(*self.table.get_children())
+        for row in self._table_rows:
+            self.table.insert("", "end", values=[_cell(row.get(c)) for c in self._table_cols])
+
+    def _sort_table(self, col: str):
+        """Ordena por esa columna; otro clic invierte el orden (▲ / ▼ en el título)."""
+        last, desc = self._table_sort
+        desc = not desc if last == col else False
+        self._table_sort = (col, desc)
+
+        def key(r):
+            v = r.get(col)
+            if isinstance(v, (int, float)) and v == v:
+                return (0, float(v), "")
+            try:
+                return (0, float(v), "")
+            except (TypeError, ValueError):
+                return (1, 0.0, str(v or ""))
+        self._table_rows.sort(key=key, reverse=desc)
+        for c in self._table_cols:
+            mark = (" ▼" if desc else " ▲") if c == col else ""
+            self.table.heading(c, text=c + mark)
+        self._fill_table()
 
     # ── Navegación pasos ──────────────────────────────────────────────────────
 
