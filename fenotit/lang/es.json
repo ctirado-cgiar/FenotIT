@@ -221,6 +221,7 @@
   "scale.none_title": "Sin escala",
   "scale.one_point": "P1 {p1} · haz clic en el segundo punto",
   "scale.ref_image": "Imagen de referencia",
+  "scale.scope_question": "¿Aplicar esta escala a todas las fotos?\n\nSí = todas · No = solo esta foto",
   "scale.set_title": "Escala configurada",
   "scale.step2": "Haz clic en dos puntos de la imagen",
   "scale.step3": "Distancia real:",

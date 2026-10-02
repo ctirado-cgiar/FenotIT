@@ -2142,7 +2142,14 @@ class MainWindow:
             t("scale.manual_prompt"),
             minvalue=0.0001)
         if val:
-            if not self._set_scale(Scale(val, "manual"), "all", self.current_image_path):
+            scope = "all"
+            if len(self.project.images) > 1:
+                ans = messagebox.askyesnocancel(t("menu.scale_manual").rstrip("…"), t("scale.scope_question"),
+                                                parent=self.root)
+                if ans is None:
+                    return
+                scope = "all" if ans else "image"
+            if not self._set_scale(Scale(val, "manual"), scope, self.current_image_path):
                 return
             self._update_corr_indicator()
             self._sync_area_units()

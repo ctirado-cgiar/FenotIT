@@ -189,6 +189,8 @@ class AreaEditor:
             return
         kind = "exclude" if self.mode.startswith("exclude") else "include"
         a, b = self._to_norm(x0, y0), self._to_norm(x, y)
+        if abs(a[0] - b[0]) < 0.003 or abs(a[1] - b[1]) < 0.003:      # dibujado fuera de la foto
+            return
         self.shapes.append({"kind": kind, "type": "rect", "points": [list(map(_r, a)), list(map(_r, b))]})
         self._changed()
         self.stop()
