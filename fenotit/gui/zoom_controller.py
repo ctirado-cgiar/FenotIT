@@ -222,12 +222,17 @@ class ZoomController:
         busy = self._roi_drawing(canvas) or self.tool == "zoom_area"
         canvas.config(cursor="crosshair" if busy else "fleur")
 
+    def _ref(self) -> tk.Canvas:
+        """El canvas que se ve (si se ocultó la entrada, el del resultado)."""
+        return self.cr if self.cr.winfo_ismapped() and not self.cl.winfo_ismapped() else self.cl
+
     def _ref_size(self):
         img = self._img_left if self._img_left is not None else self._img_right
         if img is None:
             return None
-        self.cl.update_idletasks()
-        return (max(self.cl.winfo_width(), 1), max(self.cl.winfo_height(), 1),
+        ref = self._ref()
+        ref.update_idletasks()
+        return (max(ref.winfo_width(), 1), max(ref.winfo_height(), 1),
                 img.shape[1], img.shape[0])
 
     # ── Mouse ─────────────────────────────────────────────────────────────────
@@ -372,9 +377,10 @@ class ZoomController:
         if self._img_left is None:
             self._redraw()
             return
-        self.cl.update_idletasks()
-        cw = max(self.cl.winfo_width(),  100)
-        ch = max(self.cl.winfo_height(), 100)
+        ref = self._ref()
+        ref.update_idletasks()
+        cw = max(ref.winfo_width(),  100)
+        ch = max(ref.winfo_height(), 100)
         ih, iw = self._img_left.shape[:2]
         self.state.fit(cw, ch, iw, ih)
         self._redraw()

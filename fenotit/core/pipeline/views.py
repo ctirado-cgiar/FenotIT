@@ -92,8 +92,11 @@ def _color_text(c: dict, fmt: str) -> str:
     return f"[{c['R']}, {c['G']}, {c['B']}]"
 
 
+LEGEND_POSITIONS = ("tl", "tc", "tr", "ml", "mr", "bl", "bc", "br")
+
+
 def render_legend(image: np.ndarray, spec: dict, color_format: str = "RGB", scale: float = 1.0,
-                  box: list | None = None) -> np.ndarray:
+                  box: list | None = None, pos: str = "tl") -> np.ndarray:
     """Recuadro semitransparente arriba a la izquierda, sobrio y con pocos datos.
 
     spec = {"title": str, "rows": [(texto, color_bgr|None)], "colors": [{R,G,B,L,a,b,hex,pct}],
@@ -130,14 +133,18 @@ def render_legend(image: np.ndarray, spec: dict, color_format: str = "RGB", scal
     if box_w <= 0 or box_h <= 0:
         return image
 
+    # posición: t/m/b (arriba, centro, abajo) + l/c/r; siempre dentro de la foto
+    v, hz = (pos or "tl")[0], (pos or "tl")[-1]
+    x0 = {"l": m, "c": (w - box_w) // 2, "r": w - box_w - m}.get(hz, m)
+    y0 = {"t": m, "m": (h - box_h) // 2, "b": h - box_h - m}.get(v, m)
     if box is not None:                                # zona de la leyenda: las marcas no la tapan
-        box.append((0, 0, m + box_w + 2, m + box_h + 2))
+        box.append((x0 - 2, y0 - 2, x0 + box_w + 2, y0 + box_h + 2))
     base = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB)).convert("RGBA")
     layer = Image.new("RGBA", base.size, (0, 0, 0, 0))
     d = ImageDraw.Draw(layer)
-    d.rounded_rectangle([m, m, m + box_w, m + box_h], radius=round(size * 0.6),
+    d.rounded_rectangle([x0, y0, x0 + box_w, y0 + box_h], radius=round(size * 0.6),
                         fill=(255, 255, 255, 200), outline=(0, 0, 0, 40), width=1)
-    x0, y = m + pad, m + pad
+    x0, y = x0 + pad, y0 + pad
     if title:
         d.text((x0, y), title, fill=(30, 30, 30, 255), font=bold)
         y += line_h

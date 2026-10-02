@@ -567,6 +567,7 @@ class MainWindow:
         self.auto_var.set(seg.auto)
         self._on_auto_change()
         self.legend_var.set(project.display.get("legend", True))
+        self._paint_pos_grid()
         self.color_fmt_var.set(project.display.get("color_format", "RGB"))
 
         name = _analysis_name(project.analysis) or self._selected_analysis()
@@ -986,31 +987,35 @@ class MainWindow:
     def _build_center_panel(self):
         cf = self.center_frame
 
-        lbl_row = tk.Frame(cf, bg=COLORS["bg"])
-        lbl_row.pack(fill=tk.X, padx=6, pady=(4, 0))
-        tk.Label(lbl_row, text=t("center.input"),
-                 bg=COLORS["bg"], fg=COLORS["text_muted"],
-                 font=FONTS["small"]).pack(side=tk.LEFT, expand=True)
-        tk.Label(lbl_row, text=t("center.result"),
-                 bg=COLORS["bg"], fg=COLORS["text_muted"],
-                 font=FONTS["small"]).pack(side=tk.RIGHT, expand=True)
-
         canvas_row = tk.Frame(cf, bg=COLORS["bg"])
-        canvas_row.pack(fill=tk.BOTH, expand=True, padx=6, pady=2)
-
-        self.canvas_left = tk.Canvas(
-            canvas_row, bg=COLORS["bg_card"],
-            highlightthickness=1,
-            highlightbackground=COLORS["border"],
-            cursor="crosshair")
-        self.canvas_right = tk.Canvas(
-            canvas_row, bg=COLORS["bg_card"],
-            highlightthickness=1,
-            highlightbackground=COLORS["border"])
-        self.canvas_left.pack(side=tk.LEFT, fill=tk.BOTH,
-                              expand=True, padx=(0, 2))
-        self.canvas_right.pack(side=tk.RIGHT, fill=tk.BOTH,
-                               expand=True, padx=(2, 0))
+        canvas_row.pack(fill=tk.BOTH, expand=True, padx=6, pady=(4, 2))
+        canvas_row.rowconfigure(0, weight=1)
+        # Cada lado: título + ojo (ocultar) y su imagen. Oculto, queda una franja con el
+        # ojo tachado para volver a mostrarlo.
+        self._cols, self._strips, self._hidden = {}, {}, {"input": False, "result": False}
+        for side, title in (("input", t("center.input")), ("result", t("center.result"))):
+            col = tk.Frame(canvas_row, bg=COLORS["bg"])
+            head = tk.Frame(col, bg=COLORS["bg"])
+            head.pack(fill=tk.X)
+            tk.Label(head, text=title, bg=COLORS["bg"], fg=COLORS["text_muted"],
+                     font=FONTS["small"]).pack(side=tk.LEFT, padx=2)
+            IconButton(head, "eye", lambda sd=side: self._toggle_side(sd), t("view.hide_side", name=title),
+                       bg=COLORS["bg"], hover=COLORS["btn_hover"], active=COLORS["accent_light"],
+                       size=14, color=COLORS["text_muted"]).pack(side=tk.RIGHT)
+            canvas = tk.Canvas(col, bg=COLORS["bg_card"], highlightthickness=1,
+                               highlightbackground=COLORS["border"])
+            canvas.pack(fill=tk.BOTH, expand=True)
+            strip = tk.Frame(canvas_row, bg=COLORS["bg_panel"], width=22)
+            IconButton(strip, "eye_off", lambda sd=side: self._toggle_side(sd), t("view.show_side", name=title),
+                       bg=COLORS["bg_panel"], hover=COLORS["btn_hover"], active=COLORS["accent_light"],
+                       size=14, color=COLORS["accent"]).pack(side=tk.TOP, pady=4)
+            self._cols[side], self._strips[side] = col, strip
+            if side == "input":
+                self.canvas_left = canvas
+                canvas.config(cursor="crosshair")
+            else:
+                self.canvas_right = canvas
+        self._layout_sides()
 
         self.areas = AreaEditor(self.canvas_left, self._on_areas_change)
         self.areas.on_done = self._on_roi_tool_done
@@ -1752,6 +1757,34 @@ class MainWindow:
         if not on:
             self._view_ctrl.place_forget()
         self._layout_results()
+        self._layout_sides()
+        self.root.after(50, self._refit_images)
+
+    def _layout_sides(self):
+        """Entrada y Resultado lado a lado. Sin resultados solo se ve la entrada; con
+        resultados, el ojo de cada lado lo oculta (queda una franja para volver)."""
+        has_result = getattr(self, "_results_shown", False)
+        show = {"input": not (has_result and self._hidden["input"]),
+                "result": has_result and not self._hidden["result"]}
+        row = self._cols["input"].master
+        for w in list(self._cols.values()) + list(self._strips.values()):
+            w.grid_forget()
+        col = 0
+        for side in ("input", "result"):
+            if show[side]:
+                self._cols[side].grid(row=0, column=col, sticky="nsew", padx=2)
+                row.columnconfigure(col, weight=1, uniform="side")
+            elif has_result:
+                self._strips[side].grid(row=0, column=col, sticky="ns")
+                row.columnconfigure(col, weight=0, uniform="")
+            col += 1
+
+    def _toggle_side(self, side: str):
+        other = "result" if side == "input" else "input"
+        self._hidden[side] = not self._hidden[side]
+        if self._hidden[side] and self._hidden[other]:      # nunca las dos ocultas
+            self._hidden[other] = False
+        self._layout_sides()
         self.root.after(50, self._refit_images)
 
     def _build_view_controls(self):
@@ -1771,12 +1804,39 @@ class MainWindow:
         a_plus = tk.Button(box, text="A+", command=lambda: self._legend_size(1.25), **size_kw)
         a_minus.pack(side=tk.LEFT)
         a_plus.pack(side=tk.LEFT)
+        # posición de la leyenda: cuadrícula 3×3 (el centro no se usa)
+        self._pos_grid = tk.Canvas(box, width=25, height=19, bg=bg, highlightthickness=0, cursor="hand2")
+        self._pos_grid.pack(side=tk.LEFT, padx=(4, 2), pady=1)
+        self._pos_grid.bind("<Button-1>", self._pick_legend_pos)
+        Tooltip(self._pos_grid, t("view.legend_pos"))
+        self._paint_pos_grid()
         Tooltip(a_minus, t("view.legend_smaller"))
         Tooltip(a_plus, t("view.legend_bigger"))
         self.color_fmt_var = tk.StringVar(value="RGB")
         self._fmt_combo = ttk.Combobox(box, textvariable=self.color_fmt_var, values=list(COLOR_FORMATS),
                                        state="readonly", width=4, font=FONTS["small"])
         self._fmt_combo.bind("<<ComboboxSelected>>", self._on_display_change)
+
+    _POS_GRID = (("tl", "tc", "tr"), ("ml", None, "mr"), ("bl", "bc", "br"))
+
+    def _paint_pos_grid(self):
+        c, cur = self._pos_grid, self.project.display.get("legend_pos", "tl") if hasattr(self, "project") else "tl"
+        c.delete("all")
+        for r, row in enumerate(self._POS_GRID):
+            for k, pos in enumerate(row):
+                if pos is None:
+                    continue
+                x, y = 2 + k * 8, 1 + r * 6
+                c.create_rectangle(x, y, x + 6, y + 4, outline=COLORS["accent"],
+                                   fill=COLORS["accent"] if pos == cur else "")
+
+    def _pick_legend_pos(self, event):
+        k, r = min(2, max(0, (event.x - 2) // 8)), min(2, max(0, (event.y - 1) // 6))
+        pos = self._POS_GRID[r][k]
+        if pos:
+            self.project.display = {**self.project.display, "legend_pos": pos}
+            self._paint_pos_grid()
+            self._on_display_change()
 
     def _update_view_controls(self, name: str):
         """Solo si la vista tiene leyenda; el formato de color solo en la vista de color."""
@@ -1874,7 +1934,7 @@ class MainWindow:
             if image_name:
                 spec = {**spec, "footer": image_name}
             return render_legend(img, spec, disp.get("color_format", "RGB"), disp.get("legend_scale", 1.0),
-                                 box=box)
+                                 box=box, pos=disp.get("legend_pos", "tl"))
         return decorate
 
     def _on_display_change(self, _=None):

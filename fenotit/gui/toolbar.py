@@ -126,7 +126,17 @@ def _project(d, s, w, color):
         d.line((s * 0.34, s * y, s * 0.68, s * y), fill=color, width=w)
 
 
-_DRAW = {"palette": _palette, "select": _select, "photo": _photo, "folder": _folder, "project": _project,
+def _eye(d, s, w, color, off=False):
+    d.arc((s * 0.04, s * 0.22, s * 0.96, s * 1.30), 200, 340, fill=color, width=w)     # párpado de arriba
+    d.arc((s * 0.04, s * -0.30, s * 0.96, s * 0.78), 20, 160, fill=color, width=w)     # de abajo
+    d.ellipse((s * 0.34, s * 0.34, s * 0.66, s * 0.66), outline=color, width=w)
+    d.ellipse((s * 0.44, s * 0.44, s * 0.56, s * 0.56), fill=color)
+    if off:
+        d.line((s * 0.12, s * 0.88, s * 0.88, s * 0.12), fill=color, width=int(w * 1.3))
+
+
+_DRAW = {"palette": _palette, "select": _select,
+         "eye": _eye, "eye_off": lambda d, s, w, c: _eye(d, s, w, c, off=True), "photo": _photo, "folder": _folder, "project": _project,
          "area_rect": lambda d, s, w, c: _area(d, s, w, c, "rect", False),
          "area_poly": lambda d, s, w, c: _area(d, s, w, c, "poly", False),
          "excl_rect": lambda d, s, w, c: _area(d, s, w, c, "rect", True),

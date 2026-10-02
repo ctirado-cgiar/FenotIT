@@ -1,103 +1,197 @@
-"""Pantalla de inicio (cuando no hay fotos): nuevo proyecto con fotos o carpeta, abrir
-un proyecto y los recientes. Se pone encima de Entrada/Resultado."""
+"""Pantalla de inicio (sin fotos): franja con el nombre de la app a la izquierda; a la
+derecha "Nuevo proyecto" (al tocarlo: agregar fotos o carpeta), "Abrir proyecto" y los
+recientes con miniatura de su primera foto. Se pone encima de Entrada/Resultado."""
 from __future__ import annotations
 
 import datetime as dt
 import tkinter as tk
 from pathlib import Path
 
-from PIL import ImageTk
+import yaml
+from PIL import Image, ImageTk
 
 from fenotit import APP_NAME, __version__, settings
 from fenotit.gui.toolbar import icon
 from fenotit.i18n import t
+
+_THUMB = (88, 66)
+
+
+def _project_info(path: Path) -> tuple[int, Path | None]:
+    """Número de fotos y la primera foto de un proyecto (sin cargarlo entero)."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            images = (yaml.safe_load(f) or {}).get("images") or []
+    except (OSError, yaml.YAMLError):
+        return 0, None
+    if not images:
+        return 0, None
+    first = Path(images[0])
+    return len(images), first if first.is_absolute() else path.parent / first
+
+
+def _thumbnail(path: Path | None):
+    if not path or not path.exists():
+        return None
+    try:
+        with Image.open(path) as im:
+            im.draft("RGB", (_THUMB[0] * 2, _THUMB[1] * 2))       # JPEG: decodifica en pequeño
+            im = im.convert("RGB")
+            im.thumbnail(_THUMB)
+            canvas = Image.new("RGB", _THUMB, (235, 238, 242))
+            canvas.paste(im, ((_THUMB[0] - im.width) // 2, (_THUMB[1] - im.height) // 2))
+            return ImageTk.PhotoImage(canvas)
+    except Exception:
+        return None
 
 
 class StartScreen(tk.Frame):
 
     def __init__(self, parent, colors: dict, fonts: dict, on_photos, on_folder, on_open, on_recent):
         super().__init__(parent, bg=colors["bg"])
-        self.c, self.f = colors, fonts
+        self.c = colors
         self._cb = (on_photos, on_folder, on_open, on_recent)
-        self._icons = {n: ImageTk.PhotoImage(icon(n, 36, colors["accent"])) for n in ("photo", "folder", "project")}
-        self._body = tk.Frame(self, bg=colors["bg"])
-        self._body.place(relx=0.5, rely=0.42, anchor="center")
+        self._img = {n: ImageTk.PhotoImage(icon(n, 30, colors["accent"])) for n in ("photo", "folder", "project")}
+        self._img["photo_w"] = ImageTk.PhotoImage(icon("photo", 22, "#FFFFFF"))
+        self._img["folder_w"] = ImageTk.PhotoImage(icon("folder", 22, "#FFFFFF"))
+        self._thumbs: list = []
+        self._build_hero()
+        self._main = tk.Frame(self, bg=colors["bg"])
+        self._main.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self.refresh()
 
-    def refresh(self):
-        """Vuelve a armar la lista de recientes (al mostrarse)."""
-        c, b = self.c, self._body
-        for w in b.winfo_children():
-            w.destroy()
-        on_photos, on_folder, on_open, on_recent = self._cb
-        tk.Label(b, text=APP_NAME, bg=c["bg"], fg=c["accent"], font=("Segoe UI", 20, "bold")).pack(anchor="w")
-        tk.Label(b, text=t("start.subtitle"), bg=c["bg"], fg=c["text_muted"],
-                 font=("Segoe UI", 9)).pack(anchor="w", pady=(0, 14))
+    def _build_hero(self):
+        c = self.c
+        hero = tk.Frame(self, bg=c["bg_topbar"], width=300)
+        hero.pack(side=tk.LEFT, fill=tk.Y)
+        hero.pack_propagate(False)
+        inner = tk.Frame(hero, bg=c["bg_topbar"])
+        inner.place(relx=0.5, rely=0.45, anchor="center")
+        try:
+            from fenotit.gui.main_window import _assets
+            logo = Image.open(_assets() / "logo.ico").convert("RGBA").resize((72, 72), Image.LANCZOS)
+            self._img["logo"] = ImageTk.PhotoImage(logo)
+            tk.Label(inner, image=self._img["logo"], bg=c["bg_topbar"]).pack(pady=(0, 10))
+        except Exception:
+            pass
+        tk.Label(inner, text=APP_NAME, bg=c["bg_topbar"], fg="#FFFFFF", font=("Segoe UI", 26, "bold")).pack()
+        tk.Label(inner, text=t("start.subtitle"), bg=c["bg_topbar"], fg="#D6E4F5", font=("Segoe UI", 10),
+                 wraplength=240, justify="center").pack(pady=(4, 18))
+        tk.Label(inner, text=t("start.tagline"), bg=c["bg_topbar"], fg="#B9CFEA", font=("Segoe UI", 8),
+                 wraplength=230, justify="center").pack()
+        tk.Label(hero, text=f"v{__version__}  ·  Alliance Bioversity & CIAT", bg=c["bg_topbar"], fg="#9FBBE0",
+                 font=("Segoe UI", 7)).pack(side=tk.BOTTOM, pady=10)
 
-        tk.Label(b, text=t("start.new"), bg=c["bg"], fg=c["text"], font=("Segoe UI", 9, "bold")).pack(anchor="w")
-        row = tk.Frame(b, bg=c["bg"])
-        row.pack(anchor="w", pady=(4, 16))
-        self._tile(row, "photo", t("start.photos"), t("start.photos_hint"), on_photos)
-        self._tile(row, "folder", t("start.folder"), t("start.folder_hint"), on_folder)
+    def refresh(self):
+        """Vuelve a armar la parte derecha (al mostrarse: recientes al día)."""
+        c, m = self.c, self._main
+        for w in m.winfo_children():
+            w.destroy()
+        self._thumbs = []
+        on_photos, on_folder, on_open, on_recent = self._cb
+        body = tk.Frame(m, bg=c["bg"])
+        body.place(relx=0.5, rely=0.42, anchor="center")
+
+        tk.Label(body, text=t("start.begin"), bg=c["bg"], fg=c["text"],
+                 font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 6))
+        row = tk.Frame(body, bg=c["bg"])
+        row.pack(anchor="w")
+        self._new_tile(row, on_photos, on_folder)
         self._tile(row, "project", t("start.open"), t("start.open_hint"), on_open)
 
-        tk.Label(b, text=t("start.recent"), bg=c["bg"], fg=c["text"], font=("Segoe UI", 9, "bold")).pack(anchor="w")
-        box = tk.Frame(b, bg=c["bg_card"], highlightthickness=1, highlightbackground=c["border"])
-        box.pack(fill=tk.X, pady=(4, 0))
+        tk.Label(body, text=t("start.recent"), bg=c["bg"], fg=c["text"],
+                 font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(22, 6))
         recent = settings.recent_projects()
         if not recent:
-            tk.Label(box, text=t("start.no_recent"), bg=c["bg_card"], fg=c["text_muted"],
-                     font=("Segoe UI", 8), padx=10, pady=8).pack(anchor="w")
-        for path in recent:
-            self._recent_row(box, Path(path), on_recent)
+            tk.Label(body, text=t("start.no_recent"), bg=c["bg"], fg=c["text_muted"],
+                     font=("Segoe UI", 9)).pack(anchor="w")
+        grid = tk.Frame(body, bg=c["bg"])
+        grid.pack(anchor="w")
+        for i, path in enumerate(recent[:6]):
+            self._recent_card(grid, Path(path), on_recent).grid(row=i // 2, column=i % 2, padx=(0, 10), pady=(0, 8),
+                                                              sticky="w")
+
+    # ── tarjetas ─────────────────────────────────────────────────────────────
+
+    def _card(self, parent, width, height):
+        c = self.c
+        card = tk.Frame(parent, bg=c["bg_card"], highlightthickness=1, highlightbackground=c["border"],
+                        width=width, height=height, cursor="hand2")
+        card.pack_propagate(False)
+        return card
+
+    def _hover(self, card, widgets):
+        c = self.c
+
+        def paint(on):
+            card.config(highlightbackground=c["accent"] if on else c["border"])
+        for w in [card] + list(widgets):
+            w.bind("<Enter>", lambda e: paint(True), add="+")
+            w.bind("<Leave>", lambda e: paint(False), add="+")
 
     def _tile(self, parent, ico, title, hint, cmd):
         c = self.c
-        tile = tk.Frame(parent, bg=c["bg_card"], highlightthickness=1, highlightbackground=c["border"],
-                        cursor="hand2", width=170, height=112)
-        tile.pack(side=tk.LEFT, padx=(0, 10))
-        tile.pack_propagate(False)
-        parts = [tk.Label(tile, image=self._icons[ico], bg=c["bg_card"]),
-                 tk.Label(tile, text=title, bg=c["bg_card"], fg=c["text"], font=("Segoe UI", 9, "bold")),
-                 tk.Label(tile, text=hint, bg=c["bg_card"], fg=c["text_muted"], font=("Segoe UI", 7),
-                          wraplength=150)]
-        parts[0].pack(pady=(12, 2))
+        card = self._card(parent, 210, 120)
+        card.pack(side=tk.LEFT, padx=(0, 12))
+        parts = [tk.Label(card, image=self._img[ico], bg=c["bg_card"]),
+                 tk.Label(card, text=title, bg=c["bg_card"], fg=c["text"], font=("Segoe UI", 10, "bold")),
+                 tk.Label(card, text=hint, bg=c["bg_card"], fg=c["text_muted"], font=("Segoe UI", 8))]
+        parts[0].pack(pady=(18, 4))
         parts[1].pack()
         parts[2].pack()
-
-        def paint(on):
-            bg = c["accent_light"] if on else c["bg_card"]
-            tile.config(bg=bg, highlightbackground=c["accent"] if on else c["border"])
-            for p in parts:
-                p.config(bg=bg)
-        for w in [tile] + parts:
-            w.bind("<Enter>", lambda e: paint(True))
-            w.bind("<Leave>", lambda e: paint(False))
+        self._hover(card, parts)
+        for w in [card] + parts:
             w.bind("<Button-1>", lambda e: cmd())
 
-    def _recent_row(self, parent, path: Path, cmd):
+    def _new_tile(self, parent, on_photos, on_folder):
+        """Nuevo proyecto: al tocarlo aparecen "Agregar fotos" y "Agregar carpeta"."""
         c = self.c
-        row = tk.Frame(parent, bg=c["bg_card"], cursor="hand2")
-        row.pack(fill=tk.X)
+        card = self._card(parent, 210, 120)
+        card.pack(side=tk.LEFT, padx=(0, 12))
+        front = [tk.Label(card, image=self._img["photo"], bg=c["bg_card"]),
+                 tk.Label(card, text=t("start.new"), bg=c["bg_card"], fg=c["text"], font=("Segoe UI", 10, "bold")),
+                 tk.Label(card, text=t("start.new_hint"), bg=c["bg_card"], fg=c["text_muted"], font=("Segoe UI", 8))]
+        front[0].pack(pady=(18, 4))
+        front[1].pack()
+        front[2].pack()
+        choices = tk.Frame(card, bg=c["bg_card"])
+        for ico, text, cmd in (("photo_w", t("start.photos"), on_photos), ("folder_w", t("start.folder"), on_folder)):
+            tk.Button(choices, text=f"  {text}", image=self._img[ico], compound="left", command=cmd,
+                      bg=c["accent"], fg="#FFFFFF", activebackground=c["bg_topbar"], activeforeground="#FFFFFF",
+                      relief="flat", bd=0, font=("Segoe UI", 9, "bold"), anchor="w", padx=12, pady=6,
+                      cursor="hand2").pack(fill=tk.X, padx=14, pady=(10, 0))
+
+        def open_choices(_e=None):
+            for w in front:
+                w.pack_forget()
+            choices.pack(fill=tk.BOTH, expand=True)
+        self._hover(card, front)
+        for w in [card] + front:
+            w.bind("<Button-1>", open_choices)
+
+    def _recent_card(self, parent, path: Path, cmd):
+        c = self.c
+        card = self._card(parent, 300, 82)
+        n, first = _project_info(path)
+        thumb = _thumbnail(first)
+        self._thumbs.append(thumb)
+        pic = tk.Label(card, bg="#EBEEF2", width=_THUMB[0], height=_THUMB[1])
+        if thumb:
+            pic.config(image=thumb)
+        pic.place(x=7, y=7, width=_THUMB[0], height=_THUMB[1])
         try:
-            when = dt.datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
+            when = dt.datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d")
         except OSError:
             when = ""
-        name = tk.Label(row, text=path.stem, bg=c["bg_card"], fg=c["accent"], font=("Segoe UI", 9, "bold"),
-                        anchor="w", padx=10)
-        name.grid(row=0, column=0, sticky="w", pady=(5, 0))
-        date = tk.Label(row, text=when, bg=c["bg_card"], fg=c["text_muted"], font=("Segoe UI", 7), padx=10)
-        date.grid(row=0, column=1, sticky="e", pady=(5, 0))
-        where = tk.Label(row, text=str(path.parent), bg=c["bg_card"], fg=c["text_muted"], font=("Segoe UI", 7),
-                         anchor="w", padx=10)
-        where.grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 5))
-        row.columnconfigure(0, weight=1)
-        parts = (row, name, date, where)
-
-        def paint(on):
-            for w in parts:
-                w.config(bg=c["accent_light"] if on else c["bg_card"])
-        for w in parts:
-            w.bind("<Enter>", lambda e: paint(True))
-            w.bind("<Leave>", lambda e: paint(False))
+        texts = [tk.Label(card, text=path.stem, bg=c["bg_card"], fg=c["accent"], font=("Segoe UI", 10, "bold"),
+                          anchor="w"),
+                 tk.Label(card, text=t("start.recent_info", n=n, date=when), bg=c["bg_card"], fg=c["text"],
+                          font=("Segoe UI", 8), anchor="w"),
+                 tk.Label(card, text=str(path.parent), bg=c["bg_card"], fg=c["text_muted"], font=("Segoe UI", 7),
+                          anchor="w")]
+        for i, w in enumerate(texts):
+            w.place(x=_THUMB[0] + 18, y=10 + i * 21, width=300 - _THUMB[0] - 26)
+        self._hover(card, [pic] + texts)
+        for w in [card, pic] + texts:
             w.bind("<Button-1>", lambda e: cmd(str(path)))
+        return card

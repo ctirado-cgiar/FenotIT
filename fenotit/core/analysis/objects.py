@@ -148,15 +148,6 @@ def _image_info(image, params) -> dict:
     return {"image_width_px": w, "image_height_px": h, "mm_per_px": params.get("mm_per_pixel") or ""}
 
 
-def _pooled_wide(rows: list[dict], palette: list[dict]) -> list[dict]:
-    """Paleta común: una fila por objeto con el % de cada color (columnas = colores)."""
-    names = {c["cluster"]: f'{c["cluster"]} {c["hex"]} %' for c in palette}
-    out: dict[int, dict] = {}
-    for r in rows:
-        out.setdefault(r["object_id"], {"object_id": r["object_id"]})[names.get(r["cluster"], str(r["cluster"]))] = r["pct"]
-    return list(out.values())
-
-
 def _view_tables(ctx, color_mode: str = "object") -> dict[str, list[dict]]:
     """La tabla que acompaña a cada vista: solo las columnas de esa medición."""
     objects = ctx.tables.get("objects", [])
@@ -171,8 +162,9 @@ def _view_tables(ctx, color_mode: str = "object") -> dict[str, list[dict]]:
     if ctx.tables.get("object_shape"):
         out["shape"] = ctx.tables["object_shape"]
     if ctx.tables.get("object_colors"):
-        out["color"] = (_pooled_wide(ctx.tables["object_colors"], ctx.tables.get("image_colors", []))
-                        if color_mode == "pooled" else ctx.tables["object_colors"])
+        # todos juntos: solo los colores comunes (el % de cada objeto va en la exportación)
+        out["color"] = (ctx.tables.get("image_colors", []) if color_mode == "pooled"
+                        else ctx.tables["object_colors"])
     return out
 
 
