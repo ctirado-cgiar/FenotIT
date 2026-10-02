@@ -1634,7 +1634,7 @@ class MainWindow:
             self._exporter = Exporter(self.output_root or ".")
         live = bool(self.output_root)
         self._exporter.save_result(name, Path(path).name, result, save_step_images=live,
-                                   decorate=self._decorate_fn(result, Path(path).name))
+                                   decorate=self._decorate_fn(result, Path(path).stem))
         if live:
             self._exporter.append_to_csv(name, Path(path).name, result)
 
@@ -1863,7 +1863,7 @@ class MainWindow:
         if self.last_result is not None:
             ovs = self.last_result.extra.get("overlays") or {}
             keep = []
-            shown = Path(self.current_image_path).name if self.current_image_path else None
+            shown = Path(self.current_image_path).stem if self.current_image_path else None
             img = self._decorate_fn(self.last_result, shown)(name, img, with_marks=False, box=keep)
             if name in ovs and self.last_result.extra.get("base_image") is not None:
                 marks = (ovs[name], self._mark_colors(self.last_result), keep)
