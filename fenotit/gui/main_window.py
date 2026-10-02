@@ -30,6 +30,7 @@ from fenotit.core import pipeline
 from fenotit.core.export.exporter import Exporter
 from fenotit.gui.config_panel import ConfigPanel
 from fenotit.gui.zoom_controller import ZoomController
+from fenotit.gui.image_list import ImageList
 from fenotit.gui.toolbar import IconButton, Tooltip
 from fenotit.gui.calibration_dialogs import ScaleDialog
 from fenotit.gui.corrections_dialog import CorrectionsDialog
@@ -289,6 +290,7 @@ class MainWindow:
         # Cache de resultados por imagen — para restaurar al navegar
         # resultados por análisis y por foto: al cambiar de análisis no se pierden los otros
         self._results: dict[str, dict[str, AnalysisResult]] = {}
+        self._skipped: set[str] = set()          # fotos omitidas (⚠ en la lista)
         self._step_names: dict[str, dict[str, list]] = {}
         self.output_root:  str | None = None
         self.active_analysis: str | None = None
@@ -383,11 +385,8 @@ class MainWindow:
         return None
 
     def _mark_skipped(self, path: str, reason: str):
-        if path in self.batch_paths:
-            i = self.batch_paths.index(path)
-            self.batch_listbox.delete(i)
-            self.batch_listbox.insert(i, f"⚠ {Path(path).name}")
-            self.batch_listbox.itemconfig(i, fg=COLORS["warning"])
+        self._skipped.add(path)
+        self._update_batch_list()
         _log.warning("%s omitida: %s", Path(path).name, reason)
 
     def _open_corrections(self):
@@ -1002,30 +1001,22 @@ class MainWindow:
         self.batch_label.pack(side=tk.LEFT, expand=True)
         tk.Button(nav, text="▶", command=self._next_image, width=2, **btn).pack(side=tk.RIGHT)
 
-        list_f = tk.Frame(lf, bg=COLORS["bg_panel"])
-        list_f.pack(fill=tk.BOTH, expand=True, padx=6, pady=4)
-        sb = ttk.Scrollbar(list_f, orient="vertical")
-        self.batch_listbox = tk.Listbox(
-            list_f, bg=COLORS["bg_card"], fg=COLORS["text"],
-            font=FONTS["small"],
-            selectbackground=COLORS["accent"],
-            selectforeground="#FFFFFF",
-            borderwidth=1, relief="flat",
-            highlightthickness=1,
-            highlightcolor=COLORS["border"],
-            highlightbackground=COLORS["border"],
-            activestyle="none", exportselection=False,
-            yscrollcommand=sb.set)
-        sb.config(command=self.batch_listbox.yview)
-        self.batch_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        sb.pack(side=tk.RIGHT, fill=tk.Y)
-        self.batch_listbox.bind("<<ListboxSelect>>", self._on_batch_select)
-        self.batch_listbox.bind("<Delete>", lambda e=None: (self._remove_current_image(), "break")[1])
+        # Lista (buscador, lista o cuadrícula) y VISTAS en dos partes de alto ajustable
+        split = tk.PanedWindow(lf, orient=tk.VERTICAL, bg=COLORS["border"], sashwidth=4, sashrelief="flat",
+                               bd=0, opaqueresize=True)
+        split.pack(fill=tk.BOTH, expand=True)
+        self.image_list = ImageList(split, COLORS, FONTS, on_select=self._select_image,
+                                    on_delete=self._remove_current_image,
+                                    mode=settings.get("image_view", "list"),
+                                    on_mode=lambda m: settings.set("image_view", m))
+        split.add(self.image_list, minsize=90, stretch="always")
 
         # Vistas del resultado de la imagen actual
-        self._section_lbl(lf, t("left.history"))
-        self.history_frame = tk.Frame(lf, bg=COLORS["bg_panel"], height=150)
-        self.history_frame.pack(fill=tk.X, padx=6, pady=(0, 6))
+        views = tk.Frame(split, bg=COLORS["bg_panel"])
+        split.add(views, minsize=60, height=170, stretch="never")
+        self._section_lbl(views, t("left.history"))
+        self.history_frame = tk.Frame(views, bg=COLORS["bg_panel"])
+        self.history_frame.pack(fill=tk.BOTH, expand=True, padx=6, pady=(0, 6))
 
     # ── Panel central ─────────────────────────────────────────────────────────
 
@@ -2058,38 +2049,35 @@ class MainWindow:
     # ── Lote ──────────────────────────────────────────────────────────────────
 
     def _prev_image(self):
-        if self.batch_paths and self.batch_index > 0:
-            self.batch_index -= 1
-            self._load_single(self.batch_paths[self.batch_index])
-            self._sync_listbox()
+        self._step_image(-1)
 
     def _next_image(self):
-        if self.batch_paths and self.batch_index < len(self.batch_paths)-1:
-            self.batch_index += 1
-            self._load_single(self.batch_paths[self.batch_index])
-            self._sync_listbox()
+        self._step_image(1)
 
-    def _on_batch_select(self, _event):
-        sel = self.batch_listbox.curselection()
-        if sel:
-            self.batch_index = sel[0]
-            self._load_single(self.batch_paths[self.batch_index])
-            self._update_batch_label()
+    def _step_image(self, delta: int):
+        """Anterior / siguiente entre las imágenes que se ven (respeta el buscador)."""
+        if not self.batch_paths:
+            return
+        k = self.image_list.step(self.batch_index, delta)
+        if k is not None and k != self.batch_index:
+            self._select_image(k)
+
+    def _select_image(self, index: int):
+        self.batch_index = index
+        self._load_single(self.batch_paths[index])
+        self._sync_listbox()
 
     def _sync_listbox(self):
-        self.batch_listbox.selection_clear(0, tk.END)
-        self.batch_listbox.selection_set(self.batch_index)
-        self.batch_listbox.see(self.batch_index)
+        self.image_list.set_current(self.batch_index)
         self._update_batch_label()
 
     def _update_batch_list(self):
-        """Lista de imágenes; ✓ = ya analizada en esta sesión."""
-        self.batch_listbox.delete(0, tk.END)
-        for p in self.batch_paths:
-            mark = "✓ " if p in self.results_cache else "   "
-            self.batch_listbox.insert(tk.END, mark + Path(p).name)
+        """Lista de imágenes; ✓ = ya analizada en esta sesión, ⚠ = omitida."""
+        marks = {p: "error" for p in self._skipped}
+        marks.update({p: "done" for p in self.batch_paths if p in self.results_cache})
         if self.batch_paths:
-            self.batch_listbox.selection_set(min(self.batch_index, len(self.batch_paths) - 1))
+            self.batch_index = min(self.batch_index, len(self.batch_paths) - 1)
+        self.image_list.set_items(self.batch_paths, marks, self.batch_index if self.batch_paths else -1)
         self._update_batch_label()
 
     def _update_batch_label(self):

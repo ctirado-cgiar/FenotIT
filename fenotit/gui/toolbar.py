@@ -135,7 +135,20 @@ def _eye(d, s, w, color, off=False):
         d.line((s * 0.12, s * 0.88, s * 0.88, s * 0.12), fill=color, width=int(w * 1.3))
 
 
-_DRAW = {"palette": _palette, "select": _select,
+def _list(d, s, w, color):
+    for y in (0.24, 0.50, 0.76):
+        d.ellipse((s * 0.08, s * y - s * 0.06, s * 0.20, s * y + s * 0.06), fill=color)
+        d.line((s * 0.32, s * y, s * 0.92, s * y), fill=color, width=w)
+
+
+def _grid(d, s, w, color):
+    k, g = s * 0.36, s * 0.10
+    for x in (s * 0.09, s * 0.09 + k + g):
+        for y in (s * 0.09, s * 0.09 + k + g):
+            d.rounded_rectangle((x, y, x + k, y + k), radius=s * 0.05, outline=color, width=w)
+
+
+_DRAW = {"palette": _palette, "list": _list, "grid": _grid, "select": _select,
          "eye": _eye, "eye_off": lambda d, s, w, c: _eye(d, s, w, c, off=True), "photo": _photo, "folder": _folder, "project": _project,
          "area_rect": lambda d, s, w, c: _area(d, s, w, c, "rect", False),
          "area_poly": lambda d, s, w, c: _area(d, s, w, c, "poly", False),
