@@ -11,7 +11,7 @@ import yaml
 from PIL import Image, ImageTk
 
 from fenotit import APP_NAME, __version__, settings
-from fenotit.gui.decor import BLUE, mosaic
+from fenotit.gui.decor import BLUE, dot_grid, ruler, seed_outlines
 from fenotit.gui.toolbar import icon
 from fenotit.i18n import t
 
@@ -71,7 +71,7 @@ class StartScreen(tk.Frame):
         hero = tk.Canvas(self, bg="#FFFFFF", width=300, highlightthickness=0)
         hero.pack(side=tk.LEFT, fill=tk.Y)
         tk.Frame(self, bg="#DDE3EA", width=1).pack(side=tk.LEFT, fill=tk.Y)
-        mosaic(hero, 300, 0, 14, [7, 5, 4, 3, 2, 2, 1], mirror=True)
+        hero.bind("<Configure>", lambda e: self._decorate(hero, e.width, e.height))
         inner = tk.Frame(hero, bg="#FFFFFF")
         inner.place(relx=0.5, rely=0.45, anchor="center")
         try:
@@ -96,6 +96,22 @@ class StartScreen(tk.Frame):
                            font=("Segoe UI", 8, "underline"), cursor="hand2")
             lbl.pack(side=tk.LEFT, padx=8)
             lbl.bind("<Button-1>", lambda e, f=cmd: f())
+
+    DECOR = "combo"
+
+    def _decorate(self, c, w, h):
+        c.delete("decor")
+        before = set(c.find_all())
+        v = self.DECOR
+        if v in ("grid", "combo"):
+            dot_grid(c, w, h, 16, "#E1E9F3")
+        if v in ("seeds", "combo"):
+            seed_outlines(c, 24, int(h * 0.68), w - 48, int(h * 0.17), n=7)
+        if v in ("grid", "combo", "seeds"):
+            ruler(c, 28, h - 66, 100, BLUE, 5, "10 mm")
+        for item in set(c.find_all()) - before:
+            c.addtag_withtag("decor", item)
+            c.tag_lower(item)
 
     def refresh(self):
         """Vuelve a armar la parte derecha (al mostrarse: recientes al día)."""
