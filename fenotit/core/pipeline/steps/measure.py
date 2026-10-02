@@ -97,7 +97,7 @@ def _kmeans(pixels_rgb, k, sample=3000):
 def _color_row(rgb, frac):
     L, a, b = _lab(rgb)
     return {"R": rgb[0], "G": rgb[1], "B": rgb[2], "hex": "#%02x%02x%02x" % rgb,
-            "L": L, "a": a, "b": b, "pct": round(100 * frac, 2)}
+            "L": L, "a": a, "b": b, "pct": round(100 * float(frac), 2)}
 
 
 def _core(m: np.ndarray, trim: int) -> np.ndarray:
@@ -113,36 +113,50 @@ def _core(m: np.ndarray, trim: int) -> np.ndarray:
 @step("color", "measurement", requires=("labels",), params=[
     {"key": "n_colors", "type": "int", "default": 3, "min": 1, "max": 20},
     {"key": "edge_trim", "type": "int", "default": -1, "min": -1, "max": 50},
+    {"key": "mode", "type": "choice", "choices": ["object", "pooled"], "default": "object"},
 ])
 def color(ctx, p):
-    """Colores dominantes (KMeans) por objeto y de todos los objetos juntos. Solo usa
-    píxeles del objeto, sin el borde (edge_trim px; -1 = automático, ~4 % del tamaño)."""
+    """Colores dominantes (KMeans). mode="object": cada objeto con su propia paleta;
+    mode="pooled": una paleta común a todos los objetos y el % de cada color en cada
+    objeto (comparables entre objetos). Sin el borde del objeto (edge_trim px; -1 = auto)."""
     rgb_img = cv2.cvtColor(ctx.image, cv2.COLOR_BGR2RGB)
     rows = ctx.object_rows()
-    per_obj, all_px = [], []
-    view = (ctx.image * 0.35).astype(np.uint8)         # fondo atenuado
+    k = int(p["n_colors"])
+    objs = []
     for oid, sl, m in regions(ctx.labels):
         m = _core(m, int(p["edge_trim"]))
         px = rgb_img[sl][m > 0].reshape(-1, 3)
-        all_px.append(px)
+        objs.append((oid, sl, m, px))
         mean = tuple(int(v) for v in px.mean(axis=0))
         L, a, b = _lab(mean)
         rows[oid].update({"mean_R": mean[0], "mean_G": mean[1], "mean_B": mean[2],
                           "mean_L": L, "mean_a": a, "mean_b": b})
-        clusters, lab = _kmeans(px, p["n_colors"])
+    view = (ctx.image * 0.35).astype(np.uint8)         # fondo atenuado
+    per_obj = []
+    if not objs:
+        ctx.tables["object_colors"] = []
+        ctx.images["color"] = view
+        return
+    all_px = np.concatenate([o[3] for o in objs])
+    shared, shared_lab = _kmeans(all_px, k)
+    ctx.tables["image_colors"] = [{"cluster": i, **_color_row(c, frac)}
+                                  for i, (c, frac) in enumerate(shared, 1)]
+    start = 0
+    for oid, sl, m, px in objs:
+        if p["mode"] == "pooled":
+            lab = shared_lab[start:start + len(px)]
+            counts = np.bincount(lab, minlength=len(shared))
+            clusters = [(shared[j][0], counts[j] / max(len(px), 1)) for j in range(len(shared))]
+            palette = np.array([c[::-1] for c, _ in shared], np.uint8)
+        else:
+            clusters, lab = _kmeans(px, k)
+            palette = np.array([c[::-1] for c, _ in clusters], np.uint8)
+        start += len(px)
         for i, (c, frac) in enumerate(clusters, 1):
             per_obj.append({"object_id": oid, "cluster": i, **_color_row(c, frac)})
-        # vista: cada píxel del objeto pintado con su color KMeans
-        palette = np.array([c[::-1] for c, _ in clusters], np.uint8)
-        region = view[sl]
-        region[m > 0] = palette[lab]
+        view[sl][m > 0] = palette[lab]                 # cada píxel con su color KMeans
     ctx.tables["object_colors"] = per_obj
     ctx.images["color"] = view
-    if all_px:
-        px = np.concatenate(all_px)
-        clusters, _ = _kmeans(px, p["n_colors"])
-        ctx.tables["image_colors"] = [{"cluster": i, **_color_row(c, frac)}
-                                      for i, (c, frac) in enumerate(clusters, 1)]
 
 
 @step("count", "measurement", requires=("labels",), params=[

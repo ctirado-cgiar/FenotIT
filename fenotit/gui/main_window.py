@@ -1634,7 +1634,7 @@ class MainWindow:
             self._exporter = Exporter(self.output_root or ".")
         live = bool(self.output_root)
         self._exporter.save_result(name, Path(path).name, result, save_step_images=live,
-                                   decorate=self._decorate_fn(result))
+                                   decorate=self._decorate_fn(result, Path(path).name))
         if live:
             self._exporter.append_to_csv(name, Path(path).name, result)
 
@@ -1822,7 +1822,7 @@ class MainWindow:
         from fenotit.core.pipeline import overlay
         return overlay.resolve(self.project.display.get("style"), auto=result.extra.get("contrast"))
 
-    def _decorate_fn(self, result: AnalysisResult):
+    def _decorate_fn(self, result: AnalysisResult, image_name: str | None = None):
         """Marcas (contornos, puntos, números) con el estilo elegido y leyenda si está
         activada. Al exportar se dibujan a escala de la imagen; en pantalla, aparte."""
         from fenotit.core.pipeline import overlay
@@ -1840,6 +1840,8 @@ class MainWindow:
             spec = legends.get(name)
             if not spec or not disp.get("legend", True):
                 return img
+            if image_name:
+                spec = {**spec, "footer": image_name}
             return render_legend(img, spec, disp.get("color_format", "RGB"), disp.get("legend_scale", 1.0),
                                  box=box)
         return decorate
@@ -1861,7 +1863,8 @@ class MainWindow:
         if self.last_result is not None:
             ovs = self.last_result.extra.get("overlays") or {}
             keep = []
-            img = self._decorate_fn(self.last_result)(name, img, with_marks=False, box=keep)
+            shown = Path(self.current_image_path).name if self.current_image_path else None
+            img = self._decorate_fn(self.last_result, shown)(name, img, with_marks=False, box=keep)
             if name in ovs and self.last_result.extra.get("base_image") is not None:
                 marks = (ovs[name], self._mark_colors(self.last_result), keep)
         self.scaler_right.set_image(img)

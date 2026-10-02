@@ -111,8 +111,11 @@ def render_legend(image: np.ndarray, spec: dict, color_format: str = "RGB", scal
     if spec.get("colors"):
         title = f"{title}  ·  {color_format}" if title else color_format
     shape = spec.get("shape")
+    footer = spec.get("footer", "")                    # nombre de la foto, pequeño
+    small = _font(max(8, round(size * 0.72)))
     line_h = size + gap
-    text_w = max([bold.getlength(title)] + [font.getlength(t) + (sw + gap if col else 0) for t, col in lines])
+    text_w = max([bold.getlength(title), small.getlength(footer)]
+                 + [font.getlength(t) + (sw + gap if col else 0) for t, col in lines])
     shape_h = round(size * 8) if shape else 0
     shape_w = 0
     if shape:                                          # ancho según la proporción de la forma (de pie)
@@ -120,7 +123,8 @@ def render_legend(image: np.ndarray, spec: dict, color_format: str = "RGB", scal
         ext = mean.max(0) - mean.min(0)
         shape_w = shape_h * min(1.5, max(0.3, ext[1] / max(ext[0], 1e-9)))
     box_w = int(max(text_w, shape_w) + 2 * pad)
-    box_h = int(pad * 2 + (line_h if title else 0) + len(lines) * line_h + (shape_h + gap if shape else 0))
+    box_h = int(pad * 2 + (line_h if title else 0) + len(lines) * line_h + (shape_h + gap if shape else 0)
+                + (round(size * 0.72) + gap if footer else 0))
     m = pad                                            # margen con el borde de la foto
     box_w, box_h = min(box_w, w - 2 * m), min(box_h, h - 2 * m)
     if box_w <= 0 or box_h <= 0:
@@ -149,6 +153,9 @@ def render_legend(image: np.ndarray, spec: dict, color_format: str = "RGB", scal
         y += line_h
     if shape:
         _draw_shape(d, shape, (x0, y + gap // 2, box_w - 2 * pad, shape_h), size)
+        y += shape_h + gap
+    if footer:
+        d.text((x0, y), footer, fill=(110, 110, 110, 255), font=small)
     out = Image.alpha_composite(base, layer).convert("RGB")
     return cv2.cvtColor(np.asarray(out), cv2.COLOR_RGB2BGR)
 

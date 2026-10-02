@@ -47,7 +47,8 @@ def build_chain(params: dict) -> list[dict]:
     if params.get("measure_shape"):
         chain.append({"step": "shape", "params": {"harmonics": int(params.get("harmonics", 20))}})
     if params.get("measure_color"):
-        chain.append({"step": "color", "params": {"n_colors": int(params.get("n_colors", 3))}})
+        chain.append({"step": "color", "params": {"n_colors": int(params.get("n_colors", 3)),
+                                                  "mode": params.get("color_mode", "object")}})
     chain.append({"step": "count"})
     return chain
 
@@ -172,7 +173,9 @@ register(
         {"key": "harmonics", "label": "Armónicos", "type": "int", "default": 20, "min": 1, "max": 50,
          "group": "measure_shape"},
         {"key": "measure_color", "label": "Color", "type": "bool", "default": False},
-        {"key": "n_colors", "label": "Colores por objeto", "type": "int", "default": 3, "min": 1, "max": 10,
+        {"key": "color_mode", "label": "Colores", "type": "choice", "choices": ["object", "pooled"],
+         "default": "object", "group": "measure_color"},
+        {"key": "n_colors", "label": "Número de colores", "type": "int", "default": 3, "min": 1, "max": 20,
          "group": "measure_color"},
 ],
 )

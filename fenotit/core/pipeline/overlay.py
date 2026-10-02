@@ -16,7 +16,7 @@ PALETTE = {                      # BGR
     "blue": (230, 120, 0), "white": (255, 255, 255), "black": (20, 20, 20),
 }
 ROLES = ("mask", "outline", "dot")
-DEFAULT_STYLE = {"mask": "green", "outline": "auto", "dot": "magenta", "mask_alpha": 0.45, "width": 2}
+DEFAULT_STYLE = {"mask": "green", "outline": "auto", "dot": "magenta", "mask_alpha": 0.45, "width": 1.5}
 _EXCLUDED = (150, 150, 150)
 _AUTO_CANDIDATES = ("green", "magenta", "yellow", "cyan", "red", "orange", "blue")
 
@@ -55,7 +55,7 @@ def contrast_color(image: np.ndarray, mask: np.ndarray | None = None) -> tuple[i
 def resolve(style: dict | None, image: np.ndarray | None = None, mask=None, auto=None) -> dict:
     """Colores BGR por rol; "auto" se resuelve con la imagen (o usa `auto` ya calculado)."""
     s = {**DEFAULT_STYLE, **(style or {})}
-    out = {"mask_alpha": float(s["mask_alpha"]), "width": int(s["width"])}
+    out = {"mask_alpha": float(s["mask_alpha"]), "width": float(s["width"])}
     for role in ROLES:
         name = s[role]
         if name == "auto":
@@ -98,34 +98,51 @@ def draw(img: np.ndarray, ov: dict, colors: dict, origin=(0, 0), zoom: float = 1
     return img
 
 
+def _lines(img, polys, color, width: float, halo: bool):
+    """Contornos en una sola llamada. Menos de 1 px: línea de 1 px semitransparente."""
+    if not polys:
+        return
+    if width < 1:
+        layer = img.copy()
+        cv2.polylines(layer, polys, True, color, 1, cv2.LINE_AA)
+        a = max(0.35, width)
+        cv2.addWeighted(layer, a, img, 1 - a, 0, dst=img)
+        return
+    w = int(round(width))
+    if halo:
+        cv2.polylines(img, polys, True, (0, 0, 0), w + 2, cv2.LINE_AA)
+    cv2.polylines(img, polys, True, color, w, cv2.LINE_AA)
+
+
 def _draw(img, ov, colors, origin, zoom, screen):
-    width, radius, scale = _sizes_screen() if screen else _sizes_image(img)
-    lw = colors.get("width", 2)                     # grosor elegido (2 = el de siempre)
-    width = lw if screen else max(1, round(width * lw / 2))
-    if screen and ov.get("size"):                   # al alejar, la línea no tapa objetos chicos
-        width = int(np.clip(ov["size"] * zoom * 0.08, 1, width))
-    if screen and ov.get("size"):              # el punto no tapa el objeto al alejar
-        radius = int(np.clip(ov["size"] * zoom * 0.2, 2, radius))
+    _, radius, scale = _sizes_screen() if screen else _sizes_image(img)
+    lw = float(colors.get("width", 1.5))            # grosor elegido, en px de pantalla
+    seen = ov.get("size", 0) * zoom                 # tamaño típico del objeto en pantalla
+    if screen:
+        width = min(lw, max(0.5, seen * 0.05)) if seen else lw   # al alejar se afina
+        if seen:
+            radius = int(np.clip(seen * 0.2, 2, radius))
+    else:
+        width = max(1.0, lw * max(img.shape[:2]) / 1500)
     ox, oy = origin
 
     def tr(pts):
         return np.round((np.asarray(pts, float) - (ox, oy)) * zoom).astype(np.int32)
 
-    for cnt, included in ov.get("outlines", []):
-        p = tr(cnt).reshape(-1, 1, 2)
-        if included:
-            cv2.polylines(img, [p], True, (0, 0, 0), width + 1, cv2.LINE_AA)
-            cv2.polylines(img, [p], True, colors["outline"], width, cv2.LINE_AA)
-        else:
-            cv2.polylines(img, [p], True, _EXCLUDED, 1, cv2.LINE_AA)
+    inc = [tr(c).reshape(-1, 1, 2) for c, ok in ov.get("outlines", []) if ok]
+    exc = [tr(c).reshape(-1, 1, 2) for c, ok in ov.get("outlines", []) if not ok]
+    _lines(img, exc, _EXCLUDED, min(width, 1.0), False)
+    _lines(img, inc, colors["outline"], width, halo=width >= 1.5)
     if ov.get("dots"):
         for x, y in tr(ov["dots"]):
             cv2.circle(img, (int(x), int(y)), radius + 1, (0, 0, 0), -1, cv2.LINE_AA)
             cv2.circle(img, (int(x), int(y)), radius, colors["dot"], -1, cv2.LINE_AA)
     h, w = img.shape[:2]
     shift = radius if ov.get("dots") else 0
-    if screen and ov.get("size", 0) * zoom < 22:       # objetos muy chicos en pantalla: sin números
-        return img
+    if screen and seen:
+        if seen < 12:                               # no caben: se ven al acercar
+            return img
+        scale = float(np.clip(seen / 70, 0.28, 0.45))
     for (x, y, text, strong) in ov.get("labels", []):
         sx, sy = tr([(x, y)])[0]
         if -50 < sx < w + 50 and -20 < sy < h + 20:

@@ -158,6 +158,22 @@ def test_missing_requirement():
         raise AssertionError("debió fallar")
 
 
+def test_color_pooled():
+    """Paleta común: todos los objetos usan los mismos colores y sus % suman 100."""
+    img = np.zeros((200, 300, 3), np.uint8)
+    cv2.circle(img, (70, 100), 40, (0, 0, 200), -1)
+    cv2.circle(img, (220, 100), 40, (0, 200, 0), -1)
+    cv2.circle(img, (220, 100), 15, (0, 0, 200), -1)
+    ctx = pipeline.run(img, [{"step": "threshold", "params": {"color_space": "HSV", "channel": 2, "min_val": 50}},
+                             {"step": "label"}, {"step": "color", "params": {"n_colors": 2, "mode": "pooled",
+                                                                             "edge_trim": 0}}])
+    rows = ctx.tables["object_colors"]
+    shared = {(c["R"], c["G"], c["B"]) for c in ctx.tables["image_colors"]}
+    assert {(r["R"], r["G"], r["B"]) for r in rows} == shared
+    for oid in {r["object_id"] for r in rows}:
+        assert abs(sum(r["pct"] for r in rows if r["object_id"] == oid) - 100) < 0.1
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):
