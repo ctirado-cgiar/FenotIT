@@ -18,7 +18,7 @@ from fenotit.gui.toolbar import IconButton
 from fenotit.i18n import t
 
 _log = log.get("gui.images")
-THUMB = 64                       # lado máximo de la miniatura (px): 2 columnas en el panel por defecto
+THUMB = 42                       # lado máximo de la miniatura (px): 3 columnas en el panel por defecto
 MARKS = {"done": ("✓", "#2E8B57"), "error": ("⚠", "#E67E00")}
 
 
@@ -120,6 +120,8 @@ class ImageList(tk.Frame):
                               highlightbackground=c["border"], yscrollincrement=16)
         self.grid.bind("<Configure>", lambda e: self._draw_grid())
         self.grid.bind("<Button-1>", self._on_grid_click)
+        self.grid.bind("<Motion>", self._hover)
+        self.grid.bind("<Leave>", lambda e: self._tip_hide())
         for w in (self.grid,):
             w.bind("<MouseWheel>", self._wheel)
             w.bind("<Button-4>", lambda e: self._scroll(-3))
@@ -242,10 +244,10 @@ class ImageList(tk.Frame):
     # ── cuadrícula ────────────────────────────────────────────────────────────
 
     def _cell(self):
-        w = max(self.grid.winfo_width() - 4, THUMB + 10)
-        cols = max(1, w // (THUMB + 10))
+        w = max(self.grid.winfo_width() - 4, THUMB + 8)
+        cols = max(1, w // (THUMB + 8))
         cw = w // cols
-        return cols, cw, THUMB + 26
+        return cols, cw, THUMB + 8
 
     def _draw_grid(self):
         g = self.grid
@@ -267,30 +269,46 @@ class ImageList(tk.Frame):
             if thumb:
                 g.create_image(cx, y0 + 4 + THUMB // 2, image=thumb, tags=(f"img{i}",))
             else:
-                g.create_rectangle(cx - THUMB // 2 + 6, y0 + 10, cx + THUMB // 2 - 6, y0 + THUMB - 2,
+                g.create_rectangle(cx - THUMB // 2 + 2, y0 + 8, cx + THUMB // 2 - 2, y0 + THUMB,
                                    fill="#EEF1F4", width=0, tags=(f"img{i}",))
-            name = Path(p).name
-            g.create_text(cx, y0 + THUMB + 13, text=self._fit_text(name, cw - 10), fill=c["text"],
-                          font=self.f["small"])
             mark = self.marks.get(p)
             if mark in MARKS:
                 sym, color = MARKS[mark]
-                bx, by = x0 + cw - 14, y0 + 12
-                g.create_oval(bx - 8, by - 8, bx + 8, by + 8, fill=color, outline="#FFFFFF", width=1.5,
+                bx, by = x0 + cw - 10, y0 + 9
+                g.create_oval(bx - 6, by - 6, bx + 6, by + 6, fill=color, outline="#FFFFFF", width=1.5,
                               tags=("badge",))
-                g.create_text(bx, by, text=sym, fill="#FFFFFF", font=("Segoe UI", 8, "bold"), tags=("badge",))
+                g.create_text(bx, by, text=sym, fill="#FFFFFF", font=("Segoe UI", 6, "bold"), tags=("badge",))
         rows = (len(self.visible) + cols - 1) // cols
         g.config(scrollregion=(0, 0, cols * cw, max(rows * ch + 4, 1)))
         self._request_visible()
 
-    def _fit_text(self, text: str, width: int) -> str:
-        import tkinter.font as tkfont
-        font = tkfont.Font(font=self.f["small"])
-        if font.measure(text) <= width:
-            return text
-        while text and font.measure(text + "…") > width:
-            text = text[:-1]
-        return text + "…"
+    def _index_at(self, e) -> int | None:
+        cols, cw, ch = self._cell()
+        x, y = self.grid.canvasx(e.x), self.grid.canvasy(e.y)
+        k = int(y // ch) * cols + int(x // cw)
+        return self.visible[k] if x // cw < cols and 0 <= k < len(self.visible) else None
+
+    def _hover(self, e):
+        """El nombre de la foto aparece al pasar el mouse (en la cuadrícula no hay espacio)."""
+        i = self._index_at(e)
+        if i is None:
+            self._tip_hide()
+            return
+        name = Path(self.paths[i]).name
+        tip = getattr(self, "_tip", None)
+        if tip is None:
+            self._tip = tip = tk.Toplevel(self)
+            tip.wm_overrideredirect(True)
+            self._tip_lbl = tk.Label(tip, bg="#FFFFE6", fg="#222222", relief="solid", bd=1,
+                                     font=("Segoe UI", 8), padx=6, pady=2)
+            self._tip_lbl.pack()
+        self._tip_lbl.config(text=name)
+        tip.wm_geometry(f"+{e.x_root + 12}+{e.y_root + 14}")
+
+    def _tip_hide(self):
+        if getattr(self, "_tip", None) is not None:
+            self._tip.destroy()
+            self._tip = None
 
     def _grid_yview(self, *args):
         self.grid.yview(*args)
@@ -328,11 +346,9 @@ class ImageList(tk.Frame):
 
     def _on_grid_click(self, e):
         self.grid.focus_set()
-        cols, cw, ch = self._cell()
-        x, y = self.grid.canvasx(e.x), self.grid.canvasy(e.y)
-        k = int(y // ch) * cols + int(x // cw)
-        if x // cw < cols and 0 <= k < len(self.visible) and self.visible[k] != self.current:
-            self.on_select(self.visible[k])
+        i = self._index_at(e)
+        if i is not None and i != self.current:
+            self.on_select(i)
 
     def _poll(self):
         """Pasa al canvas las miniaturas que ya leyó el hilo."""

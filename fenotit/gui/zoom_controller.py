@@ -444,12 +444,12 @@ class ZoomController:
     MINI = 110            # lado mayor del minimapa (px)
 
     def _draw_minimap(self):
-        """Con zoom: proporción de la foto y rectángulo de lo que se ve, en la esquina de
-        abajo a la derecha del lado visible de más a la derecha. Sin la foto, semitransparente.
+        """Con zoom: proporción de la foto y rectángulo de lo que se ve, abajo a la derecha de
+        la Entrada (o del Resultado si la Entrada está oculta). Sin la foto, semitransparente.
         Clic o arrastre en él = ir a ese lugar."""
         self._mini = None
         img = self._img_left if self._img_left is not None else self._img_right
-        canvas = self.cr if self.cr.winfo_ismapped() and self._img_right is not None else self.cl
+        canvas = self.cl if self.cl.winfo_ismapped() else self.cr     # en la Entrada; si está oculta, en el Resultado
         for c in (self.cl, self.cr):
             c.delete("minimap")
         if img is None or not canvas.winfo_ismapped():
