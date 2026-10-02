@@ -202,8 +202,9 @@ class CollapsiblePanel(tk.Frame):
     COLLAPSED_W = 18
 
     def __init__(self, parent, side: str, title: str,
-                 colors: dict, default_width: int = 200, on_toggle=None, **kw):
+                 colors: dict, default_width: int = 200, on_toggle=None, max_width: int = 420, **kw):
         super().__init__(parent, bg=colors["bg_panel"], **kw)
+        self.max_width = max_width
         self.colors        = colors
         self._on_toggle    = on_toggle
         self.side          = side          # "left" o "right"
@@ -234,6 +235,35 @@ class CollapsiblePanel(tk.Frame):
             fill=tk.BOTH, expand=True)
 
         self.configure(width=default_width)
+        # el ancho lo decide el usuario (barra divisoria), no el contenido: así el panel no
+        # crece solo cuando aparece un texto o un menú largo
+        self.pack_propagate(False)
+        self.bind("<Configure>", self._clamp)
+
+    def _clamp(self, event):
+        if event.widget is not self or not self._expanded or event.width <= self.max_width \
+                or not isinstance(self.master, tk.PanedWindow) or getattr(self, "_clamping", False):
+            return
+        self._clamping = True
+
+        def apply():
+            self._clamping = False
+            if self.winfo_width() > self.max_width:
+                self._resize_to(self.max_width)
+        self.after(30, apply)
+
+    def _resize_to(self, width: int):
+        """Mueve la barra divisoria del panel (cambiar solo 'width' no la mueve)."""
+        pw = self.master
+        pw.paneconfigure(self, width=width)
+        edge = self.winfo_x() if self.side == "right" else self.winfo_x() + self.winfo_width()
+        n = len([p for p in pw.panes() if str(pw.panecget(p, "hide")) not in ("1", "true")]) - 1
+        for i in range(max(n, 0)):
+            x, y = pw.sash_coord(i)
+            if abs(x - edge) <= 8:
+                new_x = edge + (self.winfo_width() - width if self.side == "right" else width - self.winfo_width())
+                pw.sash_place(i, new_x, y)
+                break
 
     def toggle(self):
         if self._expanded:
@@ -291,6 +321,7 @@ class MainWindow:
         # resultados por análisis y por foto: al cambiar de análisis no se pierden los otros
         self._results: dict[str, dict[str, AnalysisResult]] = {}
         self._skipped: set[str] = set()          # fotos omitidas (⚠ en la lista)
+        self._pending: set[str] = set()          # en cola del lote (… en la lista)
         self._step_names: dict[str, dict[str, list]] = {}
         self.output_root:  str | None = None
         self.active_analysis: str | None = None
@@ -722,9 +753,9 @@ class MainWindow:
         self.left_panel = CollapsiblePanel(
             self.paned, side="left",
             title=t("panel.left"), colors=COLORS,
-            default_width=200, on_toggle=self._after_panel_toggle)
+            default_width=200, on_toggle=self._after_panel_toggle, max_width=420)
         self.paned.add(self.left_panel, minsize=CollapsiblePanel.COLLAPSED_W,
-                       width=200)
+                       width=200, stretch="never")
 
         # Centro
         self.center_frame = tk.Frame(self.paned, bg=COLORS["bg"])
@@ -734,9 +765,9 @@ class MainWindow:
         self.right_panel = CollapsiblePanel(
             self.paned, side="right",
             title=t("panel.right"), colors=COLORS,
-            default_width=260, on_toggle=self._after_panel_toggle)
+            default_width=260, on_toggle=self._after_panel_toggle, max_width=380)
         self.paned.add(self.right_panel, minsize=CollapsiblePanel.COLLAPSED_W,
-                       width=260)
+                       width=260, stretch="never")      # si no, el último panel se queda con todo el espacio que sobra
 
         # Statusbar
         self.statusbar = tk.Frame(self.root, bg=COLORS["bg_panel"], height=24)
@@ -750,6 +781,9 @@ class MainWindow:
                                     bg=COLORS["bg_panel"], fg=COLORS["accent"],
                                     font=FONTS["small"], padx=10)
         self._corr_label.pack(side=tk.RIGHT)
+        ttk.Style(self.root).configure("Thin.Horizontal.TProgressbar", thickness=8)
+        self._progress_bar = ttk.Progressbar(self.statusbar, length=160, mode="determinate",
+                                             style="Thin.Horizontal.TProgressbar")
         self.preview_var = tk.StringVar(value="")
         tk.Label(self.statusbar, textvariable=self.preview_var, bg=COLORS["bg_panel"],
                  fg=COLORS["accent2"], font=FONTS["small"], padx=8).pack(side=tk.RIGHT)
@@ -1645,12 +1679,16 @@ class MainWindow:
         params = self._build_params()
 
         skipped: list[str] = []
+        paths = self.batch_paths
+        self._pending = set(paths)                 # al volver a correr, las marcas se rehacen
+        self._skipped -= self._pending
+        self._progress(0, total)
         self._update_batch_list()
         self._sync_listbox()
 
         def worker():
             results = []
-            for i, path in enumerate(self.batch_paths):
+            for i, path in enumerate(paths):
                 img, info = self._load_corrected(path)
                 if img is None:
                     continue
@@ -1682,8 +1720,9 @@ class MainWindow:
         Si la imagen activa es esta, actualiza el display.
         """
         step_names = list(result.step_images.keys())
-        self.results_cache[path]    = result
-        self.step_names_cache[path] = step_names
+        self._results.setdefault(name, {})[path] = result          # del análisis que corre, aunque
+        self._step_names.setdefault(name, {})[path] = step_names   # el usuario cambie de análisis
+        self._pending.discard(path)
         # Guardar en índice combinado por análisis
         if name not in self.all_results_by_analysis:
             self.all_results_by_analysis[name] = {}
@@ -1693,11 +1732,12 @@ class MainWindow:
         if result.status == 'ok':
             self._remember_result(name, path, result)
 
-        self._set_status(f"{name}: {i+1}/{total}…")
+        self._set_status(t("status.batch_progress", name=_analysis_label(name), i=i + 1, n=total))
+        self._progress(i + 1, total)
         self._update_batch_list()
 
         # Si es la imagen que está visible ahora, actualizar display
-        if path == self.current_image_path and result.status == "ok":
+        if path == self.current_image_path and result.status == "ok" and name == self.active_analysis:
             self._display_result(result, step_names, fresh=True)
 
     def _remember_result(self, name: str, path: str, result: AnalysisResult):
@@ -1744,6 +1784,9 @@ class MainWindow:
 
     def _on_batch_result(self, name: str, results: list, n_skipped: int = 0):
         self.root.config(cursor="")
+        self._pending.clear()
+        self._progress(None)
+        self._update_batch_list()
         if not results:
             self._set_status(t("msg.no_results_status"))
             return
@@ -2075,6 +2118,7 @@ class MainWindow:
         """Lista de imágenes; ✓ = ya analizada en esta sesión, ⚠ = omitida."""
         marks = {p: "error" for p in self._skipped}
         marks.update({p: "done" for p in self.batch_paths if p in self.results_cache})
+        marks.update({p: "pending" for p in self._pending})
         if self.batch_paths:
             self.batch_index = min(self.batch_index, len(self.batch_paths) - 1)
         self.image_list.set_items(self.batch_paths, marks, self.batch_index if self.batch_paths else -1)
@@ -2552,6 +2596,15 @@ class MainWindow:
         if hasattr(self, 'log_listbox'):
             self.log_listbox.insert(tk.END, f"✓  {name}")
             self.log_listbox.see(tk.END)
+
+    def _progress(self, i: int | None, n: int = 0):
+        """Barra de avance del lote en la barra de estado (None = ocultarla)."""
+        if i is None:
+            self._progress_bar.pack_forget()
+            return
+        self._progress_bar.config(maximum=max(n, 1), value=i)
+        if not self._progress_bar.winfo_ismapped():
+            self._progress_bar.pack(side=tk.RIGHT, padx=8)
 
     def _set_status(self, msg: str):
         self.status_var.set(msg)

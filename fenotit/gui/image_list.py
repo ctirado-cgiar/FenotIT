@@ -19,7 +19,7 @@ from fenotit.i18n import t
 
 _log = log.get("gui.images")
 THUMB = 42                       # lado máximo de la miniatura (px): 3 columnas en el panel por defecto
-MARKS = {"done": ("✓", "#2E8B57"), "error": ("⚠", "#E67E00")}
+MARKS = {"done": ("✓", "#2E8B57"), "error": ("⚠", "#E67E00"), "pending": ("…", "#9AA3A7")}
 
 
 def _read_thumb(path: str) -> Image.Image | None:
@@ -232,7 +232,7 @@ class ImageList(tk.Frame):
             p = self.paths[i]
             sym, color = MARKS.get(self.marks.get(p, ""), ("", None))
             lb.insert(tk.END, f"{sym or ' '}  {Path(p).name}")
-            if color and self.marks.get(p) == "error":
+            if color and self.marks.get(p) in ("error", "pending"):
                 lb.itemconfig(row, fg=color)
         self.set_current(self.current)
 

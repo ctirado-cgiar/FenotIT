@@ -288,6 +288,7 @@
   "start.subtitle": "Your images, turned into data",
   "start.tagline": "Load your images, choose what to phenotype and get results ready to analyze and publish. No code needed.",
   "status.batch_done": "Batch {name} finished — {ok}/{n} images",
+  "status.batch_progress": "{name}: {i} of {n}…",
   "status.done": "{name} finished — {detail}",
   "status.folder_loaded": "{n} images — {folder}",
   "status.image": "Image: {name}",
