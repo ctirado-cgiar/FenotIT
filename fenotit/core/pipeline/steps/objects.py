@@ -100,8 +100,7 @@ def separate(ctx, p):
         dist = cv2.distanceTransform(binary, cv2.DIST_L2, 5)
     # umbral de picos relativo al grosor de CADA grupo (un objeto grande, p. ej. una
     # etiqueta, no debe esconder los picos de los objetos delgados)
-    from scipy.ndimage import maximum
-    comp_max = np.asarray(maximum(dist, comps, index=np.arange(comps.max() + 1)))
+    comp_max = _label_max(dist, comps)
     rel = float(p["peak_threshold"])
 
     def _peaks(min_distance):
@@ -132,6 +131,20 @@ def separate(ctx, p):
         labels = _split_large(labels, float(np.median(dist[tuple(peaks.T)])) if len(peaks) else 0)
     ctx.labels = labels
     ctx.images["distance"] = cv2.normalize(dist, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+
+
+def _label_max(values, labels):
+    """Máximo de `values` en cada etiqueta (índice = etiqueta). Mucho más rápido que
+    scipy.ndimage.maximum(index=...), que ordena toda la imagen."""
+    out = np.zeros(int(labels.max()) + 1, values.dtype)     # mismo tipo: ufunc.at va por la vía rápida
+    fg = labels > 0
+    np.maximum.at(out, labels[fg], values[fg])
+    return out
+
+
+def _areas(labels):
+    """Área (px) de cada etiqueta; índice = etiqueta."""
+    return np.bincount(labels.ravel(), minlength=int(labels.max()) + 1)
 
 
 def _without_shadows(image, binary, comps, max_dark=0.35):
@@ -236,23 +249,27 @@ def _split_large(labels, radius):
     from scipy.ndimage import find_objects
     if radius <= 0 or labels.max() < 3:
         return labels
-    ids, areas = np.unique(labels[labels > 0], return_counts=True)
+    all_areas = _areas(labels)
+    ids = np.flatnonzero(all_areas[1:]) + 1
+    areas = all_areas[ids]
     single = float(np.median(areas))
     labels = labels.copy()
     nxt = int(labels.max()) + 1
+    boxes = dict(enumerate(find_objects(labels), 1))
     queue = [(int(i), 0) for i, a in zip(ids, areas) if a >= 1.6 * single]
     while queue:
         oid, level = queue.pop()
-        sls = find_objects((labels == oid).astype(np.uint8))
-        if not sls or sls[0] is None:
+        box = boxes.get(oid)
+        if box is None:
             continue
-        sl = tuple(slice(max(s.start - 2, 0), s.stop + 2) for s in sls[0])
+        sl = tuple(slice(max(s.start - 2, 0), s.stop + 2) for s in box)
         m = (labels[sl] == oid).astype(np.uint8)
         parts = _cut_by_notches(m, radius, single)
         if parts is None:
             continue
         region = labels[sl]
         region[parts == 2] = nxt
+        boxes[nxt] = box
         for k, a in ((oid, (parts == 1).sum()), (nxt, (parts == 2).sum())):
             if a >= 1.6 * single and level < 3:
                 queue.append((k, level + 1))
@@ -267,9 +284,12 @@ def _keep_single_sized_groups(labels, comps, max_ratio=1.5):
     fg = labels > 0
     if not fg.any():
         return labels
-    keys = np.unique(comps[fg].astype(np.int64) * (int(labels.max()) + 1) + labels[fg])
-    grp = keys // (int(labels.max()) + 1)
-    gid, nparts = np.unique(grp, return_counts=True)
+    n1 = int(labels.max()) + 1
+    present = np.bincount(comps[fg].astype(np.int64) * n1 + labels[fg]) > 0
+    grp = np.flatnonzero(present) // n1
+    nparts_all = np.bincount(grp)
+    gid = np.flatnonzero(nparts_all)
+    nparts = nparts_all[gid]
     area = np.bincount(comps[fg], minlength=int(comps.max()) + 1)
     single = gid[nparts == 1]
     if len(single) < 3:
@@ -287,25 +307,42 @@ def _keep_single_sized_groups(labels, comps, max_ratio=1.5):
 def _merge_fragments(labels, comps, frac=0.35):
     """Une a su vecino las partes muy pequeñas (< frac × el área típica de un objeto
     suelto) que salieron de partir un grupo: puntas y colas de objetos alargados."""
-    ids, areas = np.unique(labels[labels > 0], return_counts=True)
+    all_areas = _areas(labels)
+    ids = np.flatnonzero(all_areas[1:]) + 1
+    areas = all_areas[ids]
     if len(ids) < 2:
         return labels
-    group = dict(zip(*np.unique(np.stack([labels[labels > 0], comps[labels > 0]]), axis=1)))
-    per_group = np.bincount(np.array([group[i] for i in ids]))
+    fg = labels > 0
+    group = np.zeros(len(all_areas), np.int64)       # cada parte cae dentro de un solo grupo
+    group[labels[fg]] = comps[fg]
+    per_group = np.bincount(group[ids])
     alone = [a for i, a in zip(ids, areas) if per_group[group[i]] == 1]
     typical = float(np.median(alone if alone else areas))
     labels = labels.copy()
     small = sorted((a, i) for i, a in zip(ids, areas) if a < frac * typical and per_group[group[i]] > 1)
     kernel = np.ones((3, 3), np.uint8)
+    from scipy.ndimage import find_objects
+    boxes = find_objects(labels)
+    h, w = labels.shape
     for _, i in small:
-        m = (labels == i).astype(np.uint8)
+        box = boxes[i - 1]
+        if box is None:
+            continue
+        sl = (slice(max(box[0].start - 1, 0), min(box[0].stop + 1, h)),
+              slice(max(box[1].start - 1, 0), min(box[1].stop + 1, w)))
+        region = labels[sl]
+        m = (region == i).astype(np.uint8)
         if not m.any():
             continue
         ring = (cv2.dilate(m, kernel) > 0) & (m == 0)
-        neigh, n = np.unique(labels[ring], return_counts=True)
+        neigh, n = np.unique(region[ring], return_counts=True)
         keep = neigh > 0
         if keep.any():
-            labels[m > 0] = neigh[keep][np.argmax(n[keep])]
+            new = neigh[keep][np.argmax(n[keep])]
+            region[m > 0] = new
+            b = boxes[new - 1]                       # la caja del vecino crece con la parte unida
+            boxes[new - 1] = (slice(min(b[0].start, box[0].start), max(b[0].stop, box[0].stop)),
+                              slice(min(b[1].start, box[1].start), max(b[1].stop, box[1].stop)))
     return labels
 
 
@@ -324,13 +361,20 @@ def _merge_without_notches(labels, binary, radius, owner=None, dist=None, rel_de
     min_depth = max(2.0, rel_depth * radius)
     bg = binary == 0
     near_bg = cv2.dilate(bg.astype(np.uint8), np.ones((3, 3), np.uint8)) > 0
-    pairs: dict[tuple[int, int], list] = {}
-    for a, b, sl_a, sl_b in ((labels[:, :-1], labels[:, 1:], np.s_[:, :-1], np.s_[:, 1:]),
-                             (labels[:-1, :], labels[1:, :], np.s_[:-1, :], np.s_[1:, :])):
+    ks, ps = [], []
+    n1 = int(labels.max()) + 1
+    for a, b in ((labels[:, :-1], labels[:, 1:]), (labels[:-1, :], labels[1:, :])):
         m = (a != b) & (a > 0) & (b > 0)
         ys, xs = np.nonzero(m)
-        for y, x, u, v in zip(ys, xs, a[m], b[m]):
-            pairs.setdefault((min(u, v), max(u, v)), []).append((x, y))
+        u, v = a[m].astype(np.int64), b[m].astype(np.int64)
+        ks.append(np.minimum(u, v) * n1 + np.maximum(u, v))
+        ps.append(np.stack([xs, ys], axis=1))
+    ks, ps = np.concatenate(ks), np.concatenate(ps)
+    order = np.argsort(ks, kind="stable")
+    ks, ps = ks[order], ps[order]
+    cuts = np.flatnonzero(np.diff(ks)) + 1
+    pairs = {(int(k // n1), int(k % n1)): g
+             for k, g in zip(ks[np.r_[0, cuts]] if len(ks) else [], np.split(ps, cuts))}
     parent = np.arange(labels.max() + 1)
 
     def root(i):
@@ -338,9 +382,9 @@ def _merge_without_notches(labels, binary, radius, owner=None, dist=None, rel_de
             parent[i] = parent[parent[i]]
             i = parent[i]
         return i
-    from scipy.ndimage import find_objects, maximum
+    from scipy.ndimage import find_objects
     slices = find_objects(labels)
-    peak = np.asarray(maximum(dist, labels, index=np.arange(labels.max() + 1))) if dist is not None else None
+    peak = _label_max(dist, labels) if dist is not None else None
     for (a, b), pts in pairs.items():
         if owner is not None and owner[a] != owner[b]:
             continue
@@ -384,7 +428,6 @@ def _majority(labels, other):
 
 
 def _merge_flat_necks(labels, dist, ratio, owner=None):
-    from scipy.ndimage import maximum
     if ratio >= 1.0 or labels.max() < 2:
         return labels
     xs, ys, vs = [], [], []
@@ -399,11 +442,11 @@ def _merge_flat_necks(labels, dist, ratio, owner=None):
         return labels
     key = xs.astype(np.int64) * (int(labels.max()) + 1) + ys
     uniq, inv = np.unique(key, return_inverse=True)
-    top = np.zeros(len(uniq))
+    top = np.zeros(len(uniq), vs.dtype)
     np.maximum.at(top, inv, vs)
     n1 = int(labels.max()) + 1
     saddle = {(int(k // n1), int(k % n1)): v for k, v in zip(uniq, top)}
-    peak = maximum(dist, labels, index=np.arange(labels.max() + 1))
+    peak = _label_max(dist, labels)
     parent = np.arange(labels.max() + 1)
 
     def root(i):
