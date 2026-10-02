@@ -238,32 +238,6 @@ class CollapsiblePanel(tk.Frame):
         # el ancho lo decide el usuario (barra divisoria), no el contenido: así el panel no
         # crece solo cuando aparece un texto o un menú largo
         self.pack_propagate(False)
-        self.bind("<Configure>", self._clamp)
-
-    def _clamp(self, event):
-        if event.widget is not self or not self._expanded or event.width <= self.max_width \
-                or not isinstance(self.master, tk.PanedWindow) or getattr(self, "_clamping", False):
-            return
-        self._clamping = True
-
-        def apply():
-            self._clamping = False
-            if self.winfo_width() > self.max_width:
-                self._resize_to(self.max_width)
-        self.after(30, apply)
-
-    def _resize_to(self, width: int):
-        """Mueve la barra divisoria del panel (cambiar solo 'width' no la mueve)."""
-        pw = self.master
-        pw.paneconfigure(self, width=width)
-        edge = self.winfo_x() if self.side == "right" else self.winfo_x() + self.winfo_width()
-        n = len([p for p in pw.panes() if str(pw.panecget(p, "hide")) not in ("1", "true")]) - 1
-        for i in range(max(n, 0)):
-            x, y = pw.sash_coord(i)
-            if abs(x - edge) <= 8:
-                new_x = edge + (self.winfo_width() - width if self.side == "right" else width - self.winfo_width())
-                pw.sash_place(i, new_x, y)
-                break
 
     def toggle(self):
         if self._expanded:
@@ -766,6 +740,11 @@ class MainWindow:
             self.paned, side="right",
             title=t("panel.right"), colors=COLORS,
             default_width=260, on_toggle=self._after_panel_toggle, max_width=380)
+        for w in (self.paned, self.left_panel, self.right_panel):
+            w.bind("<Configure>", self._limit_panels, add="+")
+        self.paned.bind("<ButtonPress-1>", self._sash_press)
+        self.paned.bind("<B1-Motion>", self._sash_motion)
+        self.paned.bind("<ButtonRelease-1>", self._sash_release)
         self.paned.add(self.right_panel, minsize=CollapsiblePanel.COLLAPSED_W,
                        width=260, stretch="never")      # si no, el último panel se queda con todo el espacio que sobra
 
@@ -1301,6 +1280,74 @@ class MainWindow:
                  height=1).pack(fill=tk.X, pady=4)
 
     # ── Responsividad ─────────────────────────────────────────────────────────
+
+    def _visible_panes(self):
+        """Paneles visibles, como widgets (panes() devuelve nombres de Tcl)."""
+        pw = self.paned
+        names = {str(p) for p in pw.panes() if str(pw.panecget(p, "hide")) not in ("1", "true")}
+        return [w for w in (self.left_panel, self.center_frame, self.right_panel) if str(w) in names]
+
+    def _sash_press(self, event):
+        """Arrastre propio de las barras divisorias: el panel lateral llega como máximo a su
+        `max_width` y el centro nunca baja de 400 px (Tk solo, empujaba las otras barras)."""
+        hit = self.paned.identify(event.x, event.y)
+        if not hit or "sash" not in str(hit):
+            self._sash_drag = None
+            return
+        self._sash_drag = int(hit[0])
+        return "break"
+
+    def _sash_motion(self, event):
+        index = getattr(self, "_sash_drag", None)
+        if index is None:
+            return
+        pw = self.paned
+        visible = self._visible_panes()
+        if index + 1 >= len(visible):
+            return "break"
+        sw = int(pw.cget("sashwidth"))
+        total = pw.winfo_width()
+        lo, hi = CollapsiblePanel.COLLAPSED_W, total - CollapsiblePanel.COLLAPSED_W - sw
+        if visible[index] is self.left_panel:                     # barra izquierda
+            hi = min(self.left_panel.max_width,
+                     (pw.sash_coord(index + 1)[0] if index + 1 < len(visible) - 1 else total) - 400 - sw)
+        elif visible[index + 1] is self.right_panel:              # barra derecha
+            start = pw.sash_coord(index - 1)[0] + sw if index > 0 else 0
+            lo = max(total - self.right_panel.max_width - sw, start + 400)
+        x = int(min(max(event.x, lo), max(lo, hi)))
+        pw.sash_place(index, x, 1)
+        return "break"
+
+    def _sash_release(self, _event=None):
+        if getattr(self, "_sash_drag", None) is None:
+            return
+        self._sash_drag = None
+        self._after_panel_toggle()
+        return "break"
+
+    def _limit_panels(self, _event=None):
+        """Si al achicar la ventana un panel quedó aplastado, al agrandarla recupera su ancho."""
+        pw = self.paned
+        if pw.winfo_width() <= 1 or getattr(self, "_restoring", False):
+            return
+        visible = self._visible_panes()
+        room = self.center_frame.winfo_width() - 400
+        for panel in (self.left_panel, self.right_panel):
+            w_now = panel.winfo_width() if panel in visible else 0
+            if (panel.winfo_ismapped() and panel._expanded and CollapsiblePanel.COLLAPSED_W <= w_now
+                    < 0.6 * panel.default_width and room > 40):
+                self._restoring = True
+                target = int(min(panel.default_width, w_now + room))
+
+                def restore(panel=panel, target=target):
+                    self._restoring = False
+                    vis = self._visible_panes()
+                    if panel is self.left_panel:
+                        pw.sash_place(0, target, 1)
+                    else:
+                        pw.sash_place(len(vis) - 2, pw.winfo_width() - target - int(pw.cget("sashwidth")), 1)
+                self.root.after(60, restore)
+                return
 
     def _bind_resize(self):
         self.root.bind("<Configure>", self._on_resize)
