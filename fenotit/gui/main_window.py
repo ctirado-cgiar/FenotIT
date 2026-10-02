@@ -1113,6 +1113,7 @@ class MainWindow:
         xsb.pack(side=tk.BOTTOM, fill=tk.X)
         ysb.pack(side=tk.RIGHT,  fill=tk.Y)
         self.table.pack(fill=tk.BOTH, expand=True)
+        self.table.bind("<Configure>", self._fit_table_columns, add="+")
 
         self.stats_var = tk.StringVar(value="")
         tk.Label(tab_table, textvariable=self.stats_var,
@@ -1910,12 +1911,26 @@ class MainWindow:
         if not rows:
             return
         font, head = tkfont.nametofont("TkDefaultFont"), tkfont.nametofont("TkHeadingFont")
+        self._table_widths = {}
         for col in cols:
             sample = [_cell(r.get(col)) for r in rows[:200]]
             width = max([head.measure(col + " ▼") + 20] + [font.measure(v) + 14 for v in sample])
+            self._table_widths[col] = min(max(width, 60), 260)
             self.table.heading(col, text=col, anchor="w", command=lambda c=col: self._sort_table(c))
-            self.table.column(col, width=min(max(width, 60), 260), minwidth=50, stretch=False, anchor="w")
+        self._fit_table_columns()
         self._fill_table()
+
+    def _fit_table_columns(self, _event=None):
+        """Pocas columnas: se reparten el ancho disponible (sin espacio en blanco).
+        Muchas: cada una con su ancho y barra para desplazarse."""
+        widths = getattr(self, "_table_widths", None)
+        if not widths:
+            return
+        avail = self.table.winfo_width()
+        total = sum(widths.values())
+        extra = (avail - total) / len(widths) if avail > total + 4 else 0
+        for col, w in widths.items():
+            self.table.column(col, width=int(w + extra), minwidth=50, stretch=False, anchor="w")
 
     def _fill_table(self):
         self.table.delete(*self.table.get_children())
