@@ -3,7 +3,6 @@ from tkinter import messagebox
 
 from fenotit import i18n, log
 from fenotit.gui.splash import SplashScreen
-from fenotit.gui.main_window import MainWindow
 
 _log = log.get("gui")
 
@@ -23,15 +22,25 @@ def main(project_path: str | None = None):
     root.report_callback_exception = lambda *a: _report_error(root, *a)
     root.withdraw()
 
-    splash = SplashScreen(root, duration_ms=2000)
+    splash = SplashScreen(root)
     splash.show()
-    root.after(2200, lambda: _launch(root, splash, project_path))
+
+    def build():
+        from fenotit.gui.main_window import MainWindow
+        return MainWindow(root)
+
+    t = i18n.t
+    window = splash.load([
+        (0.30, t("splash.images"), ("numpy", "cv2")),
+        (0.50, t("splash.analysis"), ("scipy.ndimage", "scipy.spatial", "sklearn.cluster")),
+        (0.68, t("splash.charts"), ("matplotlib.pyplot", "openpyxl")),
+        (0.80, t("splash.modules"), ("fenotit.gui.main_window",)),
+        (0.95, t("splash.ui"), build),
+    ])
+
+    def show():
+        root.deiconify()
+        if project_path:
+            root.after(100, lambda: window.open_project_path(project_path))
+    splash.finish(show)
     root.mainloop()
-
-
-def _launch(root: tk.Tk, splash: SplashScreen, project_path: str | None):
-    splash.close()
-    root.deiconify()
-    window = MainWindow(root)
-    if project_path:
-        root.after(100, lambda: window.open_project_path(project_path))
