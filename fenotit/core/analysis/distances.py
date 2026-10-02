@@ -6,15 +6,13 @@ import cv2
 import numpy as np
 
 from fenotit.core import pipeline
-from fenotit.core.analysis.objects import _image_info, object_chain
+from fenotit.core.analysis import objects     # módulo (no nombres): evita el import circular
 from fenotit.core.analysis.registry import AnalysisResult, register
 from fenotit.i18n import t
 
-from fenotit.core.analysis.objects import _CACHE      # mismo caché: no se vuelve a segmentar
-
 
 def build_chain(params: dict) -> list[dict]:
-    return object_chain(params) + [{"step": "distances", "params": {
+    return objects.object_chain(params) + [{"step": "distances", "params": {
         "neighbors": params.get("neighbors", "knn"), "k": int(params.get("k", 5)),
         "measure": params.get("measure", "edge_line")}}, {"step": "count"}]
 
@@ -32,9 +30,9 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
     from fenotit.core import roi as areas
     h, w = image.shape[:2]
     roi_mask, exclusions = areas.masks(params.get("roi_shapes"), w, h)
-    ctx = _CACHE.run(image, build_chain(params), mm_per_px=params.get("mm_per_pixel"),
+    ctx = objects._CACHE.run(image, build_chain(params), mm_per_px=params.get("mm_per_pixel"),
                      roi=roi_mask, exclusions=exclusions)
-    ctx.image_row().update(_image_info(image, params))
+    ctx.image_row().update(objects._image_info(image, params))
     row = ctx.image_row()
     unit = "mm" if params.get("mm_per_pixel") else "px"
     res = AnalysisResult()
