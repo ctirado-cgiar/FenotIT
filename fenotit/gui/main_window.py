@@ -288,8 +288,9 @@ class MainWindow:
         self.step_idx:     int = 0
         self.step_history: dict[str, list] = {}
         # Cache de resultados por imagen — para restaurar al navegar
-        self.results_cache: dict[str, AnalysisResult] = {}
-        self.step_names_cache: dict[str, list] = {}
+        # resultados por análisis y por foto: al cambiar de análisis no se pierden los otros
+        self._results: dict[str, dict[str, AnalysisResult]] = {}
+        self._step_names: dict[str, dict[str, list]] = {}
         self.output_root:  str | None = None
         self.active_analysis: str | None = None
         self._after_resize_id  = None
@@ -323,6 +324,23 @@ class MainWindow:
         self._update_title()
 
     # ── Estado del proyecto ───────────────────────────────────────────────────
+
+    @property
+    def results_cache(self) -> dict[str, AnalysisResult]:
+        """Resultados del análisis elegido (foto -> resultado)."""
+        return self._results.setdefault(getattr(self, "active_analysis", None) or "", {})
+
+    @property
+    def step_names_cache(self) -> dict[str, list]:
+        return self._step_names.setdefault(getattr(self, "active_analysis", None) or "", {})
+
+    def _clear_all_results(self, path: str | None = None):
+        for store in (self._results, self._step_names):
+            for per in store.values():
+                if path is None:
+                    per.clear()
+                else:
+                    per.pop(path, None)
 
     @property
     def batch_paths(self) -> list[str]:
@@ -392,8 +410,7 @@ class MainWindow:
 
     def _invalidate_results(self):
         self._corr_info.clear()
-        self.results_cache.clear()
-        self.step_names_cache.clear()
+        self._clear_all_results()
         self.all_results_by_analysis.clear()
         self.last_result = None
         self.canvas_right.delete("all")
@@ -528,6 +545,20 @@ class MainWindow:
         if path:
             self.open_project_path(path)
 
+    def _show_cached_result(self):
+        """Al cambiar de análisis: el resultado que ya tenía esta foto con ese análisis."""
+        path = getattr(self, "current_image_path", None)
+        if not path or not hasattr(self, "_results_bar"):
+            return
+        if path in self.results_cache:
+            self._display_result(self.results_cache[path], self.step_names_cache.get(path, []))
+        else:
+            self.last_result, self.step_names, self.step_idx = None, [], 0
+            self._show_results_ui(False)
+            self.canvas_right.delete("all")
+        self._update_batch_list()
+        self._sync_listbox()
+
     def _open_recent(self, path: str):
         if self._confirm_discard():
             self.open_project_path(path)
@@ -589,8 +620,7 @@ class MainWindow:
         self.analysis_var.set(_analysis_label(name))
         self._on_analysis_selected(None)
 
-        self.results_cache.clear()
-        self.step_names_cache.clear()
+        self._clear_all_results()
         self.all_results_by_analysis.clear()
         self._corr_info.clear()
         self._exporter = None
@@ -1315,8 +1345,7 @@ class MainWindow:
         if not path:
             return
         images = [p for p in self.project.images if str(p) != str(path)]
-        self.results_cache.pop(path, None)
-        self.step_names_cache.pop(path, None)
+        self._clear_all_results(path)
         self.project.image_roi.pop(self.project.key(path), None)
         self.project.image_scale.pop(self.project.key(path), None)
         self.project.images = images
@@ -1562,6 +1591,7 @@ class MainWindow:
             units=self._unit_labels(self._panel_area_unit == "mm"))
         self.config_panel.set_values({k: v for k, v in stored.items() if not k.startswith("_")})
         self.config_panel.pack(fill=tk.BOTH, expand=True)
+        self._show_cached_result()
         self._sync_area_units()
 
     def _build_params(self) -> dict:

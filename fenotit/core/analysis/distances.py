@@ -10,7 +10,7 @@ from fenotit.core.analysis.objects import _image_info, object_chain
 from fenotit.core.analysis.registry import AnalysisResult, register
 from fenotit.i18n import t
 
-_CACHE = pipeline.ChainCache(size=2)
+from fenotit.core.analysis.objects import _CACHE      # mismo caché: no se vuelve a segmentar
 
 
 def build_chain(params: dict) -> list[dict]:

@@ -59,6 +59,16 @@ def _edge_on_line(labels, a, b, ca, cb):
     return (xs[i], ys[i]), (xs[j], ys[j])
 
 
+def _crosses(labels, a, b, p1, p2) -> bool:
+    """¿El tramo entre p1 y p2 pasa por encima de otro objeto?"""
+    n = int(np.hypot(p2[0] - p1[0], p2[1] - p1[1])) + 2
+    h, w = labels.shape
+    xs = np.clip(np.round(np.linspace(p1[0], p2[0], n)).astype(int), 0, w - 1)
+    ys = np.clip(np.round(np.linspace(p1[1], p2[1], n)).astype(int), 0, h - 1)
+    v = labels[ys, xs]
+    return bool(np.any((v != 0) & (v != a) & (v != b)))
+
+
 def _contours(labels, ids):
     out = {}
     for oid, sl in enumerate(find_objects(labels), 1):
@@ -101,9 +111,11 @@ def distances(ctx, p):
         else:
             p1, p2 = _edge_on_line(ctx.labels, a, b, ca, cb)
         dist = float(np.hypot(p2[0] - p1[0], p2[1] - p1[1]))
+        crosses = _crosses(ctx.labels, a, b, p1, p2)
         rows.append({"object_a": a, "object_b": b, f"distance_{unit}": round(dist * f, 4),
-                     f"center_distance_{unit}": round(center * f, 4)})
-        lines.append((p1, p2, dist))
+                     f"center_distance_{unit}": round(center * f, 4), "crosses_object": int(crosses)})
+        if not crosses:                        # en la vista no se dibujan líneas que tapan otro objeto
+            lines.append((p1, p2, dist))
     ctx.tables["distances"] = rows
 
     # por objeto: vecino más cercano y promedio a sus vecinos

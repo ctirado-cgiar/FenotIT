@@ -58,12 +58,13 @@ def included_view(ctx, name, included, color=None):
 
 
 def add_overlay(ctx, name, ov):
-    """Guarda las marcas y una imagen ya dibujada con el estilo por defecto."""
+    """Guarda las marcas; la imagen de la vista es la foto misma (sin copiar)."""
     from fenotit.core.pipeline import overlay
     ov["size"] = overlay.typical_size(ctx.labels)
     ctx.extra.setdefault("overlays", {})[name] = ov
-    colors = overlay.resolve(None, ctx.image, ctx.labels > 0)
-    ctx.images[name] = overlay.draw(ctx.image.copy(), ov, colors)
+    # sin copia: la vista es la foto y las marcas se dibujan al mostrar o exportar
+    # (overlay.draw); así cada resultado no guarda una imagen dibujada por vista
+    ctx.images[name] = ctx.image
 
 
 _FONTS = {False: ("segoeui.ttf", "arial.ttf", "DejaVuSans.ttf", "LiberationSans-Regular.ttf"),
