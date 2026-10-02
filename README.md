@@ -15,7 +15,8 @@ Developed by the Physiology team of the Bean Breeding Program, Alliance of Biove
   - **Color:** dominant colors (KMeans) per object and per image, in RGB and CIELab
 - **Touching objects:** optional declumping (distance peaks + watershed + notch cuts); touching objects are counted but not measured
 - **Segmentation** by manual or automatic (Otsu) threshold on any channel of BGR, HSV, LAB, YCrCb, HLS, XYZ, YUV or LUV
-- **Analysis area and excluded areas** (rectangle or polygon)
+- **Analysis areas and excluded areas** (rectangle or polygon), several per photo, for one photo or all
+- **Scale per photo or for all** (two points, typed value or ArUco markers)
 - **Optional corrections:** lens distortion (chessboard), perspective (ArUco), color card and scale
 - **Projects** (`.fenotit`) that keep images, thresholds, parameters, areas and scale
 - **Export** to CSV and Excel, one table per level (object, image), with the result images

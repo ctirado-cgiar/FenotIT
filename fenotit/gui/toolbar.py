@@ -70,7 +70,45 @@ def _palette(d: ImageDraw.ImageDraw, s: int, w: int, color):
         d.ellipse((s * cx - r, s * cy - r, s * cx + r, s * cy + r), fill=clear)
 
 
-_DRAW = {"palette": _palette, "zoom_in": lambda d, s, w, c: _magnifier(d, s, w, c, "+"),
+def _shape_pts(s, kind):
+    if kind == "rect":
+        return [(s * 0.14, s * 0.22), (s * 0.86, s * 0.22), (s * 0.86, s * 0.78), (s * 0.14, s * 0.78)]
+    return [(s * 0.50, s * 0.10), (s * 0.90, s * 0.40), (s * 0.74, s * 0.88),
+            (s * 0.26, s * 0.88), (s * 0.10, s * 0.40)]
+
+
+def _area(d, s, w, color, kind, exclude):
+    pts = _shape_pts(s, kind)
+    if exclude:                                       # zona excluida: rayada
+        for k in range(-4, 6):
+            x = s * (0.12 + k * 0.16)
+            d.line((x, s * 0.92, x + s * 0.8, s * 0.12), fill=color, width=max(1, w // 2))
+        clear = (0, 0, 0, 0)
+        mask = Image.new("L", (s, s), 0)
+        ImageDraw.Draw(mask).polygon(pts, fill=255)
+        d._image.paste(clear, mask=Image.eval(mask, lambda v: 255 - v))
+    d.line(pts + [pts[0]], fill=color, width=w, joint="curve")
+
+
+def _select(d, s, w, color):
+    x0, y0, x1, y1 = s * 0.08, s * 0.08, s * 0.66, s * 0.62
+    dash = s * 0.09
+    for a, b, horiz, fixed in ((x0, x1, True, y0), (x0, x1, True, y1), (y0, y1, False, x0), (y0, y1, False, x1)):
+        q = a
+        while q < b:
+            e = min(q + dash, b)
+            d.line((q, fixed, e, fixed) if horiz else (fixed, q, fixed, e), fill=color, width=max(1, w // 2 + 1))
+            q += dash * 1.9
+    arrow = [(s * 0.45, s * 0.40), (s * 0.45, s * 0.95), (s * 0.58, s * 0.80), (s * 0.68, s * 0.98),
+             (s * 0.78, s * 0.93), (s * 0.68, s * 0.76), (s * 0.86, s * 0.74)]
+    d.polygon(arrow, fill=color)
+
+
+_DRAW = {"palette": _palette, "select": _select,
+         "area_rect": lambda d, s, w, c: _area(d, s, w, c, "rect", False),
+         "area_poly": lambda d, s, w, c: _area(d, s, w, c, "poly", False),
+         "excl_rect": lambda d, s, w, c: _area(d, s, w, c, "rect", True),
+         "excl_poly": lambda d, s, w, c: _area(d, s, w, c, "poly", True), "zoom_in": lambda d, s, w, c: _magnifier(d, s, w, c, "+"),
          "zoom_out": lambda d, s, w, c: _magnifier(d, s, w, c, "-"),
          "pan": _hand, "fit": _fit, "zoom_area": _zoom_area}
 

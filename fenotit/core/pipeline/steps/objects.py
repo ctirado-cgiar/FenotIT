@@ -421,20 +421,26 @@ def _merge_flat_necks(labels, dist, ratio, owner=None):
 
 
 @step("filter", "processor", requires=("labels",), provides=("labels",), params=[
-    {"key": "area_min", "type": "int", "default": 1000, "min": 0, "max": 10_000_000},
+    {"key": "area_min", "type": "int", "default": -1, "min": -1, "max": 10_000_000},
     {"key": "area_max", "type": "int", "default": 500_000, "min": 1, "max": 100_000_000},
     {"key": "width_min", "type": "int", "default": 5, "min": 0, "max": 100_000},
     {"key": "width_max", "type": "int", "default": 99_999, "min": 1, "max": 100_000},
     {"key": "length_min", "type": "int", "default": 10, "min": 0, "max": 100_000},
     {"key": "length_max", "type": "int", "default": 99_999, "min": 1, "max": 100_000},
-    {"key": "ar_max", "type": "float", "default": 10.0, "min": 1.0, "max": 100.0},
+    {"key": "ar_max", "type": "float", "default": 1000.0, "min": 1.0, "max": 1000.0},
     {"key": "exclude_border", "type": "bool", "default": True},
 ])
 def filter_objects(ctx, p):
-    """Filtra objetos (tamaños en px) y renumera 1..n por filas, de izquierda a derecha."""
+    """Filtra objetos (tamaños en px) y renumera 1..n por filas, de izquierda a derecha.
+    area_min = -1: solo quita ruido (< 0.01 % de la foto y < 5 % del objeto típico)."""
     from scipy.ndimage import find_objects
     labels = ctx.labels
     h, w = labels.shape
+    if p["area_min"] < 0:
+        areas = np.bincount(labels.ravel())[1:]
+        areas = areas[areas > 0]
+        typical = float(np.median(areas)) if len(areas) else 0.0
+        p = {**p, "area_min": min(1e-4 * h * w, 0.05 * typical) if typical else 0}
     keep = []
     for oid, sl in enumerate(find_objects(labels), 1):
         if sl is None:

@@ -18,13 +18,24 @@ MEASUREMENTS = {"count": "measure_count", "morphometry": "measure_size",
                 "shape": "measure_shape", "color": "measure_color"}
 
 
-def _area_px(params: dict, key: str, default: float) -> int:
-    """Las áreas del panel vienen en mm² cuando hay escala (area_unit = "mm")."""
-    value = float(params.get(key, default))
+def _size_filter(params: dict) -> dict:
+    """Largo y ancho mín/máx del panel (mm con escala, si no px) llevados a px. Si el
+    panel está en mm y esta foto no tiene escala, no se filtra por tamaño."""
+    if not params.get("size_filter"):
+        return {}
     mpp = params.get("mm_per_pixel")
-    if params.get("area_unit") == "mm" and mpp:
-        value /= mpp * mpp
-    return int(round(value))
+    if params.get("area_unit") == "mm":
+        if not mpp:
+            return {}
+        k = 1 / mpp
+    else:
+        k = 1.0
+    out = {}
+    for key in ("length_min", "length_max", "width_min", "width_max"):
+        v = float(params.get(key, 0) or 0)
+        if v > 0:
+            out[key] = int(round(v * k))
+    return out
 
 
 def build_chain(params: dict) -> list[dict]:
@@ -38,9 +49,8 @@ def build_chain(params: dict) -> list[dict]:
                                                "max_val": int(params.get("max_val", 255))}}
     chain = [seg, {"step": "roi"}, {"step": "clean"},
              {"step": "separate"} if params.get("touching") else {"step": "label"},
-             {"step": "filter", "params": {"area_min": _area_px(params, "area_min", 1000),
-                                           "area_max": _area_px(params, "area_max", 500_000),
-                                           "exclude_border": bool(params.get("exclude_border", True))}}]
+             {"step": "filter", "params": {"exclude_border": bool(params.get("exclude_border", True)),
+                                           **_size_filter(params)}}]
     if params.get("measure_size", True):
         chain.append({"step": "morphometry",
                       "params": {"isolated_only": not params.get("measure_touching", False)}})
@@ -54,11 +64,11 @@ def build_chain(params: dict) -> list[dict]:
 
 
 def run(image: np.ndarray, params: dict) -> AnalysisResult:
+    from fenotit.core import roi as areas
     h, w = image.shape[:2]
-    exclusions = [((np.asarray(pts, float) * [w, h]).astype(np.int32), color)
-                  for pts, color in params.get("exclusions_norm") or []]
+    roi_mask, exclusions = areas.masks(params.get("roi_shapes"), w, h)
     ctx = _CACHE.run(image, build_chain(params), mm_per_px=params.get("mm_per_pixel"),
-                     roi=params.get("roi_mask"), exclusions=exclusions)
+                     roi=roi_mask, exclusions=exclusions)
     res = AnalysisResult()
     chosen = [v for v, key in MEASUREMENTS.items() if params.get(key, v in ("count", "morphometry"))]
     tables = _view_tables(ctx)
@@ -157,13 +167,16 @@ register(
     params_schema=[
         {"key": "hdr_objects", "label": "OBJETOS", "type": "header"},
         {"key": "touching", "label": "Los objetos se tocan", "type": "bool", "default": False},
-        {"key": "filters", "label": "Filtros de objetos", "type": "section"},
-        {"key": "area_min", "label": "Área mínima ({unit})", "type": "float", "default": 1000,
-         "min": 0, "max": 100_000_000, "step": 1, "unit": "area", "group": "filters"},
-        {"key": "area_max", "label": "Área máxima ({unit})", "type": "float", "default": 500_000,
-         "min": 0, "max": 1_000_000_000, "step": 1, "unit": "area", "group": "filters"},
-        {"key": "exclude_border", "label": "Excluir objetos del borde", "type": "bool", "default": True,
-         "group": "filters"},
+        {"key": "exclude_border", "label": "Excluir objetos del borde", "type": "bool", "default": True},
+        {"key": "size_filter", "label": "Filtrar por tamaño", "type": "bool", "default": False},
+        {"key": "length_min", "label": "Largo mínimo ({unit})", "type": "float", "default": 0,
+         "min": 0, "max": 100_000, "step": 1, "unit": "length", "group": "size_filter"},
+        {"key": "length_max", "label": "Largo máximo ({unit})", "type": "float", "default": 0,
+         "min": 0, "max": 100_000, "step": 1, "unit": "length", "group": "size_filter"},
+        {"key": "width_min", "label": "Ancho mínimo ({unit})", "type": "float", "default": 0,
+         "min": 0, "max": 100_000, "step": 1, "unit": "length", "group": "size_filter"},
+        {"key": "width_max", "label": "Ancho máximo ({unit})", "type": "float", "default": 0,
+         "min": 0, "max": 100_000, "step": 1, "unit": "length", "group": "size_filter"},
         {"key": "hdr_measure", "label": "MEDICIONES", "type": "header"},
         {"key": "measure_count", "label": "Conteo", "type": "bool", "default": True},
         {"key": "measure_size", "label": "Morfometría", "type": "bool", "default": True},

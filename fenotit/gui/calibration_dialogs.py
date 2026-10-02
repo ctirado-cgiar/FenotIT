@@ -218,11 +218,12 @@ class ScaleDialog(BaseDialog):
                   bg=COLORS["btn_bg"], fg=COLORS["text_muted"],
                   relief="flat", font=FONTS["body"],
                   cursor="hand2", padx=10).pack(side=tk.RIGHT, padx=2)
-        tk.Button(parent, text=t("scale.apply"),
-                  command=self._apply,
-                  bg=COLORS["accent"], fg="#FFFFFF",
-                  relief="flat", font=("Segoe UI", 9, "bold"),
-                  cursor="hand2", padx=10).pack(side=tk.RIGHT, padx=2)
+        for key, scope, bold in (("scale.apply_all", "all", False), ("scale.apply_image", "image", True)):
+            tk.Button(parent, text=t(key), command=lambda sc=scope: self._apply(sc),
+                      bg=COLORS["accent"] if bold else COLORS["btn_bg"],
+                      fg="#FFFFFF" if bold else COLORS["accent"], relief="flat",
+                      font=("Segoe UI", 9, "bold") if bold else FONTS["body"],
+                      cursor="hand2", padx=10).pack(side=tk.RIGHT, padx=2)
 
     def _pick_image(self, path: str):
         try:
@@ -312,8 +313,8 @@ class ScaleDialog(BaseDialog):
         self._pts_label.config(text=t("scale.step2"))
         self._redraw()
 
-    def _apply(self):
-        # Calcular primero si no se ha hecho
+    def _apply(self, scope: str = "image"):
+        """scope = "image": solo la foto de la ventana; "all": todas las fotos."""
         if len(self._points) == 2:
             self._compute()
         if not self._scale_result:
@@ -321,10 +322,6 @@ class ScaleDialog(BaseDialog):
                                    t("scale.need_points"),
                                    parent=self)
             return
-        if self._on_scale:
-            self._on_scale(self._scale_result)
+        if self._on_scale and not self._on_scale(self._scale_result, scope, self._path):
+            return
         self._log_var.set(f"✓ {t('status.scale', scale=self._scale_result.format())}")
-        messagebox.showinfo(
-            t("scale.set_title"),
-            t("status.scale", scale=self._scale_result.format()),
-            parent=self)

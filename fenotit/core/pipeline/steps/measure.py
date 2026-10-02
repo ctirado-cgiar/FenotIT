@@ -101,9 +101,11 @@ def _color_row(rgb, frac):
 
 
 def _core(m: np.ndarray, trim: int) -> np.ndarray:
-    """Quita el borde del objeto: esos píxeles mezclan objeto y fondo."""
+    """Quita el borde del objeto: esos píxeles mezclan objeto y fondo. La mezcla depende
+    del desenfoque de la foto (1-3 px), no del tamaño del objeto: en automático se quitan
+    de 1 a 3 px aunque el objeto sea una hoja grande."""
     if trim < 0:
-        trim = max(1, round(0.04 * np.sqrt(m.sum())))
+        trim = int(np.clip(round(0.015 * np.sqrt(m.sum())), 1, 3))
     if trim == 0:
         return m
     inner = cv2.erode(np.pad(m, 1), np.ones((3, 3), np.uint8), iterations=trim)[1:-1, 1:-1]

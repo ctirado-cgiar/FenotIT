@@ -36,6 +36,39 @@ def test_roundtrip():
         assert Project.load(q.file).name == "Ensayo"
 
 
+def test_per_image_roi_and_scale():
+    """Cada foto puede tener sus áreas y su escala; si no, usa las de todas."""
+    rect = {"kind": "include", "type": "rect", "points": [[0.1, 0.1], [0.5, 0.5]]}
+    hole = {"kind": "exclude", "type": "polygon", "points": [[0.2, 0.2], [0.3, 0.2], [0.3, 0.3]]}
+    with tempfile.TemporaryDirectory() as tmp:
+        p = Project(name="E")
+        p.set_images(sorted(IMAGES.glob("*.jpg"))[:3])
+        a, b, c = p.images
+        p.apply_roi_to_all([rect])
+        p.set_roi(b, [rect, hole])
+        p.set_scale(c, Scale(0.05, "two_points"))
+        assert p.roi_for(a) == [rect] and p.roi_for(b) == [rect, hole]
+        assert p.others_with_own_roi(a) == 1 and p.others_with_own_roi(b) == 0
+        assert p.scale_for(c).mm_per_pixel == 0.05 and p.scale_for(a).source == "none"
+        p.save(Path(tmp) / "E")
+        q = Project.load(Path(tmp) / "E")
+        qa, qb, qc = q.images
+        assert q.roi_for(qa) == [rect] and q.roi_for(qb) == [rect, hole]
+        assert q.scale_for(qc) == Scale(0.05, "two_points")
+        q.apply_roi_to_all([hole])
+        assert q.roi_for(qb) == [hole] and not q.image_roi
+
+
+def test_legacy_roi():
+    from fenotit.core.roi import from_legacy, masks
+    old = {"inclusion": [{"type": "rect", "points": [[0, 0], [0.5, 0.5]]}],
+           "exclusions": [{"type": "exclusion", "points": [[0.1, 0.1], [0.2, 0.1], [0.2, 0.2]]}]}
+    shapes = from_legacy(old)
+    assert [s["kind"] for s in shapes] == ["include", "exclude"]
+    inc, exc = masks(shapes, 100, 100)
+    assert inc[10, 10] == 255 and inc[80, 80] == 0 and len(exc) == 1
+
+
 def test_relative_images():
     with tempfile.TemporaryDirectory() as tmp:
         folder = Path(tmp) / "P"

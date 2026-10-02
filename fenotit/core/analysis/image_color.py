@@ -17,10 +17,10 @@ def build_chain(params: dict) -> list[dict]:
 
 
 def run(image: np.ndarray, params: dict) -> AnalysisResult:
+    from fenotit.core import roi as areas
     h, w = image.shape[:2]
-    exclusions = [((np.asarray(pts, float) * [w, h]).astype(np.int32), color)
-                  for pts, color in params.get("exclusions_norm") or []]
-    ctx = _CACHE.run(image, build_chain(params), roi=params.get("roi_mask"), exclusions=exclusions)
+    roi_mask, exclusions = areas.masks(params.get("roi_shapes"), w, h)
+    ctx = _CACHE.run(image, build_chain(params), roi=roi_mask, exclusions=exclusions)
     res = AnalysisResult()
     colors = ctx.tables.get("image_colors", [])
     label = t("step.color")

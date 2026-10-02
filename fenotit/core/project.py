@@ -9,6 +9,7 @@ import yaml
 
 from fenotit import __version__
 from fenotit.core.corrections.pipeline import Corrections
+from fenotit.core.roi import from_legacy
 
 PROJECT_EXT = ".fenotit"
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"}
@@ -41,7 +42,9 @@ class Project:
     segmentation: Segmentation = field(default_factory=Segmentation)
     scale: Scale = field(default_factory=Scale)
     params: dict[str, dict[str, Any]] = field(default_factory=dict)
-    roi: dict[str, list] = field(default_factory=dict)   # formas normalizadas 0-1
+    roi: list[dict] = field(default_factory=list)          # áreas de todas las fotos (core.roi, 0-1)
+    image_roi: dict[str, list] = field(default_factory=dict)     # foto -> sus propias áreas
+    image_scale: dict[str, Scale] = field(default_factory=dict)  # foto -> su propia escala
     corrections: Corrections = field(default_factory=Corrections)
     metadata: dict[str, str] = field(default_factory=dict)   # {"file": ruta, "key_column": col}
     display: dict[str, Any] = field(default_factory=lambda: {"legend": True, "color_format": "RGB",
@@ -52,6 +55,41 @@ class Project:
         if 0 <= self.current_index < len(self.images):
             return self.images[self.current_index]
         return None
+
+    # ── Ajustes por foto: los propios de la foto o, si no tiene, los de todas ──
+
+    @staticmethod
+    def key(path) -> str:
+        return Path(path).as_posix()
+
+    def roi_for(self, path) -> list[dict]:
+        return self.image_roi.get(self.key(path), self.roi) if path else self.roi
+
+    def has_own_roi(self, path) -> bool:
+        return bool(path) and self.key(path) in self.image_roi
+
+    def set_roi(self, path, shapes: list[dict]):
+        self.image_roi[self.key(path)] = list(shapes)
+
+    def apply_roi_to_all(self, shapes: list[dict]):
+        self.roi = list(shapes)
+        self.image_roi = {}
+
+    def others_with_own_roi(self, path) -> int:
+        return sum(1 for k in self.image_roi if k != self.key(path))
+
+    def scale_for(self, path) -> Scale:
+        return self.image_scale.get(self.key(path), self.scale) if path else self.scale
+
+    def set_scale(self, path, scale: Scale):
+        self.image_scale[self.key(path)] = scale
+
+    def apply_scale_to_all(self, scale: Scale):
+        self.scale = scale
+        self.image_scale = {}
+
+    def others_with_own_scale(self, path) -> int:
+        return sum(1 for k in self.image_scale if k != self.key(path))
 
     @property
     def file(self) -> Path | None:
@@ -83,6 +121,8 @@ class Project:
             "scale": asdict(self.scale),
             "params": self.params,
             "roi": self.roi,
+            "image_roi": {self._rel(Path(k)): v for k, v in self.image_roi.items()},
+            "image_scale": {self._rel(Path(k)): asdict(v) for k, v in self.image_scale.items()},
             "corrections": self.corrections.to_dict(),
             "display": self.display,
             "metadata": ({**self.metadata, "file": self._rel(Path(self.metadata["file"]))}
@@ -128,7 +168,9 @@ class Project:
             segmentation=Segmentation(**d.get("segmentation", {})),
             scale=Scale(**d.get("scale", {})),
             params=d.get("params", {}) or {},
-            roi=d.get("roi", {}) or {},
+            roi=from_legacy(d.get("roi")),
+            image_roi={cls.key(resolve(k)): from_legacy(v) for k, v in (d.get("image_roi") or {}).items()},
+            image_scale={cls.key(resolve(k)): Scale(**v) for k, v in (d.get("image_scale") or {}).items()},
             corrections=Corrections.from_dict(d.get("corrections"), folder),
             display={"legend": True, "color_format": "RGB", "legend_scale": 1.0, **(d.get("display") or {})},
             metadata=({**d["metadata"], "file": str(resolve(d["metadata"]["file"]))}

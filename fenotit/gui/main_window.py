@@ -23,7 +23,7 @@ from PIL import Image, ImageTk
 
 from fenotit.core.image_io import ImageScaler, load_image
 from fenotit.core.project import IMAGE_EXTS, PROJECT_EXT, Project, Scale, Segmentation
-from fenotit.gui.roi.selectors import ROISelector
+from fenotit.gui.roi.editor import AreaEditor
 from fenotit.core.analysis.registry import ANALYSES, AnalysisResult
 from fenotit.core import pipeline
 from fenotit.core.export.exporter import Exporter
@@ -293,7 +293,7 @@ class MainWindow:
         self.all_results_by_analysis: dict[str, dict] = {}
         self._photo_left  = None
         self._photo_right = None
-        self.roi_selector: ROISelector | None = None
+        self.areas: AreaEditor | None = None
 
         self._build_layout()
         self._build_topbar()
@@ -330,10 +330,12 @@ class MainWindow:
         return self._scale_for(self.current_image_path)
 
     def _scale_for(self, path: str | None) -> float | None:
-        if self.project.scale.source == "aruco":
+        """mm/px de una foto: su propia escala; si no, la de todas (ArUco: la de cada foto)."""
+        sc = self.project.scale_for(path)
+        if sc.source == "aruco":
             info = self._corr_info.get(path) if path else None
             return info.mm_per_px if info else None
-        return self.project.scale.mm_per_pixel
+        return sc.mm_per_pixel
 
     def _load_corrected(self, path: str):
         img = load_image(path)
@@ -387,7 +389,7 @@ class MainWindow:
         self._show_results_ui(False)
 
     def _clear_scale(self):
-        self.project.scale = Scale()
+        self.project.apply_scale_to_all(Scale())
         self._set_status(t("status.scale_cleared"))
         self._update_corr_indicator()
         self._sync_area_units()
@@ -395,7 +397,7 @@ class MainWindow:
     def _update_corr_indicator(self):
         parts = [t(f"corr.short.{n}") for n in self.project.corrections.active()]
         mm = self.mm_per_pixel
-        if self.project.scale.source != "none":
+        if self.project.scale_for(self.current_image_path).source != "none":
             parts.append(f"{mm:.4f} mm/px" if mm else t("corr.short.scale_pending"))
         info = self._corr_info.get(self.current_image_path) if self.current_image_path else None
         warn = bool(info and info.warnings)
@@ -411,17 +413,24 @@ class MainWindow:
                 values["_area_unit"] = self._panel_area_unit
             self.project.params[_analysis_key(self.active_analysis)] = values
 
-    # ── Unidades de área en el panel (px² sin escala, mm² con escala) ────────
+    # ── Unidades en el panel (px sin escala, mm con escala) ─────────────────
+
+    _UNIT_POWER = {"area": 2, "length": 1}
+
+    def _unit_labels(self, mm: bool) -> dict:
+        return {"area": "mm²" if mm else "px²", "length": "mm" if mm else "px"}
 
     def _area_unit(self) -> str:
-        return "mm" if self.project.scale.source != "none" else "px"
+        """mm si hay alguna escala (de todas las fotos o de alguna); si no, px."""
+        p = self.project
+        return "mm" if p.scale.source != "none" or p.image_scale else "px"
 
     def _has_area_units(self) -> bool:
-        return any(i.get("unit") == "area"
+        return any(i.get("unit") in self._UNIT_POWER
                    for i in ANALYSES[self.active_analysis].params_schema) if self.active_analysis in ANALYSES else False
 
     def _sync_area_units(self):
-        """Si cambió la escala, convierte las áreas del panel y cambia la etiqueta."""
+        """Si cambió la escala, convierte las medidas del panel y cambia la etiqueta."""
         panel = getattr(self, "config_panel", None)
         if panel is None or not self._has_area_units():
             return
@@ -430,24 +439,26 @@ class MainWindow:
             # al quitar la escala se convierte con la última escala usada
             mpp = self.mm_per_pixel if new == "mm" else getattr(self, "_panel_mpp", None)
             if mpp:
-                factor = mpp * mpp if new == "mm" else 1 / (mpp * mpp)
-                keys = [i["key"] for i in ANALYSES[self.active_analysis].params_schema if i.get("unit") == "area"]
                 vals = panel.get_values(warn=False)
-                panel.set_values({k: round(vals[k] * factor, 4) for k in keys if k in vals})
+                changed = {}
+                for i in ANALYSES[self.active_analysis].params_schema:
+                    power = self._UNIT_POWER.get(i.get("unit"))
+                    if power and i["key"] in vals:
+                        f = mpp ** power if new == "mm" else 1 / mpp ** power
+                        changed[i["key"]] = round(vals[i["key"]] * f, 4)
+                panel.set_values(changed)
             else:
-                _log.info("Sin mm/px para convertir áreas; se conservan los números")
+                _log.info("Sin mm/px para convertir; se conservan los números")
             self._panel_area_unit = new
         if new == "mm" and self.mm_per_pixel:
             self._panel_mpp = self.mm_per_pixel
-        panel.set_units({"area": "mm²" if new == "mm" else "px²"})
+        panel.set_units(self._unit_labels(new == "mm"))
 
     def _collect_state(self) -> dict:
         self._store_panel_params()
         self.project.segmentation = Segmentation(
             self.cs_var.get(), int(self.ch_var.get()),
             int(self.min_slider.get()), int(self.max_slider.get()), bool(self.auto_var.get()))
-        if self.roi_selector:
-            self.project.roi = self.roi_selector.to_dict()
         return self.project.to_dict()
 
     def _is_dirty(self) -> bool:
@@ -549,8 +560,6 @@ class MainWindow:
         self._exporter = None
         self.output_root = None
         self.canvas_right.delete("all")
-        if self.roi_selector:
-            self.roi_selector.restore_when_ready(project.roi if project.current_image else None)
         self._update_batch_list()
         self._show_panel(self.left_panel, bool(project.images))
         self._show_panel(self.right_panel, bool(project.images))
@@ -727,10 +736,13 @@ class MainWindow:
             (t("menu.scale_manual"), self._calibrate_scale),
             (t("menu.scale_clear"), self._clear_scale),
             None,
-            (t("roi.area_rect"), lambda: self._set_roi_mode("rectángulo"), t("roi.shift_square")),
-            (t("roi.area_polygon"), lambda: self._set_roi_mode("polígono")),
-            (t("roi.exclude_rect"), lambda: self._set_roi_mode("exclusión_rect")),
-            (t("roi.exclude_polygon"), lambda: self._set_roi_mode("exclusión")),
+            (t("roi.area_rect"), lambda: self._set_roi_mode("include_rect"), t("roi.shift_square")),
+            (t("roi.area_polygon"), lambda: self._set_roi_mode("include_poly")),
+            (t("roi.exclude_rect"), lambda: self._set_roi_mode("exclude_rect")),
+            (t("roi.exclude_polygon"), lambda: self._set_roi_mode("exclude_poly")),
+            (t("roi.select"), lambda: self._set_roi_mode("select"), "S"),
+            None,
+            (t("roi.apply_all"), self._apply_areas_to_all),
             (t("roi.clear"), self._clear_roi),
         ])
         self._drop(self.topbar, t("menu.analysis"), [
@@ -874,16 +886,15 @@ class MainWindow:
                                          cv2.THRESH_BINARY_INV)
                 mask = cv2.bitwise_and(t_min, t_max)
 
-            # Aplicar ROI (en coords originales)
-            roi = self.roi_selector.mask if self.roi_selector else None
-            if roi is not None:
-                roi_full = self.scaler_left.scale_mask_to_original(roi)
-                if roi_full.shape[:2] != mask.shape[:2]:
-                    roi_full = cv2.resize(
-                        roi_full,
-                        (mask.shape[1], mask.shape[0]),
-                        interpolation=cv2.INTER_NEAREST)
-                mask = cv2.bitwise_and(mask, mask, mask=roi_full)
+            # Áreas de análisis y zonas excluidas de esta foto
+            from fenotit.core import roi as areas
+            inc, exc = areas.masks(self.project.roi_for(self.current_image_path),
+                                   mask.shape[1], mask.shape[0])
+            if inc is not None:
+                mask = cv2.bitwise_and(mask, inc)
+            if exc:
+                mask = mask.copy()
+                cv2.fillPoly(mask, [pts for pts, _ in exc], 0)
 
             from fenotit.core.pipeline import overlay as marks
             colors = marks.resolve(self.project.display.get("style"), img_original, mask)
@@ -941,7 +952,7 @@ class MainWindow:
         self.batch_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         sb.pack(side=tk.RIGHT, fill=tk.Y)
         self.batch_listbox.bind("<<ListboxSelect>>", self._on_batch_select)
-        self.batch_listbox.bind("<Delete>", lambda e=None: self._remove_current_image())
+        self.batch_listbox.bind("<Delete>", lambda e=None: (self._remove_current_image(), "break")[1])
 
         # Vistas del resultado de la imagen actual
         self._section_lbl(lf, t("left.history"))
@@ -979,9 +990,8 @@ class MainWindow:
         self.canvas_right.pack(side=tk.RIGHT, fill=tk.BOTH,
                                expand=True, padx=(2, 0))
 
-        self.roi_selector = ROISelector(
-            self.canvas_left, self._on_roi_change)
-        self.roi_selector.on_done = self._on_roi_tool_done
+        self.areas = AreaEditor(self.canvas_left, self._on_areas_change)
+        self.areas.on_done = self._on_roi_tool_done
 
         # ZoomController sincroniza ambos canvas
         self.zoom_ctrl = ZoomController(
@@ -990,7 +1000,8 @@ class MainWindow:
         self.zoom_ctrl.set_zoom_var(self._zoom_pct_var)
         self.zoom_ctrl.on_tool_change = self._on_zoom_tool_change
         # Referencia para que ZoomController informe al ROI
-        self.canvas_left._roi_selector_ref = self.roi_selector
+        self.canvas_left._roi_selector_ref = self.areas
+        self._build_area_tools()
 
         self._canvas_row = canvas_row
         self._build_view_controls()
@@ -1205,8 +1216,6 @@ class MainWindow:
         self.canvas_left.update_idletasks()
         cw = max(self.canvas_left.winfo_width(),  100)
         ch = max(self.canvas_left.winfo_height(), 100)
-        if self.roi_selector:
-            self.roi_selector.set_canvas_size(cw, ch)
         # Redibujar con zoom actual
         self._show_preview()
 
@@ -1280,8 +1289,8 @@ class MainWindow:
     def _set_zoom_tool(self, tool: str):
         if self.zoom_ctrl is None:
             return
-        if self.roi_selector and self.roi_selector.active:
-            self.roi_selector.stop()
+        if self.areas and self.areas.active:
+            self.areas.stop()
         self.zoom_ctrl.set_tool(tool)
         if tool == "zoom_area":
             self._set_status(t("view.zoom_area_hint"))
@@ -1336,10 +1345,7 @@ class MainWindow:
 
     def _on_zoom_redraw(self):
         """Callback del ZoomController — actualiza offset del ROI."""
-        if self.zoom_ctrl and self.roi_selector:
-            ox, oy, dw, dh = self.zoom_ctrl.current_image_offset()
-            self.roi_selector.set_image_offset(ox, oy, dw, dh)
-            self.roi_selector.redraw_shapes()
+        pass
 
     def _load_single(self, path: str):
         self.current_image_path = path
@@ -1357,6 +1363,9 @@ class MainWindow:
         if self.zoom_ctrl:
             self.zoom_ctrl._img_right = None
             self.zoom_ctrl.set_left(self.scaler_left.original)
+        if self.areas:
+            self.areas.set_shapes(self.project.roi_for(path))
+        self._update_area_scope()
         self._on_slider_change()          # vista previa de la segmentación en la nueva imagen
 
         # Restaurar resultado previo si existe en cache
@@ -1400,8 +1409,8 @@ class MainWindow:
         y  = max(0, (ch - img_bgr.shape[0]) // 2)
         canvas.create_image(x, y, anchor="nw", image=photo)
         # Informar al ROI selector el offset real de la imagen
-        if canvas is self.canvas_left and self.roi_selector:
-            self.roi_selector.set_image_offset(
+        if canvas is self.canvas_left and self.areas:
+            self.areas.set_image_offset(
                 x, y,
                 img_bgr.shape[1],
                 img_bgr.shape[0])
@@ -1476,7 +1485,7 @@ class MainWindow:
             self.config_container,
             schema=ANALYSES[name].params_schema,
             colors=COLORS, prefix=_analysis_key(name),
-            units={"area": "mm²" if self._panel_area_unit == "mm" else "px²"})
+            units=self._unit_labels(self._panel_area_unit == "mm"))
         self.config_panel.set_values({k: v for k, v in stored.items() if not k.startswith("_")})
         self.config_panel.pack(fill=tk.BOTH, expand=True)
         self._sync_area_units()
@@ -1490,16 +1499,7 @@ class MainWindow:
             "max_val":          self.max_slider.get(),
             "mm_per_pixel":     self.mm_per_pixel,
         }
-        roi = self.roi_selector.mask if self.roi_selector else None
-        if roi is not None and self.scaler_left.has_image:
-            p["roi_mask"] = self.scaler_left.scale_mask_to_original(roi)
-        else:
-            p["roi_mask"] = None
-        # Exclusiones
-        if self.roi_selector and self.roi_selector.has_exclusions:
-            p["exclusions_norm"] = self.roi_selector.exclusions_normalized()
-            p["_roi_selector"] = self.roi_selector
-            p["_scaler_left"]  = self.scaler_left
+        p["roi_shapes"] = self.project.roi_for(self.current_image_path)
         if self.config_panel:
             p.update(self.config_panel.get_values())
             p["area_unit"] = getattr(self, "_panel_area_unit", "px")
@@ -1544,8 +1544,6 @@ class MainWindow:
         if not self.batch_paths:
             messagebox.showwarning(t("msg.no_batch_title"), t("msg.no_batch"))
             return
-        # Advertencia si hay resoluciones diferentes
-        self._check_batch_resolutions()
         total = len(self.batch_paths)
         self._set_status(t("status.running_batch", name=_analysis_label(name), n=total))
         self.root.config(cursor="watch")
@@ -1566,7 +1564,7 @@ class MainWindow:
                     skipped.append(path)
                     self.root.after(0, lambda p=path, r=reason: self._mark_skipped(p, r))
                     continue
-                p = dict(params, mm_per_pixel=self._scale_for(path))
+                p = dict(params, mm_per_pixel=self._scale_for(path), roi_shapes=self.project.roi_for(path))
                 try:
                     r = ANALYSES[name].func(img, p)
                 except Exception as e:
@@ -1581,25 +1579,6 @@ class MainWindow:
             self.root.after(0, lambda: self._on_batch_result(name, results, len(skipped)))
 
         threading.Thread(target=worker, daemon=True).start()
-
-    def _check_batch_resolutions(self):
-        """Avisa si las imágenes del lote tienen resoluciones distintas."""
-        resolutions = set()
-        for path in self.batch_paths[:20]:  # revisar primeras 20
-            try:
-                raw = Path(path).read_bytes()
-                arr = np.frombuffer(raw, dtype=np.uint8)
-                img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-                if img is not None:
-                    resolutions.add(img.shape[:2])
-            except Exception:
-                _log.warning("No se pudo leer %s", path, exc_info=True)
-        if len(resolutions) > 1:
-            res_list = ', '.join(f'{w}×{h}' for h,w in resolutions)
-            messagebox.showwarning(
-                t("msg.res_title"),
-                t("msg.res_body", n=len(resolutions), list=res_list),
-                parent=self.root)
 
     def _cache_result(self, name: str, path: str,
                       result: AnalysisResult, i: int, total: int):
@@ -1955,37 +1934,109 @@ class MainWindow:
 
     # ── ROI ───────────────────────────────────────────────────────────────────
 
-    def _pick_exclusion_color(self):
-        """Abre selector de color para zona de exclusión."""
-        if self.roi_selector:
-            self.roi_selector.pick_exclusion_color(self.root)
-
-    def _clear_exclusions(self):
-        """Limpia solo las zonas de exclusión."""
-        if self.roi_selector:
-            self.roi_selector.clear_exclusions()
-
     def _set_roi_mode(self, mode: str):
-        """Activa una herramienta de ROI; al terminar la forma se vuelve a mover la imagen."""
-        if not self.roi_selector:
+        """Herramienta de áreas; al terminar la forma se vuelve a mover la imagen
+        (la de seleccionar queda activa hasta Esc)."""
+        if not self.areas or not self.current_image_path:
             return
-        self.roi_selector.set_mode(mode)
+        self.areas.set_mode(mode)
         if self.zoom_ctrl:
             if self.zoom_ctrl.tool != "pan":
                 self.zoom_ctrl.set_tool("pan")
             self.zoom_ctrl._update_cursor(self.canvas_left)
-        hint = "roi.hint_polygon" if mode in ("polígono", "exclusión") else "roi.hint_rect"
+        self._paint_area_tools()
+        hint = {"include_poly": "roi.hint_polygon", "exclude_poly": "roi.hint_polygon",
+                "select": "roi.hint_select"}.get(mode, "roi.hint_rect")
         self._set_status(t(hint))
 
     def _on_roi_tool_done(self):
         if self.zoom_ctrl:
             self.zoom_ctrl._update_cursor(self.canvas_left)
+        self._paint_area_tools()
         self._set_status(t("status.ready"))
 
     def _clear_roi(self):
-        if self.roi_selector:
-            self.roi_selector.stop()
-            self.roi_selector.clear()
+        """Borra las áreas de esta foto (las demás no cambian)."""
+        if self.areas and self.current_image_path:
+            self.areas.stop()
+            self.areas.clear()
+
+    def _on_areas_change(self, shapes: list):
+        """Lo que se dibuja o borra queda como áreas propias de esta foto."""
+        if self.current_image_path:
+            self.project.set_roi(self.current_image_path, shapes)
+        self._update_area_scope()
+        self._update_step_active(2)
+        self._show_preview()
+
+    def _apply_areas_to_all(self):
+        path = self.current_image_path
+        if not path:
+            return
+        n = self.project.others_with_own_roi(path)
+        if n and not messagebox.askyesno(t("roi.apply_all"), t("roi.apply_all_warn", n=n), parent=self.root):
+            return
+        self.project.apply_roi_to_all(self.project.roi_for(path))
+        self._update_area_scope()
+        self._set_status(t("roi.applied_all", n=len(self.project.images)))
+
+    def _build_area_tools(self):
+        """Herramientas de áreas en la esquina de la imagen de entrada y, abajo, de qué
+        fotos son las áreas (esta foto / todas) con "Aplicar a todas"."""
+        from fenotit.gui.toolbar import IconButton
+        bg = COLORS["bg_card"]
+        box = tk.Frame(self.canvas_left, bg=bg, highlightthickness=1, highlightbackground=COLORS["border"])
+        box.place(x=6, y=6)
+        size = max(16, int(round(16 * self.root.winfo_fpixels("1i") / 96)))
+        kw = dict(bg=bg, hover=COLORS["btn_hover"], active=COLORS["accent_light"], size=size,
+                  color=COLORS["accent"])
+        self._area_btns = {}
+        for mode, ico, tip in (("include_rect", "area_rect", t("roi.area_rect") + "  (Shift = □)"),
+                               ("include_poly", "area_poly", t("roi.area_polygon")),
+                               ("exclude_rect", "excl_rect", t("roi.exclude_rect")),
+                               ("exclude_poly", "excl_poly", t("roi.exclude_polygon")),
+                               ("select", "select", t("roi.select") + "  (S · Supr)")):
+            b = IconButton(box, ico, lambda m=mode: self._toggle_area_tool(m), tip, **kw)
+            b.pack(side=tk.TOP, padx=1, pady=1)
+            self._area_btns[mode] = b
+        scope = tk.Frame(self.canvas_left, bg=bg, highlightthickness=1, highlightbackground=COLORS["border"])
+        self._area_scope = scope
+        self._area_scope_var = tk.StringVar()
+        tk.Label(scope, textvariable=self._area_scope_var, bg=bg, fg=COLORS["text"],
+                 font=FONTS["small"]).pack(side=tk.LEFT, padx=(6, 4))
+        self._apply_all_btn = tk.Button(scope, text=t("roi.apply_all_short"), command=self._apply_areas_to_all,
+                                        bg=bg, fg=COLORS["accent"], relief="flat", bd=0, font=FONTS["small"],
+                                        cursor="hand2", padx=4)
+        self._clear_area_btn = tk.Button(scope, text=t("roi.clear_short"), command=self._clear_roi, bg=bg,
+                                         fg=COLORS["text_muted"], relief="flat", bd=0, font=FONTS["small"],
+                                         cursor="hand2", padx=4)
+        self._clear_area_btn.pack(side=tk.RIGHT, padx=(0, 4))
+
+    def _toggle_area_tool(self, mode: str):
+        if self.areas and self.areas.mode == mode:
+            self.areas.stop()
+        else:
+            self._set_roi_mode(mode)
+
+    def _paint_area_tools(self):
+        for mode, b in getattr(self, "_area_btns", {}).items():
+            b.select(bool(self.areas) and self.areas.mode == mode)
+
+    def _update_area_scope(self):
+        """Indicador abajo a la izquierda, solo si esta foto tiene áreas: si son suyas o
+        de todas las fotos, y "Aplicar a todas" cuando son suyas."""
+        path = self.current_image_path
+        shapes = self.project.roi_for(path) if path else []
+        if not shapes:
+            self._area_scope.place_forget()
+            return
+        own = self.project.has_own_roi(path)
+        self._area_scope_var.set(t("roi.scope_image" if own else "roi.scope_all", n=len(shapes)))
+        if own and len(self.project.images) > 1:
+            self._apply_all_btn.pack(side=tk.LEFT, before=self._clear_area_btn)
+        else:
+            self._apply_all_btn.pack_forget()
+        self._area_scope.place(x=6, rely=1.0, y=-6, anchor="sw")
 
     def _open_scale_dialog(self):
         ScaleDialog(self.root,
@@ -2045,31 +2096,45 @@ class MainWindow:
             r.bind_all(f"<{seq}>", key(fn))
         r.bind_all("<Key-z>", key(lambda: self._set_zoom_tool("zoom_area")))
         r.bind_all("<Key-h>", key(lambda: self._set_zoom_tool("pan")))
+        r.bind_all("<Key-s>", key(lambda: self._toggle_area_tool("select")))
+        r.bind_all("<Delete>", key(self._on_delete_key))
         r.bind_all("<Escape>", lambda e=None: self._on_escape())
 
+    def _on_delete_key(self):
+        """Supr: borra las áreas seleccionadas; si no hay, en la lista quita la foto."""
+        if self.areas and self.areas.delete_selected():
+            return "break"
+
     def _on_escape(self):
-        if self.roi_selector and self.roi_selector.active:
-            self.roi_selector.stop()
+        if self.areas and self.areas.active:
+            self.areas.stop()
         elif self.zoom_ctrl and self.zoom_ctrl.tool != "pan":
             self.zoom_ctrl.set_tool("pan")
 
-    def _on_roi_change(self, mask):
-        self._update_step_active(2)
-        self._show_preview()
-
     # ── Calibración / diálogos ────────────────────────────────────────────────
 
-    def _on_scale_set(self, scale_result):
-        """Callback desde ScaleDialog — aplica la escala al estado."""
+    def _on_scale_set(self, scale_result, scope: str = "all", path: str | None = None) -> bool:
+        """Escala de la ventana de escala: solo para esa foto o para todas."""
         from fenotit.core.corrections.scale import UNIT_TO_MM
-        # Guardamos mm/px para compatibilidad con los módulos de análisis
-        self.project.scale = Scale(
-            scale_result.unit_per_px * UNIT_TO_MM.get(scale_result.unit, 1.0),
-            "two_points", scale_result.format())
+        sc = Scale(scale_result.unit_per_px * UNIT_TO_MM.get(scale_result.unit, 1.0),
+                   "two_points", scale_result.format())
+        if not self._set_scale(sc, scope, path or self.current_image_path):
+            return False
         self._update_corr_indicator()
         self._sync_area_units()
         self.scale_result = scale_result
         self._set_status(t("status.scale", scale=scale_result.format()))
+        return True
+
+    def _set_scale(self, sc: Scale, scope: str, path: str | None) -> bool:
+        if scope == "image" and path:
+            self.project.set_scale(path, sc)
+            return True
+        n = self.project.others_with_own_scale(path)
+        if n and not messagebox.askyesno(t("scale.apply_all"), t("scale.apply_all_warn", n=n), parent=self.root):
+            return False
+        self.project.apply_scale_to_all(sc)
+        return True
 
     def _calibrate_scale(self):
         val = simpledialog.askfloat(
@@ -2077,7 +2142,8 @@ class MainWindow:
             t("scale.manual_prompt"),
             minvalue=0.0001)
         if val:
-            self.project.scale = Scale(val, "manual")
+            if not self._set_scale(Scale(val, "manual"), "all", self.current_image_path):
+                return
             self._update_corr_indicator()
             self._sync_area_units()
             self._set_status(t("status.scale", scale=f"{val:.6f} mm/px"))
