@@ -1,5 +1,5 @@
-"""Decoración común (carga e inicio): mosaico de cuadritos en tonos del azul de la app,
-en escalera como la mitad "píxel" del logo."""
+"""Decoración común: mosaico en escalera (carga) y píxeles con borde que se desvanecen
+(inicio, Acerca de), en tonos del azul de la app."""
 from __future__ import annotations
 
 import random
@@ -37,15 +37,3 @@ def pixel_dissolve(canvas: tk.Canvas, w: int, h: int, cell: int, density, seed: 
                 k = min(len(EDGES) - 1, max(0, int((1 - p) * 4.5) + rnd.choice((0, 0, 1))))
                 x, y = gx * cell + gap, gy * cell + gap
                 canvas.create_rectangle(x, y, x + cell - 2 * gap, y + cell - 2 * gap, outline=EDGES[k], width=1)
-
-
-def dot_grid(canvas: tk.Canvas, w: int, h: int, step: int = 16, color: str = "#DCE6F1", fade_from: float = 0.0):
-    """Retícula de puntos (como papel milimetrado o la platina de un escáner).
-    `fade_from`: fracción del alto desde la que los puntos empiezan a aparecer."""
-    for y in range(step // 2, h, step):
-        if y < h * fade_from:
-            continue
-        for x in range(step // 2, w, step):
-            canvas.create_rectangle(x, y, x + 1, y + 1, fill=color, outline=color)
-
-

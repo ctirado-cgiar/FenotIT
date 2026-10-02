@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "fenotit"
 dynamic = ["version"]
-description = "Digital phenotyping from images"
+description = "Digital plant phenotyping platform"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "Alliance of Bioversity International and CIAT" }]

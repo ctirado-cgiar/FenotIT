@@ -65,7 +65,7 @@ class StartScreen(tk.Frame):
         self.refresh()
 
     def _build_hero(self):
-        """Franja blanca con el azul en los textos, una línea arriba y el mosaico del logo."""
+        """Franja blanca con el azul en los textos, una línea arriba y píxeles que se desvanecen."""
         c = self.c
         tk.Frame(self, bg=BLUE, height=4).pack(side=tk.TOP, fill=tk.X)
         hero = tk.Canvas(self, bg="#FFFFFF", width=300, highlightthickness=0)
@@ -87,49 +87,35 @@ class StartScreen(tk.Frame):
         tk.Frame(inner, bg=BLUE, width=36, height=2).pack(pady=(0, 14))
         tk.Label(inner, text=t("start.tagline"), bg="#FFFFFF", fg="#7A7A7A", font=("Segoe UI", 8),
                  wraplength=230, justify="center").pack()
-        self._build_links(hero)
+        self._build_links()
 
-    LINKS = "top"
-
-    def _build_links(self, hero):
+    def _build_links(self):
         """Idioma (con el idioma actual) y Acerca de, fuera de la franja: arriba a la derecha.
         La versión queda abajo a la derecha, pequeña."""
         muted = "#7A7A7A"
-        if self.LINKS == "top":
-            box = tk.Frame(self, bg=self.c["bg"])
-            self._floating = [box]
-            box.place(relx=1.0, x=-20, y=16, anchor="ne")
-            lang = i18n.available().get(i18n.current(), i18n.current())
-            items = [(f"\U0001F310  {lang}", self._links[0][1]), (t("start.about"), self._links[1][1])]
-            for i, (text, cmd) in enumerate(items):
-                if i:
-                    tk.Label(box, text="·", bg=self.c["bg"], fg="#BBBBBB").pack(side=tk.LEFT, padx=4)
-                lbl = tk.Label(box, text=text, bg=self.c["bg"], fg=muted, font=("Segoe UI", 9), cursor="hand2")
-                lbl.pack(side=tk.LEFT)
-                lbl.bind("<Enter>", lambda e, w=lbl: w.config(fg=BLUE))
-                lbl.bind("<Leave>", lambda e, w=lbl: w.config(fg=muted))
-                lbl.bind("<Button-1>", lambda e, f=cmd: f())
-            ver = tk.Label(self, text=f"v{__version__}  ·  Alliance of Bioversity International & CIAT",
-                           bg=self.c["bg"], fg="#A8A8A8", font=("Segoe UI", 7))
-            ver.place(relx=1.0, rely=1.0, x=-20, y=-12, anchor="se")
-            self._floating.append(ver)
-        else:
-            tk.Label(hero, text=f"v{__version__}  ·  Alliance Bioversity & CIAT", bg="#FFFFFF", fg="#A8A8A8",
-                     font=("Segoe UI", 7)).place(relx=0.5, rely=1.0, y=-12, anchor="s")
-            links = tk.Frame(hero, bg="#FFFFFF")
-            links.place(relx=0.5, rely=1.0, y=-34, anchor="s")
-            for text, cmd in self._links:
-                lbl = tk.Label(links, text=text.strip("… ").split("  ")[-1], bg="#FFFFFF", fg=BLUE,
-                               font=("Segoe UI", 8, "underline"), cursor="hand2")
-                lbl.pack(side=tk.LEFT, padx=8)
-                lbl.bind("<Button-1>", lambda e, f=cmd: f())
+        box = tk.Frame(self, bg=self.c["bg"])
+        self._floating = [box]
+        box.place(relx=1.0, x=-20, y=16, anchor="ne")
+        lang = i18n.available().get(i18n.current(), i18n.current())
+        items = [(f"\U0001F310  {lang}", self._links[0][1]), (t("start.about"), self._links[1][1])]
+        for i, (text, cmd) in enumerate(items):
+            if i:
+                tk.Label(box, text="·", bg=self.c["bg"], fg="#BBBBBB").pack(side=tk.LEFT, padx=4)
+            lbl = tk.Label(box, text=text, bg=self.c["bg"], fg=muted, font=("Segoe UI", 9), cursor="hand2")
+            lbl.pack(side=tk.LEFT)
+            lbl.bind("<Enter>", lambda e, w=lbl: w.config(fg=BLUE))
+            lbl.bind("<Leave>", lambda e, w=lbl: w.config(fg=muted))
+            lbl.bind("<Button-1>", lambda e, f=cmd: f())
+        ver = tk.Label(self, text=f"v{__version__}  ·  Alliance of Bioversity International & CIAT",
+                       bg=self.c["bg"], fg="#A8A8A8", font=("Segoe UI", 7))
+        ver.place(relx=1.0, rely=1.0, x=-20, y=-12, anchor="se")
+        self._floating.append(ver)
 
     def _decorate(self, c, w, h):
         """Píxeles con borde azul que se desvanecen: arriba desde la derecha, abajo desde la izquierda."""
         c.delete("decor")
         before = set(c.find_all())
-        bottom = h if self.LINKS == "top" else h - 70
-        pixel_dissolve(c, w, bottom, 22,
+        pixel_dissolve(c, w, h, 22,
                        lambda x, y: max(0.0, (y - 0.72) / 0.28 * 1.1 - x * 0.7) if y > 0.72 else 0.0)
         pixel_dissolve(c, w, h, 22,
                        lambda x, y: max(0.0, (0.22 - y) / 0.22 * 1.1 - (1 - x) * 0.7) if y < 0.22 else 0.0, seed=9)
