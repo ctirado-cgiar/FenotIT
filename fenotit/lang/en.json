@@ -261,6 +261,7 @@
   "splash.loading": "Starting…",
   "splash.modules": "Registering analyses…",
   "splash.ui": "Preparing the interface…",
+  "start.about": "About",
   "start.begin": "What do you want to do today?",
   "start.folder": "Add folder",
   "start.new": "New project",

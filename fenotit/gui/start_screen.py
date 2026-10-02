@@ -10,8 +10,8 @@ from pathlib import Path
 import yaml
 from PIL import Image, ImageTk
 
-from fenotit import APP_NAME, __version__, settings
-from fenotit.gui.decor import BLUE, dot_grid, ruler, seed_outlines
+from fenotit import APP_NAME, __version__, i18n, settings
+from fenotit.gui.decor import BLUE, pixel_dissolve
 from fenotit.gui.toolbar import icon
 from fenotit.i18n import t
 
@@ -87,28 +87,52 @@ class StartScreen(tk.Frame):
         tk.Frame(inner, bg=BLUE, width=36, height=2).pack(pady=(0, 14))
         tk.Label(inner, text=t("start.tagline"), bg="#FFFFFF", fg="#7A7A7A", font=("Segoe UI", 8),
                  wraplength=230, justify="center").pack()
-        tk.Label(hero, text=f"v{__version__}  ·  Alliance Bioversity & CIAT", bg="#FFFFFF", fg="#A8A8A8",
-                 font=("Segoe UI", 7)).place(relx=0.5, rely=1.0, y=-12, anchor="s")
-        links = tk.Frame(hero, bg="#FFFFFF")          # idioma y acerca de (sin la barra de menús)
-        links.place(relx=0.5, rely=1.0, y=-34, anchor="s")
-        for text, cmd in self._links:
-            lbl = tk.Label(links, text=text.strip("… ").split("  ")[-1], bg="#FFFFFF", fg=BLUE,
-                           font=("Segoe UI", 8, "underline"), cursor="hand2")
-            lbl.pack(side=tk.LEFT, padx=8)
-            lbl.bind("<Button-1>", lambda e, f=cmd: f())
+        self._build_links(hero)
 
-    DECOR = "combo"
+    LINKS = "top"
+
+    def _build_links(self, hero):
+        """Idioma (con el idioma actual) y Acerca de, fuera de la franja: arriba a la derecha.
+        La versión queda abajo a la derecha, pequeña."""
+        muted = "#7A7A7A"
+        if self.LINKS == "top":
+            box = tk.Frame(self, bg=self.c["bg"])
+            self._floating = [box]
+            box.place(relx=1.0, x=-20, y=16, anchor="ne")
+            lang = i18n.available().get(i18n.current(), i18n.current())
+            items = [(f"\U0001F310  {lang}", self._links[0][1]), (t("start.about"), self._links[1][1])]
+            for i, (text, cmd) in enumerate(items):
+                if i:
+                    tk.Label(box, text="·", bg=self.c["bg"], fg="#BBBBBB").pack(side=tk.LEFT, padx=4)
+                lbl = tk.Label(box, text=text, bg=self.c["bg"], fg=muted, font=("Segoe UI", 9), cursor="hand2")
+                lbl.pack(side=tk.LEFT)
+                lbl.bind("<Enter>", lambda e, w=lbl: w.config(fg=BLUE))
+                lbl.bind("<Leave>", lambda e, w=lbl: w.config(fg=muted))
+                lbl.bind("<Button-1>", lambda e, f=cmd: f())
+            ver = tk.Label(self, text=f"v{__version__}  ·  Alliance of Bioversity International & CIAT",
+                           bg=self.c["bg"], fg="#A8A8A8", font=("Segoe UI", 7))
+            ver.place(relx=1.0, rely=1.0, x=-20, y=-12, anchor="se")
+            self._floating.append(ver)
+        else:
+            tk.Label(hero, text=f"v{__version__}  ·  Alliance Bioversity & CIAT", bg="#FFFFFF", fg="#A8A8A8",
+                     font=("Segoe UI", 7)).place(relx=0.5, rely=1.0, y=-12, anchor="s")
+            links = tk.Frame(hero, bg="#FFFFFF")
+            links.place(relx=0.5, rely=1.0, y=-34, anchor="s")
+            for text, cmd in self._links:
+                lbl = tk.Label(links, text=text.strip("… ").split("  ")[-1], bg="#FFFFFF", fg=BLUE,
+                               font=("Segoe UI", 8, "underline"), cursor="hand2")
+                lbl.pack(side=tk.LEFT, padx=8)
+                lbl.bind("<Button-1>", lambda e, f=cmd: f())
 
     def _decorate(self, c, w, h):
+        """Píxeles con borde azul que se desvanecen: arriba desde la derecha, abajo desde la izquierda."""
         c.delete("decor")
         before = set(c.find_all())
-        v = self.DECOR
-        if v in ("grid", "combo"):
-            dot_grid(c, w, h, 16, "#E1E9F3")
-        if v in ("seeds", "combo"):
-            seed_outlines(c, 24, int(h * 0.68), w - 48, int(h * 0.17), n=7)
-        if v in ("grid", "combo", "seeds"):
-            ruler(c, 28, h - 66, 100, BLUE, 5, "10 mm")
+        bottom = h if self.LINKS == "top" else h - 70
+        pixel_dissolve(c, w, bottom, 22,
+                       lambda x, y: max(0.0, (y - 0.72) / 0.28 * 1.1 - x * 0.7) if y > 0.72 else 0.0)
+        pixel_dissolve(c, w, h, 22,
+                       lambda x, y: max(0.0, (0.22 - y) / 0.22 * 1.1 - (1 - x) * 0.7) if y < 0.22 else 0.0, seed=9)
         for item in set(c.find_all()) - before:
             c.addtag_withtag("decor", item)
             c.tag_lower(item)
@@ -119,6 +143,8 @@ class StartScreen(tk.Frame):
         for w in m.winfo_children():
             w.destroy()
         self._thumbs = []
+        for w in getattr(self, "_floating", []):
+            w.lift()
         on_photos, on_folder, on_open, on_recent = self._cb
         body = tk.Frame(m, bg=c["bg"])
         body.place(relx=0.5, rely=0.42, anchor="center")
