@@ -22,7 +22,7 @@ _AUTO_CANDIDATES = ("green", "magenta", "yellow", "cyan", "red", "orange", "blue
 
 
 def empty() -> dict:
-    return {"outlines": [], "dots": [], "labels": [], "size": 0}
+    return {"outlines": [], "dots": [], "labels": [], "lines": [], "size": 0}
 
 
 def typical_size(labels: np.ndarray) -> float:
@@ -133,6 +133,18 @@ def _draw(img, ov, colors, origin, zoom, screen):
     exc = [tr(c).reshape(-1, 1, 2) for c, ok in ov.get("outlines", []) if not ok]
     _lines(img, exc, _EXCLUDED, min(width, 1.0), False)
     _lines(img, inc, colors["outline"], width, halo=width >= 1.5)
+    if ov.get("lines"):                             # segmentos sueltos con opacidad (p. ej. distancias)
+        lw = max(1, int(round(width))) if screen else max(1, int(round(width)))
+        bins = {}
+        for p1, p2, strength in ov["lines"]:
+            q = tr([p1, p2])
+            bins.setdefault(min(3, int(strength * 4)), []).append(q)
+        for b, segs in sorted(bins.items()):
+            layer = img.copy()
+            for q in segs:
+                cv2.line(layer, tuple(map(int, q[0])), tuple(map(int, q[1])), colors["dot"], lw + 1, cv2.LINE_AA)
+            a = 0.3 + 0.7 * (b + 1) / 4
+            cv2.addWeighted(layer, a, img, 1 - a, 0, dst=img)
     if ov.get("dots"):
         for x, y in tr(ov["dots"]):
             cv2.circle(img, (int(x), int(y)), radius + 1, (0, 0, 0), -1, cv2.LINE_AA)

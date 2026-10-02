@@ -38,7 +38,8 @@ def _size_filter(params: dict) -> dict:
     return out
 
 
-def build_chain(params: dict) -> list[dict]:
+def object_chain(params: dict) -> list[dict]:
+    """Segmentación y objetos (lo común a los análisis que trabajan con objetos)."""
     space = params.get("color_space", "BGR")
     channel = int(params.get("channel_idx", 0))
     if params.get("auto_threshold"):
@@ -51,6 +52,11 @@ def build_chain(params: dict) -> list[dict]:
              {"step": "separate"} if params.get("touching") else {"step": "label"},
              {"step": "filter", "params": {"exclude_border": bool(params.get("exclude_border", True)),
                                            **_size_filter(params)}}]
+    return chain
+
+
+def build_chain(params: dict) -> list[dict]:
+    chain = object_chain(params)
     if params.get("measure_size", True):
         chain.append({"step": "morphometry",
                       "params": {"isolated_only": not params.get("measure_touching", False)}})

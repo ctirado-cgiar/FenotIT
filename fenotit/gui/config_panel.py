@@ -182,7 +182,7 @@ class ConfigPanel(tk.Frame):
             labels = {c: t(f"param.{self._prefix}.{key}.{c}", c) for c in item["choices"]}
             shown = tk.StringVar(value=labels.get(str(default), str(default)))
             combo = ttk.Combobox(row, textvariable=shown, values=list(labels.values()),
-                                 state="readonly", width=22, font=("Segoe UI", 8))
+                                 state="readonly", width=30, font=("Segoe UI", 8))
             combo.pack(anchor="w", pady=(1, 0))
             combo.bind("<<ComboboxSelected>>", lambda e=None, v=var, sv=shown, lb=labels: v.set(
                 next(k for k, l in lb.items() if l == sv.get())))

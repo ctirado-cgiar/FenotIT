@@ -102,7 +102,7 @@ class StartScreen(tk.Frame):
         body.place(relx=0.5, rely=0.42, anchor="center")
 
         tk.Label(body, text=t("start.begin"), bg=c["bg"], fg=c["text"],
-                 font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 6))
+                 font=("Segoe UI", 16, "bold")).pack(anchor="w", pady=(0, 10))
         row = tk.Frame(body, bg=c["bg"])
         row.pack(anchor="w")
         self._new_tile(row, on_photos, on_folder)

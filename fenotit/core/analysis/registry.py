@@ -132,6 +132,10 @@ def _load_modules():
     except Exception as e:
         _log.error("objects no disponible: %s", e)
     try:
+        from . import distances        # noqa: F401  distancias entre objetos vecinos
+    except Exception as e:
+        _log.error("distances no disponible: %s", e)
+    try:
         from . import image_color      # noqa: F401  color de toda la foto, sin segmentar
     except Exception as e:
         _log.error("image_color no disponible: %s", e)
