@@ -539,10 +539,15 @@ class MainWindow:
             return
         if self.project.images:
             start.place_forget()
+            if not self.topbar.winfo_ismapped():          # vuelven la barra y el estado
+                self.topbar.pack(fill=tk.X, side=tk.TOP, before=self.paned)
+                self.statusbar.pack(fill=tk.X, side=tk.BOTTOM, before=self.paned)
         else:
             start.refresh()
             start.place(relx=0, rely=0, relwidth=1, relheight=1)
             start.lift()
+            self.topbar.pack_forget()                      # en el inicio no hacen falta
+            self.statusbar.pack_forget()
 
     def open_project_path(self, path):
         try:
@@ -1043,7 +1048,8 @@ class MainWindow:
         self._canvas_row = canvas_row
         from fenotit.gui.start_screen import StartScreen
         self._start = StartScreen(cf, COLORS, FONTS, self._open_image, self._open_folder,
-                                  self._open_project, self._open_recent)
+                                  self._open_project, self._open_recent,
+                                  links=((t("menu.language"), self._choose_language), (t("menu.about"), self._about)))
         self._build_view_controls()
 
         # Barra de vistas (◀ vista ▶ · Resultados): solo cuando hay resultados

@@ -47,9 +47,11 @@ def _thumbnail(path: Path | None):
 
 class StartScreen(tk.Frame):
 
-    def __init__(self, parent, colors: dict, fonts: dict, on_photos, on_folder, on_open, on_recent):
+    def __init__(self, parent, colors: dict, fonts: dict, on_photos, on_folder, on_open, on_recent,
+                 links=()):
         super().__init__(parent, bg=colors["bg"])
         self.c = colors
+        self._links = links
         self._cb = (on_photos, on_folder, on_open, on_recent)
         self._img = {n: ImageTk.PhotoImage(icon(n, 30, colors["accent"])) for n in ("photo", "folder", "project")}
         self._img["photo_w"] = ImageTk.PhotoImage(icon("photo", 22, "#FFFFFF"))
@@ -80,7 +82,14 @@ class StartScreen(tk.Frame):
         tk.Label(inner, text=t("start.tagline"), bg=c["bg_topbar"], fg="#B9CFEA", font=("Segoe UI", 8),
                  wraplength=230, justify="center").pack()
         tk.Label(hero, text=f"v{__version__}  ·  Alliance Bioversity & CIAT", bg=c["bg_topbar"], fg="#9FBBE0",
-                 font=("Segoe UI", 7)).pack(side=tk.BOTTOM, pady=10)
+                 font=("Segoe UI", 7)).pack(side=tk.BOTTOM, pady=(4, 10))
+        links = tk.Frame(hero, bg=c["bg_topbar"])          # idioma y acerca de (sin la barra de menús)
+        links.pack(side=tk.BOTTOM)
+        for i, (text, cmd) in enumerate(self._links):
+            lbl = tk.Label(links, text=text.strip("… ").split("  ")[-1], bg=c["bg_topbar"], fg="#FFFFFF",
+                           font=("Segoe UI", 8, "underline"), cursor="hand2")
+            lbl.pack(side=tk.LEFT, padx=8)
+            lbl.bind("<Button-1>", lambda e, f=cmd: f())
 
     def refresh(self):
         """Vuelve a armar la parte derecha (al mostrarse: recientes al día)."""
@@ -135,7 +144,8 @@ class StartScreen(tk.Frame):
         card.pack(side=tk.LEFT, padx=(0, 12))
         parts = [tk.Label(card, image=self._img[ico], bg=c["bg_card"]),
                  tk.Label(card, text=title, bg=c["bg_card"], fg=c["text"], font=("Segoe UI", 10, "bold")),
-                 tk.Label(card, text=hint, bg=c["bg_card"], fg=c["text_muted"], font=("Segoe UI", 8))]
+                 tk.Label(card, text=hint, bg=c["bg_card"], fg=c["text_muted"], font=("Segoe UI", 8),
+                          wraplength=190, justify="center")]
         parts[0].pack(pady=(18, 4))
         parts[1].pack()
         parts[2].pack()
@@ -150,7 +160,8 @@ class StartScreen(tk.Frame):
         card.pack(side=tk.LEFT, padx=(0, 12))
         front = [tk.Label(card, image=self._img["photo"], bg=c["bg_card"]),
                  tk.Label(card, text=t("start.new"), bg=c["bg_card"], fg=c["text"], font=("Segoe UI", 10, "bold")),
-                 tk.Label(card, text=t("start.new_hint"), bg=c["bg_card"], fg=c["text_muted"], font=("Segoe UI", 8))]
+                 tk.Label(card, text=t("start.new_hint"), bg=c["bg_card"], fg=c["text_muted"], font=("Segoe UI", 8),
+                          wraplength=190, justify="center")]
         front[0].pack(pady=(18, 4))
         front[1].pack()
         front[2].pack()
