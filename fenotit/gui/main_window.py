@@ -194,9 +194,25 @@ class DropMenu(tk.Frame):
 
 # ── Panel colapsable ──────────────────────────────────────────────────────────
 
+def _peek_tab(host, image, command, side: str):
+    """Pestañita que se asoma en el borde cuando un panel está oculto (como la de una
+    carpeta): clic = mostrar el panel. side = left | right | bottom."""
+    tab = tk.Label(host, image=image, bg=COLORS["bg_panel"], cursor="hand2", padx=3, pady=4,
+                   highlightthickness=1, highlightbackground=COLORS["border"])
+    tab.bind("<Button-1>", lambda e: command())
+    tab.bind("<Enter>", lambda e: tab.config(bg=COLORS["accent_light"]))
+    tab.bind("<Leave>", lambda e: tab.config(bg=COLORS["bg_panel"]))
+    place = {"left": dict(x=0, y=24, anchor="nw"),
+             "right": dict(relx=1.0, x=0, y=24, anchor="ne"),
+             "bottom": dict(relx=0.5, rely=1.0, y=0, anchor="s")}[side]
+    tab.show = lambda: (tab.place(**place), tab.lift())
+    return tab
+
+
 class CollapsiblePanel(tk.Frame):
     """Panel lateral que se puede ocultar. Abierto: un ícono pequeño en su esquina de
-    arriba; oculto: una tira delgada con el mismo ícono para volver a abrirlo."""
+    arriba, del lado del centro (izquierdo: a la derecha; derecho: a la izquierda).
+    Oculto: el panel desaparece y queda una pestañita en el borde de la zona central."""
     COLLAPSED_W = 14
 
     def __init__(self, parent, side: str, title: str,
@@ -209,21 +225,19 @@ class CollapsiblePanel(tk.Frame):
         self.title         = title
         self.default_width = default_width
         self._expanded     = True
+        self._tab = None
+        self.tab_host: tk.Widget | None = None    # dónde se asoma la pestañita (zona central)
         # ícono de panel (no una flecha: las flechas quedan para anterior/siguiente)
         self._icon = ImageTk.PhotoImage(icon(f"panel_{side}", 12, colors["accent"]))
-
-        self._strip = tk.Frame(self, bg=colors["bg_panel"], width=self.COLLAPSED_W)
-        self._strip.pack_propagate(False)
-        strip_btn = tk.Label(self._strip, image=self._icon, bg=colors["bg_panel"], cursor="hand2")
-        strip_btn.place(relx=0.5, rely=0.5, anchor="center")
 
         self.content = tk.Frame(self, bg=colors["bg_panel"])
         self.content.pack(fill=tk.BOTH, expand=True)
         self._corner = tk.Label(self, image=self._icon, bg=colors["bg_panel"], cursor="hand2", padx=2, pady=2)
-        self._corner.place(relx=1.0, x=-4, y=5, anchor="ne")
-        for btn in (strip_btn, self._corner):
-            btn.bind("<Button-1>", lambda e=None: self.toggle())
-            Tooltip(btn, t("view.toggle_panel"))
+        self._corner_place = (dict(relx=1.0, x=-4, y=5, anchor="ne") if side == "left"
+                              else dict(x=4, y=5, anchor="nw"))
+        self._corner.place(**self._corner_place)
+        self._corner.bind("<Button-1>", lambda e=None: self.toggle())
+        Tooltip(self._corner, t("view.toggle_panel"))
 
         self.configure(width=default_width)
         # el ancho lo decide el usuario (barra divisoria), no el contenido: así el panel no
@@ -237,32 +251,39 @@ class CollapsiblePanel(tk.Frame):
         else:
             self.expand()
 
-    def _set_width(self, width: int):
-        """El ancho real lo manda el PanedWindow que contiene al panel."""
+    def _pane(self, **kw):
         if isinstance(self.master, tk.PanedWindow):
-            self.master.paneconfigure(self, width=width)
-        else:
-            self.configure(width=width)
-        if self._on_toggle:
-            self._on_toggle()
+            self.master.paneconfigure(self, **kw)
 
     def collapse(self):
+        """Oculta el panel y deja la pestañita para volver a abrirlo."""
         self._expanded = False
         width = self.winfo_width()
         if width > self.COLLAPSED_W * 3:          # recordar el ancho que dejó el usuario
             self.default_width = width
-        self.content.pack_forget()
-        self._corner.place_forget()
-        self._strip.pack(fill=tk.Y, expand=True)
-        self._set_width(self.COLLAPSED_W)
+        self._pane(hide=True)
+        if self.tab_host is not None:
+            if self._tab is None:
+                self._tab = _peek_tab(self.tab_host, self._icon, self.expand, self.side)
+            self._tab.show()
+        if self._on_toggle:
+            self._on_toggle()
 
     def expand(self):
         self._expanded = True
-        self._strip.pack_forget()
-        self.content.pack(fill=tk.BOTH, expand=True)
-        self._corner.place(relx=1.0, x=-4, y=5, anchor="ne")
+        if self._tab is not None:
+            self._tab.place_forget()
+        self._pane(hide=False, width=self.default_width)
+        self._corner.place(**self._corner_place)
         self._corner.lift()
-        self._set_width(self.default_width)
+        if self._on_toggle:
+            self._on_toggle()
+
+    def hide_all(self):
+        """Sin panel ni pestañita (p. ej. en la pantalla de inicio)."""
+        self._pane(hide=True)
+        if self._tab is not None:
+            self._tab.place_forget()
 
 
 # ── Ventana principal ─────────────────────────────────────────────────────────
@@ -731,6 +752,7 @@ class MainWindow:
 
         # Centro
         self.center_frame = tk.Frame(self.paned, bg=COLORS["bg"])
+        self.left_panel.tab_host = self.center_frame
         self.paned.add(self.center_frame, minsize=400, stretch="always")
 
         # Panel derecho colapsable
@@ -738,6 +760,7 @@ class MainWindow:
             self.paned, side="right",
             title=t("panel.right"), colors=COLORS,
             default_width=260, on_toggle=self._after_panel_toggle, max_width=380)
+        self.right_panel.tab_host = self.center_frame
         for w in (self.paned, self.left_panel, self.right_panel):
             w.bind("<Configure>", self._limit_panels, add="+")
         self.paned.bind("<ButtonPress-1>", self._sash_press)
@@ -1085,11 +1108,7 @@ class MainWindow:
         # Tabla y gráficos: ocultables como los paneles (ícono en su esquina; oculta = tira delgada)
         self.step_label_var = tk.StringVar(value="—")
         self._panel_bottom_icon = ImageTk.PhotoImage(icon("panel_bottom", 12, COLORS["accent"]))
-        strip = tk.Frame(cf, bg=COLORS["bg_panel"], height=14)
-        strip.pack_propagate(False)
-        self._results_bar = strip                      # tira con la tabla oculta
-        strip_btn = tk.Label(strip, image=self._panel_bottom_icon, bg=COLORS["bg_panel"], cursor="hand2")
-        strip_btn.place(relx=1.0, x=-10, rely=0.5, anchor="e")
+        self._results_bar = _peek_tab(cf, self._panel_bottom_icon, self._toggle_results_panel, "bottom")
 
         # ── Notebook: Tabla | Gráficos ───────────────────────────────────
         nb_style = ttk.Style()
@@ -1112,9 +1131,8 @@ class MainWindow:
         corner = tk.Label(bottom_nb, image=self._panel_bottom_icon, bg=COLORS["bg_panel"], cursor="hand2",
                           padx=2, pady=2)
         corner.place(relx=1.0, x=-4, y=3, anchor="ne")
-        for btn in (strip_btn, corner):
-            btn.bind("<Button-1>", lambda e: self._toggle_results_panel())
-            Tooltip(btn, t("view.toggle_results"))
+        corner.bind("<Button-1>", lambda e: self._toggle_results_panel())
+        Tooltip(corner, t("view.toggle_results"))
         # Altura mínima del panel de tabla/gráficos
         bottom_nb.configure(height=220)
 
@@ -1179,7 +1197,7 @@ class MainWindow:
     def _build_right_panel(self):
         """ANÁLISIS (lista de tipos) → los bloques que pide el análisis elegido."""
         rf = self.right_panel.content
-        self._section_lbl(rf, t("panel.analysis"))
+        self._section_lbl(rf, t("panel.analysis"), pad_left=26)       # deja sitio al ícono del panel
         self._analysis_cards = tk.Frame(rf, bg=COLORS["bg_panel"])
         self._analysis_cards.pack(fill=tk.X, padx=6, pady=(2, 6))
         self._seg_block = tk.Frame(rf, bg=COLORS["bg_panel"])
@@ -1252,13 +1270,13 @@ class MainWindow:
 
     # ── Helpers layout ────────────────────────────────────────────────────────
 
-    def _section_lbl(self, parent, text):
+    def _section_lbl(self, parent, text, pad_left: int = 10):
         f = tk.Frame(parent, bg=COLORS["bg_panel"])
         f.pack(fill=tk.X)
         tk.Label(f, text=text, bg=COLORS["bg_panel"],
                  fg=COLORS["accent"],
                  font=("Segoe UI", 8, "bold"),
-                 pady=5, padx=10).pack(side=tk.LEFT)
+                 pady=5).pack(side=tk.LEFT, padx=(pad_left, 10))
         tk.Frame(f, bg=COLORS["border"],
                  height=1).pack(fill=tk.X, side=tk.BOTTOM)
 
@@ -1547,7 +1565,7 @@ class MainWindow:
                 self.canvas_right.delete("all")
 
         self._refresh_history()
-        self._set_status(t("status.image", name=Path(path).name))
+        self._set_status(t("status.ready"))           # el nombre ya está a la derecha de la barra
 
     # ── Display ───────────────────────────────────────────────────────────────
 
@@ -1610,14 +1628,15 @@ class MainWindow:
         self._show_panel(self.right_panel, True)
 
     def _show_panel(self, panel, on: bool):
-        self.paned.paneconfigure(panel, hide=not on)
-        if on and not panel._expanded:
+        if on:
             panel.expand()
-        self._after_panel_toggle()
+        else:
+            panel.hide_all()
+            self._after_panel_toggle()
 
     def _toggle_panel(self, panel):
         hidden = str(self.paned.panecget(panel, "hide")) in ("1", "true")
-        self._show_panel(panel, hidden)
+        panel.expand() if hidden else panel.collapse()
 
     def _uses_threshold(self) -> bool:
         name = self._selected_analysis()
@@ -1805,7 +1824,8 @@ class MainWindow:
         self._update_batch_list()
         self._remember_result(name, path, result)
         self._set_status(t("status.done", name=_analysis_label(name),
-                           detail=self._exporter.results_dir if self.output_root else result.stats))
+                           detail=self._exporter.results_dir if self.output_root else
+                           t("status.n_objects", n=result.stats.get("n_objects", "—"))))
         reused = result.extra.get("reused")
         if reused:
             items = ", ".join(t(f"step.{k}", k) for k in reused)
@@ -1855,13 +1875,13 @@ class MainWindow:
 
     def _layout_results(self):
         """Barra de vistas y tabla/gráficos: ocultas hasta que la imagen tenga resultados."""
-        self._results_bar.pack_forget()
+        self._results_bar.place_forget()
         self._bottom_nb.pack_forget()
         if self._results_shown:
             if self._results_visible:
                 self._bottom_nb.pack(fill=tk.BOTH, expand=False, padx=6, pady=(4, 0), after=self._canvas_row)
             else:
-                self._results_bar.pack(fill=tk.X, after=self._canvas_row)
+                self._results_bar.show()
 
     def _show_results_ui(self, on: bool):
         if on == self._results_shown:
