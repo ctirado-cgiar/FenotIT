@@ -2195,6 +2195,21 @@ class MainWindow:
                                                                  l.config(bg=COLORS["accent_light"])))
                     wdg.bind("<Leave>", lambda e, r=row, l=lbl, c=bg: (r.config(bg=c), l.config(bg=c)))
 
+    def _step_view(self, delta: int):
+        """↑ ↓: capa anterior / siguiente de la foto, pasando de un análisis al otro."""
+        path = self.current_image_path
+        if not path:
+            return
+        flat = [(n, v) for n in ANALYSES if path in self._results.get(n, {})
+                for v in self._step_names.get(n, {}).get(path, [])]
+        if not flat:
+            return
+        cur = (self.active_analysis, self.step_names[self.step_idx]) \
+            if self.step_names and 0 <= self.step_idx < len(self.step_names) else None
+        k = flat.index(cur) + delta if cur in flat else 0
+        if 0 <= k < len(flat):
+            self._open_view(*flat[k])
+
     def _open_view(self, analysis: str, view: str):
         if analysis != self.active_analysis:
             self.analysis_var.set(_analysis_label(analysis))
@@ -2332,7 +2347,7 @@ class MainWindow:
     def _show_shortcuts(self):
         rows = [("Ctrl+Enter", t("run.current")), ("Ctrl+Shift+Enter", t("run.all")),
                 ("Ctrl+O", t("menu.add_images")), ("Ctrl+S", t("menu.save_project")),
-                ("Ctrl+E", t("menu.export")), ("← →", t("help.key_images")),
+                ("Ctrl+E", t("menu.export")), ("← →", t("help.key_images")), ("↑ ↓", t("help.key_layers")),
                 ("Ctrl+ +  −", t("help.key_zoom")), ("Ctrl+0", t("view.zoom_fit")),
                 ("Ctrl+1", t("view.zoom_100")), ("Z", t("view.zoom_area")), ("H", t("view.pan")),
                 (t("help.mouse_wheel"), t("help.key_zoom")), ("Shift + " + t("help.mouse_wheel"), t("help.key_pan")),
@@ -2355,6 +2370,12 @@ class MainWindow:
         r.bind_all("<Control-e>", lambda e=None: self._export_results())
         r.bind_all("<Left>", key(self._prev_image))
         r.bind_all("<Right>", key(self._next_image))
+
+        def key_lists(handler):        # en listas y tablas ↑ ↓ siguen siendo de la lista
+            return lambda e=None: None if typing() or isinstance(self.root.focus_get(), (tk.Listbox, ttk.Treeview)) \
+                else (handler(), "break")[1]
+        r.bind_all("<Up>", key_lists(lambda: self._step_view(-1)))
+        r.bind_all("<Down>", key_lists(lambda: self._step_view(1)))
         # Zoom: Ctrl + / − / 0 / 1 (también sin Ctrl y con el teclado numérico)
         for seq, fn in (("plus", self.do_zoom_in), ("equal", self.do_zoom_in), ("KP_Add", self.do_zoom_in),
                         ("minus", self.do_zoom_out), ("KP_Subtract", self.do_zoom_out),
