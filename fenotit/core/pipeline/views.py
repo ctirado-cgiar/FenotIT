@@ -188,3 +188,27 @@ def _draw_shape(d, shape: dict, box: tuple, size: int):
     lw = max(2, size // 5)
     d.line(mean_xy, fill=(255, 255, 255, 255), width=lw + 3)           # halo para que resalte
     d.line(mean_xy, fill=(215, 30, 30, 255), width=lw)
+
+
+def decorate(result, display: dict, image_name: str | None = None):
+    """Función (vista, imagen) -> imagen con las marcas en el estilo elegido y la leyenda
+    si está activada. La usan la pantalla y la exportación (sin tkinter)."""
+    from fenotit.core.pipeline import overlay
+    legends = result.extra.get("legends") or {}
+    marks = result.extra.get("overlays") or {}
+    base = result.extra.get("base_image")
+    colors = overlay.resolve(display.get("style"), auto=result.extra.get("contrast"))
+
+    def draw(name: str, img: np.ndarray, with_marks: bool = True, box: list | None = None) -> np.ndarray:
+        if name in marks and base is not None:
+            img = base.copy()
+            if with_marks:
+                img = overlay.draw(img, marks[name], colors)
+        spec = legends.get(name)
+        if not spec or not display.get("legend", True):
+            return img
+        if image_name:
+            spec = {**spec, "footer": image_name}
+        return render_legend(img, spec, display.get("color_format", "RGB"), display.get("legend_scale", 1.0),
+                             box=box, pos=display.get("legend_pos", "tl"))
+    return draw

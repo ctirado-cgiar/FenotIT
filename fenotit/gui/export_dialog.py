@@ -1,222 +1,160 @@
-"""
-ui/export_dialog.py
-Diálogo de exportación de FenotIT.
-Permite elegir qué exportar: análisis individual o todo.
-"""
+"""Exportar: carpeta, qué análisis y qué incluir. Siempre un CSV por tabla y los
+metadatos; opcional, Excel e imágenes de las vistas. El trabajo lo hace la ventana
+principal (`run`), que avisa el avance con `progress` y el final con `finished`."""
+from __future__ import annotations
 
+import os
+import subprocess
+import sys
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
 from pathlib import Path
-from fenotit.gui.theme import COLORS, FONTS
+from tkinter import filedialog, ttk
 
 from fenotit import log
+from fenotit.gui.theme import COLORS, FONTS
+from fenotit.i18n import t
 
-_log = log.get("gui.export_dialog")
+_log = log.get("gui.export")
 
 
-def _assets() -> Path:
-    return Path(__file__).parent.parent / "assets"
+def open_folder(path: str):
+    try:
+        if sys.platform.startswith("win"):
+            os.startfile(path)                                    # noqa: S606
+        else:
+            subprocess.Popen(["open" if sys.platform == "darwin" else "xdg-open", path])
+    except Exception:
+        _log.debug("abrir carpeta", exc_info=True)
 
 
 class ExportDialog(tk.Toplevel):
-    W, H = 480, 400
 
-    def __init__(self, parent,
-                 available_analyses: list[str],
-                 exporter,
-                 output_root: str | None = None):
+    def __init__(self, parent, analyses: list[tuple[str, str, int]], folder: str, run, cancel,
+                 views_default: bool = False):
+        """analyses: (nombre, etiqueta, nº de fotos con resultado).
+        run(folder, nombres, excel, views, dialog); cancel()."""
         super().__init__(parent)
-        self.title("Exportar resultados")
+        self.title(t("export.title"))
         self.configure(bg=COLORS["bg_card"])
         self.resizable(False, False)
-        sw = self.winfo_screenwidth()
-        sh = self.winfo_screenheight()
-        self.geometry(
-            f"{self.W}x{self.H}+{(sw-self.W)//2}+{(sh-self.H)//2}")
-        try:
-            self.iconbitmap(str(_assets() / "logo.ico"))
-        except Exception:
-            _log.debug("ignorado", exc_info=True)
-        self.grab_set()
-
-        self._exporter      = exporter
-        self._output_root   = output_root
-        self._available     = available_analyses
+        self.transient(parent)
+        self._run, self._cancel = run, cancel
+        self._busy = False
+        bg = COLORS["bg_card"]
 
         tk.Frame(self, bg=COLORS["accent"], height=4).pack(fill=tk.X)
-
-        body = tk.Frame(self, bg=COLORS["bg_card"])
-        body.pack(fill=tk.BOTH, expand=True, padx=20, pady=12)
-
-        tk.Label(body, text="Exportar resultados",
-                 bg=COLORS["bg_card"], fg=COLORS["accent"],
+        body = tk.Frame(self, bg=bg)
+        body.pack(fill=tk.BOTH, expand=True, padx=22, pady=(14, 8))
+        tk.Label(body, text=t("export.title"), bg=bg, fg=COLORS["accent"],
                  font=("Segoe UI", 13, "bold")).pack(anchor="w")
 
-        tk.Frame(body, bg=COLORS["border"],
-                 height=1).pack(fill=tk.X, pady=8)
+        def section(text):
+            row = tk.Frame(body, bg=bg)
+            row.pack(fill=tk.X, pady=(14, 4))
+            tk.Label(row, text=text, bg=bg, fg=COLORS["accent"], font=("Segoe UI", 8, "bold")).pack(side=tk.LEFT)
+            tk.Frame(row, bg=COLORS["border"], height=1).pack(side=tk.LEFT, fill=tk.X, expand=True,
+                                                             padx=(8, 0), pady=(2, 0))
 
-        # Carpeta de salida
-        folder_f = tk.Frame(body, bg=COLORS["bg_card"])
-        folder_f.pack(fill=tk.X, pady=4)
-        tk.Label(folder_f, text="Carpeta de salida:",
-                 bg=COLORS["bg_card"], fg=COLORS["text"],
-                 font=FONTS["body"], width=18,
-                 anchor="w").pack(side=tk.LEFT)
-        self._folder_var = tk.StringVar(value=output_root or "")
-        tk.Entry(folder_f, textvariable=self._folder_var,
-                 width=24, bg=COLORS["bg_panel"],
-                 fg=COLORS["text"], relief="solid", bd=1,
-                 font=FONTS["small"]).pack(side=tk.LEFT, padx=4)
-        tk.Button(folder_f, text="…",
-                  command=self._pick_folder,
-                  bg=COLORS["btn_bg"], fg=COLORS["accent"],
-                  relief="flat", cursor="hand2",
-                  font=FONTS["body"]).pack(side=tk.LEFT)
+        section(t("export.folder"))
+        row = tk.Frame(body, bg=bg)
+        row.pack(fill=tk.X)
+        self.folder = tk.StringVar(value=folder)
+        tk.Entry(row, textvariable=self.folder, width=46, bg=COLORS["bg_panel"], fg=COLORS["text"],
+                 relief="solid", bd=1, font=FONTS["small"]).pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=2)
+        tk.Button(row, text="…", command=self._pick, bg=COLORS["btn_bg"], fg=COLORS["accent"], relief="flat",
+                  cursor="hand2", font=FONTS["body"], width=3).pack(side=tk.LEFT, padx=(4, 0))
 
-        tk.Frame(body, bg=COLORS["border"],
-                 height=1).pack(fill=tk.X, pady=6)
+        section(t("export.analyses"))
+        self.chosen: dict[str, tk.BooleanVar] = {}
+        for name, label, n in analyses:
+            var = self.chosen[name] = tk.BooleanVar(value=True)
+            tk.Checkbutton(body, variable=var, text=f"{label}  ·  {t('export.n_images', n=n)}", bg=bg,
+                           fg=COLORS["text"], selectcolor=COLORS["bg_panel"], activebackground=bg,
+                           font=FONTS["body"], anchor="w").pack(fill=tk.X)
 
-        # Qué exportar
-        tk.Label(body, text="¿Qué exportar?",
-                 bg=COLORS["bg_card"], fg=COLORS["text"],
-                 font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(0,4))
+        section(t("export.include"))
+        tk.Label(body, text=t("export.always"), bg=bg, fg=COLORS["text_muted"], font=FONTS["small"],
+                 anchor="w", justify="left", wraplength=420).pack(fill=tk.X, pady=(0, 2))
+        self.excel = tk.BooleanVar(value=True)
+        self.views = tk.BooleanVar(value=views_default)
+        for var, text in ((self.excel, t("export.excel")), (self.views, t("export.views"))):
+            tk.Checkbutton(body, variable=var, text=text, bg=bg, fg=COLORS["text"], selectcolor=COLORS["bg_panel"],
+                           activebackground=bg, font=FONTS["body"], anchor="w").pack(fill=tk.X)
+        tk.Label(body, text=t("export.views_note"), bg=bg, fg=COLORS["text_muted"], font=FONTS["small"],
+                 anchor="w", justify="left", wraplength=420).pack(fill=tk.X, padx=(22, 0))
 
-        self._export_all_var = tk.BooleanVar(value=True)
-        tk.Radiobutton(body,
-                       text="Todo (Excel con pestañas + CSVs individuales)",
-                       variable=self._export_all_var, value=True,
-                       command=self._on_mode_change,
-                       bg=COLORS["bg_card"], fg=COLORS["text"],
-                       selectcolor=COLORS["bg_panel"],
-                       activebackground=COLORS["bg_card"],
-                       font=FONTS["body"]).pack(anchor="w")
+        self.msg = tk.StringVar(value="")
+        self._bar = ttk.Progressbar(body, mode="determinate", length=420)
+        self._msg_lbl = tk.Label(body, textvariable=self.msg, bg=bg, fg=COLORS["text_muted"], font=FONTS["small"],
+                                 anchor="w", justify="left", wraplength=420)
+        self._msg_lbl.pack(fill=tk.X, pady=(14, 0))
 
-        tk.Radiobutton(body,
-                       text="Solo un análisis específico (CSV)",
-                       variable=self._export_all_var, value=False,
-                       command=self._on_mode_change,
-                       bg=COLORS["bg_card"], fg=COLORS["text"],
-                       selectcolor=COLORS["bg_panel"],
-                       activebackground=COLORS["bg_card"],
-                       font=FONTS["body"]).pack(anchor="w", pady=(2,0))
+        tk.Frame(self, bg=COLORS["border"], height=1).pack(fill=tk.X)
+        btns = tk.Frame(self, bg=bg)
+        btns.pack(fill=tk.X, padx=22, pady=10)
+        self._close = tk.Button(btns, text=t("common.close"), command=self._on_close, bg=COLORS["btn_bg"],
+                                fg=COLORS["accent"], relief="flat", font=FONTS["body"], cursor="hand2", padx=12)
+        self._close.pack(side=tk.RIGHT, padx=(6, 0))
+        self._go = tk.Button(btns, text=t("export.run"), command=self._start, bg=COLORS["accent"], fg="#FFFFFF",
+                             activebackground="#1A5390", activeforeground="#FFFFFF", relief="flat",
+                             font=("Segoe UI", 9, "bold"), cursor="hand2", padx=14)
+        self._go.pack(side=tk.RIGHT)
+        self._open = tk.Button(btns, text=t("export.open_folder"), bg=bg, fg=COLORS["accent"], relief="flat",
+                               font=FONTS["body"], cursor="hand2",
+                               command=lambda: open_folder(self.folder.get()))
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
+        self.bind("<Escape>", lambda e: self._on_close())
 
-        # Selector de análisis individual
-        sel_f = tk.Frame(body, bg=COLORS["bg_card"])
-        sel_f.pack(fill=tk.X, pady=4)
-        tk.Label(sel_f, text="  Análisis:",
-                 bg=COLORS["bg_card"], fg=COLORS["text_muted"],
-                 font=FONTS["small"]).pack(side=tk.LEFT)
-        self._analysis_var = tk.StringVar(
-            value=available_analyses[0] if available_analyses else "")
-        self._analysis_combo = ttk.Combobox(
-            sel_f, textvariable=self._analysis_var,
-            values=available_analyses,
-            state="disabled", width=22,
-            font=FONTS["body"])
-        self._analysis_combo.pack(side=tk.LEFT, padx=6)
+        self.update_idletasks()
+        w, h = self.winfo_reqwidth(), self.winfo_reqheight()
+        px, py = parent.winfo_rootx(), parent.winfo_rooty()
+        pw, ph = parent.winfo_width(), parent.winfo_height()
+        self.geometry(f"+{px + (pw - w) // 2}+{py + max(0, (ph - h) // 3)}")
+        self.grab_set()
 
-        tk.Frame(body, bg=COLORS["border"],
-                 height=1).pack(fill=tk.X, pady=6)
-
-        # Opciones adicionales
-        tk.Label(body, text="Opciones:",
-                 bg=COLORS["bg_card"], fg=COLORS["text"],
-                 font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(0,4))
-
-        self._excel_var    = tk.BooleanVar(value=True)
-        self._img_var      = tk.BooleanVar(value=True)
-        self._resumen_var  = tk.BooleanVar(value=True)
-
-        for var, label in [
-            (self._excel_var,   "Generar Excel con pestañas"),
-            (self._img_var,     "Guardar imágenes de resultados"),
-            (self._resumen_var, "Incluir CSV de resumen (medias por imagen)"),
-        ]:
-            tk.Checkbutton(body, variable=var, text=label,
-                           bg=COLORS["bg_card"], fg=COLORS["text"],
-                           selectcolor=COLORS["bg_panel"],
-                           activebackground=COLORS["bg_card"],
-                           font=FONTS["small"]).pack(anchor="w")
-
-        # Log de resultado
-        self._log_var = tk.StringVar(value="")
-        tk.Label(body, textvariable=self._log_var,
-                 bg=COLORS["bg_card"], fg=COLORS["accent2"],
-                 font=FONTS["small"], anchor="w",
-                 wraplength=420).pack(fill=tk.X, pady=(8,0))
-
-        # Botones
-        tk.Frame(self, bg=COLORS["border"],
-                 height=1).pack(fill=tk.X)
-        btn_row = tk.Frame(self, bg=COLORS["bg_card"])
-        btn_row.pack(fill=tk.X, padx=20, pady=10)
-
-        tk.Button(btn_row, text="Cerrar",
-                  command=self.destroy,
-                  bg=COLORS["btn_bg"], fg=COLORS["accent"],
-                  relief="flat", font=FONTS["body"],
-                  cursor="hand2", padx=12).pack(side=tk.RIGHT, padx=4)
-
-        tk.Button(btn_row, text="💾  Exportar",
-                  command=self._do_export,
-                  bg=COLORS["accent"], fg="#FFFFFF",
-                  relief="flat",
-                  font=("Segoe UI", 9, "bold"),
-                  cursor="hand2", padx=12).pack(side=tk.RIGHT, padx=4)
-
-    def _pick_folder(self):
-        d = filedialog.askdirectory(
-            title="Carpeta de exportación", parent=self)
+    def _pick(self):
+        d = filedialog.askdirectory(title=t("export.folder"), parent=self, initialdir=self.folder.get() or None)
         if d:
-            self._folder_var.set(d)
+            self.folder.set(d)
 
-    def _on_mode_change(self):
-        if self._export_all_var.get():
-            self._analysis_combo.config(state="disabled")
-        else:
-            self._analysis_combo.config(state="readonly")
-
-    def _do_export(self):
-        folder = self._folder_var.get()
+    def _start(self):
+        folder = self.folder.get().strip()
+        names = [n for n, v in self.chosen.items() if v.get()]
         if not folder:
-            messagebox.showwarning("Sin carpeta",
-                                   "Selecciona una carpeta de salida.",
-                                   parent=self)
+            self.msg.set(t("export.no_folder"))
             return
-
-        if self._exporter is None:
-            messagebox.showwarning("Sin datos",
-                                   "No hay resultados para exportar.",
-                                   parent=self)
+        if not names:
+            self.msg.set(t("export.no_analysis"))
             return
+        self._busy = True
+        self._go.config(state="disabled")
+        self._close.config(text=t("common.cancel"))
+        self._open.pack_forget()
+        self.msg.set(t("export.writing"))
+        self._run(folder, names, self.excel.get(), self.views.get(), self)
 
-        # Actualizar output_root del exporter
-        from pathlib import Path as _Path
-        self._exporter.output_root = _Path(folder)
-        self._exporter.results_dir = _Path(folder) / "results"
+    # llamados por la ventana principal (hilo principal)
+    def progress(self, i: int, n: int, text: str):
+        if not self.winfo_exists():
+            return
+        if not self._bar.winfo_ismapped():
+            self._bar.pack(fill=tk.X, pady=(10, 0), before=self._msg_lbl)
+        self._bar.config(maximum=max(n, 1), value=i)
+        self.msg.set(text)
 
-        try:
-            if self._export_all_var.get():
-                generated = self._exporter.export_all(
-                    generate_excel=self._excel_var.get())
-            else:
-                name = self._analysis_var.get()
-                generated = self._exporter.export_all(
-                    analyses_to_include=[name],
-                    generate_excel=self._excel_var.get())
+    def finished(self, text: str, ok: bool = True):
+        if not self.winfo_exists():
+            return
+        self._busy = False
+        self._bar.pack_forget()
+        self.msg.set(text)
+        self._go.config(state="normal")
+        self._close.config(text=t("common.close"))
+        if ok:
+            self._open.pack(side=tk.LEFT)
 
-            # Mostrar resultado
-            files = [Path(v).name for v in generated.values()
-                     if isinstance(v, str) and Path(v).exists()]
-            msg = f"✓ Exportado en:\n{folder}\n\n" + \
-                  "\n".join(f"  • {f}" for f in files)
-            self._log_var.set(
-                f"✓ {len(files)} archivos generados en {folder}")
-            messagebox.showinfo("Exportación completada",
-                                msg, parent=self)
-
-        except Exception as e:
-            _log.exception("Error al exportar")
-            self._log_var.set(f"✗ Error: {e}")
-            messagebox.showerror("Error al exportar",
-                                 str(e), parent=self)
+    def _on_close(self):
+        if self._busy:
+            self._cancel()
+            return
+        self.destroy()

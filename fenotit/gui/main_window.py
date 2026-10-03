@@ -27,7 +27,7 @@ from fenotit.core.project import IMAGE_EXTS, PROJECT_EXT, Project, Scale, Segmen
 from fenotit.gui.roi.editor import AreaEditor
 from fenotit.core.analysis.registry import ANALYSES, AnalysisResult
 from fenotit.core import pipeline, units
-from fenotit.core.export.exporter import Exporter
+from fenotit.core import batch
 from fenotit.gui.config_panel import ConfigPanel
 from fenotit.gui.zoom_controller import ZoomController
 from fenotit.gui.image_list import ImageList
@@ -322,14 +322,14 @@ class MainWindow:
         self._skipped: set[str] = set()          # fotos omitidas (⚠ en la lista)
         self._pending: set[str] = set()          # en cola del lote (… en la lista)
         self._step_names: dict[str, dict[str, list]] = {}
-        self.output_root:  str | None = None
         self.active_analysis: str | None = None
         self._after_resize_id  = None
         self._after_preview_id = None
         self.zoom_ctrl: ZoomController | None = None
         self._zoom_pct_var = tk.StringVar(value="100%")
-        # Exporter acumula resultados en sesión
-        self._exporter: Exporter | None = None
+        self._batch: batch.BatchRunner | None = None
+        self._full_paths: list[str] = []      # fotos con imágenes en memoria (las demás, solo datos)
+        self._rehydrating = None
         self._chart_panel: IntraImageChartPanel | None = None
         # Resultados por análisis para gráficos combinados
         self.all_results_by_analysis: dict[str, dict] = {}
@@ -659,16 +659,11 @@ class MainWindow:
         self._clear_all_results()
         self.all_results_by_analysis.clear()
         self._corr_info.clear()
-        self._exporter = None
-        self.output_root = None
         self.canvas_right.delete("all")
         self._update_batch_list()
         self._show_panel(self.left_panel, bool(project.images))
         self._show_panel(self.right_panel, bool(project.images))
         if project.current_image:
-            if project.mode == "batch":
-                self.output_root = str(project.images[0].parent)
-                self._exporter = Exporter(self.output_root)
             self._load_single(str(project.current_image))
             self._sync_listbox()
         else:
@@ -797,16 +792,19 @@ class MainWindow:
         ttk.Style(self.root).configure("Thin.Horizontal.TProgressbar", thickness=8)
         self._progress_bar = ttk.Progressbar(self.statusbar, length=160, mode="determinate",
                                              style="Thin.Horizontal.TProgressbar")
+        self._cancel_link = tk.Label(self.statusbar, text=t("common.cancel"), bg=COLORS["bg_panel"],
+                                     fg=COLORS["accent"], font=FONTS["small"], cursor="hand2", padx=4)
+        self._cancel_link.bind("<Button-1>", lambda e: self._cancel_batch())
         self.preview_var = tk.StringVar(value="")
         tk.Label(self.statusbar, textvariable=self.preview_var, bg=COLORS["bg_panel"],
                  fg=COLORS["accent2"], font=FONTS["small"], padx=8).pack(side=tk.RIGHT)
         self.image_info_var = tk.StringVar(value="")
         tk.Label(self.statusbar, textvariable=self.image_info_var, bg=COLORS["bg_panel"],
                  fg=COLORS["text"], font=FONTS["small"], padx=8).pack(side=tk.RIGHT)
-        tk.Label(self.statusbar, textvariable=self.status_var,
-                 bg=COLORS["bg_panel"], fg=COLORS["text_muted"],
-                 font=FONTS["small"], anchor="w",
-                 padx=10).pack(fill=tk.X)
+        self._status_label = tk.Label(self.statusbar, textvariable=self.status_var,
+                                      bg=COLORS["bg_panel"], fg=COLORS["text_muted"],
+                                      font=FONTS["small"], anchor="w", padx=10)
+        self._status_label.pack(fill=tk.X)
 
     # ── Topbar ────────────────────────────────────────────────────────────────
 
@@ -1442,9 +1440,6 @@ class MainWindow:
             messagebox.showwarning(t("msg.no_images_title"),
                                    t("msg.no_images"))
             return
-        if not self.output_root:
-            self.output_root = folder
-            self._exporter = Exporter(folder)
         self._add_images(paths)
         self._set_status(t("status.folder_loaded", n=len(paths), folder=folder))
 
@@ -1598,6 +1593,7 @@ class MainWindow:
         self._update_area_scope()
         self._on_slider_change()          # vista previa de la segmentación en la nueva imagen
 
+        self._set_status(t("status.ready"))           # el nombre ya está a la derecha de la barra
         # Restaurar resultado previo si existe en cache
         if path in self.results_cache:
             self._display_result(self.results_cache[path], self.step_names_cache.get(path, []))
@@ -1615,7 +1611,6 @@ class MainWindow:
                 self.canvas_right.delete("all")
 
         self._refresh_history()
-        self._set_status(t("status.ready"))           # el nombre ya está a la derecha de la barra
 
     # ── Display ───────────────────────────────────────────────────────────────
 
@@ -1770,90 +1765,134 @@ class MainWindow:
             except Exception as e:
                 _log.exception("%s falló en %s", name, path)
                 result = AnalysisResult(status="error", error=str(e))
+            result.extra["params"] = params
             self.root.after(0, lambda: self._on_result(name, result, path))
         threading.Thread(target=worker, daemon=True).start()
 
     def _run_batch(self, name: str):
+        """Todas las fotos en procesos aparte (core.batch): vuelven tablas y marcas, no
+        imágenes; la vista de una foto se recalcula al abrirla."""
         if not self.batch_paths:
             messagebox.showwarning(t("msg.no_batch_title"), t("msg.no_batch"))
             return
-        total = len(self.batch_paths)
-        self._set_status(t("status.running_batch", name=_analysis_label(name), n=total))
-        self.root.config(cursor="watch")
-        params = self._build_params()
-
-        skipped: list[str] = []
+        if self._batch is not None:
+            return
         paths = self.batch_paths
+        total = len(paths)
+        self._set_status(t("status.running_batch", name=_analysis_label(name), n=total))
+        params = self._build_params()
+        jobs = []
+        for path in paths:
+            sc = self.project.scale_for(path)
+            aruco = sc.source == "aruco"
+            jobs.append(batch.Job(path, dict(params, mm_per_pixel=None if aruco else sc.mm_per_pixel,
+                                             roi_shapes=self.project.roi_for(path)), aruco_scale=aruco))
         self._pending = set(paths)                 # al volver a correr, las marcas se rehacen
         self._skipped -= self._pending
         self._progress(0, total)
         self._update_batch_list()
         self._sync_listbox()
+        after = self.root.after
+        self._batch = batch.BatchRunner(
+            name, jobs, self.project.corrections,
+            on_outcome=lambda i, n, o: after(0, lambda: self._on_batch_outcome(name, i, n, o)),
+            on_done=lambda cancelled: after(0, lambda: self._on_batch_done(name, total, cancelled))).start()
 
-        def worker():
-            results = []
-            for i, path in enumerate(paths):
-                img, info = self._load_corrected(path)
-                if img is None:
-                    continue
-                reason = self._skip_reason(info)
-                if reason:
-                    skipped.append(path)
-                    self.root.after(0, lambda p=path, r=reason: self._mark_skipped(p, r))
-                    continue
-                p = dict(params, mm_per_pixel=self._scale_for(path), roi_shapes=self.project.roi_for(path))
-                try:
-                    r = ANALYSES[name].func(img, p)
-                except Exception as e:
-                    _log.exception("%s falló en %s", name, path)
-                    r = AnalysisResult(status="error", error=str(e))
-                results.append((path, r))
+    def _cancel_batch(self):
+        if self._batch is not None:
+            self._batch.cancel()
+            self._set_status(t("status.cancelling"))
 
-                # Cachear inmediatamente — así al navegar ya está disponible
-                self.root.after(0, lambda p=path, r=r, i=i:
-                    self._cache_result(name, p, r, i, total))
-
-            self.root.after(0, lambda: self._on_batch_result(name, results, len(skipped)))
-
-        threading.Thread(target=worker, daemon=True).start()
-
-    def _cache_result(self, name: str, path: str,
-                      result: AnalysisResult, i: int, total: int):
-        """
-        Guarda el resultado en cache inmediatamente al procesarse.
-        Si la imagen activa es esta, actualiza el display.
-        """
-        step_names = list(result.step_images.keys())
-        self._results.setdefault(name, {})[path] = result          # del análisis que corre, aunque
-        self._step_names.setdefault(name, {})[path] = step_names   # el usuario cambie de análisis
+    def _on_batch_outcome(self, name: str, i: int, n: int, out: "batch.Outcome"):
+        path = out.path
         self._pending.discard(path)
-        # Guardar en índice combinado por análisis
-        if name not in self.all_results_by_analysis:
-            self.all_results_by_analysis[name] = {}
-        self.all_results_by_analysis[name][path] = result
-
-        # Exportar CSV en tiempo real y guardar imágenes de pasos
-        if result.status == 'ok':
-            self._remember_result(name, path, result)
-
-        self._set_status(t("status.batch_progress", name=_analysis_label(name), i=i + 1, n=total))
-        self._progress(i + 1, total)
+        if out.status == "skipped":
+            self._mark_skipped(path, t("corr.skip_aruco", ids=", ".join(map(str, out.aruco_missing)) or "?"))
+        elif out.status == "unreadable":
+            self._mark_skipped(path, t("msg.image_unreadable", name=Path(path).name))
+        else:
+            result = out.result or AnalysisResult(status="error", error=out.message)
+            if out.status == "error" and not result.error:
+                result.error = out.message
+            self._cache_result(name, path, result)
+        self._set_status(t("status.batch_progress", name=_analysis_label(name), i=i, n=n))
+        self._progress(i, n)
         self._update_batch_list()
 
-        # Si es la imagen que está visible ahora, actualizar display
+    def _cache_result(self, name: str, path: str, result: AnalysisResult):
+        """Guarda el resultado del análisis que corre (aunque el usuario cambie de
+        análisis) y, si es la foto que se ve, lo muestra."""
+        views = list(result.step_images) or result.extra.get("views", [])
+        self._results.setdefault(name, {})[path] = result
+        self._step_names.setdefault(name, {})[path] = views
+        self.all_results_by_analysis.setdefault(name, {})[path] = result
         if path == self.current_image_path and result.status == "ok" and name == self.active_analysis:
-            self._display_result(result, step_names, fresh=True)
+            self._display_result(result, views, fresh=True)
+            self._refresh_history()
 
-    def _remember_result(self, name: str, path: str, result: AnalysisResult):
-        """Guarda el resultado para exportar. Con carpeta de salida, además escribe
-        imágenes y CSV al momento; sin ella queda en memoria hasta Exportar."""
-        if self._exporter is None:
-            self._exporter = Exporter(self.output_root or ".")
-        live = bool(self.output_root)
-        self._exporter.save_result(name, Path(path).name, result, save_step_images=live,
-                                   decorate=self._decorate_fn(result, Path(path).stem))
-        if live:
-            self._exporter.append_to_csv(name, Path(path).name, result)
+    def _on_batch_done(self, name: str, total: int, cancelled: bool):
+        self._batch = None
+        self._pending.clear()
+        self._progress(None)
+        self._update_batch_list()
+        store = self._results.get(name, {})
+        ok = sum(1 for p in self.batch_paths if p in store and store[p].status == "ok")
+        failed = sum(1 for p in self.batch_paths if p in store and store[p].status != "ok")
+        n_skipped = sum(1 for p in self.batch_paths if p in self._skipped)
+        key = "status.batch_cancelled" if cancelled else "status.batch_done"
+        msg = t(key, name=_analysis_label(name), ok=ok, n=total)
+        if n_skipped:
+            msg += "  ·  " + t("status.skipped", n=n_skipped)
+        if failed:
+            msg += "  ·  " + t("status.failed", n=failed)
+        self._set_status(msg)
+        if n_skipped and not cancelled:
+            messagebox.showwarning(t("corr.skip_title"), t("corr.skip_summary", n=n_skipped), parent=self.root)
+
+    # ── Resultados livianos (lote): la vista se recalcula al abrir la foto ───────
+
+    def _rehydrate(self, name: str, path: str, light: AnalysisResult):
+        """Recalcula la foto con los mismos parámetros para tener sus imágenes."""
+        if self._rehydrating == (name, path) or not self.scaler_left.has_image:
+            return
+        self._rehydrating = (name, path)
+        image, params = self.scaler_left.original, light.extra.get("params") or self._build_params()
+        self._set_status(t("status.preparing_view"))
+
+        def worker():
+            try:
+                full = ANALYSES[name].func(image, params)
+            except Exception as e:
+                _log.exception("%s falló en %s", name, path)
+                full = AnalysisResult(status="error", error=str(e))
+            full.extra["params"] = params
+            self.root.after(0, lambda: self._on_rehydrated(name, path, full))
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_rehydrated(self, name: str, path: str, full: AnalysisResult):
+        self._rehydrating = None
+        if full.status != "ok" or self._results.get(name, {}).get(path) is None:
+            return
+        self._results[name][path] = full
+        self.all_results_by_analysis.setdefault(name, {})[path] = full
+        self._trim_memory(path)
+        if path == self.current_image_path and name == self.active_analysis:
+            self._display_result(full, list(full.step_images))
+            self._refresh_history()
+            if self.status_var.get() == t("status.preparing_view"):
+                self._set_status(t("status.ready"))
+
+    def _trim_memory(self, path: str):
+        """Solo las 2 últimas fotos vistas guardan imágenes (cada una ~100 MB en 8 MP)."""
+        if path in self._full_paths:
+            self._full_paths.remove(path)
+        self._full_paths.append(path)
+        del self._full_paths[:-2]
+        for name, per in self._results.items():
+            for p, r in per.items():
+                if p not in self._full_paths and r.step_images:
+                    per[p] = batch.light(r)
+                    self.all_results_by_analysis.get(name, {}).pop(p, None)
 
     def _on_result(self, name: str, result: AnalysisResult, path: str):
         self.root.config(cursor="")
@@ -1871,8 +1910,8 @@ class MainWindow:
             self.all_results_by_analysis[name] = {}
         self.all_results_by_analysis[name][path] = result
         self._display_result(result, names, fresh=True)
+        self._trim_memory(path)
         self._update_batch_list()
-        self._remember_result(name, path, result)
         self._set_status(t("status.done", name=_analysis_label(name),
                            detail=_summary(result.stats)))
         reused = result.extra.get("reused")
@@ -1885,36 +1924,6 @@ class MainWindow:
         # Auto-actualizar panel de gráficos
         if self._chart_panel and result.measurements:
             self._chart_panel.load(result.measurements)
-
-    def _on_batch_result(self, name: str, results: list, n_skipped: int = 0):
-        self.root.config(cursor="")
-        self._pending.clear()
-        self._progress(None)
-        self._update_batch_list()
-        if not results:
-            self._set_status(t("msg.no_results_status"))
-            return
-
-        self.root.config(cursor="")
-        ok_count = sum(1 for _, r in results if r.status == "ok")
-
-        # Asegurar que la imagen activa muestra su resultado
-        cur   = self.current_image_path
-        if cur and cur in self.results_cache:
-            result = self.results_cache[cur]
-            if result.status == "ok":
-                self._display_result(result, self.step_names_cache.get(cur, []))
-                self._refresh_history()
-                self._update_step_active(3)
-
-        msg = t("status.batch_done", name=_analysis_label(name), ok=ok_count, n=len(results) + n_skipped)
-        if n_skipped:
-            msg += "  ·  " + t("status.skipped", n=n_skipped)
-        if self.output_root:
-            msg += f" — {Path(self.output_root) / 'results'}"
-        self._set_status(msg)
-        if n_skipped:
-            messagebox.showwarning(t("corr.skip_title"), t("corr.skip_summary", n=n_skipped), parent=self.root)
 
     def _toggle_results_panel(self):
         """Oculta o muestra la tabla y los gráficos para dar espacio a las imágenes."""
@@ -2146,28 +2155,9 @@ class MainWindow:
         return overlay.resolve(self.project.display.get("style"), auto=result.extra.get("contrast"))
 
     def _decorate_fn(self, result: AnalysisResult, image_name: str | None = None):
-        """Marcas (contornos, puntos, números) con el estilo elegido y leyenda si está
-        activada. Al exportar se dibujan a escala de la imagen; en pantalla, aparte."""
-        from fenotit.core.pipeline import overlay
-        from fenotit.core.pipeline.views import render_legend
-        legends = result.extra.get("legends") or {}
-        marks = result.extra.get("overlays") or {}
-        base = result.extra.get("base_image")
-        disp = self.project.display
-
-        def decorate(name: str, img: np.ndarray, with_marks: bool = True, box: list | None = None) -> np.ndarray:
-            if name in marks and base is not None:
-                img = base.copy()
-                if with_marks:
-                    img = overlay.draw(img, marks[name], self._mark_colors(result))
-            spec = legends.get(name)
-            if not spec or not disp.get("legend", True):
-                return img
-            if image_name:
-                spec = {**spec, "footer": image_name}
-            return render_legend(img, spec, disp.get("color_format", "RGB"), disp.get("legend_scale", 1.0),
-                                 box=box, pos=disp.get("legend_pos", "tl"))
-        return decorate
+        """Marcas con el estilo elegido y leyenda si está activada (core.pipeline.views)."""
+        from fenotit.core.pipeline.views import decorate
+        return decorate(result, self.project.display, image_name)
 
     def _on_display_change(self, _=None):
         self.project.display = {**self.project.display, "legend": bool(self.legend_var.get()),
@@ -2229,7 +2219,8 @@ class MainWindow:
     def _update_batch_list(self):
         """Lista de imágenes; ✓ = ya analizada en esta sesión, ⚠ = omitida."""
         marks = {p: "error" for p in self._skipped}
-        marks.update({p: "done" for p in self.batch_paths if p in self.results_cache})
+        store = self.results_cache
+        marks.update({p: "done" if store[p].status == "ok" else "error" for p in self.batch_paths if p in store})
         marks.update({p: "pending" for p in self._pending})
         if self.batch_paths:
             self.batch_index = min(self.batch_index, len(self.batch_paths) - 1)
@@ -2301,7 +2292,13 @@ class MainWindow:
             return
         self.step_idx = idx
         name = self.step_names[idx]
-        self._show_step_img(name, self.last_result.step_images[name])
+        img = self.last_result.step_images.get(name)
+        if img is None:                    # resultado del lote: datos listos, marcas en camino
+            if self.scaler_left.has_image:
+                self._show_step_img(name, self.scaler_left.original)
+            self._rehydrate(self.active_analysis, self.current_image_path, self.last_result)
+        else:
+            self._show_step_img(name, img)
         self._update_view_controls(name)
         self.step_label_var.set(
             f"{name}  ({idx+1}/{len(self.step_names)})")
@@ -2717,27 +2714,90 @@ class MainWindow:
     # ── Exportación ───────────────────────────────────────────────────────────
 
     def _export_results(self):
-        """Abre el diálogo de exportación."""
-        available = list(self.results_cache.keys())
-        if not available and not self._exporter:
-            messagebox.showwarning(
-                t("msg.no_results_title"),
-                t("msg.no_results"),
-                parent=self.root)
+        """Una sola exportación: tablas + metadatos por análisis (y, si se pide, Excel e
+        imágenes de las vistas, que se recalculan en procesos aparte)."""
+        done = [(n, _analysis_label(n), sum(1 for p in self.batch_paths if p in self._results.get(n, {})
+                                            and self._results[n][p].status == "ok"))
+                for n in ANALYSES if self._results.get(n)]
+        done = [d for d in done if d[2]]
+        if not done:
+            messagebox.showwarning(t("msg.no_results_title"), t("msg.no_results"), parent=self.root)
             return
-        # Inferir análisis disponibles del cache
-        analysis_names = list({
-            name for name in (self.active_analysis,)
-            if name
-        }) or ["Análisis"]
-        ExportDialog(
-            self.root,
-            available_analyses=analysis_names,
-            exporter=self._exporter,
-            output_root=self.output_root)
+        folder = settings.get("export_dir") or (str(self.project.folder) if self.project.folder else "") \
+            or (str(Path(self.batch_paths[0]).parent) if self.batch_paths else "")
+        ExportDialog(self.root, done, folder, run=self._run_export, cancel=self._cancel_export)
+
+    def _image_info(self, path: str) -> dict:
+        sc = self.project.scale_for(path)
+        shapes = self.project.roi_for(path)
+        own = self.project.key(path) in self.project.image_scale
+        return {"file": path, "mm_per_px": self._scale_for(path) or "",
+                "scale_source": sc.source + (" (image)" if own else ""),
+                "length_unit": units.ascii_name(self.project.unit),
+                "n_analysis_areas": sum(1 for x in shapes if x["kind"] == "include"),
+                "n_excluded_areas": sum(1 for x in shapes if x["kind"] == "exclude")}
+
+    def _run_export(self, folder: str, names: list[str], excel: bool, views: bool, dlg):
+        from functools import partial
+        from fenotit.core.export import exporter
+        root = Path(folder)
+        settings.set("export_dir", folder)
+        written = 0
+        try:
+            for name in names:
+                store = self._results.get(name, {})
+                key = _analysis_key(name)
+                info = {p: self._image_info(p) for p in self.batch_paths}
+                tables = exporter.collect(name, store, self.batch_paths, info, self._skipped)
+                meta = exporter.metadata(key, store, self.project,
+                                         {"view_images": "views/" if views else "no"})
+                written += len(exporter.write_tables(root / key, tables, meta, excel, f"{key}.xlsx"))
+        except Exception as e:
+            _log.exception("Exportación")
+            dlg.finished(t("export.error", error=e), ok=False)
+            return
+        if not views:
+            dlg.finished(t("export.done", folder=folder))
+            return
+        queue = []
+        for name in names:
+            store = self._results.get(name, {})
+            jobs = [batch.Job(p, store[p].extra.get("params") or self._build_params())
+                    for p in self.batch_paths if p in store and store[p].status == "ok"]
+            if jobs:
+                queue.append((name, jobs))
+        total = sum(len(j) for _, j in queue)
+        state = {"i": 0, "errors": 0}
+
+        def next_analysis(cancelled=False):
+            if cancelled or not queue:
+                self._export_runner = None
+                text = t("export.cancelled") if cancelled else t("export.done", folder=folder)
+                if state["errors"]:
+                    text += "  ·  " + t("status.failed", n=state["errors"])
+                dlg.finished(text, ok=not cancelled)
+                return
+            name, jobs = queue.pop(0)
+            task = partial(batch.export_views, str(root / _analysis_key(name) / "views"), dict(self.project.display))
+
+            def outcome(i, n, out):
+                state["i"] += 1
+                state["errors"] += out.status != "ok"
+                dlg.progress(state["i"], total, t("export.views_progress", i=state["i"], n=total))
+            after = self.root.after
+            self._export_runner = batch.BatchRunner(
+                name, jobs, self.project.corrections, task=task,
+                on_outcome=lambda i, n, o: after(0, lambda: outcome(i, n, o)),
+                on_done=lambda c: after(0, lambda: next_analysis(c))).start()
+        dlg.progress(0, total, t("export.views_progress", i=0, n=total))
+        next_analysis()
+
+    def _cancel_export(self):
+        runner = getattr(self, "_export_runner", None)
+        if runner is not None:
+            runner.cancel()
 
     def _export_batch(self):
-        """Exportar lote — mismo diálogo que exportar imagen."""
         self._export_results()
 
     # ── Helpers generales ─────────────────────────────────────────────────────
@@ -2788,10 +2848,12 @@ class MainWindow:
         """Barra de avance del lote en la barra de estado (None = ocultarla)."""
         if i is None:
             self._progress_bar.pack_forget()
+            self._cancel_link.pack_forget()
             return
         self._progress_bar.config(maximum=max(n, 1), value=i)
         if not self._progress_bar.winfo_ismapped():
-            self._progress_bar.pack(side=tk.RIGHT, padx=8)
+            self._cancel_link.pack(side=tk.RIGHT, padx=(0, 6), before=self._status_label)
+            self._progress_bar.pack(side=tk.RIGHT, padx=(8, 2), before=self._status_label)
 
     def _set_status(self, msg: str):
         self.status_var.set(msg)
