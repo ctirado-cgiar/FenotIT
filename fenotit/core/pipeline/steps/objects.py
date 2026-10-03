@@ -465,17 +465,18 @@ def _merge_flat_necks(labels, dist, ratio, owner=None):
 
 @step("filter", "processor", requires=("labels",), provides=("labels",), params=[
     {"key": "area_min", "type": "int", "default": -1, "min": -1, "max": 10_000_000},
-    {"key": "area_max", "type": "int", "default": 500_000, "min": 1, "max": 100_000_000},
+    {"key": "area_max", "type": "int", "default": 0, "min": 0, "max": 1_000_000_000},
     {"key": "width_min", "type": "int", "default": 5, "min": 0, "max": 100_000},
-    {"key": "width_max", "type": "int", "default": 99_999, "min": 1, "max": 100_000},
+    {"key": "width_max", "type": "int", "default": 0, "min": 0, "max": 100_000},
     {"key": "length_min", "type": "int", "default": 10, "min": 0, "max": 100_000},
-    {"key": "length_max", "type": "int", "default": 99_999, "min": 1, "max": 100_000},
+    {"key": "length_max", "type": "int", "default": 0, "min": 0, "max": 100_000},
     {"key": "ar_max", "type": "float", "default": 1000.0, "min": 1.0, "max": 1000.0},
     {"key": "exclude_border", "type": "bool", "default": True},
 ])
 def filter_objects(ctx, p):
     """Filtra objetos (tamaños en px) y renumera 1..n por filas, de izquierda a derecha.
-    area_min = -1: solo quita ruido (< 0.01 % de la foto y < 5 % del objeto típico)."""
+    area_min = -1: solo quita ruido (< 0.01 % de la foto y < 5 % del objeto típico).
+    Máximos en 0 = sin límite (un tope fijo en px dejaba fuera objetos grandes en fotos grandes)."""
     from scipy.ndimage import find_objects
     labels = ctx.labels
     h, w = labels.shape
@@ -484,20 +485,22 @@ def filter_objects(ctx, p):
         areas = areas[areas > 0]
         typical = float(np.median(areas)) if len(areas) else 0.0
         p = {**p, "area_min": min(1e-4 * h * w, 0.05 * typical) if typical else 0}
+    inf = float("inf")
+    a_max, w_max, l_max = (p[k] or inf for k in ("area_max", "width_max", "length_max"))
     keep = []
     for oid, sl in enumerate(find_objects(labels), 1):
         if sl is None:
             continue
         ys, xs = np.nonzero(labels[sl] == oid)
         area = len(xs)
-        if not (p["area_min"] <= area <= p["area_max"]):
+        if not (p["area_min"] <= area <= a_max):
             continue
         y0, x0 = sl[0].start, sl[1].start
         if p["exclude_border"] and (x0 == 0 or y0 == 0 or sl[1].stop == w or sl[0].stop == h):
             continue
         (_, _), (a, b), _ = cv2.minAreaRect(np.column_stack([xs, ys]).astype(np.float32))
         width, length = min(a, b), max(a, b)
-        if not (p["width_min"] <= width <= p["width_max"] and p["length_min"] <= length <= p["length_max"]):
+        if not (p["width_min"] <= width <= w_max and p["length_min"] <= length <= l_max):
             continue
         if width > 0 and length / width > p["ar_max"]:
             continue

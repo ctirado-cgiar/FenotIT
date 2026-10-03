@@ -187,6 +187,15 @@ def test_distances():
     assert ctx.image_row()["n_pairs"] == 2
 
 
+def test_large_objects_kept():
+    """Fotos grandes: objetos de millones de px no se pierden por un tope fijo."""
+    img = np.full((3000, 4000, 3), 255, np.uint8)
+    cv2.ellipse(img, (1300, 1500), (900, 700), 0, 0, 360, (0, 120, 0), -1)   # ~2 M px
+    cv2.circle(img, (3200, 1500), 300, (0, 120, 0), -1)
+    ctx = pipeline.run(img, [SEG, {"step": "label"}, {"step": "filter"}, {"step": "count"}])
+    assert ctx.image_row()["n_objects"] == 2, ctx.image_row()
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):
