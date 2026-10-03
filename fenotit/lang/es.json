@@ -163,6 +163,7 @@
   "msg.res_title": "Resoluciones diferentes",
   "panel.analysis": "ANÁLISIS",
   "panel.left": "Flujo",
+  "panel.options": "Opciones",
   "panel.right": "Parámetros",
   "param.distances.exclude_border.label": "Excluir objetos del borde",
   "param.distances.hdr_measure.label": "DISTANCIAS",

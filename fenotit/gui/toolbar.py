@@ -156,7 +156,15 @@ def _panel(d, s, w, color, side="left"):
     d.rectangle((bx[0], y0, bx[1], y1), fill=color)
 
 
-_DRAW = {"palette": _palette, "list": _list, "grid": _grid,
+def _tune(d, s, w, color):
+    """Ajustes: tres líneas con su perilla (opciones de una medición)."""
+    for y, kx in ((0.26, 0.66), (0.50, 0.34), (0.74, 0.58)):
+        d.line((s * 0.08, s * y, s * 0.92, s * y), fill=color, width=w)
+        r = s * 0.11
+        d.ellipse((s * kx - r, s * y - r, s * kx + r, s * y + r), fill=color)
+
+
+_DRAW = {"palette": _palette, "list": _list, "grid": _grid, "tune": _tune,
          "panel_left": lambda d, s, w, c: _panel(d, s, w, c, "left"),
          "panel_right": lambda d, s, w, c: _panel(d, s, w, c, "right"), "select": _select,
          "eye": _eye, "eye_off": lambda d, s, w, c: _eye(d, s, w, c, off=True), "photo": _photo, "folder": _folder, "project": _project,

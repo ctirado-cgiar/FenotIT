@@ -195,11 +195,9 @@ class DropMenu(tk.Frame):
 # ── Panel colapsable ──────────────────────────────────────────────────────────
 
 class CollapsiblePanel(tk.Frame):
-    """
-    Panel lateral que se puede colapsar/expandir con un botón.
-    Cuando está colapsado solo muestra una tira con el botón.
-    """
-    COLLAPSED_W = 18
+    """Panel lateral que se puede ocultar. Abierto: un ícono pequeño en su esquina de
+    arriba; oculto: una tira delgada con el mismo ícono para volver a abrirlo."""
+    COLLAPSED_W = 14
 
     def __init__(self, parent, side: str, title: str,
                  colors: dict, default_width: int = 200, on_toggle=None, max_width: int = 420, **kw):
@@ -211,32 +209,27 @@ class CollapsiblePanel(tk.Frame):
         self.title         = title
         self.default_width = default_width
         self._expanded     = True
-
-        # Botón de colapsar (tira lateral)
-        self._strip = tk.Frame(self, bg=colors["bg_panel"],
-                               width=self.COLLAPSED_W)
-        self._strip.pack(
-            side=tk.RIGHT if side == "left" else tk.LEFT,
-            fill=tk.Y)
-        self._strip.pack_propagate(False)
-
         # ícono de panel (no una flecha: las flechas quedan para anterior/siguiente)
-        self._icon = ImageTk.PhotoImage(icon(f"panel_{side}", 14, colors["accent"]))
-        self._toggle_btn = tk.Label(self._strip, image=self._icon, bg=colors["bg_panel"], cursor="hand2")
-        self._toggle_btn.place(relx=0.5, rely=0.5, anchor="center")
-        self._toggle_btn.bind("<Button-1>", lambda e=None: self.toggle())
-        Tooltip(self._toggle_btn, t("view.toggle_panel"))
+        self._icon = ImageTk.PhotoImage(icon(f"panel_{side}", 12, colors["accent"]))
 
-        # Contenedor del contenido
+        self._strip = tk.Frame(self, bg=colors["bg_panel"], width=self.COLLAPSED_W)
+        self._strip.pack_propagate(False)
+        strip_btn = tk.Label(self._strip, image=self._icon, bg=colors["bg_panel"], cursor="hand2")
+        strip_btn.place(relx=0.5, rely=0.5, anchor="center")
+
         self.content = tk.Frame(self, bg=colors["bg_panel"])
-        self.content.pack(
-            side=tk.LEFT if side == "left" else tk.RIGHT,
-            fill=tk.BOTH, expand=True)
+        self.content.pack(fill=tk.BOTH, expand=True)
+        self._corner = tk.Label(self, image=self._icon, bg=colors["bg_panel"], cursor="hand2", padx=2, pady=2)
+        self._corner.place(relx=1.0, x=-4, y=5, anchor="ne")
+        for btn in (strip_btn, self._corner):
+            btn.bind("<Button-1>", lambda e=None: self.toggle())
+            Tooltip(btn, t("view.toggle_panel"))
 
         self.configure(width=default_width)
         # el ancho lo decide el usuario (barra divisoria), no el contenido: así el panel no
         # crece solo cuando aparece un texto o un menú largo
         self.pack_propagate(False)
+        self.bind("<Map>", lambda e: self._corner.lift(), add="+")
 
     def toggle(self):
         if self._expanded:
@@ -259,13 +252,16 @@ class CollapsiblePanel(tk.Frame):
         if width > self.COLLAPSED_W * 3:          # recordar el ancho que dejó el usuario
             self.default_width = width
         self.content.pack_forget()
+        self._corner.place_forget()
+        self._strip.pack(fill=tk.Y, expand=True)
         self._set_width(self.COLLAPSED_W)
 
     def expand(self):
         self._expanded = True
-        self.content.pack(
-            side=tk.LEFT if self.side == "left" else tk.RIGHT,
-            fill=tk.BOTH, expand=True)
+        self._strip.pack_forget()
+        self.content.pack(fill=tk.BOTH, expand=True)
+        self._corner.place(relx=1.0, x=-4, y=5, anchor="ne")
+        self._corner.lift()
         self._set_width(self.default_width)
 
 
@@ -1092,22 +1088,13 @@ class MainWindow:
         self._results_bar = step_nav
         tk.Frame(step_nav, bg=COLORS["border"],
                  height=1).pack(fill=tk.X, side=tk.TOP)
-        tk.Button(step_nav, text="◀", command=self._prev_step,
-                  bg=COLORS["bg_panel"], fg=COLORS["accent"],
-                  relief="flat", font=FONTS["small"],
-                  cursor="hand2", width=2).pack(side=tk.LEFT, padx=4)
         self.step_label_var = tk.StringVar(value="—")
-        tk.Label(step_nav, textvariable=self.step_label_var,
-                 bg=COLORS["bg_panel"], fg=COLORS["text"],
-                 font=FONTS["small"]).pack(side=tk.LEFT, expand=True)
+        self._view_tabs = tk.Frame(step_nav, bg=COLORS["bg_panel"])     # pestañas: una por vista
+        self._view_tabs.pack(side=tk.LEFT, fill=tk.Y, padx=(6, 0))
         self._results_btn = tk.Button(step_nav, command=self._toggle_results_panel,
                                       bg=COLORS["bg_panel"], fg=COLORS["accent"],
                                       relief="flat", font=FONTS["small"], cursor="hand2")
         self._results_btn.pack(side=tk.RIGHT, padx=4)
-        tk.Button(step_nav, text="▶", command=self._next_step,
-                  bg=COLORS["bg_panel"], fg=COLORS["accent"],
-                  relief="flat", font=FONTS["small"],
-                  cursor="hand2", width=2).pack(side=tk.RIGHT, padx=4)
 
         # ── Notebook: Tabla | Gráficos ───────────────────────────────────
         nb_style = ttk.Style()
@@ -2227,6 +2214,27 @@ class MainWindow:
             f"{name}  ({idx+1}/{len(self.step_names)})")
         self._update_table(self.last_result, name)
         self._refresh_history()
+        self._paint_view_tabs()
+
+    def _paint_view_tabs(self):
+        """Pestañas de las vistas del análisis actual (Máscara · Conteo · …): un clic y se ve."""
+        bar = self._view_tabs
+        for w in bar.winfo_children():
+            w.destroy()
+        for i, name in enumerate(self.step_names):
+            sel = i == self.step_idx
+            tab = tk.Frame(bar, bg=COLORS["bg_card"] if sel else COLORS["bg_panel"], cursor="hand2")
+            tab.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 1), pady=(3, 0))
+            tk.Frame(tab, bg=COLORS["accent"] if sel else COLORS["bg_panel"], height=2).pack(fill=tk.X)
+            lbl = tk.Label(tab, text=name, bg=tab["bg"], fg=COLORS["accent"] if sel else COLORS["text_muted"],
+                           font=(FONTS["small"][0], FONTS["small"][1], "bold") if sel else FONTS["small"],
+                           padx=10, cursor="hand2")
+            lbl.pack(fill=tk.BOTH, expand=True)
+            for w in (tab, lbl):
+                w.bind("<Button-1>", lambda e, k=i: self._jump_to_step(k))
+                if not sel:
+                    w.bind("<Enter>", lambda e, l=lbl: l.config(fg=COLORS["accent"]))
+                    w.bind("<Leave>", lambda e, l=lbl: l.config(fg=COLORS["text_muted"]))
 
     # ── ROI ───────────────────────────────────────────────────────────────────
 

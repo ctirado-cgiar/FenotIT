@@ -91,13 +91,17 @@ class ConfigPanel(tk.Frame):
         return key not in self._vars or bool(self._vars[key].get())
 
     def _refresh_rows(self):
-        """Empaca las filas en el orden del esquema. Las opciones de un grupo (▸) solo se
+        """Empaca las filas en el orden del esquema. Las opciones de un grupo (ícono de ajustes) solo se
         ven si el grupo está abierto y activo; las de "requires", si esa casilla está marcada."""
         for row in self._rows.values():
             row.pack_forget()
-        for key, arrow in self._arrows.items():
-            active = self._group_active(key)
-            arrow.config(text=("▾" if self._open[key] else "▸") if active else "")
+        for key, btn in self._arrows.items():
+            active, opened = self._group_active(key), self._open[key]
+            if not active:
+                btn.config(image="", bg=self.colors["bg_panel"], cursor="")
+            else:
+                btn.config(image=self._tune_icons[opened], cursor="hand2",
+                           bg=self.colors["accent_light"] if opened else self.colors["bg_panel"])
         for item in self._schema:
             group, parent = item.get("group"), item.get("requires")
             if group and not (self._open.get(group) and self._group_active(group)):
@@ -158,10 +162,17 @@ class ConfigPanel(tk.Frame):
         lbl.pack(side=tk.LEFT)
         self._labels[key] = (lbl, item)
         if key in self._children:
-            arrow = tk.Label(hdr, text="▸", bg=self.colors["bg_panel"], fg=self.colors["accent"],
-                             font=("Segoe UI", 9, "bold"), cursor="hand2", padx=4)
-            arrow.pack(side=tk.LEFT)
+            if not hasattr(self, "_tune_icons"):           # cerrado: tenue; abierto: azul sobre fondo claro
+                from PIL import ImageTk
+                from fenotit.gui.toolbar import icon
+                self._tune_icons = {False: ImageTk.PhotoImage(icon("tune", 13, "#7FA6CF")),
+                                    True: ImageTk.PhotoImage(icon("tune", 13, self.colors["accent"]))}
+            arrow = tk.Label(hdr, image=self._tune_icons[False], bg=self.colors["bg_panel"], cursor="hand2",
+                             padx=3, pady=1)
+            arrow.pack(side=tk.LEFT, padx=(4, 0))
             arrow.bind("<Button-1>", lambda e=None, k=key: self._toggle_group(k))
+            from fenotit.gui.toolbar import Tooltip
+            Tooltip(arrow, t("panel.options"))
             self._arrows[key] = arrow
         if tooltip:
             tip_btn = tk.Label(hdr, text=" ?",

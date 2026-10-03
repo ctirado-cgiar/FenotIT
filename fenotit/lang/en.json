@@ -163,6 +163,7 @@
   "msg.res_title": "Different resolutions",
   "panel.analysis": "ANALYSIS",
   "panel.left": "Workflow",
+  "panel.options": "Options",
   "panel.right": "Parameters",
   "param.distances.exclude_border.label": "Exclude border objects",
   "param.distances.hdr_measure.label": "DISTANCES",
