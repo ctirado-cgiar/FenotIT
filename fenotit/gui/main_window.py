@@ -1046,20 +1046,63 @@ class MainWindow:
                                     fg=COLORS["text_muted"], font=FONTS["small"])
         self.batch_label.pack(side=tk.RIGHT, padx=4)
 
-        # Lista (buscador, lista o cuadrícula): su alto se ajusta a las fotos, con tope;
-        # lo que sobra es para CAPAS (y, después, el inspector)
+        # Lista (buscador, lista o cuadrícula): alto según las fotos. Si CAPAS (y, después,
+        # el inspector) necesita espacio, la lista cede, hasta dejar ver un par de fotos
         self.image_list = ImageList(lf, COLORS, FONTS, on_select=self._select_image,
                                     on_delete=self._remove_current_image,
                                     mode=settings.get("image_view", "list"),
-                                    on_mode=lambda m: settings.set("image_view", m))
+                                    on_mode=lambda m: settings.set("image_view", m),
+                                    max_height=self._image_list_room)
         self.image_list.pack(fill=tk.X)
 
-        # Capas del resultado de la imagen actual
-        views = tk.Frame(lf, bg=COLORS["bg_panel"])
+        # Capas del resultado de la imagen actual (con barra solo si no caben)
+        views = self._layers = tk.Frame(lf, bg=COLORS["bg_panel"])
         views.pack(fill=tk.BOTH, expand=True)
-        self._section_lbl(views, t("left.history"))
-        self.history_frame = tk.Frame(views, bg=COLORS["bg_panel"])
-        self.history_frame.pack(fill=tk.BOTH, expand=True, padx=6, pady=(0, 6))
+        self._layers_title = self._section_lbl(views, t("left.history"))
+        box = tk.Frame(views, bg=COLORS["bg_panel"])
+        box.pack(fill=tk.BOTH, expand=True, padx=6, pady=(0, 6))
+        self._layers_sb = ttk.Scrollbar(box, orient="vertical")
+        cv = self._layers_canvas = tk.Canvas(box, bg=COLORS["bg_panel"], highlightthickness=0, bd=0,
+                                             yscrollcommand=self._layers_sb.set)
+        self._layers_sb.config(command=cv.yview)
+        cv.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.history_frame = tk.Frame(cv, bg=COLORS["bg_panel"])
+        win = cv.create_window(0, 0, window=self.history_frame, anchor="nw")
+        cv.bind("<Configure>", lambda e: (cv.itemconfig(win, width=e.width), self._layers_scroll()))
+        self.history_frame.bind("<Configure>", lambda e: self._layers_scroll())
+        for ev, d in (("<Button-4>", -1), ("<Button-5>", 1)):
+            cv.bind_all(ev, lambda e, d=d: self._layers_wheel(e, d), add="+")
+        cv.bind_all("<MouseWheel>", lambda e: self._layers_wheel(e, -1 if e.delta > 0 else 1), add="+")
+
+    def _layers_need(self) -> int:
+        """Alto que piden CAPAS (título + filas). El inspector sumará el suyo."""
+        rows = self.history_frame.winfo_reqheight() if self.history_frame.winfo_children() else 0
+        return self._layers_title.winfo_reqheight() + max(rows, 22) + 12
+
+    def _image_list_room(self) -> int:
+        """Tope de la lista de imágenes: 45 % del espacio, y menos si CAPAS lo necesita."""
+        lf = self.left_panel.content
+        room = lf.winfo_height() - self.image_list.winfo_y()
+        return min(int(room * 0.45), room - self._layers_need())
+
+    def _layers_scroll(self):
+        cv = self._layers_canvas
+        h = self.history_frame.winfo_reqheight()
+        cv.config(scrollregion=(0, 0, cv.winfo_width(), h))
+        need = h > cv.winfo_height() + 1
+        if need != self._layers_sb.winfo_ismapped():
+            if need:
+                self._layers_sb.pack(side=tk.RIGHT, fill=tk.Y, before=cv)
+            else:
+                self._layers_sb.pack_forget()
+                cv.yview_moveto(0)
+
+    def _layers_wheel(self, e, d):
+        w = e.widget
+        while w is not None and w is not self._layers_canvas:
+            w = getattr(w, "master", None)
+        if w is not None and self._layers_sb.winfo_ismapped():
+            self._layers_canvas.yview_scroll(d, "units")
 
     # ── Panel central ─────────────────────────────────────────────────────────
 
@@ -1160,16 +1203,10 @@ class MainWindow:
                                    yscrollcommand=ysb.set, height=4)
         xsb.config(command=self.table.xview)
         ysb.config(command=self.table.yview)
-        xsb.pack(side=tk.BOTTOM, fill=tk.X)
         ysb.pack(side=tk.RIGHT,  fill=tk.Y)
+        self._table_xsb = xsb                   # solo aparece si las columnas no caben
         self.table.pack(fill=tk.BOTH, expand=True)
         self.table.bind("<Configure>", self._fit_table_columns, add="+")
-
-        self.stats_var = tk.StringVar(value="")
-        tk.Label(tab_table, textvariable=self.stats_var,
-                 bg=COLORS["bg_card"], fg=COLORS["text_muted"],
-                 font=FONTS["small"], anchor="w",
-                 padx=8).pack(fill=tk.X)
 
         # ── Pestaña Gráficos ──────────────────────────────────────────────
         tab_charts = tk.Frame(bottom_nb, bg=COLORS["bg_card"])
@@ -1290,6 +1327,7 @@ class MainWindow:
                  pady=5).pack(side=tk.LEFT, padx=(pad_left, 10))
         tk.Frame(f, bg=COLORS["border"],
                  height=1).pack(fill=tk.X, side=tk.BOTTOM)
+        return f
 
     def _divider(self, parent):
         tk.Frame(parent, bg=COLORS["border"],
@@ -1547,6 +1585,7 @@ class MainWindow:
                                  parent=self.root)
             return
         self.scaler_left.set_image(img)
+        self.image_info_var.set(f"{Path(path).name}  ·  {img.shape[1]} × {img.shape[0]} px")
         self._update_corr_indicator()
         self.preview_var.set("")
         self._update_step_active(1)
@@ -2008,7 +2047,6 @@ class MainWindow:
         self.last_result = result
         self.step_names = list(step_names)
         self._show_results_ui(True)
-        self.stats_var.set("   |   ".join(f"{k}: {_cell(v)}" for k, v in result.stats.items() if v not in (None, "")))
         if not self.step_names:
             self._update_table(result)
             return
@@ -2051,12 +2089,22 @@ class MainWindow:
         Muchas: cada una con su ancho y barra para desplazarse."""
         widths = getattr(self, "_table_widths", None)
         if not widths:
+            self._table_hscroll(False)
             return
         avail = self.table.winfo_width()
         total = sum(widths.values())
         extra = (avail - total) / len(widths) if avail > total + 4 else 0
         for col, w in widths.items():
             self.table.column(col, width=int(w + extra), minwidth=50, stretch=False, anchor="w")
+        self._table_hscroll(total > avail + 1)
+
+    def _table_hscroll(self, need: bool):
+        xsb = self._table_xsb
+        if need and not xsb.winfo_ismapped():
+            xsb.pack(side=tk.BOTTOM, fill=tk.X, before=self.table)
+        elif not need and xsb.winfo_ismapped():
+            xsb.pack_forget()
+            self.table.xview_moveto(0)
 
     def _fill_table(self):
         self.table.delete(*self.table.get_children())
@@ -2224,6 +2272,7 @@ class MainWindow:
                     wdg.bind("<Enter>", lambda e, r=row, l=lbl: (r.config(bg=COLORS["accent_light"]),
                                                                  l.config(bg=COLORS["accent_light"])))
                     wdg.bind("<Leave>", lambda e, r=row, l=lbl, c=bg: (r.config(bg=c), l.config(bg=c)))
+        self.image_list.refit()                # más capas = la lista de fotos cede espacio
 
     def _step_view(self, delta: int):
         """↑ ↓: capa anterior / siguiente de la foto, pasando de un análisis al otro."""

@@ -6,7 +6,6 @@ from __future__ import annotations
 import queue
 import threading
 import tkinter as tk
-import tkinter.font as tkfont
 from collections import deque
 from pathlib import Path
 from tkinter import ttk
@@ -21,7 +20,8 @@ from fenotit.i18n import t
 _log = log.get("gui.images")
 THUMB = 42                       # lado máximo de la miniatura (px): 3 columnas en el panel por defecto
 SEARCH_FROM = 6                  # con menos fotos no hace falta buscador
-MAX_SHARE = 0.45                 # tope del alto de la lista (fracción del panel): debajo van CAPAS e inspector
+MAX_SHARE = 0.45                 # tope por defecto (fracción del panel): debajo van CAPAS e inspector
+MIN_ROWS = 2                     # si otros necesitan espacio, la lista cede hasta dejar ver estas filas
 MARKS = {"done": ("✓", "#2E8B57"), "error": ("⚠", "#E67E00"), "pending": ("…", "#9AA3A7")}
 
 
@@ -69,7 +69,8 @@ class _ThumbLoader:
 class ImageList(tk.Frame):
 
     def __init__(self, parent, colors: dict, fonts: dict, on_select: Callable[[int], None],
-                 on_delete: Callable[[], None], mode: str = "list", on_mode: Callable[[str], None] | None = None):
+                 on_delete: Callable[[], None], mode: str = "list", on_mode: Callable[[str], None] | None = None,
+                 max_height: Callable[[], int] | None = None):
         super().__init__(parent, bg=colors["bg_panel"])
         self.c, self.f = colors, fonts
         self.on_select, self.on_delete, self.on_mode = on_select, on_delete, on_mode
@@ -81,6 +82,7 @@ class ImageList(tk.Frame):
         self._thumbs: dict[str, ImageTk.PhotoImage | None] = {}
         self._loader = _ThumbLoader()
         self._fit_job = None
+        self.max_height = max_height or (lambda: int(self.master.winfo_height() * MAX_SHARE))
         self._build()
         self.pack_propagate(False)
         parent.bind("<Configure>", lambda e: self._schedule_fit(), add="+")
@@ -176,6 +178,9 @@ class ImageList(tk.Frame):
 
     # ── alto según el contenido ─────────────────────────────────────────────────
 
+    def refit(self):
+        self._schedule_fit()
+
     def _schedule_fit(self):
         if self._fit_job is None:
             self._fit_job = self.after_idle(self._fit)
@@ -183,10 +188,14 @@ class ImageList(tk.Frame):
     def _row_height(self) -> int:
         if self.mode == "grid":
             return THUMB + 8
-        lb = self.listbox
-        if lb.size() >= 2 and lb.bbox(0) and lb.bbox(1):
-            return lb.bbox(1)[1] - lb.bbox(0)[1]
-        return tkfont.Font(font=lb.cget("font")).metrics("linespace") + 1
+        if not getattr(self, "_lb_row", None):          # lo que Tk suma por cada fila
+            lb, h0 = self.listbox, int(self.listbox.cget("height"))
+            lb.config(height=1)
+            r1 = lb.winfo_reqheight()
+            lb.config(height=2)
+            self._lb_row = lb.winfo_reqheight() - r1
+            lb.config(height=h0)
+        return self._lb_row
 
     def _fit(self):
         """Alto justo para las fotos que hay (sin barra ni buscador si no hacen falta),
@@ -209,12 +218,17 @@ class ImageList(tk.Frame):
         else:
             if int(self.listbox.cget("height")) != max(n, 1):
                 self.listbox.config(height=max(n, 1))
-            content = self.listbox.winfo_reqheight() + 4         # Tk mide las filas exactas
+            content = self.listbox.winfo_reqheight()             # Tk mide las filas exactas
         head = self._top.winfo_reqheight() + 6 + 4
-        limit = max(head + rh + 6, int(self.master.winfo_height() * MAX_SHARE))
+        floor = head + (MIN_ROWS if n >= MIN_ROWS else 1) * rh + 6
+        limit = max(floor, self.max_height())
         want = head + content
-        h = min(want, limit)
         scroll = want > limit
+        if scroll:                                   # filas enteras, sin una cortada abajo
+            extra = content - rows * rh if self.mode == "grid" else content - max(n, 1) * rh
+            h = head + extra + max(1, (limit - head - extra) // rh) * rh
+        else:
+            h = want
         if scroll != self._scroll_on:
             self._scroll_on = scroll
             if scroll:
