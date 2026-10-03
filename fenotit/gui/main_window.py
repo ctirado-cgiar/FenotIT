@@ -209,6 +209,19 @@ def _peek_tab(host, image, command, side: str):
     return tab
 
 
+_SUMMARY_SKIP = ("image_width_px", "image_height_px")
+
+
+def _summary(stats: dict, limit: int = 6) -> str:
+    """Resumen de la fila de la imagen para la barra de estado. Sirve para cualquier
+    análisis (conteos, distancias, color, modelos…): los valores que el análisis puso, sin
+    vacíos ni la resolución, con pocos decimales."""
+    items = [(k, v) for k, v in stats.items() if v not in (None, "") and k not in _SUMMARY_SKIP
+             and not k.endswith("_per_px")]
+    text = "  ·  ".join(f"{k}: {_cell(v)}" for k, v in items[:limit])
+    return text + ("  ·  …" if len(items) > limit else "")
+
+
 class CollapsiblePanel(tk.Frame):
     """Panel lateral que se puede ocultar. Abierto: un ícono pequeño en su esquina de
     arriba, del lado del centro (izquierdo: a la derecha; derecho: a la izquierda).
@@ -1824,8 +1837,7 @@ class MainWindow:
         self._update_batch_list()
         self._remember_result(name, path, result)
         self._set_status(t("status.done", name=_analysis_label(name),
-                           detail=self._exporter.results_dir if self.output_root else
-                           t("status.n_objects", n=result.stats.get("n_objects", "—"))))
+                           detail=_summary(result.stats)))
         reused = result.extra.get("reused")
         if reused:
             items = ", ".join(t(f"step.{k}", k) for k in reused)
@@ -1998,7 +2010,7 @@ class MainWindow:
         self.last_result = result
         self.step_names = list(step_names)
         self._show_results_ui(True)
-        self.stats_var.set("   |   ".join(f"{k}: {v}" for k, v in result.stats.items()))
+        self.stats_var.set("   |   ".join(f"{k}: {_cell(v)}" for k, v in result.stats.items() if v not in (None, "")))
         if not self.step_names:
             self._update_table(result)
             return

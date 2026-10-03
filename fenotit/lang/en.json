@@ -296,7 +296,6 @@
   "status.done": "{name} finished — {detail}",
   "status.folder_loaded": "{n} images — {folder}",
   "status.image": "Image: {name}",
-  "status.n_objects": "{n} objects",
   "status.preview": "● preview  {px} px  ({pct}%)",
   "status.ready": "Ready",
   "status.reused": "reused without recomputing: {items}",
