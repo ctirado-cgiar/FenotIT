@@ -148,7 +148,17 @@ def _grid(d, s, w, color):
             d.rounded_rectangle((x, y, x + k, y + k), radius=s * 0.05, outline=color, width=w)
 
 
-_DRAW = {"palette": _palette, "list": _list, "grid": _grid, "select": _select,
+def _panel(d, s, w, color, side="left"):
+    """Ventana con una franja a un lado: mostrar/ocultar el panel de ese lado."""
+    x0, y0, x1, y1 = s * 0.08, s * 0.16, s * 0.92, s * 0.84
+    d.rounded_rectangle((x0, y0, x1, y1), radius=s * 0.08, outline=color, width=w)
+    bx = (x0, x0 + s * 0.30) if side == "left" else (x1 - s * 0.30, x1)
+    d.rectangle((bx[0], y0, bx[1], y1), fill=color)
+
+
+_DRAW = {"palette": _palette, "list": _list, "grid": _grid,
+         "panel_left": lambda d, s, w, c: _panel(d, s, w, c, "left"),
+         "panel_right": lambda d, s, w, c: _panel(d, s, w, c, "right"), "select": _select,
          "eye": _eye, "eye_off": lambda d, s, w, c: _eye(d, s, w, c, off=True), "photo": _photo, "folder": _folder, "project": _project,
          "area_rect": lambda d, s, w, c: _area(d, s, w, c, "rect", False),
          "area_poly": lambda d, s, w, c: _area(d, s, w, c, "poly", False),

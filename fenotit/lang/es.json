@@ -334,6 +334,7 @@
   "view.right_panel": "Panel derecho",
   "view.show_side": "Mostrar {name}",
   "view.toggle_legend": "Mostrar/ocultar leyenda",
+  "view.toggle_panel": "Mostrar u ocultar el panel",
   "view.zoom_100": "Tamaño real (100 %)",
   "view.zoom_area": "Zoom a un área",
   "view.zoom_area_hint": "Arrastra un rectángulo para acercarte a esa zona · Esc cancela",

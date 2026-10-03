@@ -31,7 +31,7 @@ from fenotit.core.export.exporter import Exporter
 from fenotit.gui.config_panel import ConfigPanel
 from fenotit.gui.zoom_controller import ZoomController
 from fenotit.gui.image_list import ImageList
-from fenotit.gui.toolbar import IconButton, Tooltip
+from fenotit.gui.toolbar import IconButton, Tooltip, icon
 from fenotit.gui.calibration_dialogs import ScaleDialog
 from fenotit.gui.corrections_dialog import CorrectionsDialog
 from fenotit.core.corrections import pipeline as corrections
@@ -220,13 +220,12 @@ class CollapsiblePanel(tk.Frame):
             fill=tk.Y)
         self._strip.pack_propagate(False)
 
-        arrow = "◀" if side == "left" else "▶"
-        self._toggle_btn = tk.Label(
-            self._strip, text=arrow,
-            bg=colors["bg_panel"], fg=colors["accent"],
-            font=("Segoe UI", 9), cursor="hand2")
+        # ícono de panel (no una flecha: las flechas quedan para anterior/siguiente)
+        self._icon = ImageTk.PhotoImage(icon(f"panel_{side}", 14, colors["accent"]))
+        self._toggle_btn = tk.Label(self._strip, image=self._icon, bg=colors["bg_panel"], cursor="hand2")
         self._toggle_btn.place(relx=0.5, rely=0.5, anchor="center")
         self._toggle_btn.bind("<Button-1>", lambda e=None: self.toggle())
+        Tooltip(self._toggle_btn, t("view.toggle_panel"))
 
         # Contenedor del contenido
         self.content = tk.Frame(self, bg=colors["bg_panel"])
@@ -260,8 +259,6 @@ class CollapsiblePanel(tk.Frame):
         if width > self.COLLAPSED_W * 3:          # recordar el ancho que dejó el usuario
             self.default_width = width
         self.content.pack_forget()
-        arrow = "▶" if self.side == "left" else "◀"
-        self._toggle_btn.config(text=arrow)
         self._set_width(self.COLLAPSED_W)
 
     def expand(self):
@@ -269,8 +266,6 @@ class CollapsiblePanel(tk.Frame):
         self.content.pack(
             side=tk.LEFT if self.side == "left" else tk.RIGHT,
             fill=tk.BOTH, expand=True)
-        arrow = "◀" if self.side == "left" else "▶"
-        self._toggle_btn.config(text=arrow)
         self._set_width(self.default_width)
 
 
@@ -1015,11 +1010,9 @@ class MainWindow:
         btn = dict(bg=COLORS["btn_bg"], fg=COLORS["accent"], relief="flat",
                    font=FONTS["small"], cursor="hand2")
         tk.Button(nav, text="＋", command=self._open_image, width=2, **btn).pack(side=tk.LEFT)
-        tk.Button(nav, text="◀", command=self._prev_image, width=2, **btn).pack(side=tk.LEFT, padx=(6, 0))
-        self.batch_label = tk.Label(nav, text="—", bg=COLORS["bg_panel"],
+        self.batch_label = tk.Label(nav, text="—", bg=COLORS["bg_panel"],     # anterior/siguiente: ← → o clic
                                     fg=COLORS["text_muted"], font=FONTS["small"])
-        self.batch_label.pack(side=tk.LEFT, expand=True)
-        tk.Button(nav, text="▶", command=self._next_image, width=2, **btn).pack(side=tk.RIGHT)
+        self.batch_label.pack(side=tk.RIGHT, padx=4)
 
         # Lista (buscador, lista o cuadrícula) y VISTAS en dos partes de alto ajustable
         split = tk.PanedWindow(lf, orient=tk.VERTICAL, bg=COLORS["border"], sashwidth=4, sashrelief="flat",
@@ -2204,13 +2197,17 @@ class MainWindow:
             for i, view in enumerate(self._step_names.get(name, {}).get(path, [])):
                 sel = current and i == self.step_idx
                 bg = COLORS["accent_light"] if sel else COLORS["bg_panel"]
-                btn = tk.Label(self.history_frame, text=f"  ▸  {view}", bg=bg,
-                               fg=COLORS["text"] if current else COLORS["text_muted"],
-                               font=FONTS["small"], anchor="w", padx=4, pady=2, cursor="hand2")
-                btn.pack(fill=tk.X)
-                btn.bind("<Button-1>", lambda e, a=name, v=view: self._open_view(a, v))
-                btn.bind("<Enter>", lambda e, b=btn: b.config(bg=COLORS["accent_light"]))
-                btn.bind("<Leave>", lambda e, b=btn, c=bg: b.config(bg=c))
+                row = tk.Frame(self.history_frame, bg=bg, cursor="hand2")
+                row.pack(fill=tk.X)
+                tk.Frame(row, bg=COLORS["accent"] if sel else bg, width=3).pack(side=tk.LEFT, fill=tk.Y)
+                lbl = tk.Label(row, text=view, bg=bg, fg=COLORS["text"] if current else COLORS["text_muted"],
+                               font=FONTS["small"], anchor="w", padx=8, pady=2, cursor="hand2")
+                lbl.pack(side=tk.LEFT, fill=tk.X, expand=True)
+                for wdg in (row, lbl):
+                    wdg.bind("<Button-1>", lambda e, a=name, v=view: self._open_view(a, v))
+                    wdg.bind("<Enter>", lambda e, r=row, l=lbl: (r.config(bg=COLORS["accent_light"]),
+                                                                 l.config(bg=COLORS["accent_light"])))
+                    wdg.bind("<Leave>", lambda e, r=row, l=lbl, c=bg: (r.config(bg=c), l.config(bg=c)))
 
     def _open_view(self, analysis: str, view: str):
         if analysis != self.active_analysis:
