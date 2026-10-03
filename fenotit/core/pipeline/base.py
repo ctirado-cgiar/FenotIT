@@ -23,7 +23,8 @@ KINDS = ("segmenter", "processor", "measurement")
 @dataclass
 class Context:
     image: np.ndarray
-    mm_per_px: float | None = None
+    mm_per_px: float | None = None                   # escala (siempre en mm/px)
+    length_unit: str = "mm"                          # unidad en que se reportan los resultados
     roi: np.ndarray | None = None                    # uint8, tamaño de la imagen
     exclusions: list = field(default_factory=list)   # [(puntos Nx2, color BGR)]
     mask: np.ndarray | None = None                   # uint8 0/255
@@ -37,11 +38,23 @@ class Context:
 
     @property
     def unit(self) -> str:
-        return "mm" if self.mm_per_px else "px"
+        """Unidad de las columnas (ASCII: um, mm, cm, m) o px sin escala."""
+        from fenotit.core.units import ascii_name
+        return ascii_name(self.length_unit) if self.mm_per_px else "px"
 
     @property
     def scale(self) -> float:
-        return self.mm_per_px or 1.0
+        """Unidades por píxel (1 sin escala)."""
+        from fenotit.core.units import per_px
+        return per_px(self.mm_per_px, self.length_unit) or 1.0
+
+    def digits(self, power: int = 1, base: int = 3) -> int:
+        """Decimales para una medida (longitud power=1, área 2): con unidades más grandes que
+        el mm se agregan decimales para no perder precisión (0.143 cm² → 0.14273)."""
+        import math
+        from fenotit.core.units import TO_MM
+        k = TO_MM.get(self.unit, 1.0) if self.mm_per_px else 1.0
+        return base + max(0, power * round(math.log10(k)))
 
     def object_rows(self) -> dict[int, dict]:
         """Filas de la tabla 'objects' indexadas por id de objeto (se crean si faltan)."""
@@ -120,10 +133,10 @@ def discover() -> dict[str, Step]:
 
 
 def run(image: np.ndarray, chain: list[dict], mm_per_px: float | None = None,
-        roi: np.ndarray | None = None, exclusions: list | None = None) -> Context:
+        roi: np.ndarray | None = None, exclusions: list | None = None, unit: str = "mm") -> Context:
     if any(item["step"] not in REGISTRY for item in chain):
         discover()
-    ctx = Context(image=image, mm_per_px=mm_per_px, roi=roi, exclusions=exclusions or [])
+    ctx = Context(image=image, mm_per_px=mm_per_px, length_unit=unit, roi=roi, exclusions=exclusions or [])
     for item in chain:
         s = REGISTRY.get(item["step"])
         if s is None:

@@ -91,9 +91,7 @@ def distances(ctx, p):
     ids = sorted(cents)
     pts = np.array([cents[i] for i in ids], float).reshape(-1, 2)
     pairs = _pairs(ids, pts, p["neighbors"], p["k"])
-    mpp = ctx.mm_per_px
-    unit = "mm" if mpp else "px"
-    f = mpp or 1.0
+    unit, f = ctx.unit, ctx.scale
     contours = _contours(ctx.labels, set(ids)) if p["measure"] == "edge_nearest" else {}
     trees = {}
     rows, lines = [], []          # lines: (punto 1, punto 2, distancia en px)
@@ -112,8 +110,8 @@ def distances(ctx, p):
             p1, p2 = _edge_on_line(ctx.labels, a, b, ca, cb)
         dist = float(np.hypot(p2[0] - p1[0], p2[1] - p1[1]))
         crosses = _crosses(ctx.labels, a, b, p1, p2)
-        rows.append({"object_a": a, "object_b": b, f"distance_{unit}": round(dist * f, 4),
-                     f"center_distance_{unit}": round(center * f, 4), "crosses_object": int(crosses)})
+        rows.append({"object_a": a, "object_b": b, f"distance_{unit}": round(dist * f, ctx.digits(1, 4)),
+                     f"center_distance_{unit}": round(center * f, ctx.digits(1, 4)), "crosses_object": int(crosses)})
         if not crosses:                        # en la vista no se dibujan líneas que tapan otro objeto
             lines.append((p1, p2, dist))
     ctx.tables["distances"] = rows

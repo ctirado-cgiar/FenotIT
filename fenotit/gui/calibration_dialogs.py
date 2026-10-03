@@ -130,8 +130,9 @@ class ScaleDialog(BaseDialog):
     def __init__(self, parent,
                  current_image: np.ndarray | None = None,
                  current_path: str | None = None,
-                 on_scale_set=None, loader=None, paths=None):
+                 on_scale_set=None, loader=None, paths=None, unit: str = "mm"):
         self._loader = loader
+        self._default_unit = unit
         self._paths = list(paths or ([current_path] if current_path else []))
         super().__init__(parent, t("menu.cal_scale").rstrip("…"))
         self._image      = current_image
@@ -190,7 +191,7 @@ class ScaleDialog(BaseDialog):
         tk.Label(step3, text=t("scale.unit"),
                  bg=COLORS["bg_card"], fg=COLORS["text"],
                  font=FONTS["body"]).pack(side=tk.LEFT, padx=(12, 2))
-        self._unit_var = tk.StringVar(value="mm")
+        self._unit_var = tk.StringVar(value=self._default_unit)
         from fenotit.core.corrections.scale import UNITS
         ttk.Combobox(step3, textvariable=self._unit_var,
                      values=UNITS, state="readonly", width=4,

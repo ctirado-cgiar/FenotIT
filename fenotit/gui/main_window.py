@@ -26,7 +26,7 @@ from fenotit.core.image_io import ImageScaler, load_image
 from fenotit.core.project import IMAGE_EXTS, PROJECT_EXT, Project, Scale, Segmentation
 from fenotit.gui.roi.editor import AreaEditor
 from fenotit.core.analysis.registry import ANALYSES, AnalysisResult
-from fenotit.core import pipeline
+from fenotit.core import pipeline, units
 from fenotit.core.export.exporter import Exporter
 from fenotit.gui.config_panel import ConfigPanel
 from fenotit.gui.zoom_controller import ZoomController
@@ -429,7 +429,8 @@ class MainWindow:
         parts = [t(f"corr.short.{n}") for n in self.project.corrections.active()]
         mm = self.mm_per_pixel
         if self.project.scale_for(self.current_image_path).source != "none":
-            parts.append(f"{mm:.4f} mm/px" if mm else t("corr.short.scale_pending"))
+            u = self.project.unit
+            parts.append(f"{units.per_px(mm, u):.6g} {u}/px" if mm else t("corr.short.scale_pending"))
         info = self._corr_info.get(self.current_image_path) if self.current_image_path else None
         warn = bool(info and info.warnings)
         text = ("⚠ " if warn else "") + "  ·  ".join(parts)
@@ -448,42 +449,48 @@ class MainWindow:
 
     _UNIT_POWER = {"area": 2, "length": 1}
 
-    def _unit_labels(self, mm: bool) -> dict:
-        return {"area": "mm²" if mm else "px²", "length": "mm" if mm else "px"}
+    def _unit_labels(self, unit: str) -> dict:
+        """Etiquetas del panel: la unidad de la escala (µm, mm, cm, m) o px sin escala."""
+        return {"area": f"{units.display(unit)}²", "length": units.display(unit)}
 
     def _area_unit(self) -> str:
-        """mm si hay alguna escala (de todas las fotos o de alguna); si no, px."""
+        """La unidad de la escala si hay alguna (de todas las fotos o de alguna); si no, px."""
         p = self.project
-        return "mm" if p.scale.source != "none" or p.image_scale else "px"
+        return p.unit if p.scale.source != "none" or p.image_scale else "px"
 
     def _has_area_units(self) -> bool:
         return any(i.get("unit") in self._UNIT_POWER
                    for i in ANALYSES[self.active_analysis].params_schema) if self.active_analysis in ANALYSES else False
 
     def _sync_area_units(self):
-        """Si cambió la escala, convierte las medidas del panel y cambia la etiqueta."""
+        """Si cambió la escala o su unidad, convierte las medidas del panel y la etiqueta."""
         panel = getattr(self, "config_panel", None)
         if panel is None or not self._has_area_units():
             return
-        new = self._area_unit()
-        if new != self._panel_area_unit:
-            # al quitar la escala se convierte con la última escala usada
-            mpp = self.mm_per_pixel if new == "mm" else getattr(self, "_panel_mpp", None)
-            if mpp:
+        old, new = self._panel_area_unit, self._area_unit()
+        if new != old:
+            # mm de cada unidad; para pasar de/a px se usa la escala (al quitarla, la última usada)
+            mpp = self.mm_per_pixel or getattr(self, "_panel_mpp", None)
+            if old != "px" and new != "px":
+                f = units.TO_MM[old] / units.TO_MM[new]
+            elif mpp:
+                f = mpp / units.TO_MM[new] if old == "px" else units.TO_MM[old] / mpp
+            else:
+                f = None
+            if f:
                 vals = panel.get_values(warn=False)
                 changed = {}
                 for i in ANALYSES[self.active_analysis].params_schema:
                     power = self._UNIT_POWER.get(i.get("unit"))
                     if power and i["key"] in vals:
-                        f = mpp ** power if new == "mm" else 1 / mpp ** power
-                        changed[i["key"]] = round(vals[i["key"]] * f, 4)
+                        changed[i["key"]] = round(vals[i["key"]] * f ** power, 6)
                 panel.set_values(changed)
             else:
-                _log.info("Sin mm/px para convertir; se conservan los números")
+                _log.info("Sin escala para convertir; se conservan los números")
             self._panel_area_unit = new
-        if new == "mm" and self.mm_per_pixel:
+        if new != "px" and self.mm_per_pixel:
             self._panel_mpp = self.mm_per_pixel
-        panel.set_units(self._unit_labels(new == "mm"))
+        panel.set_units(self._unit_labels(new))
 
     def _collect_state(self) -> dict:
         self._store_panel_params()
@@ -1660,7 +1667,7 @@ class MainWindow:
             self.config_container,
             schema=ANALYSES[name].params_schema,
             colors=COLORS, prefix=_analysis_key(name),
-            units=self._unit_labels(self._panel_area_unit == "mm"))
+            units=self._unit_labels(self._panel_area_unit))
         self.config_panel.set_values({k: v for k, v in stored.items() if not k.startswith("_")})
         self.config_panel.pack(fill=tk.BOTH, expand=True)
         self._show_cached_result()
@@ -1674,6 +1681,7 @@ class MainWindow:
             "min_val":          self.min_slider.get(),
             "max_val":          self.max_slider.get(),
             "mm_per_pixel":     self.mm_per_pixel,
+            "length_unit":      self.project.unit,
         }
         p["roi_shapes"] = self.project.roi_for(self.current_image_path)
         if self.config_panel:
@@ -2321,7 +2329,7 @@ class MainWindow:
                     current_path=self.current_image_path,
                     on_scale_set=self._on_scale_set,
                     loader=self._load_corrected_image,
-                    paths=self.batch_paths)
+                    paths=self.batch_paths, unit=self.project.unit)
 
     def _toggle_legend(self):
         self.legend_var.set(not self.legend_var.get())
@@ -2401,6 +2409,7 @@ class MainWindow:
                    "two_points", scale_result.format())
         if not self._set_scale(sc, scope, path or self.current_image_path):
             return False
+        self.project.unit = scale_result.unit          # los resultados se reportan en esta unidad
         self._update_corr_indicator()
         self._sync_area_units()
         self.scale_result = scale_result
@@ -2442,12 +2451,58 @@ class MainWindow:
                 out.append((Path(p).name, *sz))
         return out
 
+    def _ask_scale_value(self) -> tuple[float, str] | None:
+        """Escala escrita: valor y unidad por píxel (µm, mm, cm o m)."""
+        win = tk.Toplevel(self.root)
+        win.title(t("menu.scale_manual").rstrip("…"))
+        win.configure(bg=COLORS["bg_card"])
+        win.resizable(False, False)
+        win.transient(self.root)
+        body = tk.Frame(win, bg=COLORS["bg_card"])
+        body.pack(padx=18, pady=14)
+        tk.Label(body, text=t("scale.manual_prompt"), bg=COLORS["bg_card"], fg=COLORS["text"],
+                 font=FONTS["small"], justify="left").pack(anchor="w", pady=(0, 8))
+        row = tk.Frame(body, bg=COLORS["bg_card"])
+        row.pack(anchor="w")
+        value = tk.StringVar()
+        entry = tk.Entry(row, textvariable=value, width=12, font=FONTS["body"])
+        entry.pack(side=tk.LEFT)
+        unit = tk.StringVar(value=self.project.unit)
+        ttk.Combobox(row, textvariable=unit, values=units.UNITS, state="readonly", width=4,
+                     font=FONTS["body"]).pack(side=tk.LEFT, padx=(6, 2))
+        tk.Label(row, text="/ px", bg=COLORS["bg_card"], fg=COLORS["text"], font=FONTS["body"]).pack(side=tk.LEFT)
+        out: list = []
+
+        def ok(_e=None):
+            try:
+                v = float(value.get().replace(",", "."))
+            except ValueError:
+                entry.focus_set()
+                return
+            if v > 0:
+                out.append((v, unit.get()))
+                win.destroy()
+        btns = tk.Frame(body, bg=COLORS["bg_card"])
+        btns.pack(fill=tk.X, pady=(12, 0))
+        tk.Button(btns, text=t("common.cancel"), command=win.destroy, relief="flat",
+                  bg=COLORS["btn_bg"], fg=COLORS["accent"], font=FONTS["small"]).pack(side=tk.RIGHT, padx=(6, 0))
+        tk.Button(btns, text=t("common.ok"), command=ok, relief="flat", bg=COLORS["accent"], fg="#FFFFFF",
+                  font=FONTS["small"]).pack(side=tk.RIGHT)
+        win.bind("<Return>", ok)
+        win.bind("<Escape>", lambda e: win.destroy())
+        entry.focus_set()
+        win.update_idletasks()
+        x = self.root.winfo_rootx() + (self.root.winfo_width() - win.winfo_reqwidth()) // 2
+        y = self.root.winfo_rooty() + (self.root.winfo_height() - win.winfo_reqheight()) // 3
+        win.geometry(f"+{x}+{y}")
+        win.grab_set()
+        self.root.wait_window(win)
+        return out[0] if out else None
+
     def _calibrate_scale(self):
-        val = simpledialog.askfloat(
-            t("menu.scale_manual").rstrip("…"),
-            t("scale.manual_prompt"),
-            minvalue=0.0001)
-        if val:
+        got = self._ask_scale_value()
+        if got:
+            val, unit = got
             scope = "all"
             if len(self.project.images) > 1:
                 ans = messagebox.askyesnocancel(t("menu.scale_manual").rstrip("…"), t("scale.scope_question"),
@@ -2455,11 +2510,13 @@ class MainWindow:
                 if ans is None:
                     return
                 scope = "all" if ans else "image"
-            if not self._set_scale(Scale(val, "manual"), scope, self.current_image_path):
+            mm = val * units.TO_MM[unit]
+            if not self._set_scale(Scale(mm, "manual", f"{val:g} {unit}/px"), scope, self.current_image_path):
                 return
+            self.project.unit = unit
             self._update_corr_indicator()
             self._sync_area_units()
-            self._set_status(t("status.scale", scale=f"{val:.6f} mm/px"))
+            self._set_status(t("status.scale", scale=f"{val:g} {unit}/px"))
 
     def _wip(self, title: str, desc: str):
         win = tk.Toplevel(self.root)

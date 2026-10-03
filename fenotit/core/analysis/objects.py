@@ -7,6 +7,7 @@ import numpy as np
 
 from fenotit.core import pipeline
 from fenotit.core.analysis.registry import AnalysisResult, register
+from fenotit.core.units import ascii_name, display, mean_sd, per_px
 from fenotit.i18n import t
 
 STEP_FOLDERS = {"mask": "mask", "distance": "mask", "count": "count", "morphometry": "morphometry",
@@ -19,15 +20,18 @@ MEASUREMENTS = {"count": "measure_count", "morphometry": "measure_size",
 
 
 def _size_filter(params: dict) -> dict:
-    """Largo y ancho mín/máx del panel (mm con escala, si no px) llevados a px. Si el
-    panel está en mm y esta foto no tiene escala, no se filtra por tamaño."""
+    """Largo y ancho mín/máx del panel (en la unidad de la escala; sin escala, px)
+    llevados a px. Si el panel está en unidades reales y esta foto no tiene escala, no se
+    filtra por tamaño."""
+    from fenotit.core.units import TO_MM
     if not params.get("size_filter"):
         return {}
     mpp = params.get("mm_per_pixel")
-    if params.get("area_unit") == "mm":
+    unit = params.get("area_unit", "px")
+    if unit in TO_MM:
         if not mpp:
             return {}
-        k = 1 / mpp
+        k = TO_MM[unit] / mpp                      # px por unidad
     else:
         k = 1.0
     out = {}
@@ -74,6 +78,7 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
     h, w = image.shape[:2]
     roi_mask, exclusions = areas.masks(params.get("roi_shapes"), w, h)
     ctx = _CACHE.run(image, build_chain(params), mm_per_px=params.get("mm_per_pixel"),
+                     unit=params.get("length_unit", "mm"),
                      roi=roi_mask, exclusions=exclusions)
     res = AnalysisResult()
     chosen = [v for v, key in MEASUREMENTS.items() if params.get(key, v in ("count", "morphometry"))]
@@ -130,8 +135,8 @@ def _legend_spec(key: str, ctx) -> dict | None:
             col = next((k for k in measured[0] if k.startswith(prefix)), None)
             if col:
                 v = np.array([r[col] for r in measured], float)
-                unit = col.split("_", 1)[1].replace("2", "²")
-                rows.append((f"{t(name)}  {v.mean():.1f} ± {v.std(ddof=1) if len(v) > 1 else 0:.1f} {unit}", None))
+                unit = display(col.split("_", 1)[1])
+                rows.append((f"{t(name)}  {mean_sd(v.mean(), v.std(ddof=1) if len(v) > 1 else 0)} {unit}", None))
         return {"title": t("step.morphometry"), "rows": rows}
     if key == "color":
         return {"title": t("legend.image_colors"), "colors": ctx.tables.get("image_colors", [])}
@@ -151,7 +156,12 @@ def _legend_spec(key: str, ctx) -> dict | None:
 def _image_info(image, params) -> dict:
     """Resolución y escala de la foto (quedan en la tabla de imagen y en la exportación)."""
     h, w = image.shape[:2]
-    return {"image_width_px": w, "image_height_px": h, "mm_per_px": params.get("mm_per_pixel") or ""}
+    mpp = params.get("mm_per_pixel")
+    unit = params.get("length_unit", "mm")
+    info = {"image_width_px": w, "image_height_px": h, "mm_per_px": mpp or ""}
+    if mpp and ascii_name(unit) != "mm":           # también en la unidad de los resultados
+        info[f"{ascii_name(unit)}_per_px"] = round(per_px(mpp, unit), 8)
+    return info
 
 
 def _view_tables(ctx, color_mode: str = "object") -> dict[str, list[dict]]:

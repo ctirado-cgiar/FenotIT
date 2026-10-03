@@ -8,6 +8,7 @@ import numpy as np
 from fenotit.core import pipeline
 from fenotit.core.analysis import objects     # módulo (no nombres): evita el import circular
 from fenotit.core.analysis.registry import AnalysisResult, register
+from fenotit.core.units import display, mean_sd
 from fenotit.i18n import t
 
 
@@ -31,10 +32,11 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
     h, w = image.shape[:2]
     roi_mask, exclusions = areas.masks(params.get("roi_shapes"), w, h)
     ctx = objects._CACHE.run(image, build_chain(params), mm_per_px=params.get("mm_per_pixel"),
+                             unit=params.get("length_unit", "mm"),
                      roi=roi_mask, exclusions=exclusions)
     ctx.image_row().update(objects._image_info(image, params))
     row = ctx.image_row()
-    unit = "mm" if params.get("mm_per_pixel") else "px"
+    unit = ctx.unit
     res = AnalysisResult()
     label = t("step.distances")
     mask = ctx.images.get("mask")
@@ -44,7 +46,7 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
     mean, sd = row.get(f"mean_nearest_{unit}"), row.get(f"sd_nearest_{unit}")
     rows = [(f"n = {row.get('n_objects', 0)}", (255, 0, 255))]
     if mean is not None:
-        rows.append((f"{t('legend.nearest')}  {mean:.1f} ± {sd or 0:.1f} {unit}", None))
+        rows.append((f"{t('legend.nearest')}  {mean_sd(mean, sd or 0)} {display(unit)}", None))
     if row.get("clark_evans_R") is not None:
         rows.append((f"Clark-Evans R = {row['clark_evans_R']:.2f}  ({_pattern(row)})", None))
     res.extra["legends"] = {label: {"title": t("step.distances"), "rows": rows}}

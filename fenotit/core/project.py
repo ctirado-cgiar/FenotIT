@@ -41,6 +41,7 @@ class Project:
     analysis: str | None = None   # id del módulo (ej. "morphometry")
     segmentation: Segmentation = field(default_factory=Segmentation)
     scale: Scale = field(default_factory=Scale)
+    unit: str = "mm"              # unidad de los resultados: la que se usó al fijar la escala
     params: dict[str, dict[str, Any]] = field(default_factory=dict)
     roi: list[dict] = field(default_factory=list)          # áreas de todas las fotos (core.roi, 0-1)
     image_roi: dict[str, list] = field(default_factory=dict)     # foto -> sus propias áreas
@@ -119,6 +120,7 @@ class Project:
             "analysis": self.analysis,
             "segmentation": asdict(self.segmentation),
             "scale": asdict(self.scale),
+            "unit": self.unit,
             "params": self.params,
             "roi": self.roi,
             "image_roi": {self._rel(Path(k)): v for k, v in self.image_roi.items()},
@@ -167,6 +169,7 @@ class Project:
             analysis=d.get("analysis"),
             segmentation=Segmentation(**d.get("segmentation", {})),
             scale=Scale(**d.get("scale", {})),
+            unit=d.get("unit", "mm"),
             params=d.get("params", {}) or {},
             roi=from_legacy(d.get("roi")),
             image_roi={cls.key(resolve(k)): from_legacy(v) for k, v in (d.get("image_roi") or {}).items()},

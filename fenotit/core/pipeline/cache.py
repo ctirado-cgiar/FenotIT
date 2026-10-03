@@ -43,7 +43,7 @@ class ChainCache:
             store.popitem(last=False)
 
     def run(self, image: np.ndarray, chain: list[dict], mm_per_px: float | None = None,
-            roi: np.ndarray | None = None, exclusions: list | None = None) -> Context:
+            roi: np.ndarray | None = None, exclusions: list | None = None, unit: str = "mm") -> Context:
         if any(item["step"] not in REGISTRY for item in chain):
             discover()
         kinds = [REGISTRY[item["step"]].kind if item["step"] in REGISTRY else None for item in chain]
@@ -52,7 +52,7 @@ class ChainCache:
         split = next((i for i, k in enumerate(kinds) if k == "measurement"), len(chain))
         if any(k != "measurement" for k in kinds[split:]):          # orden no estándar
             from fenotit.core.pipeline.base import run
-            return run(image, chain, mm_per_px, roi, exclusions)
+            return run(image, chain, mm_per_px, roi, exclusions, unit)
 
         exclusions = exclusions or []
         base = _hash(image, roi if roi is not None else "", [(np.asarray(p).tolist(), c) for p, c in exclusions])
@@ -61,7 +61,7 @@ class ChainCache:
         pkey = _hash(base, chain[:split])
         prefix = self._prefix.get(pkey)
         if prefix is None:
-            prefix = Context(image=image, mm_per_px=mm_per_px, roi=roi, exclusions=exclusions)
+            prefix = Context(image=image, mm_per_px=mm_per_px, length_unit=unit, roi=roi, exclusions=exclusions)
             for item in chain[:split]:
                 _apply(prefix, item)
             self._remember(self._prefix, pkey, prefix, self.size)
@@ -70,15 +70,15 @@ class ChainCache:
 
         deltas = []
         for item in chain[split:]:
-            mkey = _hash(pkey, item, mm_per_px)
+            mkey = _hash(pkey, item, mm_per_px, unit)
             delta = self._measures.get(mkey)
             if delta is None:
-                delta = _measure(prefix, item, mm_per_px)
+                delta = _measure(prefix, item, mm_per_px, unit)
                 self._remember(self._measures, mkey, delta, self.size * 8)
             else:
                 self.hits.append(item["step"])
             deltas.append(delta)
-        return _compose(prefix, deltas, mm_per_px)
+        return _compose(prefix, deltas, mm_per_px, unit)
 
 
 def _apply(ctx: Context, item: dict):
@@ -89,15 +89,15 @@ def _apply(ctx: Context, item: dict):
     s.func(ctx, {**s.defaults(), **(item.get("params") or {})})
 
 
-def _fresh(prefix: Context, mm_per_px) -> Context:
-    return Context(image=prefix.image, mm_per_px=mm_per_px, roi=prefix.roi, exclusions=prefix.exclusions,
+def _fresh(prefix: Context, mm_per_px, unit="mm") -> Context:
+    return Context(image=prefix.image, mm_per_px=mm_per_px, length_unit=unit, roi=prefix.roi, exclusions=prefix.exclusions,
                    mask=prefix.mask, labels=prefix.labels, detections=prefix.detections,
                    skeleton=prefix.skeleton, groups=prefix.groups)
 
 
-def _measure(prefix: Context, item: dict, mm_per_px) -> dict:
+def _measure(prefix: Context, item: dict, mm_per_px, unit="mm") -> dict:
     """Corre una medición sola y guarda lo que aporta."""
-    ctx = _fresh(prefix, mm_per_px)
+    ctx = _fresh(prefix, mm_per_px, unit)
     _apply(ctx, item)
     rows = {r["object_id"]: {k: v for k, v in r.items() if k != "object_id"}
             for r in ctx.tables.get("objects", [])}
@@ -107,8 +107,8 @@ def _measure(prefix: Context, item: dict, mm_per_px) -> dict:
             "overlays": dict(ctx.extra.get("overlays", {}))}
 
 
-def _compose(prefix: Context, deltas: list[dict], mm_per_px) -> Context:
-    ctx = _fresh(prefix, mm_per_px)
+def _compose(prefix: Context, deltas: list[dict], mm_per_px, unit="mm") -> Context:
+    ctx = _fresh(prefix, mm_per_px, unit)
     ctx.images = dict(prefix.images)
     ctx.extra = {k: v for k, v in prefix.extra.items() if not k.startswith("_")}
     if any(d["rows"] for d in deltas):

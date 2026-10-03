@@ -14,6 +14,7 @@ def morphometry(ctx, p):
     """Tamaño y forma. Con isolated_only, los objetos que se tocaban con otro
     (desagrupados) se cuentan pero no se miden: su contorno no es confiable."""
     u, f = ctx.unit, ctx.scale
+    d1, d2 = ctx.digits(1), ctx.digits(2)
     rows = ctx.object_rows()
     touching = ctx.touching_ids()
     for oid, sl, m in regions(ctx.labels):
@@ -39,10 +40,10 @@ def morphometry(ctx, p):
         pts = cnt.reshape(-1, 2).astype(float)
         r = np.hypot(pts[:, 0] - cx, pts[:, 1] - cy)
         rows[oid].update({
-            f"area_{u}2": round(area * f * f, 3),
-            f"length_{u}": round(length * f, 3),
-            f"width_{u}": round(width * f, 3),
-            f"perimeter_{u}": round(perim * f, 3),
+            f"area_{u}2": round(area * f * f, d2),
+            f"length_{u}": round(length * f, d1),
+            f"width_{u}": round(width * f, d1),
+            f"perimeter_{u}": round(perim * f, d1),
             "aspect_ratio": round(length / width, 4) if width else 0,
             "circularity": round(min(1.0, 4 * np.pi * poly_area / perim ** 2), 4) if perim else 0,
             "solidity": round(poly_area / hull_area, 4) if hull_area else 0,
@@ -50,11 +51,11 @@ def morphometry(ctx, p):
             "elongation": round(1 - width / length, 4) if length else 0,
             "rectangularity": round(poly_area / (width * length), 4) if width * length else 0,
             "eccentricity": round(ecc, 4),
-            f"major_axis_{u}": round(major * f, 3),
-            f"minor_axis_{u}": round(minor * f, 3),
-            f"radius_min_{u}": round(r.min() * f, 3),
-            f"radius_mean_{u}": round(r.mean() * f, 3),
-            f"radius_max_{u}": round(r.max() * f, 3),
+            f"major_axis_{u}": round(major * f, d1),
+            f"minor_axis_{u}": round(minor * f, d1),
+            f"radius_min_{u}": round(r.min() * f, d1),
+            f"radius_mean_{u}": round(r.mean() * f, d1),
+            f"radius_max_{u}": round(r.max() * f, d1),
             "radius_ratio": round(r.min() / r.max(), 4) if r.max() else 0,
             "centroid_x_px": int(round(cx + sl[1].start)),
             "centroid_y_px": int(round(cy + sl[0].start)),

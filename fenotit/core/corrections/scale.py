@@ -10,14 +10,7 @@ import numpy as np
 from dataclasses import dataclass
 
 
-UNITS = ["µm", "mm", "cm", "m"]
-
-UNIT_TO_MM = {
-    "µm": 0.001,
-    "mm": 1.0,
-    "cm": 10.0,
-    "m":  1000.0,
-}
+from fenotit.core.units import TO_MM as UNIT_TO_MM, UNITS  # noqa: F401
 
 
 @dataclass
