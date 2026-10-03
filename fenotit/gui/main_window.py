@@ -1046,19 +1046,17 @@ class MainWindow:
                                     fg=COLORS["text_muted"], font=FONTS["small"])
         self.batch_label.pack(side=tk.RIGHT, padx=4)
 
-        # Lista (buscador, lista o cuadrícula) y VISTAS en dos partes de alto ajustable
-        split = tk.PanedWindow(lf, orient=tk.VERTICAL, bg=COLORS["border"], sashwidth=4, sashrelief="flat",
-                               bd=0, opaqueresize=True)
-        split.pack(fill=tk.BOTH, expand=True)
-        self.image_list = ImageList(split, COLORS, FONTS, on_select=self._select_image,
+        # Lista (buscador, lista o cuadrícula): su alto se ajusta a las fotos, con tope;
+        # lo que sobra es para CAPAS (y, después, el inspector)
+        self.image_list = ImageList(lf, COLORS, FONTS, on_select=self._select_image,
                                     on_delete=self._remove_current_image,
                                     mode=settings.get("image_view", "list"),
                                     on_mode=lambda m: settings.set("image_view", m))
-        split.add(self.image_list, minsize=90, stretch="always")
+        self.image_list.pack(fill=tk.X)
 
-        # Vistas del resultado de la imagen actual
-        views = tk.Frame(split, bg=COLORS["bg_panel"])
-        split.add(views, minsize=60, height=170, stretch="never")
+        # Capas del resultado de la imagen actual
+        views = tk.Frame(lf, bg=COLORS["bg_panel"])
+        views.pack(fill=tk.BOTH, expand=True)
         self._section_lbl(views, t("left.history"))
         self.history_frame = tk.Frame(views, bg=COLORS["bg_panel"])
         self.history_frame.pack(fill=tk.BOTH, expand=True, padx=6, pady=(0, 6))

@@ -6,6 +6,7 @@ from __future__ import annotations
 import queue
 import threading
 import tkinter as tk
+import tkinter.font as tkfont
 from collections import deque
 from pathlib import Path
 from tkinter import ttk
@@ -19,6 +20,8 @@ from fenotit.i18n import t
 
 _log = log.get("gui.images")
 THUMB = 42                       # lado máximo de la miniatura (px): 3 columnas en el panel por defecto
+SEARCH_FROM = 6                  # con menos fotos no hace falta buscador
+MAX_SHARE = 0.45                 # tope del alto de la lista (fracción del panel): debajo van CAPAS e inspector
 MARKS = {"done": ("✓", "#2E8B57"), "error": ("⚠", "#E67E00"), "pending": ("…", "#9AA3A7")}
 
 
@@ -77,23 +80,25 @@ class ImageList(tk.Frame):
         self.mode = mode if mode in ("list", "grid") else "list"
         self._thumbs: dict[str, ImageTk.PhotoImage | None] = {}
         self._loader = _ThumbLoader()
+        self._fit_job = None
         self._build()
+        self.pack_propagate(False)
+        parent.bind("<Configure>", lambda e: self._schedule_fit(), add="+")
         self._poll()
 
     # ── interfaz ──────────────────────────────────────────────────────────────
 
     def _build(self):
         c = self.c
-        top = tk.Frame(self, bg=c["bg_panel"])
+        top = self._top = tk.Frame(self, bg=c["bg_panel"])
         top.pack(fill=tk.X, padx=6, pady=(2, 4))
         kw = dict(bg=c["bg_panel"], hover=c["btn_hover"], active=c["accent_light"], size=14, color=c["accent"])
         self._btn = {m: IconButton(top, m, lambda m=m: self.set_mode(m), t(f"images.view_{m}"), **kw)
                      for m in ("grid", "list")}
         for b in self._btn.values():                   # primero los botones: el buscador toma lo que sobra
             b.pack(side=tk.RIGHT, padx=(2, 0))
-        box = tk.Frame(top, bg=c["bg_card"], highlightthickness=1, highlightbackground=c["border"],
+        box = self._box = tk.Frame(top, bg=c["bg_card"], highlightthickness=1, highlightbackground=c["border"],
                        highlightcolor=c["accent"])
-        box.pack(side=tk.LEFT, fill=tk.X, expand=True)
         self.query = tk.StringVar()
         self._entry = tk.Entry(box, textvariable=self.query, bd=0, relief="flat", bg=c["bg_card"],
                                fg=c["text"], font=self.f["small"], insertwidth=1, width=6)
@@ -118,7 +123,7 @@ class ImageList(tk.Frame):
         self.listbox.bind("<<ListboxSelect>>", self._on_list_select)
         self.grid = tk.Canvas(self._body, bg=c["bg_card"], highlightthickness=1,
                               highlightbackground=c["border"], yscrollincrement=16)
-        self.grid.bind("<Configure>", lambda e: self._draw_grid())
+        self.grid.bind("<Configure>", lambda e: (self._draw_grid(), self._schedule_fit()))
         self.grid.bind("<Button-1>", self._on_grid_click)
         self.grid.bind("<Motion>", self._hover)
         self.grid.bind("<Leave>", lambda e: self._tip_hide())
@@ -155,7 +160,7 @@ class ImageList(tk.Frame):
         for w in (self.listbox, self.grid, self._sb, self._empty):
             w.pack_forget()
             w.place_forget()
-        self._sb.pack(side=tk.RIGHT, fill=tk.Y)
+        self._scroll_on = False
         if self.mode == "list":
             self.listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
             self.listbox.config(yscrollcommand=self._sb.set)
@@ -167,6 +172,58 @@ class ImageList(tk.Frame):
             self._sb.config(command=self._grid_yview)
             self._draw_grid()
         self._show_empty()
+        self._schedule_fit()
+
+    # ── alto según el contenido ─────────────────────────────────────────────────
+
+    def _schedule_fit(self):
+        if self._fit_job is None:
+            self._fit_job = self.after_idle(self._fit)
+
+    def _row_height(self) -> int:
+        if self.mode == "grid":
+            return THUMB + 8
+        lb = self.listbox
+        if lb.size() >= 2 and lb.bbox(0) and lb.bbox(1):
+            return lb.bbox(1)[1] - lb.bbox(0)[1]
+        return tkfont.Font(font=lb.cget("font")).metrics("linespace") + 1
+
+    def _fit(self):
+        """Alto justo para las fotos que hay (sin barra ni buscador si no hacen falta),
+        hasta MAX_SHARE del panel; desde ahí, barra de desplazamiento."""
+        self._fit_job = None
+        n = len(self.paths)
+        searching = bool(self._query())
+        if n >= SEARCH_FROM or searching:
+            if not self._box.winfo_ismapped():
+                self._box.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        elif self._box.winfo_ismapped():
+            self._box.pack_forget()
+        self._top.update_idletasks()                 # el alto del encabezado cambia con el buscador
+        rh = self._row_height()
+        if self.mode == "grid":
+            w = (self.winfo_width() or 200) - 12
+            cols = max(1, (w - 4) // (THUMB + 8))
+            rows = (max(n, 1) + cols - 1) // cols
+            content = rows * rh + 6
+        else:
+            if int(self.listbox.cget("height")) != max(n, 1):
+                self.listbox.config(height=max(n, 1))
+            content = self.listbox.winfo_reqheight() + 4         # Tk mide las filas exactas
+        head = self._top.winfo_reqheight() + 6 + 4
+        limit = max(head + rh + 6, int(self.master.winfo_height() * MAX_SHARE))
+        want = head + content
+        h = min(want, limit)
+        scroll = want > limit
+        if scroll != self._scroll_on:
+            self._scroll_on = scroll
+            if scroll:
+                self._sb.pack(side=tk.RIGHT, fill=tk.Y, before=self.listbox if self.mode == "list" else self.grid)
+            else:
+                self._sb.pack_forget()
+        if int(self.cget("height")) != h:
+            self.config(height=h)
+            self.after_idle(lambda: self.set_current(self.current))
 
     # ── datos ─────────────────────────────────────────────────────────────────
 
@@ -179,6 +236,7 @@ class ImageList(tk.Frame):
         if new:
             self._loader.request(new)
         self._filter()
+        self._schedule_fit()
 
     def set_current(self, index: int):
         self.current = index
@@ -187,7 +245,10 @@ class ImageList(tk.Frame):
             if index in self.visible:
                 row = self.visible.index(index)
                 self.listbox.selection_set(row)
-                self.listbox.see(row)
+                if getattr(self, "_scroll_on", True):
+                    self.listbox.see(row)
+                else:                                   # cabe todo: nada corrido
+                    self.listbox.yview_moveto(0)
         else:
             self._draw_grid()
             self._see(index)
@@ -334,6 +395,9 @@ class ImageList(tk.Frame):
             self._loader.request(want, first=True)
 
     def _see(self, index: int):
+        if not getattr(self, "_scroll_on", True):
+            self.grid.yview_moveto(0)
+            return
         if index not in self.visible:
             return
         cols, _, ch = self._cell()
