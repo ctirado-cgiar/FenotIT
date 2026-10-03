@@ -1082,19 +1082,14 @@ class MainWindow:
                                   links=((t("menu.language"), self._choose_language), (t("menu.about"), self._about)))
         self._build_view_controls()
 
-        # Barra de vistas (◀ vista ▶ · Resultados): solo cuando hay resultados
-        step_nav = tk.Frame(cf, bg=COLORS["bg_panel"], height=28)
-        step_nav.pack_propagate(False)
-        self._results_bar = step_nav
-        tk.Frame(step_nav, bg=COLORS["border"],
-                 height=1).pack(fill=tk.X, side=tk.TOP)
+        # Tabla y gráficos: ocultables como los paneles (ícono en su esquina; oculta = tira delgada)
         self.step_label_var = tk.StringVar(value="—")
-        self._view_tabs = tk.Frame(step_nav, bg=COLORS["bg_panel"])     # pestañas: una por vista
-        self._view_tabs.pack(side=tk.LEFT, fill=tk.Y, padx=(6, 0))
-        self._results_btn = tk.Button(step_nav, command=self._toggle_results_panel,
-                                      bg=COLORS["bg_panel"], fg=COLORS["accent"],
-                                      relief="flat", font=FONTS["small"], cursor="hand2")
-        self._results_btn.pack(side=tk.RIGHT, padx=4)
+        self._panel_bottom_icon = ImageTk.PhotoImage(icon("panel_bottom", 12, COLORS["accent"]))
+        strip = tk.Frame(cf, bg=COLORS["bg_panel"], height=14)
+        strip.pack_propagate(False)
+        self._results_bar = strip                      # tira con la tabla oculta
+        strip_btn = tk.Label(strip, image=self._panel_bottom_icon, bg=COLORS["bg_panel"], cursor="hand2")
+        strip_btn.place(relx=1.0, x=-10, rely=0.5, anchor="e")
 
         # ── Notebook: Tabla | Gráficos ───────────────────────────────────
         nb_style = ttk.Style()
@@ -1112,9 +1107,14 @@ class MainWindow:
 
         bottom_nb = ttk.Notebook(cf, style="Bottom.TNotebook")
         self._bottom_nb = bottom_nb
-        self._results_visible = True          # preferencia del usuario (▾/▴)
+        self._results_visible = True          # preferencia del usuario (mostrar u ocultar)
         self._results_shown = False           # hay resultados para esta imagen
-        self._results_btn.config(text=f"▾ {t('results.panel')}")
+        corner = tk.Label(bottom_nb, image=self._panel_bottom_icon, bg=COLORS["bg_panel"], cursor="hand2",
+                          padx=2, pady=2)
+        corner.place(relx=1.0, x=-4, y=3, anchor="ne")
+        for btn in (strip_btn, corner):
+            btn.bind("<Button-1>", lambda e: self._toggle_results_panel())
+            Tooltip(btn, t("view.toggle_results"))
         # Altura mínima del panel de tabla/gráficos
         bottom_nb.configure(height=220)
 
@@ -1858,11 +1858,10 @@ class MainWindow:
         self._results_bar.pack_forget()
         self._bottom_nb.pack_forget()
         if self._results_shown:
-            self._results_bar.pack(fill=tk.X, after=self._canvas_row)
             if self._results_visible:
-                self._bottom_nb.pack(fill=tk.BOTH, expand=False, padx=6, pady=(2, 0), after=self._results_bar)
-        arrow = "▾" if self._results_visible else "▴"
-        self._results_btn.config(text=f"{arrow} {t('results.panel')}")
+                self._bottom_nb.pack(fill=tk.BOTH, expand=False, padx=6, pady=(4, 0), after=self._canvas_row)
+            else:
+                self._results_bar.pack(fill=tk.X, after=self._canvas_row)
 
     def _show_results_ui(self, on: bool):
         if on == self._results_shown:
@@ -2214,27 +2213,6 @@ class MainWindow:
             f"{name}  ({idx+1}/{len(self.step_names)})")
         self._update_table(self.last_result, name)
         self._refresh_history()
-        self._paint_view_tabs()
-
-    def _paint_view_tabs(self):
-        """Pestañas de las vistas del análisis actual (Máscara · Conteo · …): un clic y se ve."""
-        bar = self._view_tabs
-        for w in bar.winfo_children():
-            w.destroy()
-        for i, name in enumerate(self.step_names):
-            sel = i == self.step_idx
-            tab = tk.Frame(bar, bg=COLORS["bg_card"] if sel else COLORS["bg_panel"], cursor="hand2")
-            tab.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 1), pady=(3, 0))
-            tk.Frame(tab, bg=COLORS["accent"] if sel else COLORS["bg_panel"], height=2).pack(fill=tk.X)
-            lbl = tk.Label(tab, text=name, bg=tab["bg"], fg=COLORS["accent"] if sel else COLORS["text_muted"],
-                           font=(FONTS["small"][0], FONTS["small"][1], "bold") if sel else FONTS["small"],
-                           padx=10, cursor="hand2")
-            lbl.pack(fill=tk.BOTH, expand=True)
-            for w in (tab, lbl):
-                w.bind("<Button-1>", lambda e, k=i: self._jump_to_step(k))
-                if not sel:
-                    w.bind("<Enter>", lambda e, l=lbl: l.config(fg=COLORS["accent"]))
-                    w.bind("<Leave>", lambda e, l=lbl: l.config(fg=COLORS["text_muted"]))
 
     # ── ROI ───────────────────────────────────────────────────────────────────
 

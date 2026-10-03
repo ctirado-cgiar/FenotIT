@@ -336,6 +336,7 @@
   "view.show_side": "Show {name}",
   "view.toggle_legend": "Show/hide legend",
   "view.toggle_panel": "Show or hide the panel",
+  "view.toggle_results": "Show or hide the table and charts",
   "view.zoom_100": "Actual size (100%)",
   "view.zoom_area": "Zoom to area",
   "view.zoom_area_hint": "Drag a rectangle to zoom into that area · Esc cancels",
