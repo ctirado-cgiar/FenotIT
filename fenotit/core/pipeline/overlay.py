@@ -134,7 +134,8 @@ def _draw(img, ov, colors, origin, zoom, screen):
     _lines(img, exc, _EXCLUDED, min(width, 1.0), False)
     _lines(img, inc, colors["outline"], width, halo=width >= 1.5)
     if ov.get("lines"):                             # segmentos sueltos con opacidad (p. ej. distancias)
-        lw = max(1, int(round(width))) if screen else max(1, int(round(width)))
+        thin = ov.get("thin_lines")                 # líneas de referencia (largo/ancho): finas
+        lw = (max(1, int(round(width * 0.5))) - 1) if thin else max(1, int(round(width)))
         bins = {}
         for p1, p2, strength in ov["lines"]:
             q = tr([p1, p2])

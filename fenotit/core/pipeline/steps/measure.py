@@ -71,8 +71,9 @@ def morphometry(ctx, p):
     })
     included_view(ctx, "morphometry", {r["object_id"] for r in measured})
     ov = ctx.extra["overlays"]["morphometry"]       # lo que se midió: largo y ancho de cada objeto
+    ov["thin_lines"] = True
     for seg in axes.values():
-        ov["lines"] += [(p1, p2, 1.0) for p1, p2 in seg]
+        ov["lines"] += [(p1, p2, 0.4) for p1, p2 in seg]
 
 
 def _axes(rect, sl):
