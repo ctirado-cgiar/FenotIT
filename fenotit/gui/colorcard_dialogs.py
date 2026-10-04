@@ -1,5 +1,5 @@
 """Ventanas pequeñas de la tarjeta de color: marcar el área blanca/gris, escribir los
-colores de una tarjeta propia, ver la tarjeta detectada (antes y después) y la ayuda "?"."""
+colores de una tarjeta propia y ver la tarjeta detectada (antes y después)."""
 from __future__ import annotations
 
 import re
@@ -38,22 +38,6 @@ def _center(win, parent):
     w, h = win.winfo_reqwidth(), win.winfo_reqheight()
     win.geometry(f"+{parent.winfo_rootx() + max(0, (parent.winfo_width() - w) // 2)}"
                  f"+{parent.winfo_rooty() + max(0, (parent.winfo_height() - h) // 4)}")
-
-
-def help_box(parent, title: str, text: str):
-    """La ayuda "?": para qué sirve la corrección y qué necesita la foto."""
-    win = _window(parent, title)
-    tk.Label(win, text=title, bg=COLORS["bg_card"], fg=COLORS["accent"],
-             font=("Segoe UI", 12, "bold")).pack(anchor="w", padx=18, pady=(12, 4))
-    tk.Label(win, text=text, bg=COLORS["bg_card"], fg=COLORS["text"], font=FONTS["body"], justify="left",
-             wraplength=470, anchor="w").pack(fill=tk.X, padx=18, pady=(0, 6))
-    row = tk.Frame(win, bg=COLORS["bg_card"])
-    row.pack(fill=tk.X, padx=16, pady=10)
-    tk.Button(row, text=t("common.close"), command=win.destroy, bg=COLORS["accent"], fg="#FFFFFF", relief="flat",
-              font=("Segoe UI", 9, "bold"), cursor="hand2", padx=14).pack(side=tk.RIGHT)
-    win.bind("<Escape>", lambda e: win.destroy())
-    _center(win, parent)
-    win.grab_set()
 
 
 def pick_region(parent, image: np.ndarray, region=None):

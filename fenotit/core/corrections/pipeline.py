@@ -87,6 +87,22 @@ class CorrectionInfo:
     warnings: list[str] = field(default_factory=list)
     aruco_missing: list[int] = field(default_factory=list)
     color: dict | None = None          # tarjeta encontrada, cuadritos descartados, error
+    work_k: float = 1.0               # factor de la resolución de trabajo (1 = foto completa)
+
+
+# ── Resolución de trabajo ─────────────────────────────────────────────────────
+
+def to_working(image: np.ndarray, info: CorrectionInfo, max_mpx: float | None) -> np.ndarray:
+    """Después de las correcciones (hechas en la foto completa), la foto para analizar: si
+    pasa de max_mpx megapíxeles se reduce. La escala de ArUco se ajusta al nuevo tamaño."""
+    h, w = image.shape[:2]
+    if not max_mpx or h * w <= max_mpx * 1e6:
+        return image
+    k = (max_mpx * 1e6 / (h * w)) ** 0.5
+    info.work_k = k
+    if info.mm_per_px:
+        info.mm_per_px /= k
+    return cv2.resize(image, (max(1, round(w * k)), max(1, round(h * k))), interpolation=cv2.INTER_AREA)
 
 
 # ── Distorsión ────────────────────────────────────────────────────────────────

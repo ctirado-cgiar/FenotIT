@@ -48,6 +48,8 @@ class Project:
     image_scale: dict[str, Scale] = field(default_factory=dict)  # foto -> su propia escala
     corrections: Corrections = field(default_factory=Corrections)
     metadata: dict[str, str] = field(default_factory=dict)   # {"file": ruta, "key_column": col}
+    max_mpx: float | None = 50.0                             # resolución de trabajo del análisis (None = completa)
+    ran: list[str] = field(default_factory=list)             # análisis ya corridos (para ofrecer recalcular al abrir)
     display: dict[str, Any] = field(default_factory=lambda: {"legend": True, "color_format": "RGB",
                                                              "legend_scale": 1.0})
 
@@ -126,6 +128,8 @@ class Project:
             "image_roi": {self._rel(Path(k)): v for k, v in self.image_roi.items()},
             "image_scale": {self._rel(Path(k)): asdict(v) for k, v in self.image_scale.items()},
             "corrections": self.corrections.to_dict(),
+            "ran": self.ran,
+            "max_mpx": self.max_mpx,
             "display": self.display,
             "metadata": ({**self.metadata, "file": self._rel(Path(self.metadata["file"]))}
                          if self.metadata.get("file") else {}),
@@ -175,6 +179,8 @@ class Project:
             image_roi={cls.key(resolve(k)): from_legacy(v) for k, v in (d.get("image_roi") or {}).items()},
             image_scale={cls.key(resolve(k)): Scale(**v) for k, v in (d.get("image_scale") or {}).items()},
             corrections=Corrections.from_dict(d.get("corrections"), folder),
+            ran=list(d.get("ran") or []),
+            max_mpx=d.get("max_mpx", 50.0),
             display={"legend": True, "color_format": "RGB", "legend_scale": 1.0, **(d.get("display") or {})},
             metadata=({**d["metadata"], "file": str(resolve(d["metadata"]["file"]))}
                       if (d.get("metadata") or {}).get("file") else {}),

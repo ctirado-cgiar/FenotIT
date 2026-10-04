@@ -25,6 +25,8 @@ class Job:
     path: str
     params: dict
     aruco_scale: bool = False     # escala de la foto = la de sus marcadores ArUco
+    max_mpx: float | None = None  # resolución de trabajo (None = foto completa)
+    full_res_scale: bool = True   # mm_per_pixel medido en la foto completa (se ajusta a la de trabajo)
 
 
 @dataclass
@@ -113,9 +115,13 @@ def process(analysis: str, job: Job, corrections, keep_images: bool = False) -> 
         return Outcome(job.path, "skipped", aruco_missing=info.aruco_missing)
     if corrections.color.enabled and "color" not in info.applied:
         return Outcome(job.path, "skipped", message="color")
+    img = corr.to_working(img, info, job.max_mpx)
     params = dict(job.params)
     if job.aruco_scale:
         params["mm_per_pixel"] = info.mm_per_px
+    elif job.full_res_scale and params.get("mm_per_pixel"):
+        params["mm_per_pixel"] = params["mm_per_pixel"] / info.work_k
+    params["work_scale"] = round(info.work_k, 6)
     try:
         result = ANALYSES[analysis].func(img, params)
     except Exception as e:

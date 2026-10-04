@@ -134,3 +134,25 @@ if __name__ == "__main__":
         if name.startswith("test_"):
             fn()
             print(f"ok  {name}")
+
+
+def test_working_resolution_keeps_mm():
+    """Foto grande reducida a la resolución de trabajo: las medidas en mm no cambian."""
+    import tempfile
+    from pathlib import Path
+    from fenotit.core import batch
+    from fenotit.core.image_io import load_image
+    img = load_image(str(Path(__file__).parent / "images" / "01.jpg"))
+    params = {"color_space": "YCrCb", "channel_idx": 1, "min_val": 122, "max_val": 255}
+    with tempfile.TemporaryDirectory() as tmp:
+        small, big = Path(tmp) / "a.png", Path(tmp) / "b.png"
+        cv2.imwrite(str(small), img)
+        cv2.imwrite(str(big), cv2.resize(img, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC))   # ~69 MP
+        a = batch.process("Objetos", batch.Job(str(small), dict(params, mm_per_pixel=0.15)), Corrections())
+        b = batch.process("Objetos", batch.Job(str(big), dict(params, mm_per_pixel=0.05), max_mpx=20),
+                          Corrections())
+    ma = np.mean([r["area_mm2"] for r in a.result.measurements])
+    mb = np.mean([r["area_mm2"] for r in b.result.measurements])
+    assert b.result.extra["params"]["work_scale"] < 0.6
+    assert len(a.result.measurements) == len(b.result.measurements)
+    assert abs(ma - mb) / ma < 0.02, (ma, mb)

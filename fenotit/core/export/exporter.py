@@ -124,6 +124,7 @@ def metadata(analysis: str, results: dict[str, Any], project=None, extra: dict |
                  ("segmentation", f"{seg.color_space} channel {seg.channel} "
                                   + ("Otsu" if seg.auto else f"{seg.min_val}-{seg.max_val}")),
                  ("corrections", ", ".join(corr.active()) or "none"),
+                 ("max_megapixels", project.max_mpx or "full"),
                  ("preset", "none")]
     if ok:
         params = [_params_of(r) for r in ok]

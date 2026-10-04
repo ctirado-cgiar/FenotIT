@@ -392,9 +392,11 @@ class MainWindow:
     def _scale_for(self, path: str | None) -> float | None:
         """mm/px de una foto: su propia escala; si no, la de todas (ArUco: la de cada foto)."""
         sc = self.project.scale_for(path)
+        info = self._corr_info.get(path) if path else None
         if sc.source == "aruco":
-            info = self._corr_info.get(path) if path else None
             return info.mm_per_px if info else None
+        if sc.mm_per_pixel and info is not None:          # guardada para la foto completa
+            return sc.mm_per_pixel / info.work_k
         return sc.mm_per_pixel
 
     def _load_corrected(self, path: str):
@@ -402,6 +404,7 @@ class MainWindow:
         if img is None:
             return None, None
         img, info = corrections.apply(img, self.project.corrections)
+        img = corrections.to_working(img, info, self.project.max_mpx)
         self._corr_info[path] = info
         return img, info
 
@@ -453,6 +456,51 @@ class MainWindow:
         self.last_result = None
         self.canvas_right.delete("all")
         self._show_results_ui(False)
+
+    def _choose_working_res(self):
+        """Resolución de trabajo: las correcciones usan la foto completa; el análisis, a lo
+        más esta resolución (las fotos más pequeñas no cambian)."""
+        win = tk.Toplevel(self.root)
+        win.title(t("workres.title"))
+        win.configure(bg=COLORS["bg_card"])
+        win.transient(self.root)
+        tk.Frame(win, bg=COLORS["accent"], height=4).pack(fill=tk.X)
+        body = tk.Frame(win, bg=COLORS["bg_card"])
+        body.pack(fill=tk.BOTH, padx=18, pady=12)
+        head = tk.Frame(body, bg=COLORS["bg_card"])
+        head.pack(fill=tk.X)
+        tk.Label(head, text=t("workres.title"), bg=COLORS["bg_card"], fg=COLORS["accent"],
+                 font=("Segoe UI", 12, "bold")).pack(side=tk.LEFT)
+        from fenotit.gui.help import HelpIcon
+        HelpIcon(head, t("workres.title"), t("workres.help"), t("workres.short")).pack(side=tk.LEFT, padx=6)
+        var = tk.StringVar(value=str(self.project.max_mpx or 0))
+        for value, key in (("0", "workres.full"), ("100.0", "workres.100"), ("50.0", "workres.50"),
+                           ("25.0", "workres.25"), ("12.0", "workres.12")):
+            tk.Radiobutton(body, text=t(key), variable=var, value=value, bg=COLORS["bg_card"], fg=COLORS["text"],
+                           selectcolor=COLORS["bg_panel"], activebackground=COLORS["bg_card"],
+                           font=FONTS["body"], anchor="w").pack(fill=tk.X)
+        if var.get() not in ("0", "100.0", "50.0", "25.0", "12.0"):
+            var.set("50.0")
+
+        def ok():
+            v = float(var.get()) or None
+            win.destroy()
+            if v != self.project.max_mpx:
+                self.project.max_mpx = v
+                self._invalidate_results()
+                if self.current_image_path:
+                    self._load_single(self.current_image_path)
+                self._update_corr_indicator()
+        row = tk.Frame(win, bg=COLORS["bg_card"])
+        row.pack(fill=tk.X, padx=16, pady=(0, 12))
+        tk.Button(row, text=t("common.cancel"), command=win.destroy, bg=COLORS["btn_bg"], fg=COLORS["accent"],
+                  relief="flat", font=FONTS["body"], cursor="hand2", padx=10).pack(side=tk.RIGHT, padx=(6, 0))
+        tk.Button(row, text=t("common.ok"), command=ok, bg=COLORS["accent"], fg="#FFFFFF", relief="flat",
+                  font=("Segoe UI", 9, "bold"), cursor="hand2", padx=14).pack(side=tk.RIGHT)
+        win.update_idletasks()
+        win.geometry(f"+{self.root.winfo_rootx() + (self.root.winfo_width() - win.winfo_reqwidth()) // 2}"
+                     f"+{self.root.winfo_rooty() + (self.root.winfo_height() - win.winfo_reqheight()) // 3}")
+        win.grab_set()
 
     def _clear_scale(self):
         self.project.apply_scale_to_all(Scale())
@@ -662,9 +710,11 @@ class MainWindow:
         self._paint_pos_grid()
         self.color_fmt_var.set(project.display.get("color_format", "RGB"))
 
-        name = _analysis_name(project.analysis) or self._selected_analysis()
-        self.analysis_var.set(_analysis_label(name))
-        self._on_analysis_selected(None)
+        name = _analysis_name(project.analysis)
+        self._analysis_chosen = False
+        if name:
+            self.analysis_var.set(_analysis_label(name))
+        self._on_analysis_selected(None, choose=bool(name))
 
         self._clear_all_results()
         self.all_results_by_analysis.clear()
@@ -672,7 +722,7 @@ class MainWindow:
         self.canvas_right.delete("all")
         self._update_batch_list()
         self._show_panel(self.left_panel, bool(project.images))
-        self._show_panel(self.right_panel, bool(project.images))
+        self._show_panel(self.right_panel, bool(project.images) and self._analysis_chosen)
         if project.current_image:
             self._load_single(str(project.current_image))
             self._sync_listbox()
@@ -682,6 +732,31 @@ class MainWindow:
         self._update_corr_indicator()
         self._update_start()
         self._saved_state = self._collect_state()
+        if project.images and project.ran:
+            self.root.after(500, self._offer_rerun)
+
+    def _offer_rerun(self):
+        """Los resultados no se guardan en el proyecto: al abrirlo se ofrece recalcularlos."""
+        names = [n for n in (_analysis_name(k) for k in self.project.ran) if n]
+        if not names or not messagebox.askyesno(
+                t("rerun.title"), t("rerun.msg", analyses=", ".join(_analysis_label(n) for n in names),
+                                    n=len(self.batch_paths)), parent=self.root):
+            return
+        self._rerun_queue = names
+        self._rerun_next()
+
+    def _rerun_next(self):
+        queue = getattr(self, "_rerun_queue", [])
+        if not queue:
+            return
+        name = queue.pop(0)
+        self._open_analysis(name)
+        self._run_batch(name)
+
+    def _mark_ran(self, name: str):
+        key = _analysis_key(name)
+        if key not in self.project.ran:
+            self.project.ran.append(key)
 
     def _on_close(self):
         if self._is_dirty():
@@ -856,6 +931,8 @@ class MainWindow:
             (t("menu.cal_scale"), self._open_scale_dialog),
             (t("menu.scale_manual"), self._calibrate_scale),
             (t("menu.scale_clear"), self._clear_scale),
+            None,
+            (t("menu.working_res"), self._choose_working_res),
         ])
         self._drop(self.topbar, t("menu.areas"), [
             (t("roi.area_rect"), lambda: self._set_roi_mode("include_rect"), "R"),
@@ -1677,7 +1754,7 @@ class MainWindow:
         if names:
             self.analysis_var.set(_analysis_label(names[0]))
             self.active_analysis = names[0]
-            self._on_analysis_selected(None)
+            self._on_analysis_selected(None, choose=False)
 
     def _render_analysis_cards(self):
         """Encabezado del panel: solo el análisis elegido (se cambia en el menú Análisis)."""
@@ -1697,10 +1774,11 @@ class MainWindow:
                  justify="left", wraplength=230).pack(fill=tk.X, padx=8, pady=(0, 4))
 
     def _open_analysis(self, name: str):
-        if name != self._selected_analysis():
+        if name != self._selected_analysis() or not getattr(self, "_analysis_chosen", False):
             self.analysis_var.set(_analysis_label(name))
             self._on_analysis_selected(None)
         self._show_panel(self.right_panel, True)
+        self._on_slider_change()                 # la vista previa aparece si el análisis segmenta
 
     def _show_panel(self, panel, on: bool):
         if on:
@@ -1714,20 +1792,26 @@ class MainWindow:
         panel.expand() if hidden else panel.collapse()
 
     def _uses_threshold(self) -> bool:
+        """La vista previa de la segmentación solo con un análisis elegido que segmenta."""
         name = self._selected_analysis()
-        return name is None or ANALYSES[name].segmentation == "threshold"
+        return bool(getattr(self, "_analysis_chosen", False)) and name is not None \
+            and ANALYSES[name].segmentation == "threshold"
 
     def _selected_analysis(self) -> str | None:
         label = self.analysis_var.get()
         return next((n for n in ANALYSES if _analysis_label(n) == label), None)
 
-    def _on_analysis_selected(self, _event):
+    def _on_analysis_selected(self, _event, choose: bool = True):
+        """choose=False: solo deja listo el panel (al iniciar); el análisis cuenta como
+        elegido cuando el usuario lo abre en el menú Análisis o el proyecto ya tenía uno."""
         name = self._selected_analysis()
         if name not in ANALYSES:
             return
         self._store_panel_params()
         self.active_analysis = name
-        self.project.analysis = _analysis_key(name)
+        if choose:
+            self._analysis_chosen = True
+            self.project.analysis = _analysis_key(name)
         self._render_analysis_cards()
         if self._uses_threshold():
             self._seg_block.pack(fill=tk.X, before=self.config_container)
@@ -1762,14 +1846,15 @@ class MainWindow:
             p.update(self.config_panel.get_values())
             p["area_unit"] = getattr(self, "_panel_area_unit", "px")
         p["auto_threshold"] = bool(self.auto_var.get())
+        info = self._corr_info.get(self.current_image_path)
+        p["work_scale"] = round(info.work_k, 6) if info else 1.0
         return p
 
     def _run_analysis(self, all_images: bool = False):
         """Ejecutar: la imagen actual; con all_images, todas las de la lista."""
         name = self._selected_analysis()
-        if name not in ANALYSES:
-            messagebox.showwarning(t("msg.no_analysis_title"),
-                                   t("msg.no_analysis"))
+        if name not in ANALYSES or not getattr(self, "_analysis_chosen", False):
+            messagebox.showinfo(t("msg.no_analysis_title"), t("msg.no_analysis"), parent=self.root)
             return
         if all_images:
             self._run_batch(name)
@@ -1821,7 +1906,8 @@ class MainWindow:
             sc = self.project.scale_for(path)
             aruco = sc.source == "aruco"
             jobs.append(batch.Job(path, dict(params, mm_per_pixel=None if aruco else sc.mm_per_pixel,
-                                             roi_shapes=self.project.roi_for(path)), aruco_scale=aruco))
+                                             roi_shapes=self.project.roi_for(path)), aruco_scale=aruco,
+                                  max_mpx=self.project.max_mpx))
         self._pending = set(paths)                 # al volver a correr, las marcas se rehacen
         self._skipped -= self._pending
         self._progress(0, total)
@@ -1871,6 +1957,12 @@ class MainWindow:
 
     def _on_batch_done(self, name: str, total: int, cancelled: bool):
         self._batch = None
+        if not cancelled:
+            self._mark_ran(name)
+        if cancelled:
+            self._rerun_queue = []
+        elif getattr(self, "_rerun_queue", None):
+            self.root.after(300, self._rerun_next)
         self._pending.clear()
         self._progress(None)
         self._update_batch_list()
@@ -1949,6 +2041,7 @@ class MainWindow:
             self.all_results_by_analysis[name] = {}
         self.all_results_by_analysis[name][path] = result
         self._display_result(result, names, fresh=True)
+        self._mark_ran(name)
         self._trim_memory(path)
         self._update_batch_list()
         self._set_status(t("status.done", name=_analysis_label(name),
@@ -2525,7 +2618,9 @@ class MainWindow:
     def _on_scale_set(self, scale_result, scope: str = "all", path: str | None = None) -> bool:
         """Escala de la ventana de escala: solo para esa foto o para todas."""
         from fenotit.core.corrections.scale import UNIT_TO_MM
-        sc = Scale(scale_result.unit_per_px * UNIT_TO_MM.get(scale_result.unit, 1.0),
+        info = self._corr_info.get(path or self.current_image_path)
+        k = info.work_k if info else 1.0              # medida en la foto de trabajo -> foto completa
+        sc = Scale(scale_result.unit_per_px * UNIT_TO_MM.get(scale_result.unit, 1.0) * k,
                    "two_points", scale_result.format())
         if not self._set_scale(sc, scope, path or self.current_image_path):
             return False
@@ -2767,11 +2862,13 @@ class MainWindow:
             or (str(Path(self.batch_paths[0]).parent) if self.batch_paths else "")
         ExportDialog(self.root, done, folder, run=self._run_export, cancel=self._cancel_export)
 
-    def _image_info(self, path: str) -> dict:
+    def _image_info(self, path: str, result: AnalysisResult | None = None) -> dict:
         sc = self.project.scale_for(path)
         shapes = self.project.roi_for(path)
         own = self.project.key(path) in self.project.image_scale
-        return {"file": path, "mm_per_px": self._scale_for(path) or "",
+        used = (result.extra.get("params") or {}) if result is not None else {}
+        mpp = used.get("mm_per_pixel") if "mm_per_pixel" in used else self._scale_for(path)
+        return {"file": path, "mm_per_px": mpp or "", "work_scale": used.get("work_scale", ""),
                 "scale_source": sc.source + (" (image)" if own else ""),
                 "length_unit": units.ascii_name(self.project.unit),
                 "n_analysis_areas": sum(1 for x in shapes if x["kind"] == "include"),
@@ -2787,7 +2884,7 @@ class MainWindow:
             for name in names:
                 store = self._results.get(name, {})
                 key = _analysis_key(name)
-                info = {p: self._image_info(p) for p in self.batch_paths}
+                info = {p: self._image_info(p, store.get(p)) for p in self.batch_paths}
                 tables = exporter.collect(name, store, self.batch_paths, info, self._skipped,
                                           board=self._board_photos())
                 meta = exporter.metadata(key, store, self.project,
@@ -2803,7 +2900,8 @@ class MainWindow:
         queue = []
         for name in names:
             store = self._results.get(name, {})
-            jobs = [batch.Job(p, store[p].extra.get("params") or self._build_params())
+            jobs = [batch.Job(p, store[p].extra.get("params") or self._build_params(),
+                              max_mpx=self.project.max_mpx, full_res_scale=False)
                     for p in self.batch_paths if p in store and store[p].status == "ok"]
             if jobs:
                 queue.append((name, jobs))

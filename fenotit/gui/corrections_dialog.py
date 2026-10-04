@@ -7,7 +7,8 @@ from tkinter import filedialog, messagebox, ttk
 from fenotit import log
 from fenotit.core.corrections import colorcard as cc
 from fenotit.core.corrections import pipeline as P
-from fenotit.gui.colorcard_dialogs import edit_values, help_box, pick_region, show_detection
+from fenotit.gui.colorcard_dialogs import edit_values, pick_region, show_detection
+from fenotit.gui.help import HelpIcon
 from fenotit.core.corrections.aruco import detect_aruco_corners
 from fenotit.core.image_io import load_image
 from fenotit.gui.widgets import ImagePicker
@@ -96,14 +97,12 @@ class CorrectionsDialog(BaseDialog):
                          cursor="hand2", padx=10)
 
     def _enable_row(self, parent, var, kind):
-        """Casilla "Activar" y, a la derecha, "¿Para qué sirve?" con la explicación."""
+        """Casilla "Aplicar" y el "?" con la explicación (estándar de ayuda: gui/help.py)."""
         row = tk.Frame(parent, bg=COLORS["bg_card"])
         row.pack(fill=tk.X)
         self._check(row, var, "corr.enable").pack(side=tk.LEFT)
-        link = tk.Label(row, text="?  " + t("corr.why"), bg=COLORS["bg_card"], fg=COLORS["accent"],
-                        font=FONTS["small"], cursor="hand2")
-        link.pack(side=tk.RIGHT)
-        link.bind("<Button-1>", lambda e: help_box(self, t(f"corr.tab.{kind}"), t(f"corr.{kind}.why")))
+        HelpIcon(row, t(f"corr.tab.{kind}"), t(f"corr.{kind}.why"), t(f"corr.{kind}.short")).pack(
+            side=tk.LEFT, padx=(4, 0))
         return row
 
     def _status(self, parent):
