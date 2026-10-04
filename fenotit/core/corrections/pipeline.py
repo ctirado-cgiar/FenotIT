@@ -20,6 +20,7 @@ class Distortion:
     dist: list | None = None
     rms: float | None = None
     source: str = ""
+    size: list | None = None          # [ancho, alto] de las fotos del tablero (None = desconocido, p. ej. .npz)
 
 
 @dataclass
@@ -92,9 +93,23 @@ def load_npz(path: str | Path) -> Distortion:
     return Distortion(True, data["mtx"].tolist(), data["dist"].tolist(), None, Path(path).name)
 
 
+def camera_matrix(cfg: Distortion, w: int, h: int) -> np.ndarray:
+    """La matriz de la cámara vale para el tamaño de las fotos del tablero. Otra resolución
+    con la misma proporción (p. ej. la cámara en 50 MP y en 200 MP) se escala; otra
+    proporción (recortada o girada) no se puede corregir con esta calibración."""
+    mtx = np.array(cfg.mtx, dtype=np.float64)
+    if not cfg.size or tuple(cfg.size) == (w, h):
+        return mtx
+    cw, ch = cfg.size
+    if abs(w / h - cw / ch) > 0.01:
+        raise ValueError(f"calibration made for {cw}x{ch} photos, this one is {w}x{h}")
+    k = np.diag([w / cw, h / ch, 1.0])
+    return k @ mtx
+
+
 def undistort(image: np.ndarray, cfg: Distortion) -> np.ndarray:
-    mtx, dist = np.array(cfg.mtx, dtype=np.float64), np.array(cfg.dist, dtype=np.float64)
     h, w = image.shape[:2]
+    mtx, dist = camera_matrix(cfg, w, h), np.array(cfg.dist, dtype=np.float64)
     new_mtx, (x, y, rw, rh) = cv2.getOptimalNewCameraMatrix(mtx, dist, (w, h), 1, (w, h))
     out = cv2.undistort(image, mtx, dist, None, new_mtx)
     return out[y:y + rh, x:x + rw] if rw > 0 and rh > 0 else out
@@ -171,6 +186,9 @@ def apply(image: np.ndarray, corr: Corrections) -> tuple[np.ndarray, CorrectionI
         try:
             out = undistort(out, corr.distortion)
             info.applied.append("distortion")
+        except ValueError as e:                       # foto de otro tamaño que el tablero
+            _log.warning("Distorsión: %s", e)
+            info.warnings.append(f"distortion: {e}")
         except Exception as e:
             _log.exception("Distorsión falló")
             info.warnings.append(f"distortion: {e}")

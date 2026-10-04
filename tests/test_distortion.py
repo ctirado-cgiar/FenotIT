@@ -64,6 +64,19 @@ def test_spread():
     assert len(out) == 40 and out[0] == "0.jpg" and out[-1] == "265.jpg"
 
 
+
+def test_other_resolution():
+    """La calibración se escala a otra resolución con la misma proporción; con otra
+    proporción la foto no se corrige (y el lote la omite)."""
+    from fenotit.core.corrections import pipeline as P
+    K = [[3000, 0, 2000], [0, 3000, 1500], [0, 0, 1]]
+    d = P.Distortion(True, K, [[-0.1, 0.01, 0, 0, 0]], size=[4000, 3000])
+    assert np.allclose(P.camera_matrix(d, 8000, 6000), np.diag([2, 2, 1]) @ np.array(K))
+    _, info = P.apply(np.zeros((300, 400, 3), np.uint8), P.Corrections(distortion=d))
+    assert info.applied == ["distortion"]
+    _, info = P.apply(np.zeros((400, 300, 3), np.uint8), P.Corrections(distortion=d))
+    assert info.applied == [] and info.warnings
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

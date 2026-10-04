@@ -122,7 +122,8 @@ class CorrectionsDialog(BaseDialog):
 
         def use(res):
             self.c.distortion = P.Distortion(True, res.mtx.tolist(), res.dist.tolist(), res.rms_error,
-                                             t("corr.distortion.n_photos", n=res.n_images_used))
+                                             t("corr.distortion.n_photos", n=res.n_images_used),
+                                             list(res.size) if res.size else None)
             settings.set("board_grid", [int(dlg.cols.get()), int(dlg.rows.get())])
             self._d_on.set(True)
             self._refresh_distortion()

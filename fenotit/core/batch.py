@@ -60,6 +60,8 @@ def process(analysis: str, job: Job, corrections, keep_images: bool = False) -> 
     if img is None:
         return Outcome(job.path, "unreadable")
     img, info = corr.apply(img, corrections)
+    if corrections.distortion.enabled and corrections.distortion.mtx and "distortion" not in info.applied:
+        return Outcome(job.path, "skipped", message="distortion")
     if corrections.perspective.enabled and "perspective" not in info.applied:
         return Outcome(job.path, "skipped", aruco_missing=info.aruco_missing)
     params = dict(job.params)

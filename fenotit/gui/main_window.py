@@ -410,6 +410,9 @@ class MainWindow:
 
     def _skip_reason(self, info) -> str | None:
         """Motivo para no analizar una imagen (perspectiva activa pero sin los 4 ArUco)."""
+        d = self.project.corrections.distortion
+        if info and d.enabled and d.mtx and "distortion" not in info.applied:
+            return t("corr.skip_distortion", size="×".join(map(str, d.size or [])) or "?")
         if info and self.project.corrections.perspective.enabled and "perspective" not in info.applied:
             return t("corr.skip_aruco", ids=", ".join(map(str, info.aruco_missing)) or "?")
         return None
@@ -1807,7 +1810,11 @@ class MainWindow:
         path = out.path
         self._pending.discard(path)
         if out.status == "skipped":
-            self._mark_skipped(path, t("corr.skip_aruco", ids=", ".join(map(str, out.aruco_missing)) or "?"))
+            d = self.project.corrections.distortion
+            reason = t("corr.skip_distortion", size="×".join(map(str, d.size or [])) or "?") \
+                if out.message == "distortion" else \
+                t("corr.skip_aruco", ids=", ".join(map(str, out.aruco_missing)) or "?")
+            self._mark_skipped(path, reason)
         elif out.status == "unreadable":
             self._mark_skipped(path, t("msg.image_unreadable", name=Path(path).name))
         else:

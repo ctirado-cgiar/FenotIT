@@ -43,6 +43,7 @@ class CalibrationResult:
     n_images_total: int = 0
     message: str = ""
     detections: list[Detection] = field(default_factory=list)
+    size: tuple[int, int] | None = None     # (ancho, alto) de las fotos usadas
 
 
 def spread(paths: list[str], n: int = MAX_PHOTOS) -> list[str]:
@@ -102,7 +103,7 @@ def solve(detections: list[Detection], cols: int, rows: int) -> CalibrationResul
         proj, _ = cv2.projectPoints(objp, rv, tv, mtx, dist)
         d.error_px = float(np.sqrt(np.mean(np.sum((proj - d.corners) ** 2, axis=2))))
     return CalibrationResult(True, mtx, dist, round(float(rms), 4), len(used), total,
-                             f"RMS {rms:.4f} px", detections)
+                             f"RMS {rms:.4f} px", detections, (w, h))
 
 
 def calibrate(images: list[str], inner_cols: int = 7, inner_rows: int = 6,
