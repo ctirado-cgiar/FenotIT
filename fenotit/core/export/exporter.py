@@ -72,7 +72,8 @@ def _params_of(result) -> dict:
 
 
 def collect(analysis: str, results: dict[str, Any], images: list[str],
-            image_info: dict[str, dict] | None = None, skipped: set | None = None) -> dict[str, list[dict]]:
+            image_info: dict[str, dict] | None = None, skipped: set | None = None,
+            board: set | None = None) -> dict[str, list[dict]]:
     """Tablas del análisis. `image` lleva una fila por foto de la lista (también las no
     analizadas): estado, sus mediciones de imagen y escala/áreas."""
     image_info = image_info or {}
@@ -83,7 +84,8 @@ def collect(analysis: str, results: dict[str, Any], images: list[str],
     for image_id, path in enumerate(images, 1):
         name = Path(path).name
         r = results.get(path)
-        status = ("skipped" if path in skipped else "not_analyzed") if r is None else \
+        status = ("calibration" if path in (board or ()) else "skipped" if path in skipped else "not_analyzed") \
+            if r is None else \
             ("ok" if r.status == "ok" else "error")
         head = {"Image_ID": image_id, "Image_name": name, "status": status}
         tail = dict(image_info.get(path, {}))

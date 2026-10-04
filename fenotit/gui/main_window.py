@@ -408,6 +408,10 @@ class MainWindow:
     def _load_corrected_image(self, path: str):
         return self._load_corrected(path)[0]
 
+    def _board_photos(self) -> set[str]:
+        """Fotos del tablero de ajedrez que están entre las fotos cargadas: no se analizan."""
+        return {str(p) for p in self.project.corrections.distortion.photos or []}
+
     def _skip_reason(self, info) -> str | None:
         """Motivo para no analizar una imagen (perspectiva activa pero sin los 4 ArUco)."""
         d = self.project.corrections.distortion
@@ -440,6 +444,7 @@ class MainWindow:
             self._load_single(self.current_image_path)
         self._update_corr_indicator()
         self._sync_area_units()
+        self._update_batch_list()
 
     def _invalidate_results(self):
         self._corr_info.clear()
@@ -1773,7 +1778,8 @@ class MainWindow:
             messagebox.showwarning(t("msg.no_image_title"),
                                    t("msg.no_image"))
             return
-        reason = self._skip_reason(self._corr_info.get(self.current_image_path))
+        reason = t("corr.skip_board") if self.current_image_path in self._board_photos() else \
+            self._skip_reason(self._corr_info.get(self.current_image_path))
         if reason:
             messagebox.showwarning(t("corr.skip_title"), reason, parent=self.root)
             return
@@ -1802,7 +1808,11 @@ class MainWindow:
             return
         if self._batch is not None:
             return
-        paths = self.batch_paths
+        board = self._board_photos()
+        paths = [p for p in self.batch_paths if p not in board]
+        if not paths:
+            messagebox.showwarning(t("msg.no_batch_title"), t("msg.no_batch"))
+            return
         total = len(paths)
         self._set_status(t("status.running_batch", name=_analysis_label(name), n=total))
         params = self._build_params()
@@ -2247,7 +2257,8 @@ class MainWindow:
 
     def _update_batch_list(self):
         """Lista de imágenes; ✓ = ya analizada en esta sesión, ⚠ = omitida."""
-        marks = {p: "error" for p in self._skipped}
+        marks = {p: "board" for p in self._board_photos()}
+        marks.update({p: "error" for p in self._skipped})
         store = self.results_cache
         marks.update({p: "done" if store[p].status == "ok" else "error" for p in self.batch_paths if p in store})
         marks.update({p: "pending" for p in self._pending})
@@ -2777,7 +2788,8 @@ class MainWindow:
                 store = self._results.get(name, {})
                 key = _analysis_key(name)
                 info = {p: self._image_info(p) for p in self.batch_paths}
-                tables = exporter.collect(name, store, self.batch_paths, info, self._skipped)
+                tables = exporter.collect(name, store, self.batch_paths, info, self._skipped,
+                                          board=self._board_photos())
                 meta = exporter.metadata(key, store, self.project,
                                          {"view_images": "views/" if views else "no"})
                 written += len(exporter.write_tables(root / key, tables, meta, excel, f"{key}.xlsx"))

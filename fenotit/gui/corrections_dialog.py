@@ -138,14 +138,14 @@ class CorrectionsDialog(BaseDialog):
         from fenotit.gui.chessboard_dialog import ChessboardDialog
         cols, rows = settings.get("board_grid", [7, 6])
 
-        def use(res):
+        def use(res, board_photos=()):
             self.c.distortion = P.Distortion(True, res.mtx.tolist(), res.dist.tolist(), res.rms_error,
                                              t("corr.distortion.n_photos", n=res.n_images_used),
-                                             list(res.size) if res.size else None)
+                                             list(res.size) if res.size else None, list(board_photos))
             settings.set("board_grid", [int(dlg.cols.get()), int(dlg.rows.get())])
             self._d_on.set(True)
             self._refresh_distortion()
-        dlg = ChessboardDialog(self, cols, rows, on_use=use)
+        dlg = ChessboardDialog(self, cols, rows, on_use=use, project_paths=self._paths)
 
     def _load_npz(self):
         path = filedialog.askopenfilename(title=t("corr.distortion.load_npz"),

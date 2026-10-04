@@ -21,6 +21,7 @@ class Distortion:
     rms: float | None = None
     source: str = ""
     size: list | None = None          # [ancho, alto] de las fotos del tablero (None = desconocido, p. ej. .npz)
+    photos: list = field(default_factory=list)   # fotos del tablero que están entre las del proyecto: no se analizan
 
 
 @dataclass

@@ -22,7 +22,7 @@ THUMB = 42                       # lado máximo de la miniatura (px): 3 columnas
 SEARCH_FROM = 6                  # con menos fotos no hace falta buscador
 MAX_SHARE = 0.45                 # tope por defecto (fracción del panel): debajo van CAPAS e inspector
 MIN_ROWS = 2                     # si otros necesitan espacio, la lista cede hasta dejar ver estas filas
-MARKS = {"done": ("✓", "#2E8B57"), "error": ("⚠", "#E67E00"), "pending": ("…", "#9AA3A7")}
+MARKS = {"board": ("▦", "#7F8C8D"), "done": ("✓", "#2E8B57"), "error": ("⚠", "#E67E00"), "pending": ("…", "#9AA3A7")}
 
 
 def _read_thumb(path: str) -> Image.Image | None:
@@ -307,7 +307,7 @@ class ImageList(tk.Frame):
             p = self.paths[i]
             sym, color = MARKS.get(self.marks.get(p, ""), ("", None))
             lb.insert(tk.END, f"{sym or ' '}  {Path(p).name}")
-            if color and self.marks.get(p) in ("error", "pending"):
+            if color and self.marks.get(p) in ("error", "pending", "board"):
                 lb.itemconfig(row, fg=color)
         self.set_current(self.current)
 

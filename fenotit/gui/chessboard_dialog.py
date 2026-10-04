@@ -26,13 +26,15 @@ PREVIEW = (360, 270)
 
 class ChessboardDialog(tk.Toplevel):
 
-    def __init__(self, parent, cols: int = 7, rows: int = 6, on_use=None):
+    def __init__(self, parent, cols: int = 7, rows: int = 6, on_use=None, project_paths=None):
         super().__init__(parent)
         self.title(t("board.title"))
         self.configure(bg=COLORS["bg_card"])
         self.transient(parent)
         self.on_use = on_use
         self.paths: list[str] = []
+        self.project_paths = list(project_paths or [])
+        self.from_project: set[str] = set()         # fotos del tablero que estaban entre las fotos cargadas
         self._dets: dict[tuple, D.Detection] = {}     # (foto, columnas, filas) -> detección
         self._result: D.CalibrationResult | None = None
         self._cancel = threading.Event()
@@ -61,6 +63,8 @@ class ChessboardDialog(tk.Toplevel):
                  font=FONTS["small"]).pack(side=tk.LEFT, padx=(4, 0))
         self._btn(row, t("board.remove"), self._remove).pack(side=tk.RIGHT)
         self._btn(row, t("board.add"), self._add).pack(side=tk.RIGHT, padx=(0, 6))
+        if self.project_paths:
+            self._btn(row, t("board.scan", n=len(self.project_paths)), self._scan).pack(side=tk.RIGHT, padx=(0, 6))
 
         mid = tk.Frame(self, bg=bg)
         mid.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
@@ -226,7 +230,14 @@ class ChessboardDialog(tk.Toplevel):
 
     # ── calibrar ──────────────────────────────────────────────────────────────
 
-    def _run(self):
+    def _scan(self):
+        """Buscar el tablero entre las fotos cargadas: las que lo tienen se usan para
+        calibrar y no se analizan."""
+        self.paths = list(dict.fromkeys(self.project_paths))
+        self._refresh()
+        self._run(keep_found=True)
+
+    def _run(self, keep_found: bool = False):
         grid = self._grid()
         if grid is None:
             self.status.set(t("corr.distortion.bad_grid"))
@@ -258,13 +269,19 @@ class ChessboardDialog(tk.Toplevel):
                     except Exception:
                         _log.exception("Tablero")
                         continue
+                    self._dets[(det.path, *grid)] = det          # antes de calibrar (no esperar a la interfaz)
                     self.after(0, lambda det=det, k=k: self._on_detection(det, grid, k, n))
             if self._cancel.is_set():
                 self.after(0, lambda: self._finish(t("board.cancelled")))
                 return
+            use = paths
+            if keep_found:
+                found = [p for p in paths if (p, *grid) in self._dets and self._dets[(p, *grid)].found]
+                use = D.spread(found, D.MAX_PHOTOS)
+                self.after(0, lambda: self._keep(use, found, len(paths)))
             self.after(0, lambda: self.status.set(t("board.solving")))
             try:
-                res = D.solve([self._dets[(p, *grid)] for p in paths if (p, *grid) in self._dets], *grid)
+                res = D.solve([self._dets[(p, *grid)] for p in use if (p, *grid) in self._dets], *grid)
             except Exception as e:
                 _log.exception("Calibración")
                 msg = t("board.error", error=e)
@@ -273,10 +290,17 @@ class ChessboardDialog(tk.Toplevel):
             self.after(0, lambda: self._solved(res))
         threading.Thread(target=work, daemon=True).start()
 
+    def _keep(self, use: list[str], found: list[str], n: int):
+        """Tras buscar entre las fotos cargadas: quedan las del tablero (hasta el máximo)."""
+        self.paths = use
+        self.from_project = set(found)
+        self._refresh()
+        self._scan_note = t("board.scan_found", found=len(found), n=n)
+        self.status.set(self._scan_note)
+
     def _on_detection(self, det: D.Detection, grid, k: int, n: int):
         if not self.winfo_exists():
             return
-        self._dets[(det.path, *grid)] = det
         if self.tree.exists(det.path):
             self.tree.item(det.path, values=("✓" if det.found else "✗", ""), tags=() if det.found else ("bad",))
             self.tree.see(det.path)
@@ -295,6 +319,8 @@ class ChessboardDialog(tk.Toplevel):
                 + "  ·  " + quality
         else:
             text = t("corr.distortion.failed", used=res.n_images_used, total=res.n_images_total)
+        if getattr(self, "_scan_note", None):
+            text = self._scan_note + "\n" + text
         self._finish(text)
 
     def _finish(self, text: str):
@@ -306,7 +332,7 @@ class ChessboardDialog(tk.Toplevel):
 
     def _use_result(self):
         if self._result and self.on_use:
-            self.on_use(self._result)
+            self.on_use(self._result, sorted(self.from_project))
         self.destroy()
 
     def _on_close(self):
