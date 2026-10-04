@@ -8,6 +8,7 @@ Cambios vs v1.2:
   - Tooltips del config_panel ya no se salen de pantalla (fix en config_panel.py)
 """
 
+import dataclasses
 import os
 import platform
 import subprocess
@@ -330,9 +331,8 @@ class MainWindow:
         self._batch: batch.BatchRunner | None = None
         self._full_paths: list[str] = []      # fotos con imágenes en memoria (las demás, solo datos)
         self._rehydrating = None
+        self._rehydrate_job = None
         self._chart_panel: IntraImageChartPanel | None = None
-        # Resultados por análisis para gráficos combinados
-        self.all_results_by_analysis: dict[str, dict] = {}
         self._photo_left  = None
         self._photo_right = None
         self.areas: AreaEditor | None = None
@@ -452,7 +452,6 @@ class MainWindow:
     def _invalidate_results(self):
         self._corr_info.clear()
         self._clear_all_results()
-        self.all_results_by_analysis.clear()
         self.last_result = None
         self.canvas_right.delete("all")
         self._show_results_ui(False)
@@ -728,7 +727,6 @@ class MainWindow:
         self._on_analysis_selected(None, choose=bool(name))
 
         self._clear_all_results()
-        self.all_results_by_analysis.clear()
         self._corr_info.clear()
         self.canvas_right.delete("all")
         self._update_batch_list()
@@ -1236,11 +1234,13 @@ class MainWindow:
             col = tk.Frame(canvas_row, bg=COLORS["bg"])
             head = tk.Frame(col, bg=COLORS["bg"])
             head.pack(fill=tk.X)
+            # Entrada en el extremo izquierdo y Resultado en el derecho, cada uno junto a su ojo
+            edge = tk.LEFT if side == "input" else tk.RIGHT
             tk.Label(head, text=title, bg=COLORS["bg"], fg=COLORS["text_muted"],
-                     font=FONTS["small"]).pack(side=tk.LEFT, padx=2)
+                     font=FONTS["small"]).pack(side=edge, padx=2)
             IconButton(head, "eye", lambda sd=side: self._toggle_side(sd), t("view.hide_side", name=title),
                        bg=COLORS["bg"], hover=COLORS["btn_hover"], active=COLORS["accent_light"],
-                       size=14, color=COLORS["text_muted"]).pack(side=tk.RIGHT)
+                       size=14, color=COLORS["text_muted"]).pack(side=edge)
             canvas = tk.Canvas(col, bg=COLORS["bg_card"], highlightthickness=1,
                                highlightbackground=COLORS["border"])
             canvas.pack(fill=tk.BOTH, expand=True)
@@ -1295,17 +1295,29 @@ class MainWindow:
                      background=[("selected", COLORS["bg_card"])],
                      foreground=[("selected", COLORS["accent"])])
 
-        bottom_nb = ttk.Notebook(cf, style="Bottom.TNotebook")
+        # Arriba, una franja para cambiar la altura arrastrando, con el ícono de ocultar al
+        # centro (oculto, la pestañita queda también al centro, abajo)
+        wrap = self._bottom_wrap = tk.Frame(cf, bg=COLORS["bg"])
+        grip = tk.Frame(wrap, bg=COLORS["bg"], height=18, cursor="sb_v_double_arrow")
+        grip.pack(fill=tk.X)
+        grip.bind("<ButtonPress-1>", self._results_drag_start)
+        grip.bind("<B1-Motion>", self._results_drag)
+        grip.bind("<ButtonRelease-1>", self._results_drag_end)
+        bottom_nb = ttk.Notebook(wrap, style="Bottom.TNotebook")
+        bottom_nb.pack(fill=tk.BOTH, expand=True)
         self._bottom_nb = bottom_nb
         self._results_visible = True          # preferencia del usuario (mostrar u ocultar)
         self._results_shown = False           # hay resultados para esta imagen
-        corner = tk.Label(bottom_nb, image=self._panel_bottom_icon, bg=COLORS["bg_panel"], cursor="hand2",
-                          padx=2, pady=2)
-        corner.place(relx=1.0, x=-4, y=3, anchor="ne")
+        corner = tk.Label(grip, image=self._panel_bottom_icon, bg=COLORS["bg"], cursor="hand2",
+                          padx=2, pady=1)
+        corner.place(relx=0.5, rely=0.5, anchor="center")
         corner.bind("<Button-1>", lambda e: self._toggle_results_panel())
         Tooltip(corner, t("view.toggle_results"))
-        # Altura mínima del panel de tabla/gráficos
-        bottom_nb.configure(height=220)
+        try:
+            height = int(settings.get("results_height", 220))
+        except (TypeError, ValueError):
+            height = 220
+        bottom_nb.configure(height=max(self.RESULTS_MIN_H, height))
 
         # ── Pestaña Tabla ─────────────────────────────────────────────────
         tab_table = tk.Frame(bottom_nb, bg=COLORS["bg_card"])
@@ -1329,33 +1341,15 @@ class MainWindow:
         tab_charts = tk.Frame(bottom_nb, bg=COLORS["bg_card"])
         bottom_nb.add(tab_charts, text=f"  {t('tab.charts')}  ")
 
-        chart_ctrl = tk.Frame(tab_charts, bg=COLORS["bg_panel"])
-        chart_ctrl.pack(fill=tk.X)
-        tk.Button(chart_ctrl,
-                  text=t("charts.this_image"),
-                  command=self._show_intra_chart,
-                  bg=COLORS["btn_bg"], fg=COLORS["accent"],
-                  relief="flat", font=FONTS["small"],
-                  cursor="hand2", pady=3).pack(
-                      side=tk.LEFT, padx=6, pady=3)
-        tk.Button(chart_ctrl,
-                  text=t("charts.whole_batch"),
-                  command=self._show_batch_chart,
-                  bg=COLORS["btn_bg"], fg=COLORS["accent2"],
-                  relief="flat", font=FONTS["small"],
-                  cursor="hand2", pady=3).pack(
-                      side=tk.LEFT, padx=2, pady=3)
-        tk.Button(chart_ctrl,
-                  text=t("common.save"),
-                  command=self._save_intra_chart,
-                  bg=COLORS["btn_bg"], fg=COLORS["text_muted"],
-                  relief="flat", font=FONTS["small"],
-                  cursor="hand2", pady=3).pack(
-                      side=tk.RIGHT, padx=6, pady=3)
-
-        self._chart_panel = IntraImageChartPanel(
-            tab_charts, colors=COLORS)
+        self._chart_panel = IntraImageChartPanel(tab_charts, colors=COLORS)
         self._chart_panel.pack(fill=tk.BOTH, expand=True)
+        if hasattr(self._chart_panel, "bar"):
+            for text, cmd, fg in ((t("chart.save"), self._save_intra_chart, COLORS["text_muted"]),
+                                  (t("chart.whole_batch"), self._show_batch_chart, COLORS["accent"])):
+                tk.Button(self._chart_panel.bar, text=text, command=cmd, bg=COLORS["btn_bg"], fg=fg, relief="flat",
+                          font=FONTS["small"], cursor="hand2", pady=2).pack(side=tk.RIGHT, padx=(2, 6), pady=3)
+        bottom_nb.bind("<<NotebookTabChanged>>", lambda e: self._chart_panel.show()
+                       if bottom_nb.index("current") == 1 else None, add="+")
 
     # ── Panel derecho ─────────────────────────────────────────────────────────
 
@@ -1748,6 +1742,8 @@ class MainWindow:
             self.step_names  = []
             self.step_idx    = 0
             self.scaler_right = ImageScaler()
+            if self._chart_panel:
+                self._chart_panel.load([])
             self.step_label_var.set("—")
             self._show_results_ui(False)
             # No limpiar canvas derecho — mantener último resultado visible
@@ -1994,7 +1990,6 @@ class MainWindow:
         views = list(result.step_images) or result.extra.get("views", [])
         self._results.setdefault(name, {})[path] = result
         self._step_names.setdefault(name, {})[path] = views
-        self.all_results_by_analysis.setdefault(name, {})[path] = result
         if path == self.current_image_path and result.status == "ok" and name == self.active_analysis:
             self._display_result(result, views, fresh=True)
             self._refresh_history()
@@ -2026,6 +2021,21 @@ class MainWindow:
 
     # ── Resultados livianos (lote): la vista se recalcula al abrir la foto ───────
 
+    def _schedule_rehydrate(self, delay: int = 600):
+        """Recalcula la foto actual un momento después, solo si el usuario se quedó en ella
+        (pasar rápido de foto en foto no lanza un cálculo por cada una)."""
+        if self._rehydrate_job:
+            self.root.after_cancel(self._rehydrate_job)
+        key = (self.active_analysis, self.current_image_path)
+
+        def go():
+            self._rehydrate_job = None
+            if (self.active_analysis, self.current_image_path) != key or not self.last_result:
+                return
+            if not self.last_result.step_images:
+                self._rehydrate(*key, self.last_result)
+        self._rehydrate_job = self.root.after(delay, go)
+
     def _rehydrate(self, name: str, path: str, light: AnalysisResult):
         """Recalcula la foto con los mismos parámetros para tener sus imágenes."""
         if self._rehydrating == (name, path) or not self.scaler_left.has_image:
@@ -2049,7 +2059,6 @@ class MainWindow:
         if full.status != "ok" or self._results.get(name, {}).get(path) is None:
             return
         self._results[name][path] = full
-        self.all_results_by_analysis.setdefault(name, {})[path] = full
         self._trim_memory(path)
         if path == self.current_image_path and name == self.active_analysis:
             self._display_result(full, list(full.step_images))
@@ -2067,7 +2076,6 @@ class MainWindow:
             for p, r in per.items():
                 if p not in self._full_paths and r.step_images:
                     per[p] = batch.light(r)
-                    self.all_results_by_analysis.get(name, {}).pop(p, None)
 
     def _on_result(self, name: str, result: AnalysisResult, path: str):
         self.root.config(cursor="")
@@ -2080,10 +2088,6 @@ class MainWindow:
         # Guardar en cache para restaurar al navegar
         self.results_cache[path]    = result
         self.step_names_cache[path] = names
-        # Índice combinado por análisis
-        if name not in self.all_results_by_analysis:
-            self.all_results_by_analysis[name] = {}
-        self.all_results_by_analysis[name][path] = result
         self._display_result(result, names, fresh=True)
         self._mark_ran(name)
         self._trim_memory(path)
@@ -2097,9 +2101,6 @@ class MainWindow:
         self._refresh_history()
         self._update_step_active(3)
         self._log_process(name)
-        # Auto-actualizar panel de gráficos
-        if self._chart_panel and result.measurements:
-            self._chart_panel.load(result.measurements)
 
     def _toggle_results_panel(self):
         """Oculta o muestra la tabla y los gráficos para dar espacio a las imágenes."""
@@ -2107,13 +2108,31 @@ class MainWindow:
         self._layout_results()
         self.root.after(50, self._refit_images)
 
+    RESULTS_MIN_H = 110
+
+    def _results_drag_start(self, e):
+        h0 = int(self._bottom_nb.cget("height"))
+        top = h0 + self._canvas_row.winfo_height() - 180      # las imágenes conservan al menos 180 px
+        self._drag = (e.y_root, h0, max(top, self.RESULTS_MIN_H))
+
+    def _results_drag(self, e):
+        y0, h0, top = self._drag
+        h = int(min(max(h0 - (e.y_root - y0), self.RESULTS_MIN_H), top))
+        if h != int(self._bottom_nb.cget("height")):
+            self._bottom_nb.configure(height=h)
+
+    def _results_drag_end(self, _e):
+        settings.set("results_height", int(self._bottom_nb.cget("height")))
+        self.root.update_idletasks()
+        self.root.after(80, self._refit_images)
+
     def _layout_results(self):
         """Barra de vistas y tabla/gráficos: ocultas hasta que la imagen tenga resultados."""
         self._results_bar.place_forget()
-        self._bottom_nb.pack_forget()
+        self._bottom_wrap.pack_forget()
         if self._results_shown:
             if self._results_visible:
-                self._bottom_nb.pack(fill=tk.BOTH, expand=False, padx=6, pady=(4, 0), after=self._canvas_row)
+                self._bottom_wrap.pack(fill=tk.BOTH, expand=False, padx=6, after=self._canvas_row)
             else:
                 self._results_bar.show()
 
@@ -2232,6 +2251,8 @@ class MainWindow:
         self.last_result = result
         self.step_names = list(step_names)
         self._show_results_ui(True)
+        if self._chart_panel:
+            self._chart_panel.load(result.measurements)
         if not self.step_names:
             self._update_table(result)
             return
@@ -2276,12 +2297,20 @@ class MainWindow:
         if not widths:
             self._table_hscroll(False)
             return
-        avail = self.table.winfo_width()
+        avail = self.table.winfo_width() - 2
         total = sum(widths.values())
-        extra = (avail - total) / len(widths) if avail > total + 4 else 0
-        for col, w in widths.items():
-            self.table.column(col, width=int(w + extra), minwidth=50, stretch=False, anchor="w")
-        self._table_hscroll(total > avail + 1)
+        if avail < 50:                       # todavía sin dibujar
+            return
+        if total <= avail:                   # sobra: se reparte
+            extra = (avail - total) / len(widths)
+            sized = {c: w + extra for c, w in widths.items()}
+        elif total <= avail * 1.3:           # falta poco: se angostan un poco (sin barra)
+            sized = {c: max(44, w * avail / total) for c, w in widths.items()}
+        else:
+            sized = widths
+        for col, w in sized.items():
+            self.table.column(col, width=int(w), minwidth=40, stretch=False, anchor="w")
+        self._table_hscroll(sum(int(w) for w in sized.values()) > avail + 1)
 
     def _table_hscroll(self, need: bool):
         xsb = self._table_xsb
@@ -2470,10 +2499,15 @@ class MainWindow:
         self.step_idx = idx
         name = self.step_names[idx]
         img = self.last_result.step_images.get(name)
-        if img is None:                    # resultado del lote: datos listos, marcas en camino
+        if img is None:                    # resultado del lote: datos listos, imágenes en camino
             if self.scaler_left.has_image:
+                # las marcas (contornos, puntos, números) ya vienen en los datos: se dibujan al
+                # instante sobre la entrada; las demás vistas se preparan después, en segundo plano
+                if self.last_result.extra.get("base_image") is None:
+                    self.last_result = dataclasses.replace(
+                        self.last_result, extra={**self.last_result.extra, "base_image": self.scaler_left.original})
                 self._show_step_img(name, self.scaler_left.original)
-            self._rehydrate(self.active_analysis, self.current_image_path, self.last_result)
+            self._schedule_rehydrate(600 if name in (self.last_result.extra.get("overlays") or {}) else 30)
         else:
             self._show_step_img(name, img)
         self._update_view_controls(name)
@@ -2985,36 +3019,13 @@ class MainWindow:
 
     # ── Helpers generales ─────────────────────────────────────────────────────
 
-    def _show_intra_chart(self):
-        """Actualiza el panel de gráficos con la imagen actual."""
-        if self._chart_panel and self.last_result \
-                and self.last_result.measurements:
-            self._chart_panel.load(self.last_result.measurements)
-        elif self._chart_panel:
-            messagebox.showinfo(
-                t("msg.no_data_title"),
-                t("msg.no_data_image"),
-                parent=self.root)
-
     def _show_batch_chart(self):
-        """Abre ventana de gráficos del lote con todos los análisis."""
-        if not self.results_cache:
-            messagebox.showinfo(
-                t("msg.no_data_title"),
-                t("msg.no_data_batch"),
-                parent=self.root)
+        """Ventana de gráficos del lote (análisis elegido)."""
+        results = {p: r for p, r in self.results_cache.items() if r is not None and r.status == "ok"}
+        if not results:
+            messagebox.showinfo(t("msg.no_data_title"), t("msg.no_data_batch"), parent=self.root)
             return
-        # Agrupar results_cache por análisis
-        # results_cache: {path: AnalysisResult} del último análisis
-        # Para multi-análisis, usamos all_results_by_analysis
-        results_by_analysis = getattr(
-            self, "all_results_by_analysis", {})
-        if not results_by_analysis:
-            # Fallback: solo el análisis activo
-            name = self.active_analysis or "Análisis"
-            results_by_analysis = {name: self.results_cache}
-        BatchChartWindow(self.root, results_by_analysis,
-                         self.active_analysis or "")
+        BatchChartWindow(self.root, results)
 
     def _save_intra_chart(self):
         """Guarda el gráfico intra-imagen actual."""
