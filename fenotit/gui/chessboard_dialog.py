@@ -1,6 +1,7 @@
-"""Calibración del lente con fotos de un tablero de ajedrez: lista de fotos con su
-estado (tablero encontrado o no, error de cada una), miniatura de la foto que se está
-leyendo o de la elegida, avance y cancelar. Usa como máximo MAX_PHOTOS fotos."""
+"""Calibración del lente con fotos de un tablero de ajedrez, dentro de la pestaña
+Distorsión: lista de fotos con su estado (tablero encontrado o no, error de cada una),
+miniatura de la foto que se está leyendo o de la elegida, avance y cancelar. Usa como
+máximo MAX_PHOTOS fotos."""
 from __future__ import annotations
 
 import os
@@ -21,17 +22,17 @@ from fenotit.gui.theme import COLORS, FONTS
 from fenotit.i18n import t
 
 _log = log.get("gui.chessboard")
-PREVIEW = (360, 270)
+PREVIEW = (300, 210)
 
 
-class ChessboardDialog(tk.Toplevel):
+class ChessboardPanel(tk.Frame):
+    """Va dentro de la pestaña Distorsión (no abre otra ventana). Al calibrar con éxito
+    llama on_result(resultado, fotos_del_tablero_entre_las_cargadas)."""
 
-    def __init__(self, parent, cols: int = 7, rows: int = 6, on_use=None, project_paths=None):
-        super().__init__(parent)
-        self.title(t("board.title"))
-        self.configure(bg=COLORS["bg_card"])
-        self.transient(parent)
-        self.on_use = on_use
+    def __init__(self, parent, cols: int = 7, rows: int = 6, on_result=None, project_paths=None,
+                 extra=None, status: str = ""):
+        super().__init__(parent, bg=COLORS["bg_card"])
+        self.on_result = on_result
         self.paths: list[str] = []
         self.project_paths = list(project_paths or [])
         self.from_project: set[str] = set()         # fotos del tablero que estaban entre las fotos cargadas
@@ -42,15 +43,7 @@ class ChessboardDialog(tk.Toplevel):
         self._photo = None
         bg = COLORS["bg_card"]
 
-        tk.Frame(self, bg=COLORS["accent"], height=4).pack(fill=tk.X)
-        top = tk.Frame(self, bg=bg)
-        top.pack(fill=tk.X, padx=20, pady=(12, 0))
-        tk.Label(top, text=t("board.title"), bg=bg, fg=COLORS["accent"],
-                 font=("Segoe UI", 13, "bold")).pack(anchor="w")
-        tk.Label(top, text=t("board.help", n=D.MAX_PHOTOS), bg=bg, fg=COLORS["text_muted"], font=FONTS["small"],
-                 justify="left", wraplength=700).pack(anchor="w", pady=(2, 8))
-
-        row = tk.Frame(top, bg=bg)
+        row = tk.Frame(self, bg=bg)
         row.pack(fill=tk.X)
         tk.Label(row, text=t("board.corners"), bg=bg, fg=COLORS["text"], font=FONTS["body"]).pack(side=tk.LEFT)
         self.cols, self.rows = tk.StringVar(value=str(cols)), tk.StringVar(value=str(rows))
@@ -61,25 +54,35 @@ class ChessboardDialog(tk.Toplevel):
                      bd=1, font=FONTS["mono"], justify="center").pack(side=tk.LEFT, padx=4)
         tk.Label(row, text=t("board.corners_hint"), bg=bg, fg=COLORS["text_muted"],
                  font=FONTS["small"]).pack(side=tk.LEFT, padx=(4, 0))
-        self._btn(row, t("board.remove"), self._remove).pack(side=tk.RIGHT)
-        self._btn(row, t("board.add"), self._add).pack(side=tk.RIGHT, padx=(0, 6))
+
+        btns = tk.Frame(self, bg=bg)
+        btns.pack(fill=tk.X, pady=(6, 0))
+        self._btn(btns, t("board.add"), self._add).pack(side=tk.LEFT)
         if self.project_paths:
-            self._btn(row, t("board.scan", n=len(self.project_paths)), self._scan).pack(side=tk.RIGHT, padx=(0, 6))
+            self._btn(btns, t("board.scan", n=len(self.project_paths)), self._scan).pack(side=tk.LEFT, padx=(6, 0))
+        self._btn(btns, t("board.remove"), self._remove).pack(side=tk.LEFT, padx=(6, 0))
+        self._go = tk.Button(btns, text=t("board.run"), command=self._run, bg=COLORS["accent"], fg="#FFFFFF",
+                             activebackground="#1A5390", activeforeground="#FFFFFF", relief="flat",
+                             font=("Segoe UI", 9, "bold"), cursor="hand2", padx=12)
+        self._go.pack(side=tk.LEFT, padx=(6, 0))
+        if extra:
+            text, cmd = extra
+            self._btn(btns, text, cmd).pack(side=tk.RIGHT)
 
         mid = tk.Frame(self, bg=bg)
-        mid.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+        mid.pack(fill=tk.BOTH, expand=True, pady=(8, 0))
         left = tk.Frame(mid, bg=bg)
         left.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         sb = ttk.Scrollbar(left, orient="vertical")
-        self.tree = ttk.Treeview(left, columns=("state", "error"), show="tree headings", height=12,
+        self.tree = ttk.Treeview(left, columns=("state", "error"), show="tree headings", height=8,
                                  yscrollcommand=sb.set, selectmode="extended")
         sb.config(command=self.tree.yview)
         self.tree.heading("#0", text=t("board.col_photo"), anchor="w")
         self.tree.heading("state", text=t("board.col_board"), anchor="center")
         self.tree.heading("error", text=t("board.col_error"), anchor="e")
-        self.tree.column("#0", width=210, stretch=True)
-        self.tree.column("state", width=70, anchor="center", stretch=False)
-        self.tree.column("error", width=80, anchor="e", stretch=False)
+        self.tree.column("#0", width=170, stretch=True)
+        self.tree.column("state", width=60, anchor="center", stretch=False)
+        self.tree.column("error", width=70, anchor="e", stretch=False)
         self.tree.tag_configure("bad", foreground="#C0392B")
         self.tree.tag_configure("warn", foreground="#E67E00")
         sb.pack(side=tk.RIGHT, fill=tk.Y)
@@ -90,42 +93,31 @@ class ChessboardDialog(tk.Toplevel):
                                font=FONTS["small"])
 
         right = tk.Frame(mid, bg=bg)
-        right.pack(side=tk.LEFT, padx=(14, 0), anchor="n")
+        right.pack(side=tk.LEFT, padx=(10, 0), anchor="n")
         self.canvas = tk.Canvas(right, width=PREVIEW[0], height=PREVIEW[1], bg=COLORS["bg_panel"],
                                 highlightthickness=1, highlightbackground=COLORS["border"])
         self.canvas.pack()
         self.caption = tk.StringVar(value="")
         tk.Label(right, textvariable=self.caption, bg=bg, fg=COLORS["text_muted"], font=FONTS["small"],
-                 anchor="w").pack(fill=tk.X, pady=(4, 0))
+                 anchor="w").pack(fill=tk.X, pady=(2, 0))
 
         bottom = tk.Frame(self, bg=bg)
-        bottom.pack(fill=tk.X, padx=20)
-        self.bar = ttk.Progressbar(bottom, mode="determinate", length=220)
-        self.status = tk.StringVar(value="")
-        self._status_lbl = tk.Label(bottom, textvariable=self.status, bg=bg, fg=COLORS["text"], font=FONTS["body"],
-                                    anchor="w", justify="left", wraplength=700)
-        self._status_lbl.pack(side=tk.LEFT, fill=tk.X, expand=True, pady=(0, 6))
-
-        tk.Frame(self, bg=COLORS["border"], height=1).pack(fill=tk.X)
-        btns = tk.Frame(self, bg=bg)
-        btns.pack(fill=tk.X, padx=20, pady=10)
-        self._close = self._btn(btns, t("common.close"), self._on_close)
-        self._close.pack(side=tk.RIGHT, padx=(6, 0))
-        self._use = tk.Button(btns, text=t("board.use"), command=self._use_result, bg=COLORS["accent"],
-                              fg="#FFFFFF", activebackground="#1A5390", activeforeground="#FFFFFF", relief="flat",
-                              font=("Segoe UI", 9, "bold"), cursor="hand2", padx=14, state="disabled")
-        self._use.pack(side=tk.RIGHT)
-        self._go = self._btn(btns, t("board.run"), self._run)
-        self._go.pack(side=tk.RIGHT, padx=(0, 6))
-
-        self.protocol("WM_DELETE_WINDOW", self._on_close)
-        self.bind("<Escape>", lambda e: self._on_close())
+        bottom.pack(fill=tk.X, pady=(6, 0))
+        self.bar = ttk.Progressbar(bottom, mode="determinate", length=160)
+        self._cancel_btn = self._btn(bottom, t("common.cancel"), self.cancel)
+        self.status = tk.StringVar(value=status)
+        self._status_lbl = tk.Label(bottom, textvariable=self.status, bg=bg, fg=COLORS["text"],
+                                    font=FONTS["small"], anchor="w", justify="left", wraplength=620)
+        self._status_lbl.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self.bind("<Destroy>", lambda e: self._cancel.set() if e.widget is self else None)
         self._refresh()
-        self.update_idletasks()
-        w, h = max(760, self.winfo_reqwidth()), self.winfo_reqheight()
-        self.geometry(f"{w}x{h}+{parent.winfo_rootx() + max(0, (parent.winfo_width() - w) // 2)}"
-                      f"+{parent.winfo_rooty() + max(0, (parent.winfo_height() - h) // 3)}")
-        self.grab_set()
+
+    def _ui(self, fn):
+        """Desde el hilo de trabajo: a la interfaz, si la ventana sigue abierta."""
+        try:
+            self.after(0, fn)
+        except (tk.TclError, RuntimeError):
+            self._cancel.set()
 
     def _btn(self, parent, text, cmd):
         return tk.Button(parent, text=text, command=cmd, bg=COLORS["btn_bg"], fg=COLORS["accent"], relief="flat",
@@ -190,7 +182,6 @@ class ChessboardDialog(tk.Toplevel):
             self.tree.selection_set(keep)
         self._empty.place(relx=0.5, rely=0.45, anchor="center") if not self.paths else self._empty.place_forget()
         self._go.config(state="normal" if len(self.paths) >= 3 and not self._busy else "disabled")
-        self._use.config(state="normal" if self._result and self._result.success and not self._busy else "disabled")
 
     # ── miniatura ─────────────────────────────────────────────────────────────
 
@@ -247,8 +238,8 @@ class ChessboardDialog(tk.Toplevel):
         self._result = None
         self._refresh()
         self._go.config(state="disabled")
-        self._close.config(text=t("common.cancel"))
-        self.bar.pack(side=tk.RIGHT, pady=(0, 6), before=self._status_lbl)
+        self._cancel_btn.pack(side=tk.RIGHT, padx=(6, 0), before=self._status_lbl)
+        self.bar.pack(side=tk.RIGHT, before=self._status_lbl)
         paths = list(self.paths)
         todo = [p for p in paths if (p, *grid) not in self._dets]
         n, done = len(paths), len(paths) - len(todo)
@@ -270,24 +261,24 @@ class ChessboardDialog(tk.Toplevel):
                         _log.exception("Tablero")
                         continue
                     self._dets[(det.path, *grid)] = det          # antes de calibrar (no esperar a la interfaz)
-                    self.after(0, lambda det=det, k=k: self._on_detection(det, grid, k, n))
+                    self._ui(lambda det=det, k=k: self._on_detection(det, grid, k, n))
             if self._cancel.is_set():
-                self.after(0, lambda: self._finish(t("board.cancelled")))
+                self._ui(lambda: self._finish(t("board.cancelled")))
                 return
             use = paths
             if keep_found:
                 found = [p for p in paths if (p, *grid) in self._dets and self._dets[(p, *grid)].found]
                 use = D.spread(found, D.MAX_PHOTOS)
-                self.after(0, lambda: self._keep(use, found, len(paths)))
-            self.after(0, lambda: self.status.set(t("board.solving")))
+                self._ui(lambda: self._keep(use, found, len(paths)))
+            self._ui(lambda: self.status.set(t("board.solving")))
             try:
                 res = D.solve([self._dets[(p, *grid)] for p in use if (p, *grid) in self._dets], *grid)
             except Exception as e:
                 _log.exception("Calibración")
                 msg = t("board.error", error=e)
-                self.after(0, lambda: self._finish(msg))
+                self._ui(lambda: self._finish(msg))
                 return
-            self.after(0, lambda: self._solved(res))
+            self._ui(lambda: self._solved(res))
         threading.Thread(target=work, daemon=True).start()
 
     def _keep(self, use: list[str], found: list[str], n: int):
@@ -326,18 +317,13 @@ class ChessboardDialog(tk.Toplevel):
     def _finish(self, text: str):
         self._busy = False
         self.bar.pack_forget()
-        self._close.config(text=t("common.close"))
+        self._cancel_btn.pack_forget()
         self._refresh()
         self.status.set(text)
+        if self._result and self.on_result:          # se usa en cuanto sale bien (Aplicar la guarda)
+            self.on_result(self._result, sorted(self.from_project))
 
-    def _use_result(self):
-        if self._result and self.on_use:
-            self.on_use(self._result, sorted(self.from_project))
-        self.destroy()
-
-    def _on_close(self):
+    def cancel(self):
         if self._busy:
             self._cancel.set()
             self.status.set(t("status.cancelling"))
-            return
-        self.destroy()

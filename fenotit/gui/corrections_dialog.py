@@ -7,6 +7,7 @@ from tkinter import filedialog, messagebox, ttk
 from fenotit import log
 from fenotit.core.corrections import colorcard as cc
 from fenotit.core.corrections import pipeline as P
+from fenotit.core.corrections.distortion import MAX_PHOTOS as D_MAX
 from fenotit.gui.colorcard_dialogs import edit_values, pick_region, show_detection
 from fenotit.gui.help import HelpIcon
 from fenotit.core.corrections.aruco import detect_aruco_corners
@@ -113,38 +114,34 @@ class CorrectionsDialog(BaseDialog):
 
     # Distorsión
     def _tab_distortion(self, f):
+        from fenotit import settings
+        from fenotit.gui.chessboard_dialog import ChessboardPanel
         d = self.c.distortion
         self._d_on = tk.BooleanVar(value=d.enabled)
         self._enable_row(f, self._d_on, "distortion")
-        self._muted(f, t("corr.distortion.help")).pack(anchor="w", pady=(4, 8))
-        row = tk.Frame(f, bg=COLORS["bg_card"])
-        row.pack(anchor="w", pady=6)
-        self._button(row, "corr.distortion.calibrate", self._calibrate).pack(side=tk.LEFT, padx=(0, 6))
-        self._button(row, "corr.distortion.load_npz", self._load_npz).pack(side=tk.LEFT)
-        self._d_status = self._status(f)
-        self._refresh_distortion()
-
-    def _refresh_distortion(self):
-        d = self.c.distortion
-        if not d.mtx:
-            self._d_status.set(t("corr.distortion.none"))
-        else:
-            rms = f" · RMS {d.rms:.3f} px" if d.rms else ""
-            self._d_status.set(t("corr.distortion.ready", source=d.source) + rms)
-
-    def _calibrate(self):
-        from fenotit import settings
-        from fenotit.gui.chessboard_dialog import ChessboardDialog
+        self._muted(f, t("board.help", n=D_MAX)).pack(anchor="w", pady=(2, 6))
         cols, rows = settings.get("board_grid", [7, 6])
 
         def use(res, board_photos=()):
             self.c.distortion = P.Distortion(True, res.mtx.tolist(), res.dist.tolist(), res.rms_error,
                                              t("corr.distortion.n_photos", n=res.n_images_used),
                                              list(res.size) if res.size else None, list(board_photos))
-            settings.set("board_grid", [int(dlg.cols.get()), int(dlg.rows.get())])
+            settings.set("board_grid", [int(self._board.cols.get()), int(self._board.rows.get())])
             self._d_on.set(True)
-            self._refresh_distortion()
-        dlg = ChessboardDialog(self, cols, rows, on_use=use, project_paths=self._paths)
+        self._board = ChessboardPanel(f, cols, rows, on_result=use, project_paths=self._paths,
+                                      extra=(t("corr.distortion.load_npz"), self._load_npz),
+                                      status=self._distortion_text())
+        self._board.pack(fill=tk.BOTH, expand=True)
+
+    def _distortion_text(self) -> str:
+        d = self.c.distortion
+        if not d.mtx:
+            return t("corr.distortion.none")
+        rms = f" · RMS {d.rms:.3f} px" if d.rms else ""
+        return t("corr.distortion.ready", source=d.source) + rms
+
+    def _refresh_distortion(self):
+        self._board.status.set(self._distortion_text())
 
     def _load_npz(self):
         path = filedialog.askopenfilename(title=t("corr.distortion.load_npz"),
