@@ -130,8 +130,9 @@ class ScaleDialog(BaseDialog):
     def __init__(self, parent,
                  current_image: np.ndarray | None = None,
                  current_path: str | None = None,
-                 on_scale_set=None, loader=None, paths=None, unit: str = "mm"):
+                 on_scale_set=None, loader=None, paths=None, unit: str = "mm", current=None):
         self._loader = loader
+        self._current = current          # foto -> texto con la escala que ya tiene (o None)
         self._default_unit = unit
         self._paths = list(paths or ([current_path] if current_path else []))
         super().__init__(parent, t("menu.cal_scale").rstrip("…"))
@@ -144,6 +145,7 @@ class ScaleDialog(BaseDialog):
         self._display_scale = 1.0
         self._img_full = None
         self._build_body()
+        self._show_current()
         if current_image is not None:
             self._load_image(current_image)
 
@@ -154,8 +156,12 @@ class ScaleDialog(BaseDialog):
             t("scale.help"),
             justify="left", wraplength=500).pack(anchor="w", pady=(0, 6))
 
+        self._cur_var = tk.StringVar()
+        self._cur_lbl = tk.Label(b, textvariable=self._cur_var, bg=COLORS["accent_light"], fg=COLORS["accent"],
+                                 font=("Segoe UI", 9, "bold"), anchor="w", padx=8, pady=4)
         from fenotit.gui.widgets import ImagePicker
-        ImagePicker(b, self._paths, self._path, self._pick_image).pack(anchor="w", pady=2)
+        self._picker = ImagePicker(b, self._paths, self._path, self._pick_image)
+        self._picker.pack(anchor="w", pady=2)
 
         bar = tk.Frame(b, bg=COLORS["bg_card"])
         bar.pack(fill=tk.X, pady=2)
@@ -243,7 +249,16 @@ class ScaleDialog(BaseDialog):
         self._image, self._path = img, path
         self._load_image(img)
 
+    def _show_current(self):
+        text = self._current(self._path) if self._current else None
+        self._cur_var.set(text or "")
+        if text:
+            self._cur_lbl.pack(fill=tk.X, pady=(0, 6), before=self._picker)
+        else:
+            self._cur_lbl.pack_forget()
+
     def _load_image(self, img: np.ndarray):
+        self._show_current()
         self._points   = []
         self._img_full = img.copy()
         self._scale_result = None
@@ -326,3 +341,4 @@ class ScaleDialog(BaseDialog):
         if self._on_scale and not self._on_scale(self._scale_result, scope, self._path):
             return
         self._log_var.set(f"✓ {t('status.scale', scale=self._scale_result.format())}")
+        self._show_current()

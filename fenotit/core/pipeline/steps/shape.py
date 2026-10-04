@@ -17,7 +17,7 @@ def shape(ctx, p):
     from scipy.ndimage import find_objects
     order = int(p["harmonics"])
     touching = ctx.touching_ids() if p["isolated_only"] else set()
-    rows = []
+    rows, smooth = [], {}
     for oid, sl in enumerate(find_objects(ctx.labels), 1):
         if sl is None or oid in touching:
             continue
@@ -25,6 +25,11 @@ def shape(ctx, p):
         cnts, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         cnt = max(cnts, key=cv2.contourArea).reshape(-1, 2)
         if len(cnt) >= 2 * order + 2:
-            rows.append({"object_id": oid, **efd.columns(efd.normalize(efd.efd(cnt, order)))})
+            coeffs = efd.efd(cnt, order)
+            rows.append({"object_id": oid, **efd.columns(efd.normalize(coeffs))})
+            pts = efd.contour_points(coeffs, 120)       # la forma que describen los coeficientes
+            smooth[oid] = pts + (cnt.mean(0) - pts.mean(0)) + (sl[1].start, sl[0].start)
     ctx.tables["object_shape"] = rows
-    included_view(ctx, "shape", {r["object_id"] for r in rows})
+    included_view(ctx, "shape", set(smooth))
+    ov = ctx.extra["overlays"]["shape"]
+    ov["outlines"] = [o for o in ov["outlines"] if not o[1]] + [(p, True) for p in smooth.values()]

@@ -167,7 +167,16 @@ def _tune(d, s, w, color):
         d.ellipse((s * kx - r, s * y - r, s * kx + r, s * y + r), fill=color)
 
 
-_DRAW = {"palette": _palette, "list": _list, "grid": _grid, "tune": _tune,
+def _dock_up(d, s, w, color):
+    """Ventana con flecha hacia arriba: llevar el gráfico al lugar de una imagen."""
+    x0, y0, x1, y1 = s * 0.08, s * 0.16, s * 0.92, s * 0.84
+    d.rounded_rectangle((x0, y0, x1, y1), radius=s * 0.08, outline=color, width=w)
+    cx = s * 0.5
+    d.line((cx, s * 0.72, cx, s * 0.34), fill=color, width=w)
+    d.polygon([(cx, s * 0.26), (cx - s * 0.17, s * 0.45), (cx + s * 0.17, s * 0.45)], fill=color)
+
+
+_DRAW = {"palette": _palette, "dock_up": _dock_up, "list": _list, "grid": _grid, "tune": _tune,
          "panel_left": lambda d, s, w, c: _panel(d, s, w, c, "left"),
          "panel_right": lambda d, s, w, c: _panel(d, s, w, c, "right"),
          "panel_bottom": lambda d, s, w, c: _panel(d, s, w, c, "bottom"), "select": _select,

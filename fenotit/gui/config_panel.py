@@ -175,15 +175,8 @@ class ConfigPanel(tk.Frame):
             Tooltip(arrow, t("panel.options"))
             self._arrows[key] = arrow
         if tooltip:
-            tip_btn = tk.Label(hdr, text=" ?",
-                               bg=self.colors["bg_panel"],
-                               fg=self.colors["accent"],
-                               font=("Segoe UI", 8, "bold"),
-                               cursor="hand2")
-            tip_btn.pack(side=tk.LEFT)
-            tip_btn.bind("<Button-1>",
-                lambda e, t=tooltip, l=label:
-                self._show_tip(e, l, t))
+            from fenotit.gui.help import HelpIcon
+            HelpIcon(hdr, label, tooltip, bg=self.colors["bg_panel"]).pack(side=tk.LEFT, padx=(4, 0))
 
         if typ in ("bool", "section"):
             pass
@@ -280,56 +273,3 @@ class ConfigPanel(tk.Frame):
                     self._vars[k].set(v)
                 except Exception:
                     _log.warning("No se pudo restaurar '%s' = %r", k, v)
-
-    def _show_tip(self, event, label: str, text: str):
-        for tw in self._tips:
-            try:
-                tw.destroy()
-            except Exception:
-                _log.debug("ignorado", exc_info=True)
-        self._tips.clear()
-
-        tw = tk.Toplevel()
-        tw.wm_overrideredirect(True)
-        tw.configure(bg=self.colors["border"])
-        tw.attributes("-topmost", True)
-
-        inner = tk.Frame(tw, bg=self.colors["bg_card"],
-                         padx=10, pady=8)
-        inner.pack(padx=1, pady=1)
-
-        tk.Label(inner, text=label,
-                 bg=self.colors["bg_card"],
-                 fg=self.colors["accent"],
-                 font=("Segoe UI", 9, "bold")).pack(anchor="w")
-        tk.Label(inner, text=text,
-                 bg=self.colors["bg_card"],
-                 fg=self.colors["text"],
-                 font=("Segoe UI", 8),
-                 justify="left",
-                 wraplength=260).pack(anchor="w", pady=(3,0))
-        tk.Button(inner, text="Cerrar",
-                  bg=self.colors["btn_bg"],
-                  fg=self.colors["accent"],
-                  font=("Segoe UI", 7),
-                  relief="flat", padx=6,
-                  cursor="hand2",
-                  command=tw.destroy).pack(
-                      anchor="e", pady=(6,0))
-
-        # Posición inteligente
-        tw.update_idletasks()
-        tw_w = tw.winfo_reqwidth()
-        tw_h = tw.winfo_reqheight()
-        sw   = tw.winfo_screenwidth()
-        sh   = tw.winfo_screenheight()
-        x    = event.widget.winfo_rootx() + 24
-        y    = event.widget.winfo_rooty() + 4
-        if x + tw_w > sw - 20: x = event.widget.winfo_rootx() - tw_w - 8
-        if y + tw_h > sh - 40: y = sh - tw_h - 40
-        x = max(10, x)
-        y = max(10, y)
-        tw.wm_geometry(f"+{x}+{y}")
-        self._tips.append(tw)
-        tw.focus_set()
-        tw.bind("<FocusOut>", lambda e=None: tw.destroy())

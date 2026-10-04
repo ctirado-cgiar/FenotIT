@@ -399,6 +399,22 @@ class MainWindow:
             return sc.mm_per_pixel / info.work_k
         return sc.mm_per_pixel
 
+    def _scale_summary(self, path: str | None) -> str | None:
+        """La escala que ya tiene la foto (para no cambiarla sin querer): px por unidad."""
+        sc = self.project.scale_for(path)
+        if sc.source == "aruco":
+            mm = self._scale_for(path)
+        else:
+            mm = sc.mm_per_pixel
+        if not mm:
+            return None
+        unit = self.project.unit
+        per = mm / units.TO_MM[unit]
+        own = bool(path) and self.project.key(path) in self.project.image_scale
+        return t("scale.current", px=f"{1 / per:.2f}", unit=units.display(unit), per=f"{per:.5g}",
+                 src=t(f"scale.src.{sc.source}", sc.source),
+                 scope=t("scale.scope_image") if own else t("scale.scope_all"))
+
     def _load_corrected(self, path: str):
         img = load_image(path)
         if img is None:
@@ -651,7 +667,7 @@ class MainWindow:
     def _show_cached_result(self):
         """Al cambiar de análisis: el resultado que ya tenía esta foto con ese análisis."""
         path = getattr(self, "current_image_path", None)
-        if not path or not hasattr(self, "_results_bar"):
+        if not path or not hasattr(self, "_bottom_wrap"):
             return
         if path in self.results_cache:
             self._display_result(self.results_cache[path], self.step_names_cache.get(path, []))
@@ -1244,16 +1260,41 @@ class MainWindow:
             canvas = tk.Canvas(col, bg=COLORS["bg_card"], highlightthickness=1,
                                highlightbackground=COLORS["border"])
             canvas.pack(fill=tk.BOTH, expand=True)
-            strip = tk.Frame(canvas_row, bg=COLORS["bg_panel"], width=22)
+            # oculto: franja con el ojo tachado y el nombre en vertical
+            strip = tk.Frame(canvas_row, bg=COLORS["bg_panel"], width=22, cursor="hand2")
             IconButton(strip, "eye_off", lambda sd=side: self._toggle_side(sd), t("view.show_side", name=title),
                        bg=COLORS["bg_panel"], hover=COLORS["btn_hover"], active=COLORS["accent_light"],
                        size=14, color=COLORS["accent"]).pack(side=tk.TOP, pady=4)
+            font = tkfont.Font(font=FONTS["small"])
+            vt = tk.Canvas(strip, width=20, height=font.measure(title) + 8, bg=COLORS["bg_panel"],
+                           highlightthickness=0, cursor="hand2")
+            vt.create_text(10, (font.measure(title) + 8) / 2, text=title, angle=90, fill=COLORS["text_muted"],
+                           font=FONTS["small"])
+            vt.pack(side=tk.TOP)
+            for w in (strip, vt):
+                w.bind("<Button-1>", lambda e, sd=side: self._toggle_side(sd))
             self._cols[side], self._strips[side] = col, strip
             if side == "input":
                 self.canvas_left = canvas
                 canvas.config(cursor="crosshair")
             else:
                 self.canvas_right = canvas
+        # Gráfico en el lugar de una imagen (botón ↑ en Gráficos; el ojo lo devuelve abajo)
+        self._chart_dock, self._dock_saved = None, None
+        cc = self._chart_col = tk.Frame(canvas_row, bg=COLORS["bg"])
+        head = tk.Frame(cc, bg=COLORS["bg"])
+        head.pack(fill=tk.X)
+        self._chart_title = tk.Label(head, text=t("tab.charts"), bg=COLORS["bg"], fg=COLORS["text_muted"],
+                                     font=FONTS["small"])
+        self._chart_eye = IconButton(head, "eye", self._undock_chart, t("chart.undock"), bg=COLORS["bg"],
+                                     hover=COLORS["btn_hover"], active=COLORS["accent_light"], size=14,
+                                     color=COLORS["text_muted"])
+        self._chart_host = tk.Frame(cc, bg=COLORS["bg_card"], highlightthickness=1, width=100, height=100,
+                                    highlightbackground=COLORS["border"])
+        self._chart_host.pack_propagate(False)        # el gráfico no agranda la ventana
+        self._chart_host.pack(fill=tk.BOTH, expand=True)
+        self._canvas_row = canvas_row
+        self._results_shown = False
         self._layout_sides()
 
         self.areas = AreaEditor(self.canvas_left, self._on_areas_change)
@@ -1276,53 +1317,40 @@ class MainWindow:
                                   links=((t("menu.language"), self._choose_language), (t("menu.about"), self._about)))
         self._build_view_controls()
 
-        # Tabla y gráficos: ocultables como los paneles (ícono en su esquina; oculta = tira delgada)
+        # Tabla y gráficos: pestañas propias; ocultar deja solo las pestañas (al tocarlas se
+        # vuelve a abrir). Arriba, una franja para cambiar la altura arrastrando.
         self.step_label_var = tk.StringVar(value="—")
-        self._panel_bottom_icon = ImageTk.PhotoImage(icon("panel_bottom", 12, COLORS["accent"]))
-        self._results_bar = _peek_tab(cf, self._panel_bottom_icon, self._toggle_results_panel, "bottom")
-
-        # ── Notebook: Tabla | Gráficos ───────────────────────────────────
-        nb_style = ttk.Style()
-        nb_style.configure("Bottom.TNotebook",
-                           background=COLORS["bg_panel"],
-                           tabmargins=[0,0,0,0])
-        nb_style.configure("Bottom.TNotebook.Tab",
-                           background=COLORS["bg_panel"],
-                           foreground=COLORS["text_muted"],
-                           font=FONTS["small"],
-                           padding=[8, 3])
-        nb_style.map("Bottom.TNotebook.Tab",
-                     background=[("selected", COLORS["bg_card"])],
-                     foreground=[("selected", COLORS["accent"])])
-
-        # Arriba, una franja para cambiar la altura arrastrando, con el ícono de ocultar al
-        # centro (oculto, la pestañita queda también al centro, abajo)
         wrap = self._bottom_wrap = tk.Frame(cf, bg=COLORS["bg"])
-        grip = tk.Frame(wrap, bg=COLORS["bg"], height=18, cursor="sb_v_double_arrow")
-        grip.pack(fill=tk.X)
+        grip = self._bottom_grip = tk.Frame(wrap, bg=COLORS["bg"], height=6, cursor="sb_v_double_arrow")
         grip.bind("<ButtonPress-1>", self._results_drag_start)
         grip.bind("<B1-Motion>", self._results_drag)
         grip.bind("<ButtonRelease-1>", self._results_drag_end)
-        bottom_nb = ttk.Notebook(wrap, style="Bottom.TNotebook")
-        bottom_nb.pack(fill=tk.BOTH, expand=True)
-        self._bottom_nb = bottom_nb
-        self._results_visible = True          # preferencia del usuario (mostrar u ocultar)
-        self._results_shown = False           # hay resultados para esta imagen
-        corner = tk.Label(grip, image=self._panel_bottom_icon, bg=COLORS["bg"], cursor="hand2",
-                          padx=2, pady=1)
-        corner.place(relx=0.5, rely=0.5, anchor="center")
+        bar = self._bottom_bar = tk.Frame(wrap, bg=COLORS["bg"])
+        self._tab_labels = {}
+        for key, text in (("table", t("tab.table")), ("charts", t("tab.charts"))):
+            lbl = tk.Label(bar, text=text, font=FONTS["small"], padx=14, pady=3, cursor="hand2", bd=0,
+                           highlightthickness=1, highlightbackground=COLORS["border"])
+            lbl.pack(side=tk.LEFT, padx=(0, 2))
+            lbl.bind("<Button-1>", lambda e, k=key: self._select_bottom_tab(k))
+            self._tab_labels[key] = lbl
+        self._panel_bottom_icon = ImageTk.PhotoImage(icon("panel_bottom", 12, COLORS["accent"]))
+        corner = tk.Label(bar, image=self._panel_bottom_icon, bg=COLORS["bg"], cursor="hand2", padx=4, pady=2)
+        corner.pack(side=tk.LEFT, padx=6)
         corner.bind("<Button-1>", lambda e: self._toggle_results_panel())
         Tooltip(corner, t("view.toggle_results"))
+        body = self._bottom_body = tk.Frame(wrap, bg=COLORS["bg_card"], highlightthickness=1,
+                                            highlightbackground=COLORS["border"])
+        body.pack_propagate(False)
         try:
             height = int(settings.get("results_height", 220))
         except (TypeError, ValueError):
             height = 220
-        bottom_nb.configure(height=max(self.RESULTS_MIN_H, height))
+        body.configure(height=max(self.RESULTS_MIN_H, height))
+        self._results_visible = True          # preferencia del usuario (mostrar u ocultar)
+        self._bottom_tab = "table"
 
-        # ── Pestaña Tabla ─────────────────────────────────────────────────
-        tab_table = tk.Frame(bottom_nb, bg=COLORS["bg_card"])
-        bottom_nb.add(tab_table, text=f"  {t('tab.table')}  ")
-
+        # ── Tabla ─────────────────────────────────────────────────────────
+        tab_table = tk.Frame(body, bg=COLORS["bg_card"])
         tv_f = tk.Frame(tab_table, bg=COLORS["bg_card"])
         tv_f.pack(fill=tk.BOTH, expand=True)
         xsb = ttk.Scrollbar(tv_f, orient="horizontal")
@@ -1337,19 +1365,28 @@ class MainWindow:
         self.table.pack(fill=tk.BOTH, expand=True)
         self.table.bind("<Configure>", self._fit_table_columns, add="+")
 
-        # ── Pestaña Gráficos ──────────────────────────────────────────────
-        tab_charts = tk.Frame(bottom_nb, bg=COLORS["bg_card"])
-        bottom_nb.add(tab_charts, text=f"  {t('tab.charts')}  ")
-
-        self._chart_panel = IntraImageChartPanel(tab_charts, colors=COLORS)
-        self._chart_panel.pack(fill=tk.BOTH, expand=True)
+        # ── Gráficos (hijo de la zona central: puede pasar al lugar de una imagen) ──
+        tab_charts = tk.Frame(body, bg=COLORS["bg_card"])
+        self._tab_frames = {"table": tab_table, "charts": tab_charts}
+        self._chart_panel = IntraImageChartPanel(cf, colors=COLORS)
+        self._chart_panel.pack(in_=tab_charts, fill=tk.BOTH, expand=True)
         if hasattr(self._chart_panel, "bar"):
-            for text, cmd, fg in ((t("chart.save"), self._save_intra_chart, COLORS["text_muted"]),
-                                  (t("chart.whole_batch"), self._show_batch_chart, COLORS["accent"])):
-                tk.Button(self._chart_panel.bar, text=text, command=cmd, bg=COLORS["btn_bg"], fg=fg, relief="flat",
-                          font=FONTS["small"], cursor="hand2", pady=2).pack(side=tk.RIGHT, padx=(2, 6), pady=3)
-        bottom_nb.bind("<<NotebookTabChanged>>", lambda e: self._chart_panel.show()
-                       if bottom_nb.index("current") == 1 else None, add="+")
+            self._dock_icon = ImageTk.PhotoImage(icon("dock_up", 14, COLORS["accent"]))
+            self._dock_btn = tk.Label(self._chart_panel.bar, image=self._dock_icon, bg=COLORS["bg_panel"],
+                                      cursor="hand2", padx=4)
+            self._dock_btn.pack(side=tk.RIGHT, padx=(2, 6))
+            self._dock_btn.bind("<Button-1>", lambda e: self._dock_chart())
+            Tooltip(self._dock_btn, t("chart.dock"))
+            save = self._save_btn = tk.Menubutton(self._chart_panel.bar, text=t("chart.save") + " ▾", bg=COLORS["btn_bg"],
+                                 fg=COLORS["text_muted"], relief="flat", font=FONTS["small"], cursor="hand2", pady=2)
+            menu = tk.Menu(save, tearoff=0)
+            menu.add_command(label=t("chart.save_chart"), command=lambda: self._save_intra_chart(False))
+            menu.add_command(label=t("chart.save_with_image"), command=lambda: self._save_intra_chart(True))
+            save.configure(menu=menu)
+            save.pack(side=tk.RIGHT, padx=2, pady=3)
+            tk.Button(self._chart_panel.bar, text=t("chart.whole_batch"), command=self._show_batch_chart,
+                      bg=COLORS["btn_bg"], fg=COLORS["accent"], relief="flat", font=FONTS["small"],
+                      cursor="hand2", pady=2).pack(side=tk.RIGHT, padx=2, pady=3)
 
     # ── Panel derecho ─────────────────────────────────────────────────────────
 
@@ -2103,38 +2140,70 @@ class MainWindow:
         self._log_process(name)
 
     def _toggle_results_panel(self):
-        """Oculta o muestra la tabla y los gráficos para dar espacio a las imágenes."""
+        """Oculta o muestra la tabla y los gráficos (las pestañas quedan a la vista)."""
         self._results_visible = not self._results_visible
         self._layout_results()
         self.root.after(50, self._refit_images)
 
+    def _select_bottom_tab(self, key: str):
+        if key == "charts" and self._chart_dock:          # el gráfico está arriba: vuelve aquí
+            self._undock_chart()
+            return
+        if self._results_visible and self._bottom_tab == key:
+            return
+        reopen = not self._results_visible
+        self._bottom_tab, self._results_visible = key, True
+        self._layout_results()
+        if reopen:
+            self.root.after(50, self._refit_images)
+
     RESULTS_MIN_H = 110
 
     def _results_drag_start(self, e):
-        h0 = int(self._bottom_nb.cget("height"))
+        h0 = int(self._bottom_body.cget("height"))
         top = h0 + self._canvas_row.winfo_height() - 180      # las imágenes conservan al menos 180 px
         self._drag = (e.y_root, h0, max(top, self.RESULTS_MIN_H))
 
     def _results_drag(self, e):
         y0, h0, top = self._drag
         h = int(min(max(h0 - (e.y_root - y0), self.RESULTS_MIN_H), top))
-        if h != int(self._bottom_nb.cget("height")):
-            self._bottom_nb.configure(height=h)
+        if h != int(self._bottom_body.cget("height")):
+            self._bottom_body.configure(height=h)
 
     def _results_drag_end(self, _e):
-        settings.set("results_height", int(self._bottom_nb.cget("height")))
+        settings.set("results_height", int(self._bottom_body.cget("height")))
         self.root.update_idletasks()
         self.root.after(80, self._refit_images)
 
+    def _paint_tabs(self):
+        for key, lbl in self._tab_labels.items():
+            on = self._results_visible and key == self._bottom_tab and not (key == "charts" and self._chart_dock)
+            lbl.config(bg=COLORS["bg_card"] if on else COLORS["bg_panel"],
+                       fg=COLORS["accent"] if on else COLORS["text_muted"])
+
     def _layout_results(self):
-        """Barra de vistas y tabla/gráficos: ocultas hasta que la imagen tenga resultados."""
-        self._results_bar.place_forget()
-        self._bottom_wrap.pack_forget()
-        if self._results_shown:
-            if self._results_visible:
-                self._bottom_wrap.pack(fill=tk.BOTH, expand=False, padx=6, after=self._canvas_row)
-            else:
-                self._results_bar.show()
+        """Pestañas Tabla/Gráficos solo si la foto tiene resultados; abiertas o solo pestañas."""
+        wrap = self._bottom_wrap
+        for w in (self._bottom_grip, self._bottom_bar, self._bottom_body):
+            w.pack_forget()
+        if not self._results_shown:
+            wrap.pack_forget()
+            return
+        wrap.pack(fill=tk.X, expand=False, padx=6, pady=(0, 2), after=self._canvas_row)
+        if self._results_visible:
+            self._bottom_grip.pack(fill=tk.X)
+            self._bottom_bar.pack(fill=tk.X)
+            self._bottom_body.pack(fill=tk.BOTH)
+            for key, f in self._tab_frames.items():
+                if key == self._bottom_tab:
+                    f.pack(fill=tk.BOTH, expand=True)
+                else:
+                    f.pack_forget()
+            if self._bottom_tab == "charts":
+                self._chart_panel.show()
+        else:
+            self._bottom_bar.pack(fill=tk.X, pady=(2, 0))
+        self._paint_tabs()
 
     def _show_results_ui(self, on: bool):
         if on == self._results_shown:
@@ -2148,30 +2217,79 @@ class MainWindow:
 
     def _layout_sides(self):
         """Entrada y Resultado lado a lado. Sin resultados solo se ve la entrada; con
-        resultados, el ojo de cada lado lo oculta (queda una franja para volver)."""
-        has_result = getattr(self, "_results_shown", False)
-        show = {"input": not (has_result and self._hidden["input"]),
-                "result": has_result and not self._hidden["result"]}
-        row = self._cols["input"].master
-        for w in list(self._cols.values()) + list(self._strips.values()):
+        resultados, el ojo de cada lado lo oculta (queda una franja con su nombre) y el
+        gráfico puede ocupar el lugar de uno de los dos."""
+        has_result = self._results_shown
+        dock = self._chart_dock if has_result else None
+        row = self._canvas_row
+        for w in list(self._cols.values()) + list(self._strips.values()) + [self._chart_col]:
             w.grid_forget()
-        col = 0
-        for side in ("input", "result"):
-            if show[side]:
-                self._cols[side].grid(row=0, column=col, sticky="nsew", padx=2)
+        for c in (0, 1):
+            row.columnconfigure(c, weight=0, uniform="", minsize=0)
+        for col, side in enumerate(("input", "result")):
+            if dock == side:
+                w, full = self._chart_col, True
+            elif side == "result" and not has_result:
+                continue
+            elif has_result and self._hidden[side]:
+                w, full = self._strips[side], False
+            else:
+                w, full = self._cols[side], True
+            w.grid(row=0, column=col, sticky="nsew" if full else "ns", padx=2 if full else 0)
+            if full:
                 row.columnconfigure(col, weight=1, uniform="side")
-            elif has_result:
-                self._strips[side].grid(row=0, column=col, sticky="ns")
-                row.columnconfigure(col, weight=0, uniform="")
-            col += 1
 
     def _toggle_side(self, side: str):
         other = "result" if side == "input" else "input"
         self._hidden[side] = not self._hidden[side]
-        if self._hidden[side] and self._hidden[other]:      # nunca las dos ocultas
+        if self._hidden[side] and self._hidden[other] and not self._chart_dock:   # nunca las dos ocultas
             self._hidden[other] = False
         self._layout_sides()
         self.root.after(50, self._refit_images)
+
+    def _dock_chart(self):
+        """El gráfico de la foto pasa al lugar de la imagen oculta (o de la Entrada) y el
+        panel de abajo se cierra; el ojo del gráfico lo devuelve como estaba."""
+        if self._chart_dock or not self._results_shown:
+            return
+        hidden = [s for s, h in self._hidden.items() if h]
+        slot = hidden[0] if len(hidden) == 1 else "input"
+        self._dock_saved = (dict(self._hidden), self._results_visible)
+        self._hidden[slot] = True
+        self._chart_dock = slot
+        edge = tk.LEFT if slot == "input" else tk.RIGHT
+        self._chart_title.pack_forget()
+        self._chart_eye.pack_forget()
+        self._chart_title.pack(side=edge, padx=2)
+        self._chart_eye.pack(side=edge)
+        self._chart_panel.pack_forget()
+        self._chart_panel.pack(in_=self._chart_host, fill=tk.BOTH, expand=True)
+        self._chart_panel.lift()
+        self._dock_btn.pack_forget()
+        self._results_visible = False
+        if self._bottom_tab == "charts":
+            self._bottom_tab = "table"
+        self._layout_sides()
+        self._layout_results()
+        self.root.after(80, self._after_dock)
+
+    def _undock_chart(self):
+        if not self._chart_dock:
+            return
+        hidden, _visible = self._dock_saved
+        self._hidden, self._chart_dock = hidden, None
+        self._chart_panel.pack_forget()
+        self._chart_panel.pack(in_=self._tab_frames["charts"], fill=tk.BOTH, expand=True)
+        self._chart_panel.lift()
+        self._dock_btn.pack(side=tk.RIGHT, padx=(2, 6), before=self._save_btn)
+        self._results_visible, self._bottom_tab = True, "charts"
+        self._layout_sides()
+        self._layout_results()
+        self.root.after(80, self._after_dock)
+
+    def _after_dock(self):
+        self._refit_images()
+        self._chart_panel.redraw()
 
     def _build_view_controls(self):
         """Controles de la leyenda dentro del recuadro de resultado (esquina inferior derecha)."""
@@ -2614,7 +2732,7 @@ class MainWindow:
                     current_path=self.current_image_path,
                     on_scale_set=self._on_scale_set,
                     loader=self._load_corrected_image,
-                    paths=self.batch_paths, unit=self.project.unit)
+                    paths=self.batch_paths, unit=self.project.unit, current=self._scale_summary)
 
     def _toggle_legend(self):
         self.legend_var.set(not self.legend_var.get())
@@ -2753,6 +2871,10 @@ class MainWindow:
         win.transient(self.root)
         body = tk.Frame(win, bg=COLORS["bg_card"])
         body.pack(padx=18, pady=14)
+        cur = self._scale_summary(self.current_image_path)
+        if cur:
+            tk.Label(body, text=cur, bg=COLORS["accent_light"], fg=COLORS["accent"], font=("Segoe UI", 9, "bold"),
+                     justify="left", anchor="w", padx=8, pady=5).pack(fill=tk.X, pady=(0, 10))
         tk.Label(body, text=t("scale.manual_prompt"), bg=COLORS["bg_card"], fg=COLORS["text"],
                  font=FONTS["small"], justify="left").pack(anchor="w", pady=(0, 8))
         row = tk.Frame(body, bg=COLORS["bg_card"])
@@ -3027,10 +3149,23 @@ class MainWindow:
             return
         BatchChartWindow(self.root, results)
 
-    def _save_intra_chart(self):
-        """Guarda el gráfico intra-imagen actual."""
+    def _save_intra_chart(self, with_image: bool = False):
+        """Guarda el gráfico de la foto; opcional, también la imagen de la vista actual."""
         if self._chart_panel:
-            self._chart_panel.save_figure()
+            self._chart_panel.save_figure(self._current_view_image() if with_image else None)
+
+    def _current_view_image(self):
+        r = self.last_result
+        if not r or not self.step_names or not 0 <= self.step_idx < len(self.step_names):
+            return None
+        name = self.step_names[self.step_idx]
+        img = r.step_images.get(name)
+        if img is None and name in (r.extra.get("overlays") or {}):
+            img = r.extra.get("base_image")
+        if img is None:
+            return None
+        stem = Path(self.current_image_path).stem if self.current_image_path else None
+        return name, self._decorate_fn(r, stem)(name, img)
 
     def _log_process(self, name: str):
         """Agrega al log del panel izquierdo el proceso ejecutado."""

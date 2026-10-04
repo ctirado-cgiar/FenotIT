@@ -17,6 +17,7 @@ def morphometry(ctx, p):
     d1, d2 = ctx.digits(1), ctx.digits(2)
     rows = ctx.object_rows()
     touching = ctx.touching_ids()
+    axes = {}
     for oid, sl, m in regions(ctx.labels):
         rows[oid]["touching"] = int(oid in touching)
         if p["isolated_only"] and oid in touching:
@@ -28,8 +29,10 @@ def morphometry(ctx, p):
         perim = cv2.arcLength(cv2.approxPolyDP(cnt, 1.0, True), True)  # corrige el escalonado de píxeles
         hull = cv2.convexHull(cnt)
         hull_area, hull_perim = cv2.contourArea(hull), cv2.arcLength(hull, True)
-        (_, _), (a, b), _ = cv2.minAreaRect(cnt)
+        rect = cv2.minAreaRect(cnt)
+        (a, b) = rect[1]
         width, length = min(a, b), max(a, b)
+        axes[oid] = _axes(rect, sl)
         major, minor, ecc = length, width, 0.0
         if len(cnt) >= 5:
             (_, _), (ma, mi), _ = cv2.fitEllipse(cnt)
@@ -67,6 +70,22 @@ def morphometry(ctx, p):
         "n_measured": len(measured),
     })
     included_view(ctx, "morphometry", {r["object_id"] for r in measured})
+    ov = ctx.extra["overlays"]["morphometry"]       # lo que se midió: largo y ancho de cada objeto
+    for seg in axes.values():
+        ov["lines"] += [(p1, p2, 1.0) for p1, p2 in seg]
+
+
+def _axes(rect, sl):
+    """Largo y ancho (rectángulo de área mínima) como dos segmentos por el centro."""
+    (cx, cy), (a, b), ang = rect
+    cx, cy = cx + sl[1].start, cy + sl[0].start
+    t = np.deg2rad(ang)
+    u, v = np.array([np.cos(t), np.sin(t)]), np.array([-np.sin(t), np.cos(t)])
+    (lu, lv) = (a, b) if a >= b else (b, a)
+    if a < b:
+        u, v = v, u
+    c = np.array([cx, cy])
+    return [(tuple(c - u * lu / 2), tuple(c + u * lu / 2)), (tuple(c - v * lv / 2), tuple(c + v * lv / 2))]
 
 
 def _lab(rgb):

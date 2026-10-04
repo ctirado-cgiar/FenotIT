@@ -87,7 +87,7 @@ def _label(col: str) -> str:
 class _Chooser(tk.Frame):
     """Tipo de gráfico + las variables que ese tipo usa (+ opciones propias)."""
 
-    def __init__(self, parent, kinds: tuple, on_change, bg: str):
+    def __init__(self, parent, kinds: tuple, on_change, bg: str, owner=None):
         super().__init__(parent, bg=bg)
         self.bg, self.on_change = bg, on_change
         self.kind = tk.StringVar(value=kinds[0])
@@ -98,8 +98,8 @@ class _Chooser(tk.Frame):
                            bg=bg, fg=COLORS["text"], selectcolor=COLORS["bg_card"], activebackground=bg,
                            font=FONTS["small"]).pack(side=tk.LEFT, padx=2)
         tk.Frame(self, bg=COLORS["border"], width=1).pack(side=tk.LEFT, fill=tk.Y, pady=4, padx=6)
-        self.vars_frame = tk.Frame(self, bg=bg)
-        self.vars_frame.pack(side=tk.LEFT)
+        self.vars_frame = tk.Frame(owner or self, bg=bg)      # con owner puede bajar a otra fila
+        self.vars_frame.pack(in_=self, side=tk.LEFT)
         self.extra = tk.Frame(self, bg=bg)          # opciones solo de algunos tipos
         self.extra.pack(side=tk.LEFT, padx=(6, 0))
         self._svars: list[tk.StringVar] = []
@@ -168,9 +168,11 @@ def _save(fig, parent):
     if path:
         try:
             fig.savefig(path, dpi=300, bbox_inches="tight")
+            return path
         except Exception as e:
             _log.exception("Guardar gráfico")
             messagebox.showerror(t("common.error"), str(e), parent=parent)
+    return None
 
 
 def _scatter(fig, xs, ys, x_col, y_col, labels=None):
@@ -205,10 +207,45 @@ class IntraImageChartPanel(tk.Frame):
         bg = COLORS["bg_panel"]
         self.bar = tk.Frame(self, bg=bg)
         self.bar.pack(fill=tk.X)
-        self.chooser = _Chooser(self.bar, ("box", "hist", "scatter"), self._refresh, bg)
+        self.chooser = _Chooser(self.bar, ("box", "hist", "scatter"), self._refresh, bg, owner=self)
         self.chooser.pack(side=tk.LEFT, padx=4)
+        self.bar2 = tk.Frame(self, bg=bg)               # las variables bajan aquí si no caben
+        for w in (self.bar, self.chooser.vars_frame):
+            w.bind("<Configure>", lambda e: self.after_idle(self._fit_bar), add="+")
         self._frame = tk.Frame(self, bg=COLORS["bg_card"])
         self._frame.pack(fill=tk.BOTH, expand=True)
+        self._drawn = (0, 0)
+        self._resize_job = None
+        self._frame.bind("<Configure>", self._on_resize)
+
+    def _fit_bar(self):
+        vf = self.chooser.vars_frame
+        below = vf.winfo_manager() == "pack" and str(vf.pack_info().get("in")) == str(self.bar2)
+        width = self.bar.winfo_width()
+        need = self.bar.winfo_reqwidth() + (vf.winfo_reqwidth() + 10 if below else 0)
+        if not below and need > width > 1:
+            vf.pack_forget()
+            vf.pack(in_=self.bar2, side=tk.LEFT, padx=8, pady=(0, 3))
+            self.bar2.pack(fill=tk.X, after=self.bar)
+            vf.lift()
+        elif below and need <= width:
+            vf.pack_forget()
+            vf.pack(in_=self.chooser, side=tk.LEFT, before=self.chooser.extra)
+            self.bar2.pack_forget()
+            vf.lift()
+
+    def _on_resize(self, e):
+        """Al cambiar de tamaño (panel de abajo ↔ lugar de una imagen) se vuelve a dibujar."""
+        if abs(e.width - self._drawn[0]) < 30 and abs(e.height - self._drawn[1]) < 30:
+            return
+        if self._resize_job:
+            self.after_cancel(self._resize_job)
+        self._resize_job = self.after(250, self.redraw)
+
+    def redraw(self):
+        self._resize_job = None
+        if MPL_OK and self.winfo_ismapped() and self._rows:
+            self._refresh()
 
     def load(self, rows: list[dict] | None):
         """Datos de la foto que se ve; se dibuja ahora si el panel está a la vista."""
@@ -238,9 +275,11 @@ class IntraImageChartPanel(tk.Frame):
             return
         plt.rcParams.update(MPL_STYLE)
         kind = self.chooser.kind.get()
-        w = max(self._frame.winfo_width(), 400) / 96
-        h = max(self._frame.winfo_height(), 160) / 96
+        fw, fh = self._frame.winfo_width(), self._frame.winfo_height()
+        self._drawn = (fw, fh)
+        w, h = max(fw, 300) / 96, max(fh, 160) / 96
         fig = Figure(figsize=(w, h), dpi=96)
+        stacked = w / h < 1.3                       # alto y angosto: uno debajo del otro
         if kind == "scatter":
             if len(cols) < 2:
                 _message(self._frame, t("chart.pick_xy"))
@@ -254,7 +293,7 @@ class IntraImageChartPanel(tk.Frame):
             _scatter(fig, xs, ys, cols[0], cols[1])
         else:
             for i, col in enumerate(cols):
-                ax = fig.add_subplot(1, len(cols), i + 1)
+                ax = fig.add_subplot(len(cols), 1, i + 1) if stacked else fig.add_subplot(1, len(cols), i + 1)
                 vals = _values(self._rows, col)
                 color = PALETTE[i % len(PALETTE)]
                 if not vals:
@@ -282,8 +321,16 @@ class IntraImageChartPanel(tk.Frame):
         self._fig = fig
         _embed(self._frame, fig)
 
-    def save_figure(self):
-        _save(self._fig, self)
+    def save_figure(self, image=None):
+        """Guarda el gráfico; con `image` = (vista, imagen BGR), también la imagen de la vista."""
+        path = _save(self._fig, self)
+        if path and image is not None:
+            import cv2
+            view, img = image
+            out = Path(path).with_name(f"{Path(path).stem}_{view}.png")
+            ok, buf = cv2.imencode(".png", img)
+            if ok:
+                out.write_bytes(buf.tobytes())
 
 
 # ── Lote ──────────────────────────────────────────────────────────────────────
