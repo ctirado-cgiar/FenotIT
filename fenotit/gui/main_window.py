@@ -415,6 +415,8 @@ class MainWindow:
             return t("corr.skip_distortion", size="×".join(map(str, d.size or [])) or "?")
         if info and self.project.corrections.perspective.enabled and "perspective" not in info.applied:
             return t("corr.skip_aruco", ids=", ".join(map(str, info.aruco_missing)) or "?")
+        if info and self.project.corrections.color.enabled and "color" not in info.applied:
+            return t("corr.skip_color")
         return None
 
     def _mark_skipped(self, path: str, reason: str):
@@ -1812,7 +1814,7 @@ class MainWindow:
         if out.status == "skipped":
             d = self.project.corrections.distortion
             reason = t("corr.skip_distortion", size="×".join(map(str, d.size or [])) or "?") \
-                if out.message == "distortion" else \
+                if out.message == "distortion" else t("corr.skip_color") if out.message == "color" else \
                 t("corr.skip_aruco", ids=", ".join(map(str, out.aruco_missing)) or "?")
             self._mark_skipped(path, reason)
         elif out.status == "unreadable":

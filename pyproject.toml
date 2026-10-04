@@ -21,9 +21,6 @@ dependencies = [
     "pyyaml",
 ]
 
-[project.optional-dependencies]
-colorcard = ["plantcv"]
-
 [project.scripts]
 fenotit = "fenotit.cli:main"
 

@@ -64,6 +64,8 @@ def process(analysis: str, job: Job, corrections, keep_images: bool = False) -> 
         return Outcome(job.path, "skipped", message="distortion")
     if corrections.perspective.enabled and "perspective" not in info.applied:
         return Outcome(job.path, "skipped", aruco_missing=info.aruco_missing)
+    if corrections.color.enabled and "color" not in info.applied:
+        return Outcome(job.path, "skipped", message="color")
     params = dict(job.params)
     if job.aruco_scale:
         params["mm_per_pixel"] = info.mm_per_px

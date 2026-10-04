@@ -1,10 +1,13 @@
 """Diálogo único para configurar las correcciones del proyecto."""
 import copy
+from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from fenotit import log
+from fenotit.core.corrections import colorcard as cc
 from fenotit.core.corrections import pipeline as P
+from fenotit.gui.colorcard_dialogs import edit_values, help_box, pick_region, show_detection
 from fenotit.core.corrections.aruco import detect_aruco_corners
 from fenotit.core.image_io import load_image
 from fenotit.gui.widgets import ImagePicker
@@ -24,7 +27,7 @@ def _float_or_none(s: str) -> float | None:
 
 
 class CorrectionsDialog(BaseDialog):
-    W, H = 620, 560
+    W, H = 760, 660
 
     def __init__(self, parent, corrections: P.Corrections, paths=None, current_path=None,
                  aruco_scale: bool = False, on_apply=None):
@@ -75,7 +78,7 @@ class CorrectionsDialog(BaseDialog):
 
     def _muted(self, parent, text):
         return tk.Label(parent, text=text, bg=COLORS["bg_card"], fg=COLORS["text_muted"],
-                        font=FONTS["small"], justify="left", wraplength=540)
+                        font=FONTS["small"], justify="left", wraplength=680)
 
     def _check(self, parent, var, key):
         return tk.Checkbutton(parent, text=t(key), variable=var,
@@ -83,22 +86,37 @@ class CorrectionsDialog(BaseDialog):
                               activebackground=COLORS["bg_card"],
                               selectcolor=COLORS["bg_panel"], font=FONTS["body"])
 
+    def _small(self, parent, key, cmd):
+        return tk.Button(parent, text=t(key), command=cmd, bg=COLORS["btn_bg"], fg=COLORS["accent"],
+                         relief="flat", font=FONTS["small"], cursor="hand2", padx=6, pady=0)
+
     def _button(self, parent, key, cmd):
         return tk.Button(parent, text=t(key), command=cmd, bg=COLORS["btn_bg"],
                          fg=COLORS["accent"], relief="flat", font=FONTS["body"],
                          cursor="hand2", padx=10)
 
+    def _enable_row(self, parent, var, kind):
+        """Casilla "Activar" y, a la derecha, "¿Para qué sirve?" con la explicación."""
+        row = tk.Frame(parent, bg=COLORS["bg_card"])
+        row.pack(fill=tk.X)
+        self._check(row, var, "corr.enable").pack(side=tk.LEFT)
+        link = tk.Label(row, text="?  " + t("corr.why"), bg=COLORS["bg_card"], fg=COLORS["accent"],
+                        font=FONTS["small"], cursor="hand2")
+        link.pack(side=tk.RIGHT)
+        link.bind("<Button-1>", lambda e: help_box(self, t(f"corr.tab.{kind}"), t(f"corr.{kind}.why")))
+        return row
+
     def _status(self, parent):
         var = tk.StringVar()
         tk.Label(parent, textvariable=var, bg=COLORS["bg_card"], fg=COLORS["text_muted"],
-                 font=FONTS["small"], justify="left", wraplength=540).pack(anchor="w", pady=(8, 0))
+                 font=FONTS["small"], justify="left", wraplength=680).pack(anchor="w", pady=(8, 0))
         return var
 
     # Distorsión
     def _tab_distortion(self, f):
         d = self.c.distortion
         self._d_on = tk.BooleanVar(value=d.enabled)
-        self._check(f, self._d_on, "corr.enable").pack(anchor="w")
+        self._enable_row(f, self._d_on, "distortion")
         self._muted(f, t("corr.distortion.help")).pack(anchor="w", pady=(4, 8))
         row = tk.Frame(f, bg=COLORS["bg_card"])
         row.pack(anchor="w", pady=6)
@@ -147,7 +165,7 @@ class CorrectionsDialog(BaseDialog):
     def _tab_perspective(self, f):
         p = self.c.perspective
         self._p_on = tk.BooleanVar(value=p.enabled)
-        self._check(f, self._p_on, "corr.enable").pack(anchor="w")
+        self._enable_row(f, self._p_on, "perspective")
         self._muted(f, t("corr.perspective.help")).pack(anchor="w", pady=(4, 8))
         self._p_w = tk.StringVar(value="" if p.width_mm is None else f"{p.width_mm:g}")
         self._p_h = tk.StringVar(value="" if p.height_mm is None else f"{p.height_mm:g}")
@@ -198,79 +216,179 @@ class CorrectionsDialog(BaseDialog):
     # Color
     def _tab_color(self, f):
         col = self.c.color
-        ok = P.plantcv_available()
-        self._c_on = tk.BooleanVar(value=col.enabled and ok)
-        cb = self._check(f, self._c_on, "corr.enable")
-        cb.pack(anchor="w")
-        self._muted(f, t("corr.color.help")).pack(anchor="w", pady=(4, 8))
-        if not ok:
-            cb.config(state="disabled")
-            tk.Label(f, text=t("corr.color.no_plantcv"), bg=COLORS["bg_card"],
-                     fg=COLORS["warning"], font=FONTS["body"], justify="left").pack(anchor="w")
+        bg = COLORS["bg_card"]
+        self._c_on = tk.BooleanVar(value=col.enabled)
+        self._enable_row(f, self._c_on, "color")
+        self._muted(f, t("corr.color.help")).pack(anchor="w", pady=(4, 6))
+
+        def radios(title, var, options, cmd=None):
+            box = tk.Frame(f, bg=bg)
+            box.pack(fill=tk.X, pady=(4, 0))
+            tk.Label(box, text=title, bg=bg, fg=COLORS["text"], font=("Segoe UI", 9, "bold"),
+                     width=14, anchor="nw").pack(side=tk.LEFT, anchor="n")
+            col_f = tk.Frame(box, bg=bg)
+            col_f.pack(side=tk.LEFT, fill=tk.X)
+            rows = {}
+            for value, label in options:
+                r = tk.Frame(col_f, bg=bg)
+                r.pack(fill=tk.X)
+                tk.Radiobutton(r, text=label, variable=var, value=value, command=cmd, bg=bg, fg=COLORS["text"],
+                               selectcolor=COLORS["bg_panel"], activebackground=bg,
+                               font=FONTS["body"]).pack(side=tk.LEFT)
+                rows[value] = r
+            return rows
+
+        self._c_card = tk.StringVar(value=col.card)
+        cards = radios(t("corr.color.card"), self._c_card, [
+            ("colorchecker24", t("corr.color.card24")), ("custom", t("corr.color.custom")),
+            ("white", t("corr.color.white"))], self._color_changed)
+        self._c_rows, self._c_cols = tk.StringVar(value=str(col.rows)), tk.StringVar(value=str(col.cols))
+        cr = cards["custom"]
+        for i, var in enumerate((self._c_rows, self._c_cols)):
+            if i:
+                tk.Label(cr, text="×", bg=bg, fg=COLORS["text_muted"]).pack(side=tk.LEFT)
+            tk.Entry(cr, textvariable=var, width=3, justify="center", bg=COLORS["bg_panel"], relief="solid",
+                     bd=1, font=FONTS["mono"]).pack(side=tk.LEFT, padx=2)
+        self._small(cr, "corr.color.values", self._edit_values).pack(side=tk.LEFT, padx=6)
+        self._small(cards["white"], "corr.color.mark_area", self._mark_area).pack(side=tk.LEFT, padx=6)
+
+        self._c_ref = tk.StringVar(value=col.reference)
+        refs = radios(t("corr.color.towards"), self._c_ref, [
+            ("values", t("corr.color.ref_values")), ("photo", t("corr.color.ref_photo"))], self._color_changed)
+        self._small(refs["photo"], "corr.color.use_current", self._use_reference_photo).pack(side=tk.LEFT, padx=6)
+
         self._c_mode = tk.StringVar(value=col.mode)
-        for mode in ("per_image", "fixed"):
-            tk.Radiobutton(f, text=t(f"corr.color.mode.{mode}"), variable=self._c_mode, value=mode,
-                           bg=COLORS["bg_card"], fg=COLORS["text"], selectcolor=COLORS["bg_panel"],
-                           activebackground=COLORS["bg_card"], font=FONTS["body"],
-                           state="normal" if ok else "disabled").pack(anchor="w")
-        row = tk.Frame(f, bg=COLORS["bg_card"])
-        row.pack(fill=tk.X, pady=(6, 0))
-        tk.Label(row, text=t("corr.color.pos"), bg=COLORS["bg_card"], fg=COLORS["text"],
-                 font=FONTS["body"], width=34, anchor="w").pack(side=tk.LEFT)
-        self._c_pos = tk.StringVar(value=str(col.pos))
-        ttk.Combobox(row, textvariable=self._c_pos, values=["auto", "0", "1", "2", "3"],
-                     state="readonly", width=6).pack(side=tk.LEFT, padx=4)
-        self._c_radius = tk.StringVar(value=str(col.radius))
-        self._entry_row(f, t("corr.color.radius"), self._c_radius, 5)
-        b = self._button(f, "corr.color.detect", self._detect_card)
-        b.pack(anchor="w", pady=6)
-        if not ok:
-            b.config(state="disabled")
+        self._mode_rows = radios(t("corr.color.where"), self._c_mode, [
+            ("per_image", t("corr.color.mode.per_image")), ("fixed", t("corr.color.mode.fixed"))],
+            self._color_changed)
+
+        self._button(f, "corr.color.detect", self._detect_card).pack(anchor="w", pady=(10, 0))
         self._c_status = self._status(f)
-        if col.mask is not None:
-            self._c_status.set(t("corr.color.mask_saved"))
+        self._color_changed()
+
+    def _color_cfg(self) -> P.ColorCard:
+        c = copy.deepcopy(self.c.color)
+        c.enabled = self._c_on.get()
+        c.card, c.reference, c.mode = self._c_card.get(), self._c_ref.get(), self._c_mode.get()
+        try:
+            c.rows, c.cols = max(2, int(self._c_rows.get())), max(2, int(self._c_cols.get()))
+        except ValueError:
+            pass
+        if c.card == "white":
+            c.mode = "fixed"
+        return c
+
+    def _color_changed(self):
+        c = self._color_cfg()
+        white = c.card == "white"
+        for row in self._mode_rows.values():
+            for w in row.winfo_children():
+                w.config(state="disabled" if white else "normal")
+        notes = []
+        if c.card == "custom" and c.reference == "values":
+            ok = c.values and len(c.values) == c.rows * c.cols
+            notes.append(t("corr.color.values_ok", n=len(c.values)) if ok else t("corr.color.values_missing"))
+        if white:
+            notes.append(t("corr.color.area_ok") if c.region else t("corr.color.area_missing"))
+        if c.reference == "photo":
+            notes.append(t("corr.color.ref_ok", name=c.target_photo) if c.target else t("corr.color.ref_missing"))
+        if c.mode == "fixed" and not white:
+            notes.append(t("corr.color.place_ok") if c.place else t("corr.color.place_missing"))
+        self._c_status.set("\n".join(notes))
+
+    def _edit_values(self):
+        c = self._color_cfg()
+        old = c.values if c.values and len(c.values) == c.rows * c.cols else None
+        vals = edit_values(self, c.rows, c.cols, old)
+        if vals:
+            self.c.color.values, self.c.color.rows, self.c.color.cols = vals, c.rows, c.cols
+            self._c_card.set("custom")
+            self._color_changed()
+
+    def _mark_area(self):
+        img = self._base_image("color")
+        if img is None:
+            self._c_status.set(t("corr.no_image"))
+            return
+        r = pick_region(self, img, self.c.color.region)
+        if r:
+            self.c.color.region = r
+            if self.c.color.card != "white":
+                self.c.color.target = None             # la referencia medida era de otra tarjeta
+            self._c_card.set("white")
+            self._color_changed()
+
+    def _use_reference_photo(self):
+        img = self._base_image("color")
+        if img is None:
+            self._c_status.set(t("corr.no_image"))
+            return
+        c = self._color_cfg()
+        try:
+            self.c.color.target = cc.measure_reference(img, c)
+        except Exception as e:
+            self._c_status.set(t("corr.color.not_found") + f"\n{e}")
+            return
+        self.c.color.target_photo = Path(self._raw_path).name if self._raw_path else ""
+        self._c_ref.set("photo")
+        self._color_changed()
 
     def _detect_card(self):
         img = self._base_image("color")
         if img is None:
             self._c_status.set(t("corr.no_image"))
             return
+        c = self._color_cfg()
         self._c_status.set(t("corr.color.detecting"))
         self.update_idletasks()
-        try:
-            mask = P.detect_card(img, self._radius())
-        except Exception as e:
-            _log.exception("Detección de tarjeta falló")
-            mask, err = None, str(e)
-        else:
-            err = ""
-        if mask is None:
-            self._c_status.set(t("corr.color.not_found") + (f"\n{err}" if err else ""))
+        if c.card == "white":
+            if not c.region:
+                self._c_status.set(t("corr.color.area_missing"))
+                return
+            fixed, info = cc.white_balance(img, c)
+            show_detection(self, None, img, fixed, t("corr.color.white_done", gains=", ".join(
+                f"{g:.2f}" for g in info.get("gains", []))))
+            self._color_changed()
             return
-        import numpy as np
-        n = len(np.unique(mask)) - 1
-        self.c.color.mask = mask.astype("uint8")
-        self._c_status.set(t("corr.color.found", n=n))
-
-    def _radius(self) -> int:
+        rows, cols = c.grid()
+        card = cc.detect(img, rows, cols)
+        if card is None:
+            self._c_status.set(t("corr.color.not_found"))
+            return
+        self.c.color.place = {**card.to_dict(), "size": [img.shape[1], img.shape[0]]}
         try:
-            return max(1, int(self._c_radius.get()))
-        except ValueError:
-            return 20
+            fixed, info = cc.correct(img, card, cc.reference_of(c))
+        except Exception as e:
+            show_detection(self, cc.preview(img, card), img, None,
+                           t("corr.color.found_only", found=card.found, n=rows * cols) + f"\n{e}")
+            self._color_changed()
+            return
+        text = t("corr.color.found", found=card.found, n=rows * cols, err=f"{info['mean_error_rgb']:.1f}")
+        if info["dropped"]:
+            text += "\n" + t("corr.color.dropped", chips=", ".join(str(i + 1) for i in info["dropped"]))
+        show_detection(self, cc.preview(img, card, info["dropped"], info["turns"]), img, fixed, text)
+        self._color_changed()
 
     # ── Aplicar ───────────────────────────────────────────────────────────────
 
     def _apply(self):
         self.c.distortion.enabled = self._d_on.get() and bool(self.c.distortion.mtx)
         self.c.perspective = self._perspective_cfg()
-        pos = self._c_pos.get()
-        self.c.color.enabled = self._c_on.get()
-        self.c.color.mode = self._c_mode.get()
-        self.c.color.pos = pos if pos == "auto" else int(pos)
-        self.c.color.radius = self._radius()
-        if self.c.color.enabled and self.c.color.mode == "fixed" and self.c.color.mask is None:
-            messagebox.showwarning(t("corr.tab.color"), t("corr.color.need_mask"), parent=self)
-            return
+        self.c.color = self._color_cfg()
+        col = self.c.color
+        if col.enabled:
+            missing = None
+            if col.card == "white" and not col.region:
+                missing = "corr.color.area_missing"
+            elif col.reference == "photo" and not col.target:
+                missing = "corr.color.ref_missing"
+            elif col.card == "custom" and col.reference == "values" and                     not (col.values and len(col.values) == col.rows * col.cols):
+                missing = "corr.color.values_missing"
+            elif col.mode == "fixed" and col.card != "white" and not col.place:
+                missing = "corr.color.place_missing"
+            if missing:
+                messagebox.showwarning(t("corr.tab.color"), t(missing), parent=self)
+                return
         use_scale = self._p_scale.get() and self.c.perspective.enabled \
             and bool(self.c.perspective.width_mm and self.c.perspective.height_mm)
         if self._on_apply:

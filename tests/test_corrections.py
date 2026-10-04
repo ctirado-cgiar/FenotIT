@@ -92,14 +92,11 @@ def _chip_error(a, b):
 
 
 def test_color_card_auto_orientation():
-    from fenotit.core.corrections.pipeline import ColorCard, plantcv_available
-    if not plantcv_available():
-        print("skip (PlantCV no instalado)")
-        return
+    from fenotit.core.corrections.pipeline import ColorCard
     ref, cast = _card(), _card((0.8, 1.0, 1.15))
-    for k in (0, 2):
+    for k in (0, 1, 2, 3):
         img = np.ascontiguousarray(np.rot90(cast, k))
-        out, info = apply(img, Corrections(color=ColorCard(True, "per_image")))
+        out, info = apply(img, Corrections(color=ColorCard(True)))
         assert info.applied == ["color"], info.warnings
         assert _chip_error(np.rot90(out, -k), ref) < 3
 

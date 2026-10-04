@@ -35,8 +35,6 @@ conda activate fenotit
 pip install -r requirements.txt
 ```
 
-Color-card correction also needs PlantCV: `pip install -r requirements-optional.txt`.
-
 ## Usage
 
 ```bash

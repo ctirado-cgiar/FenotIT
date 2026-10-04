@@ -18,7 +18,8 @@ def test_roundtrip():
         p.params = {"morphometry": {"area_min": 1000}, "color_kmeans": {"n_colors": 4}}
         p.corrections.perspective.enabled, p.corrections.perspective.width_mm = True, 210.0
         p.corrections.color.enabled, p.corrections.color.mode = True, "fixed"
-        p.corrections.color.mask = __import__("numpy").eye(20, dtype="uint8") * 10
+        p.corrections.color.place = {"rows": 6, "cols": 4, "centers": [[[1.0, 2.0]] * 4] * 6, "chip": 90.0,
+                                     "found": 22, "size": [4010, 3006]}
         p.save(Path(tmp) / "Ensayo")
 
         q = Project.load(Path(tmp) / "Ensayo")
@@ -28,8 +29,7 @@ def test_roundtrip():
         assert q.segmentation == p.segmentation and q.scale == p.scale
         assert q.params == p.params
         assert q.corrections == p.corrections
-        assert q.corrections.color.mask_file == "calibration/colorcard_mask.png"
-        assert (q.corrections.color.mask == p.corrections.color.mask).all()
+        assert q.corrections.color.place == p.corrections.color.place
         assert not q.missing_images()
         assert (q.folder / "calibration").is_dir() and (q.folder / "results").is_dir()
         assert q.file.name == "Ensayo.fenotit" and q.file.exists()

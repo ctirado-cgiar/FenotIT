@@ -1,2 +1,0 @@
-# Corrección con tarjeta de color (opcional, agrega ~40 dependencias)
-plantcv==4.11.3
