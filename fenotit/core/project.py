@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+import os
 from pathlib import Path
 from typing import Any
 
@@ -105,12 +106,15 @@ class Project:
             self.mode = mode
 
     def _rel(self, p: Path) -> str:
+        """Ruta relativa a la carpeta del proyecto si está dentro. Sin resolve(): en OneDrive
+        cada resolve() toca el disco y esto se llama en cada cambio (¿hay algo sin guardar?)."""
+        ap = Path(os.path.abspath(p))
         if self.folder:
             try:
-                return p.resolve().relative_to(self.folder.resolve()).as_posix()
+                return ap.relative_to(os.path.abspath(self.folder)).as_posix()
             except ValueError:
                 pass
-        return p.resolve().as_posix()
+        return ap.as_posix()
 
     def to_dict(self) -> dict:
         return {

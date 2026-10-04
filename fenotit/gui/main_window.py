@@ -1679,9 +1679,35 @@ class MainWindow:
         pass
 
     def _load_single(self, path: str):
+        """Lee y corrige la foto en otro hilo (una foto grande o en OneDrive puede tardar
+        varios segundos y la ventana dejaría de responder). Si se pide otra mientras tanto,
+        se carga solo la última."""
         self.current_image_path = path
         self.image_info_var.set(Path(path).name)
-        img, info = self._load_corrected(path)
+        if getattr(self, "_loading", None):
+            self._load_next = path
+            return
+        self._loading = path
+        self._load_next = None
+        self._set_status(t("status.loading_photo"))
+
+        def work():
+            try:
+                img, info = self._load_corrected(path)
+            except Exception:
+                _log.exception("Cargando %s", path)
+                img, info = None, None
+            self.root.after(0, lambda: self._on_photo_loaded(path, img, info))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_photo_loaded(self, path: str, img, info):
+        self._loading = None
+        nxt = self._load_next
+        if nxt:                                    # se pidió otra (o la misma con otros ajustes)
+            self._load_single(nxt)
+            return
+        if path != self.current_image_path:
+            return
         if img is None:
             messagebox.showerror(t("common.error"), t("msg.image_unreadable", name=Path(path).name),
                                  parent=self.root)
@@ -1718,6 +1744,7 @@ class MainWindow:
                 self.canvas_right.delete("all")
 
         self._refresh_history()
+        self._sync_area_units()
 
     # ── Display ───────────────────────────────────────────────────────────────
 
@@ -1858,6 +1885,9 @@ class MainWindow:
             return
         if all_images:
             self._run_batch(name)
+            return
+        if getattr(self, "_loading", None):
+            self._set_status(t("status.loading_photo"))
             return
         if not self.scaler_left.has_image:
             messagebox.showwarning(t("msg.no_image_title"),

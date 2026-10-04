@@ -377,6 +377,7 @@
   "status.failed": "{n} con error",
   "status.folder_loaded": "{n} imágenes — {folder}",
   "status.image": "Imagen: {name}",
+  "status.loading_photo": "Cargando la foto…",
   "status.preparing_view": "Preparando la vista…",
   "status.preview": "● preview  {px} px  ({pct}%)",
   "status.ready": "Listo",
