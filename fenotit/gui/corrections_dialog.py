@@ -1,15 +1,12 @@
 """Diálogo único para configurar las correcciones del proyecto."""
 import copy
-import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from fenotit import log
 from fenotit.core.corrections import pipeline as P
 from fenotit.core.corrections.aruco import detect_aruco_corners
-from fenotit.core.corrections.distortion import calibrate
 from fenotit.core.image_io import load_image
-from fenotit.core.project import IMAGE_EXTS
 from fenotit.gui.widgets import ImagePicker
 from fenotit.gui.calibration_dialogs import BaseDialog
 from fenotit.gui.theme import COLORS, FONTS
@@ -103,9 +100,6 @@ class CorrectionsDialog(BaseDialog):
         self._d_on = tk.BooleanVar(value=d.enabled)
         self._check(f, self._d_on, "corr.enable").pack(anchor="w")
         self._muted(f, t("corr.distortion.help")).pack(anchor="w", pady=(4, 8))
-        self._d_cols, self._d_rows = tk.StringVar(value="7"), tk.StringVar(value="6")
-        self._entry_row(f, t("corr.distortion.cols"), self._d_cols, 5)
-        self._entry_row(f, t("corr.distortion.rows"), self._d_rows, 5)
         row = tk.Frame(f, bg=COLORS["bg_card"])
         row.pack(anchor="w", pady=6)
         self._button(row, "corr.distortion.calibrate", self._calibrate).pack(side=tk.LEFT, padx=(0, 6))
@@ -122,37 +116,17 @@ class CorrectionsDialog(BaseDialog):
             self._d_status.set(t("corr.distortion.ready", source=d.source) + rms)
 
     def _calibrate(self):
-        exts = " ".join(f"*{e}" for e in sorted(IMAGE_EXTS))
-        files = filedialog.askopenfilenames(title=t("corr.distortion.folder"), parent=self,
-                                            filetypes=[(t("common.images"), exts)])
-        if not files:
-            return
-        try:
-            cols, rows = int(self._d_cols.get()), int(self._d_rows.get())
-        except ValueError:
-            messagebox.showwarning(t("common.error"), t("corr.distortion.bad_grid"), parent=self)
-            return
-        self._d_status.set(t("corr.distortion.running"))
+        from fenotit import settings
+        from fenotit.gui.chessboard_dialog import ChessboardDialog
+        cols, rows = settings.get("board_grid", [7, 6])
 
-        def work():
-            res = calibrate(list(files), cols, rows,
-                                        progress_cb=lambda i, n, name: self.after(
-                                            0, lambda: self._show_progress(i, n, name)))
-            self.after(0, lambda: self._calib_done(res, files))
-        threading.Thread(target=work, daemon=True).start()
-
-    def _calib_done(self, res, files):
-        self._hide_progress()
-        self._log_var.set("")
-        if not res.success:
-            self._d_status.set(t("corr.distortion.failed", used=res.n_images_used, total=res.n_images_total))
-            return
-        self.c.distortion = P.Distortion(True, res.mtx.tolist(), res.dist.tolist(), res.rms_error,
-                                         t("corr.distortion.n_photos", n=res.n_images_used))
-        self._d_on.set(True)
-        self._refresh_distortion()
-        self._d_status.set(self._d_status.get() + "\n" + t("corr.distortion.used", used=res.n_images_used,
-                                                           total=res.n_images_total))
+        def use(res):
+            self.c.distortion = P.Distortion(True, res.mtx.tolist(), res.dist.tolist(), res.rms_error,
+                                             t("corr.distortion.n_photos", n=res.n_images_used))
+            settings.set("board_grid", [int(dlg.cols.get()), int(dlg.rows.get())])
+            self._d_on.set(True)
+            self._refresh_distortion()
+        dlg = ChessboardDialog(self, cols, rows, on_use=use)
 
     def _load_npz(self):
         path = filedialog.askopenfilename(title=t("corr.distortion.load_npz"),
