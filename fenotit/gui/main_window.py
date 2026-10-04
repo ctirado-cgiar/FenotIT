@@ -139,6 +139,7 @@ class DropMenu(tk.Frame):
                          height=1).pack(fill=tk.X, pady=2)
                 continue
             label, cmd, *rest = item
+            label = label() if callable(label) else label
             disabled = bool(rest and rest[0] is True)
             shortcut = next((r for r in rest if isinstance(r, str)), "")
             fg = self.colors["text_muted"] if disabled else self.colors["text"]
@@ -978,6 +979,10 @@ class MainWindow:
             (t("view.analysis_panel"), lambda: self._toggle_panel(self.right_panel)),
             (t("view.results_panel"), self._toggle_results_panel),
             None,
+            (self._sides_label("auto"), lambda: self._set_sides_mode("auto")),
+            (self._sides_label("row"), lambda: self._set_sides_mode("row")),
+            (self._sides_label("column"), lambda: self._set_sides_mode("column")),
+            None,
             (t("style.title"), self._open_style),
             None,
             (t("view.zoom_in"), self.do_zoom_in, "Ctrl++"),
@@ -1245,7 +1250,9 @@ class MainWindow:
         canvas_row.rowconfigure(0, weight=1)
         # Cada lado: título + ojo (ocultar) y su imagen. Oculto, queda una franja con el
         # ojo tachado para volver a mostrarlo.
-        self._cols, self._strips, self._hidden = {}, {}, {"input": False, "result": False}
+        self._cols, self._strips, self._hstrips = {}, {}, {}
+        self._hidden = {"input": False, "result": False}
+        self._orient = "row"
         for side, title in (("input", t("center.input")), ("result", t("center.result"))):
             col = tk.Frame(canvas_row, bg=COLORS["bg"])
             head = tk.Frame(col, bg=COLORS["bg"])
@@ -1257,7 +1264,7 @@ class MainWindow:
             IconButton(head, "eye", lambda sd=side: self._toggle_side(sd), t("view.hide_side", name=title),
                        bg=COLORS["bg"], hover=COLORS["btn_hover"], active=COLORS["accent_light"],
                        size=14, color=COLORS["text_muted"]).pack(side=edge)
-            canvas = tk.Canvas(col, bg=COLORS["bg_card"], highlightthickness=1,
+            canvas = tk.Canvas(col, bg=COLORS["bg_card"], highlightthickness=1, width=120, height=120,
                                highlightbackground=COLORS["border"])
             canvas.pack(fill=tk.BOTH, expand=True)
             # oculto: franja con el ojo tachado y el nombre en vertical
@@ -1273,6 +1280,17 @@ class MainWindow:
             vt.pack(side=tk.TOP)
             for w in (strip, vt):
                 w.bind("<Button-1>", lambda e, sd=side: self._toggle_side(sd))
+            # la misma franja, acostada, cuando Entrada y Resultado van uno encima del otro
+            hstrip = tk.Frame(canvas_row, bg=COLORS["bg_panel"], height=22, cursor="hand2")
+            IconButton(hstrip, "eye_off", lambda sd=side: self._toggle_side(sd), t("view.show_side", name=title),
+                       bg=COLORS["bg_panel"], hover=COLORS["btn_hover"], active=COLORS["accent_light"],
+                       size=14, color=COLORS["accent"]).pack(side=tk.LEFT, padx=4)
+            hl = tk.Label(hstrip, text=title, bg=COLORS["bg_panel"], fg=COLORS["text_muted"], font=FONTS["small"],
+                          cursor="hand2")
+            hl.pack(side=tk.LEFT)
+            for w in (hstrip, hl):
+                w.bind("<Button-1>", lambda e, sd=side: self._toggle_side(sd))
+            self._hstrips[side] = hstrip
             self._cols[side], self._strips[side] = col, strip
             if side == "input":
                 self.canvas_left = canvas
@@ -1296,6 +1314,7 @@ class MainWindow:
         self._canvas_row = canvas_row
         self._results_shown = False
         self._layout_sides()
+        canvas_row.bind("<Configure>", self._on_canvas_row_resize, add="+")
 
         self.areas = AreaEditor(self.canvas_left, self._on_areas_change)
         self.areas.on_done = self._on_roi_tool_done
@@ -1756,6 +1775,7 @@ class MainWindow:
                                  parent=self.root)
             return
         self.scaler_left.set_image(img)
+        self._on_canvas_row_resize()               # otra proporción: quizá conviene arriba y abajo
         self.image_info_var.set(f"{Path(path).name}  ·  {img.shape[1]} × {img.shape[0]} px")
         self._update_corr_indicator()
         self.preview_var.set("")
@@ -2215,29 +2235,74 @@ class MainWindow:
         self._layout_sides()
         self.root.after(50, self._refit_images)
 
+    SIDES_MODES = ("auto", "row", "column")
+
+    def _sides_orient(self) -> str:
+        """row = lado a lado, column = uno encima del otro. Automático: lo que muestre más
+        grande la foto en el espacio disponible (fotos anchas en pantallas anchas: arriba y abajo)."""
+        mode = settings.get("sides_layout", "auto")
+        if mode in ("row", "column"):
+            return mode
+        row = self._canvas_row
+        W, H = row.winfo_width(), row.winfo_height()
+        if not self.scaler_left.has_image or W < 50 or H < 50:
+            return self._orient
+        ih, iw = self.scaler_left.original.shape[:2]
+        side = min(W / 2 / iw, H / ih)
+        stacked = min(W / iw, H / 2 / ih)
+        if stacked > side * 1.1:
+            return "column"
+        if side > stacked * 1.1:
+            return "row"
+        return self._orient                        # casi iguales: no cambiar por poco
+
+    def _set_sides_mode(self, mode: str):
+        settings.set("sides_layout", mode)
+        self._layout_sides()
+        self.root.after(50, self._refit_images)
+
+    def _sides_label(self, mode: str):
+        return lambda: ("✓ " if settings.get("sides_layout", "auto") == mode else "    ") + t(f"view.sides_{mode}")
+
+    def _on_canvas_row_resize(self, _e=None):
+        if self._results_shown and self._sides_orient() != self._orient:
+            self._layout_sides()
+            self.root.after(50, self._refit_images)
+
     def _layout_sides(self):
-        """Entrada y Resultado lado a lado. Sin resultados solo se ve la entrada; con
-        resultados, el ojo de cada lado lo oculta (queda una franja con su nombre) y el
-        gráfico puede ocupar el lugar de uno de los dos."""
+        """Entrada y Resultado lado a lado o uno encima del otro. Sin resultados solo se ve
+        la entrada; con resultados, el ojo de cada lado lo oculta (queda una franja con su
+        nombre) y el gráfico puede ocupar el lugar de uno de los dos."""
         has_result = self._results_shown
         dock = self._chart_dock if has_result else None
         row = self._canvas_row
-        for w in list(self._cols.values()) + list(self._strips.values()) + [self._chart_col]:
+        orient = self._orient = self._sides_orient() if has_result else self._orient
+        stacked = orient == "column"
+        for w in (list(self._cols.values()) + list(self._strips.values()) + list(self._hstrips.values())
+                  + [self._chart_col]):
             w.grid_forget()
         for c in (0, 1):
             row.columnconfigure(c, weight=0, uniform="", minsize=0)
-        for col, side in enumerate(("input", "result")):
+            row.rowconfigure(c, weight=0, uniform="", minsize=0)
+        if stacked:
+            row.columnconfigure(0, weight=1)
+        else:
+            row.rowconfigure(0, weight=1)
+        for k, side in enumerate(("input", "result")):
             if dock == side:
                 w, full = self._chart_col, True
             elif side == "result" and not has_result:
                 continue
             elif has_result and self._hidden[side]:
-                w, full = self._strips[side], False
+                w, full = (self._hstrips if stacked else self._strips)[side], False
             else:
                 w, full = self._cols[side], True
-            w.grid(row=0, column=col, sticky="nsew" if full else "ns", padx=2 if full else 0)
+            r, c = (k, 0) if stacked else (0, k)
             if full:
-                row.columnconfigure(col, weight=1, uniform="side")
+                w.grid(row=r, column=c, sticky="nsew", padx=2, pady=(0, 2) if stacked else 0)
+                (row.rowconfigure if stacked else row.columnconfigure)(k, weight=1, uniform="side")
+            else:
+                w.grid(row=r, column=c, sticky="ew" if stacked else "ns")
 
     def _toggle_side(self, side: str):
         other = "result" if side == "input" else "input"
