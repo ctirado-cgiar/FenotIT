@@ -46,8 +46,55 @@ def light(result):
 
 
 def default_workers() -> int:
-    """Núcleos − 1, máx. 6 (cada proceso puede usar ~1 GB con fotos grandes)."""
+    """Núcleos − 1, máx. 6."""
     return max(1, min((os.cpu_count() or 2) - 1, 6))
+
+
+def available_mb() -> float | None:
+    """Memoria libre (MB) sin dependencias: Windows (GlobalMemoryStatusEx) o /proc/meminfo."""
+    try:
+        if os.name == "nt":
+            import ctypes
+
+            class MEM(ctypes.Structure):
+                _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong),
+                            ("ullTotalPhys", ctypes.c_ulonglong), ("ullAvailPhys", ctypes.c_ulonglong),
+                            ("ullTotalPageFile", ctypes.c_ulonglong), ("ullAvailPageFile", ctypes.c_ulonglong),
+                            ("ullTotalVirtual", ctypes.c_ulonglong), ("ullAvailVirtual", ctypes.c_ulonglong),
+                            ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+            m = MEM()
+            m.dwLength = ctypes.sizeof(MEM)
+            ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(m))
+            return m.ullAvailPhys / 2**20
+        with open("/proc/meminfo") as f:
+            for line in f:
+                if line.startswith("MemAvailable:"):
+                    return int(line.split()[1]) / 1024
+    except Exception:
+        _log.debug("memoria libre", exc_info=True)
+    return None
+
+
+MB_PER_MPX = 50          # pico medido del análisis de objetos: ~40 MB por megapíxel (+ imports)
+
+
+def workers_for(paths: list[str], wanted: int) -> int:
+    """Cuántos procesos caben en la memoria libre con la foto más grande del lote."""
+    from PIL import Image
+
+    from fenotit.core import image_io  # noqa: F401  (permite fotos de más de 179 MP)
+    biggest = 0
+    for p in paths[:50]:
+        try:
+            with Image.open(p) as im:
+                biggest = max(biggest, im.size[0] * im.size[1])
+        except Exception:
+            continue
+    free = available_mb()
+    if not biggest or free is None:
+        return wanted
+    per = 300 + MB_PER_MPX * biggest / 1e6
+    return max(1, min(wanted, int(free * 0.8 // per)))
 
 
 def process(analysis: str, job: Job, corrections, keep_images: bool = False) -> Outcome:
@@ -146,7 +193,8 @@ class BatchRunner:
     def _run(self):
         n = len(self.jobs)
         done = 0
-        workers = min(self.workers, n) or 1
+        workers = min(workers_for([j.path for j in self.jobs], self.workers), n) or 1
+        _log.info("Lote: %d fotos, %d procesos", n, workers)
         from fenotit import i18n
         pool = ProcessPoolExecutor(max_workers=workers, initializer=_init_worker, initargs=(i18n.current(),),
                                    mp_context=mp.get_context("spawn"))   # igual en Windows y Linux

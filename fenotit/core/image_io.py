@@ -12,6 +12,12 @@ from fenotit import log
 
 _log = log.get("image_io")
 
+try:                                        # fotos de celular de 200 MP: Pillow las rechaza por
+    from PIL import Image                   # defecto (>179 MP, protección contra "bombas")
+    Image.MAX_IMAGE_PIXELS = 1_000_000_000
+except ImportError:
+    pass
+
 
 # ── Carga Unicode-safe ────────────────────────────────────────────────────────
 
@@ -86,7 +92,7 @@ class ImageScaler:
 
     def set_image(self, image: np.ndarray):
         """Asigna imagen directamente (p.ej. desde cámara)."""
-        self.original = image.copy()
+        self.original = image                 # sin copia: en una foto de 200 MP son 600 MB
         self._recompute_display()
 
     def _recompute_display(self):

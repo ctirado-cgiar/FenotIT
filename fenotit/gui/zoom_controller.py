@@ -138,17 +138,23 @@ def wheel_factor(event) -> float:
     return ZoomState.WHEEL_STEP ** notches
 
 
-def render(img_bgr: np.ndarray, state: ZoomState, cw: int, ch: int, post=None):
+def render(img_bgr: np.ndarray, state: ZoomState, cw: int, ch: int, post=None, size=None):
     """Solo la parte visible, ya escalada: (rgb, x, y) o None. Así un zoom de 3200 % en una
-    foto de 8 MP no intenta crear una imagen gigante."""
-    ih, iw = img_bgr.shape[:2]
+    foto de 8 MP no intenta crear una imagen gigante. `size` = (ancho, alto) de la foto
+    cuando `img_bgr` es una copia reducida (vista previa de fotos muy grandes)."""
+    iw, ih = size or (img_bgr.shape[1], img_bgr.shape[0])
     z = state.zoom
     ox, oy = state.image_offset(cw, ch, iw, ih)
     x0, y0 = max(0, int(np.floor(-ox / z))), max(0, int(np.floor(-oy / z)))
     x1, y1 = min(iw, int(np.ceil((cw - ox) / z)) + 1), min(ih, int(np.ceil((ch - oy) / z)) + 1)
     if x1 <= x0 or y1 <= y0:
         return None
-    crop = img_bgr[y0:y1, x0:x1]
+    k = img_bgr.shape[1] / iw
+    if k != 1:
+        crop = img_bgr[int(y0 * k):max(int(y0 * k) + 1, int(np.ceil(y1 * k))),
+                       int(x0 * k):max(int(x0 * k) + 1, int(np.ceil(x1 * k)))]
+    else:
+        crop = img_bgr[y0:y1, x0:x1]
     dw, dh = max(1, int(round((x1 - x0) * z))), max(1, int(round((y1 - y0) * z)))
     interp = cv2.INTER_AREA if z < 1 else (cv2.INTER_NEAREST if z >= 4 else cv2.INTER_LINEAR)
     out = cv2.resize(crop, (dw, dh), interpolation=interp)
@@ -399,8 +405,11 @@ class ZoomController:
 
     def _redraw(self):
         left = self._overlay_left if self._overlay_left is not None else self._img_left
+        size = None
+        if left is not None and self._img_left is not None and left is not self._img_left:
+            size = (self._img_left.shape[1], self._img_left.shape[0])
         self._draw_canvas(self.cl,  left,
-                          "_photo_left",  left=True)
+                          "_photo_left",  left=True, size=size)
         self._draw_canvas(self.cr,  self._right_aligned(),
                           "_photo_right", left=False, marks=self._marks_right)
         self._draw_minimap()
@@ -411,21 +420,21 @@ class ZoomController:
 
     def _draw_canvas(self, canvas: tk.Canvas,
                      img_bgr: np.ndarray | None,
-                     attr: str, left: bool, marks=None):
+                     attr: str, left: bool, marks=None, size=None):
         canvas.update_idletasks()
         cw = max(canvas.winfo_width(),  1)
         ch = max(canvas.winfo_height(), 1)
         canvas.delete("all")
         if img_bgr is None:
             return
-        ih, iw = img_bgr.shape[:2]
+        iw, ih = size or (img_bgr.shape[1], img_bgr.shape[0])
         try:
             post = None
             if marks is not None:
                 from fenotit.core.pipeline import overlay
                 ov, colors, keep = marks
                 post = lambda out, origin, z: overlay.draw(out, ov, colors, origin, z, screen=True, keep=keep)
-            view = render(img_bgr, self.state, cw, ch, post)
+            view = render(img_bgr, self.state, cw, ch, post, size)
             if view is not None:
                 rgb, x, y = view
                 photo = ImageTk.PhotoImage(Image.fromarray(rgb))

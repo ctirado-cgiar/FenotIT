@@ -965,6 +965,24 @@ class MainWindow:
             self.root.after_cancel(self._after_preview_id)
         self._after_preview_id = self.root.after(60, self._show_preview)
 
+    PREVIEW_PX = 16_000_000
+
+    def _preview_source(self) -> np.ndarray:
+        """La foto para la vista previa de la segmentación. Las muy grandes (p. ej. 200 MP de
+        celular) se reducen a ~16 MP: una vista previa a tamaño completo pide varios GB. El
+        análisis siempre usa la foto completa."""
+        img = self.scaler_left.original
+        n = img.shape[0] * img.shape[1]
+        if n <= self.PREVIEW_PX:
+            return img
+        cached = getattr(self, "_preview_cache", None)
+        if cached is not None and cached[0] is img:
+            return cached[1]
+        k = (self.PREVIEW_PX / n) ** 0.5
+        small = cv2.resize(img, None, fx=k, fy=k, interpolation=cv2.INTER_AREA)
+        self._preview_cache = (img, small)
+        return small
+
     def _show_preview(self):
         """
         Muestra en el canvas izquierdo la imagen original con la máscara
@@ -976,7 +994,7 @@ class MainWindow:
             self.zoom_ctrl.redraw_with_overlay(overlay_left=None)
             return
 
-        img_original = self.scaler_left.original
+        img_original = self._preview_source()
         cs_code = CV2_CODES.get(self.cs_var.get())
         ch_idx  = self.ch_var.get()
         min_val = self.min_slider.get()
@@ -1020,8 +1038,10 @@ class MainWindow:
             # Pasar al zoom controller — renderiza con zoom actual
             self.zoom_ctrl.redraw_with_overlay(overlay_left=overlay)
 
-            n_px = int(np.sum(mask > 0))
-            pct  = round(n_px / mask.size * 100, 1)
+            full = self.scaler_left.original
+            k = full.shape[0] * full.shape[1] / mask.size        # >1 si la vista previa es reducida
+            n_px = int(np.count_nonzero(mask) * k)
+            pct  = round(n_px / (mask.size * k) * 100, 1)
             text = t("status.preview", px=f"{n_px:,}", pct=pct)
             if self.auto_var.get():
                 text += "  ·  Otsu = " + str(getattr(self, "_otsu_value", ""))
