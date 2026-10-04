@@ -509,16 +509,27 @@ class MainWindow:
         self._sync_area_units()
 
     def _update_corr_indicator(self):
-        parts = [t(f"corr.short.{n}") for n in self.project.corrections.active()]
+        """Correcciones activas y si se aplicaron a esta foto: «Color ✓» o «⚠ Color» (con
+        el motivo al pasar el mouse)."""
+        info = self._corr_info.get(self.current_image_path) if self.current_image_path else None
+        parts, missing = [], []
+        for n in self.project.corrections.active():
+            name = t(f"corr.short.{n}")
+            if info is None:
+                parts.append(name)
+            elif n in info.applied:
+                parts.append(name + " ✓")
+            else:
+                parts.append("⚠ " + name)
+                missing.append(n)
         mm = self.mm_per_pixel
         if self.project.scale_for(self.current_image_path).source != "none":
             u = self.project.unit
             parts.append(f"{units.per_px(mm, u):.6g} {u}/px" if mm else t("corr.short.scale_pending"))
-        info = self._corr_info.get(self.current_image_path) if self.current_image_path else None
-        warn = bool(info and info.warnings)
-        text = ("⚠ " if warn else "") + "  ·  ".join(parts)
-        self.corr_var.set(text)
-        self._corr_label.config(fg=COLORS["warning"] if warn else COLORS["accent"])
+        self.corr_var.set("  ·  ".join(parts))
+        self._corr_label.config(fg=COLORS["warning"] if missing else COLORS["accent"])
+        why = [t(f"corr.not_applied.{n}") for n in missing]
+        self._corr_tip.text = "\n".join(why) if why else t("corr.applied_tip")
 
     def _store_panel_params(self):
         panel = getattr(self, "config_panel", None)
@@ -874,6 +885,7 @@ class MainWindow:
                                     bg=COLORS["bg_panel"], fg=COLORS["accent"],
                                     font=FONTS["small"], padx=10)
         self._corr_label.pack(side=tk.RIGHT)
+        self._corr_tip = Tooltip(self._corr_label, t("corr.applied_tip"))
         ttk.Style(self.root).configure("Thin.Horizontal.TProgressbar", thickness=8)
         self._progress_bar = ttk.Progressbar(self.statusbar, length=160, mode="determinate",
                                              style="Thin.Horizontal.TProgressbar")
