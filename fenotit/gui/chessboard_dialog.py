@@ -138,6 +138,7 @@ class ChessboardPanel(tk.Frame):
                                             filetypes=[(t("common.images"), exts)])
         if not files:
             return
+        self._scan_note = None
         chosen = list(dict.fromkeys(self.paths + [str(Path(f)) for f in files]))
         self.paths = D.spread(chosen, D.MAX_PHOTOS)
         self._result = None
@@ -222,11 +223,58 @@ class ChessboardPanel(tk.Frame):
     # ── calibrar ──────────────────────────────────────────────────────────────
 
     def _scan(self):
-        """Buscar el tablero entre las fotos cargadas: las que lo tienen se usan para
-        calibrar y no se analizan."""
-        self.paths = list(dict.fromkeys(self.project_paths))
+        """Buscar el tablero entre las fotos cargadas: primero una revisión rápida de todas
+        (copia pequeña, sin afinar); luego, solo en las que lo tienen, la detección
+        completa. Esas fotos se usan para calibrar y no se analizan."""
+        grid = self._grid()
+        if self._busy:
+            return
+        if grid is None:
+            self.status.set(t("corr.distortion.bad_grid"))
+            return
+        paths = list(dict.fromkeys(self.project_paths))
+        self._busy = True
+        self._cancel.clear()
+        self._go.config(state="disabled")
+        self._cancel_btn.pack(side=tk.RIGHT, padx=(6, 0), before=self._status_lbl)
+        self.bar.pack(side=tk.RIGHT, before=self._status_lbl)
+        self.bar.config(maximum=len(paths), value=0)
+        self.status.set(t("board.checking", i=0, n=len(paths)))
+
+        def work():
+            found = []
+            workers = max(1, min((os.cpu_count() or 2) - 1, 6))
+            with ThreadPoolExecutor(workers) as pool:
+                futures = {pool.submit(D.has_board, p, *grid): p for p in paths}
+                for k, fut in enumerate(futures, 1):
+                    if self._cancel.is_set():
+                        for f in futures:
+                            f.cancel()
+                        break
+                    try:
+                        if fut.result():
+                            found.append(futures[fut])
+                    except Exception:
+                        _log.debug("revisión rápida", exc_info=True)
+                    if k % 5 == 0 or k == len(paths):
+                        self._ui(lambda k=k: (self.bar.config(value=k),
+                                              self.status.set(t("board.checking", i=k, n=len(paths)))))
+            self._ui(lambda: self._scan_done(found, len(paths)))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _scan_done(self, found: list[str], n: int):
+        self._busy = False
+        if self._cancel.is_set():
+            self._finish(t("board.cancelled"))
+            return
+        self.from_project = set(found)
+        self.paths = D.spread(found, D.MAX_PHOTOS)
+        self._scan_note = t("board.scan_found", found=len(found), n=n)
         self._refresh()
-        self._run(keep_found=True)
+        if len(self.paths) < 3:
+            self._finish(self._scan_note)
+            return
+        self._run()
 
     def _run(self, keep_found: bool = False):
         grid = self._grid()

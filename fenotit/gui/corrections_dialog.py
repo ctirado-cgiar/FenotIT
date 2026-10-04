@@ -208,6 +208,7 @@ class CorrectionsDialog(BaseDialog):
         if mm_per_px:
             msg += "\n" + t("status.scale", scale=f"{mm_per_px:.6f} mm/px")
         self._p_status.set(msg)
+        self._p_on.set(True)                     # probarla y que funcione = usarla
 
     # Color
     def _tab_color(self, f):
@@ -299,6 +300,7 @@ class CorrectionsDialog(BaseDialog):
         if vals:
             self.c.color.values, self.c.color.rows, self.c.color.cols = vals, c.rows, c.cols
             self._c_card.set("custom")
+            self._c_on.set(True)
             self._color_changed()
 
     def _mark_area(self):
@@ -312,6 +314,7 @@ class CorrectionsDialog(BaseDialog):
             if self.c.color.card != "white":
                 self.c.color.target = None             # la referencia medida era de otra tarjeta
             self._c_card.set("white")
+            self._c_on.set(True)
             self._color_changed()
 
     def _use_reference_photo(self):
@@ -327,6 +330,7 @@ class CorrectionsDialog(BaseDialog):
             return
         self.c.color.target_photo = Path(self._raw_path).name if self._raw_path else ""
         self._c_ref.set("photo")
+        self._c_on.set(True)
         self._color_changed()
 
     def _detect_card(self):
@@ -352,6 +356,7 @@ class CorrectionsDialog(BaseDialog):
             self._c_status.set(t("corr.color.not_found"))
             return
         self.c.color.place = {**card.to_dict(), "size": [img.shape[1], img.shape[0]]}
+        self._c_on.set(True)
         try:
             fixed, info = cc.correct(img, card, cc.reference_of(c))
         except Exception as e:

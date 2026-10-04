@@ -19,6 +19,13 @@ except ImportError:
     pass
 
 
+def natural_key(path) -> list:
+    """Orden natural del nombre: 2.jpg antes de 10.jpg y de 100.jpg (sin mayúsculas)."""
+    import re
+    name = Path(str(path)).name.lower()
+    return [(0, int(x), "") if x.isdigit() else (1, 0, x) for x in re.split(r"(\d+)", name) if x]
+
+
 # ── Carga Unicode-safe ────────────────────────────────────────────────────────
 
 def load_image(path: str) -> np.ndarray | None:

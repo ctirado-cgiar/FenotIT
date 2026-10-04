@@ -123,6 +123,9 @@ class ImageList(tk.Frame):
                                   relief="flat", highlightthickness=1, highlightcolor=c["border"],
                                   highlightbackground=c["border"], activestyle="none", exportselection=False)
         self.listbox.bind("<<ListboxSelect>>", self._on_list_select)
+        self._touched = 0.0                       # el usuario movió la lista (no seguir el lote)
+        for ev in ("<MouseWheel>", "<Button-4>", "<Button-5>", "<Button-1>"):
+            self.listbox.bind(ev, self._touch, add="+")
         self.grid = tk.Canvas(self._body, bg=c["bg_card"], highlightthickness=1,
                               highlightbackground=c["border"], yscrollincrement=16)
         self.grid.bind("<Configure>", lambda e: (self._draw_grid(), self._schedule_fit()))
@@ -166,7 +169,7 @@ class ImageList(tk.Frame):
         if self.mode == "list":
             self.listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
             self.listbox.config(yscrollcommand=self._sb.set)
-            self._sb.config(command=self.listbox.yview)
+            self._sb.config(command=lambda *a: (self._touch(), self.listbox.yview(*a)))
             self._fill_list()
         else:
             self.grid.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -242,6 +245,16 @@ class ImageList(tk.Frame):
     # ── datos ─────────────────────────────────────────────────────────────────
 
     def set_items(self, paths: list[str], marks: dict[str, str], current: int):
+        if list(paths) == self.paths:               # solo cambian las marcas: sin mover la vista
+            moved = current != self.current
+            self.marks, self.current = dict(marks), current
+            if self.mode == "list":
+                self._fill_list(keep_view=not moved)
+            else:
+                self._draw_grid()
+                if moved:
+                    self._see(current)
+            return
         new = [p for p in paths if p not in self._thumbs]
         self.paths, self.marks, self.current = list(paths), dict(marks), current
         for p in list(self._thumbs):
@@ -300,8 +313,9 @@ class ImageList(tk.Frame):
 
     # ── lista ─────────────────────────────────────────────────────────────────
 
-    def _fill_list(self):
+    def _fill_list(self, keep_view: bool = False):
         lb = self.listbox
+        top = lb.yview()[0]
         lb.delete(0, tk.END)
         for row, i in enumerate(self.visible):
             p = self.paths[i]
@@ -309,7 +323,12 @@ class ImageList(tk.Frame):
             lb.insert(tk.END, f"{sym or ' '}  {Path(p).name}")
             if color and self.marks.get(p) in ("error", "pending", "board"):
                 lb.itemconfig(row, fg=color)
-        self.set_current(self.current)
+        if keep_view:
+            if self.current in self.visible:
+                lb.selection_set(self.visible.index(self.current))
+            lb.yview_moveto(top)
+        else:
+            self.set_current(self.current)
 
     def _on_list_select(self, _e):
         sel = self.listbox.curselection()
@@ -385,7 +404,29 @@ class ImageList(tk.Frame):
             self._tip.destroy()
             self._tip = None
 
+    def _touch(self, *_):
+        import time
+        self._touched = time.monotonic()
+
+    def reveal(self, index: int, quiet: float = 4.0):
+        """Mostrar esa foto (sin elegirla) mientras corre el lote, salvo que el usuario haya
+        movido la lista hace poco."""
+        import time
+        if time.monotonic() - self._touched < quiet or index not in self.visible:
+            return
+        if self.mode == "list":
+            self.listbox.see(self.visible.index(index))
+        else:
+            cols, _, ch = self._cell()
+            rows = max(1, (len(self.visible) + cols - 1) // cols)
+            row = self.visible.index(index) // cols
+            top, bottom = self.grid.yview()
+            if not (top * rows <= row and row + 1 <= bottom * rows):
+                self.grid.yview_moveto(max(0.0, (row + 1) / rows - (bottom - top)))
+                self._request_visible()
+
     def _grid_yview(self, *args):
+        self._touch()
         self.grid.yview(*args)
         self._request_visible()
 
@@ -394,6 +435,7 @@ class ImageList(tk.Frame):
         self._request_visible()
 
     def _wheel(self, e):
+        self._touch()
         self._scroll(-int(e.delta / 40) or (-1 if e.delta > 0 else 1))
 
     def _visible_range(self):

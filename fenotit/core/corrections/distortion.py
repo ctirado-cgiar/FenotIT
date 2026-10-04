@@ -21,6 +21,7 @@ _log = log.get("corrections.distortion")
 
 MAX_PHOTOS = 40          # más fotos no mejoran la calibración y la hacen lenta
 DETECT_SIDE = 1600       # lado mayor de la copia donde se busca el tablero
+QUICK_SIDE = 400         # revisión rápida de muchas fotos (¿hay tablero?)
 
 
 @dataclass
@@ -57,6 +58,29 @@ def spread(paths: list[str], n: int = MAX_PHOTOS) -> list[str]:
 def _read(path: str):
     data = np.frombuffer(Path(path).read_bytes(), np.uint8)
     return cv2.imdecode(data, cv2.IMREAD_COLOR)
+
+
+def has_board(path: str, cols: int, rows: int) -> bool:
+    """¿Hay tablero? Rápido, para revisar cientos de fotos: el JPEG se decodifica ya
+    reducido (1/2, 1/4 u 1/8) y solo se busca, sin afinar esquinas."""
+    try:
+        from PIL import Image
+        with Image.open(path) as im:
+            side = max(im.size)
+        data = np.frombuffer(Path(path).read_bytes(), np.uint8)
+    except Exception:
+        return False
+    flag = (cv2.IMREAD_REDUCED_GRAYSCALE_8 if side > 8000 else cv2.IMREAD_REDUCED_GRAYSCALE_4 if side > 3200
+            else cv2.IMREAD_REDUCED_GRAYSCALE_2 if side > 1600 else cv2.IMREAD_GRAYSCALE)
+    gray = cv2.imdecode(data, flag)
+    if gray is None:
+        return False
+    k = QUICK_SIDE / max(gray.shape)
+    if k < 1:                                   # en fotos sin tablero la búsqueda tarda más con el tamaño
+        gray = cv2.resize(gray, None, fx=k, fy=k, interpolation=cv2.INTER_AREA)
+    flags = cv2.CALIB_CB_ADAPTIVE_THRESH | cv2.CALIB_CB_NORMALIZE_IMAGE | cv2.CALIB_CB_FAST_CHECK
+    found, _ = cv2.findChessboardCorners(gray, (cols, rows), flags)
+    return bool(found)
 
 
 def detect(path: str, cols: int, rows: int, preview_side: int = 360) -> Detection:

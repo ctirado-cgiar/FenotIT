@@ -22,7 +22,7 @@ import cv2
 import numpy as np
 from PIL import Image, ImageTk
 
-from fenotit.core.image_io import ImageScaler, load_image
+from fenotit.core.image_io import ImageScaler, load_image, natural_key
 from fenotit.core.project import IMAGE_EXTS, PROJECT_EXT, Project, Scale, Segmentation
 from fenotit.gui.roi.editor import AreaEditor
 from fenotit.core.analysis.registry import ANALYSES, AnalysisResult
@@ -1553,8 +1553,8 @@ class MainWindow:
         folder = filedialog.askdirectory(title=t("dlg.image_folder"))
         if not folder:
             return
-        paths = sorted(str(p) for p in Path(folder).iterdir()
-                       if p.suffix.lower() in IMAGE_EXTS)
+        paths = sorted((str(p) for p in Path(folder).iterdir()
+                        if p.suffix.lower() in IMAGE_EXTS), key=natural_key)
         if not paths:
             messagebox.showwarning(t("msg.no_images_title"),
                                    t("msg.no_images"))
@@ -1565,7 +1565,7 @@ class MainWindow:
     def _add_images(self, paths: list[str]):
         """Agrega imágenes a la lista (sin repetir) y muestra la primera nueva."""
         current = [str(p) for p in self.project.images]
-        new = [p for p in paths if str(p) not in current]
+        new = sorted(dict.fromkeys(str(p) for p in paths if str(p) not in current), key=natural_key)
         if not new:
             if paths:
                 self.batch_index = current.index(str(paths[0]))
@@ -1985,6 +1985,8 @@ class MainWindow:
         self._set_status(t("status.batch_progress", name=_analysis_label(name), i=i, n=n))
         self._progress(i, n)
         self._update_batch_list()
+        if path in self.batch_paths:                 # la lista sigue al lote (si el usuario no la mueve)
+            self.image_list.reveal(self.batch_paths.index(path))
 
     def _cache_result(self, name: str, path: str, result: AnalysisResult):
         """Guarda el resultado del análisis que corre (aunque el usuario cambie de
