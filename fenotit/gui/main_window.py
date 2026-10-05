@@ -638,6 +638,7 @@ class MainWindow:
             messagebox.showerror(t("common.error"), t("project.save_error", error=e), parent=self.root)
             return False
         self._saved_state = self.project.to_dict()
+        self._write_preview()
         settings.add_recent_project(self.project.file)
         self._set_status(t("project.saved", path=self.project.file))
         return True
@@ -2053,6 +2054,7 @@ class MainWindow:
 
     def _on_batch_done(self, name: str, total: int, cancelled: bool):
         self._batch = None
+        self._write_preview()
         if not cancelled:
             self._mark_ran(name)
         if cancelled:
@@ -2147,6 +2149,7 @@ class MainWindow:
         self.step_names_cache[path] = names
         self._display_result(result, names, fresh=True)
         self._mark_ran(name)
+        self._write_preview()
         self._trim_memory(path)
         self._update_batch_list()
         self._set_status(t("status.done", name=_analysis_label(name),
@@ -3218,6 +3221,32 @@ class MainWindow:
         """Guarda el gráfico de la foto; opcional, también la imagen de la vista actual."""
         if self._chart_panel:
             self._chart_panel.save_figure(self._current_view_image() if with_image else None)
+
+    PREVIEW_SIDE = 360
+
+    def _write_preview(self):
+        """Miniatura de la vista que se está viendo (con sus marcas, sin leyenda) en la
+        carpeta del proyecto: los recientes de la pantalla de inicio la muestran."""
+        r, target = self.last_result, self.project.preview
+        if target is None or not r or not self.step_names or not 0 <= self.step_idx < len(self.step_names):
+            return
+        name = self.step_names[self.step_idx]
+        ovs = r.extra.get("overlays") or {}
+        base = r.extra.get("base_image") if name in ovs else r.step_images.get(name)
+        if base is None:
+            return
+        try:
+            from fenotit.core.pipeline import overlay
+            k = self.PREVIEW_SIDE / max(base.shape[:2])
+            small = cv2.resize(base, (max(1, round(base.shape[1] * k)), max(1, round(base.shape[0] * k))),
+                               interpolation=cv2.INTER_AREA)
+            if name in ovs:
+                overlay.draw(small, ovs[name], self._mark_colors(r), (0, 0), k, screen=True)
+            ok, buf = cv2.imencode(".jpg", small, [cv2.IMWRITE_JPEG_QUALITY, 85])
+            if ok:
+                target.write_bytes(buf.tobytes())
+        except Exception:
+            _log.debug("Miniatura del proyecto", exc_info=True)
 
     def _current_view_image(self):
         r = self.last_result

@@ -1,6 +1,6 @@
 """Pantalla de inicio (sin fotos): franja con el nombre de la app a la izquierda; a la
 derecha "Nuevo proyecto" (al tocarlo: agregar fotos o carpeta), "Abrir proyecto" y los
-recientes con miniatura de su primera foto. Se pone encima de Entrada/Resultado."""
+recientes con la miniatura de su último resultado (o de su primera foto). Se pone encima de Entrada/Resultado."""
 from __future__ import annotations
 
 import datetime as dt
@@ -11,6 +11,7 @@ import yaml
 from PIL import Image, ImageTk
 
 from fenotit import APP_NAME, __version__, i18n, settings
+from fenotit.core.project import PREVIEW
 from fenotit.gui.decor import BLUE, pixel_dissolve
 from fenotit.gui.toolbar import icon
 from fenotit.i18n import t
@@ -19,17 +20,23 @@ _THUMB = (88, 66)
 _SERIF = "Georgia"          # títulos en cursiva; si no existe, Tk usa una parecida
 
 
-def _project_info(path: Path) -> tuple[int, Path | None]:
-    """Número de fotos y la primera foto de un proyecto (sin cargarlo entero)."""
+def _project_info(path: Path) -> tuple[int, Path | None, str | None]:
+    """Número de fotos, la imagen de la tarjeta (miniatura del último resultado o la primera
+    foto) y el análisis elegido, sin cargar el proyecto entero."""
     try:
         with open(path, encoding="utf-8") as f:
-            images = (yaml.safe_load(f) or {}).get("images") or []
+            data = yaml.safe_load(f) or {}
     except (OSError, yaml.YAMLError):
-        return 0, None
+        return 0, None, None
+    images = data.get("images") or []
+    analysis = data.get("analysis")
+    preview = path.parent / PREVIEW
+    if preview.exists():
+        return len(images), preview, analysis
     if not images:
-        return 0, None
+        return 0, None, analysis
     first = Path(images[0])
-    return len(images), first if first.is_absolute() else path.parent / first
+    return len(images), first if first.is_absolute() else path.parent / first, analysis
 
 
 def _thumbnail(path: Path | None):
@@ -217,7 +224,7 @@ class StartScreen(tk.Frame):
     def _recent_card(self, parent, path: Path, cmd):
         c = self.c
         card = self._card(parent, 300, 82)
-        n, first = _project_info(path)
+        n, first, analysis = _project_info(path)
         thumb = _thumbnail(first)
         self._thumbs.append(thumb)
         pic = tk.Label(card, bg="#EBEEF2", width=_THUMB[0], height=_THUMB[1])
@@ -232,8 +239,10 @@ class StartScreen(tk.Frame):
                           anchor="w"),
                  tk.Label(card, text=t("start.recent_info", n=n, date=when), bg=c["bg_card"], fg=c["text"],
                           font=("Segoe UI", 8), anchor="w"),
-                 tk.Label(card, text=str(path.parent), bg=c["bg_card"], fg=c["text_muted"], font=("Segoe UI", 7),
-                          anchor="w")]
+                 tk.Label(card, text=t(f"analysis.{analysis}.name", analysis) if analysis else str(path.parent),
+                          bg=c["bg_card"], fg=c["text_muted"], font=("Segoe UI", 8 if analysis else 7), anchor="w")]
+        from fenotit.gui.toolbar import Tooltip
+        Tooltip(card, str(path.parent))
         for i, w in enumerate(texts):
             w.place(x=_THUMB[0] + 18, y=10 + i * 21, width=300 - _THUMB[0] - 26)
         self._hover(card, [pic] + texts)

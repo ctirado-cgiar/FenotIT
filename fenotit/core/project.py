@@ -12,6 +12,7 @@ from fenotit import __version__
 from fenotit.core.corrections.pipeline import Corrections
 from fenotit.core.roi import from_legacy
 
+PREVIEW = "preview.jpg"
 PROJECT_EXT = ".fenotit"
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"}
 
@@ -94,6 +95,11 @@ class Project:
 
     def others_with_own_scale(self, path) -> int:
         return sum(1 for k in self.image_scale if k != self.key(path))
+
+    @property
+    def preview(self) -> Path | None:
+        """Miniatura del último resultado (la muestran los recientes de la pantalla de inicio)."""
+        return self.folder / PREVIEW if self.folder else None
 
     @property
     def file(self) -> Path | None:
