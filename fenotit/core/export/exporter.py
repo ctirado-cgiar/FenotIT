@@ -73,10 +73,12 @@ def _params_of(result) -> dict:
 
 def collect(analysis: str, results: dict[str, Any], images: list[str],
             image_info: dict[str, dict] | None = None, skipped: set | None = None,
-            board: set | None = None, ids: dict[str, int] | None = None) -> dict[str, list[dict]]:
+            board: set | None = None, ids: dict[str, int] | None = None,
+            meta: dict[str, dict] | None = None) -> dict[str, list[dict]]:
     """Tablas del análisis. `image` lleva una fila por foto de `images` (también las no
     analizadas): estado, sus mediciones de imagen y escala/áreas. `ids` = Image_ID de cada
-    foto (su posición en el proyecto) cuando se exporta solo una parte."""
+    foto (su posición en el proyecto) cuando se exporta solo una parte. `meta` = columnas de
+    la tabla del usuario por foto (genotipo, rep…): van en todas las tablas junto a Image_name."""
     image_info = image_info or {}
     skipped = skipped or set()
     tables: dict[str, list[dict]] = {"image": []}
@@ -89,21 +91,35 @@ def collect(analysis: str, results: dict[str, Any], images: list[str],
         status = ("calibration" if path in (board or ()) else "skipped" if path in skipped else "not_analyzed") \
             if r is None else \
             ("ok" if r.status == "ok" else "error")
-        head = {"Image_ID": image_id, "Image_name": name, "status": status}
+        user = (meta or {}).get(path) or {}
+        head = {"Image_ID": image_id, "Image_name": name, **user}
         tail = dict(image_info.get(path, {}))
         if r is not None and r.status != "ok":
             tail["error"] = r.error
         if varied and r is not None and r.status == "ok":
             tail["params"] = "; ".join(f"{k}={v}" for k, v in _params_of(r).items())
         own = (r.extra.get("tables") or {}).get("image") if r is not None and r.status == "ok" else None
-        tables["image"].extend({**head, **x, **tail} for x in (own or [{}]))
+        tables["image"].extend(_merge(head, user, {"status": status}, x, tail) for x in (own or [{}]))
         if r is None or r.status != "ok":
             continue
         for table, rows in (r.extra.get("tables") or {}).items():
             if table != "image":
                 tables.setdefault(table, []).extend(
-                    {"Image_ID": image_id, "Image_name": name, **x} for x in rows)
+                    _merge(head, user, x) for x in rows)
     return tables
+
+
+def _merge(head: dict, user: dict, *parts: dict) -> dict:
+    """Une columnas; si una columna del usuario (`user`, ya en `head`) se llama como una
+    nuestra, la suya pasa a llamarse user_<nombre> (no se pisan)."""
+    out, theirs = dict(head), set(user)
+    for part in parts:
+        for k, v in part.items():
+            if k in theirs:
+                out = {(f"user_{c}" if c == k else c): x for c, x in out.items()}
+                theirs.discard(k)
+            out[k] = v
+    return out
 
 
 def metadata(analysis: str, results: dict[str, Any], project=None, extra: dict | None = None) -> list[dict]:

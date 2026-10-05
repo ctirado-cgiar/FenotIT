@@ -82,6 +82,7 @@ class ImageList(tk.Frame):
         self._thumbs: dict[str, ImageTk.PhotoImage | None] = {}
         self._loader = _ThumbLoader()
         self._fit_job = None
+        self.search_text: Callable[[str], str] | None = None    # texto extra que encuentra el buscador
         self.max_height = max_height or (lambda: int(self.master.winfo_height() * MAX_SHARE))
         self._build()
         self.pack_propagate(False)
@@ -296,8 +297,9 @@ class ImageList(tk.Frame):
     def _filter(self):
         q = self._query()
         terms = q.split()
+        extra = self.search_text or (lambda p: "")
         self.visible = [i for i, p in enumerate(self.paths)
-                        if all(s in Path(p).name.lower() for s in terms)]
+                        if all(s in f"{Path(p).name} {extra(p)}".lower() for s in terms)]
         self._clear.pack(side=tk.RIGHT, padx=(0, 4)) if q else self._clear.pack_forget()
         if self.mode == "list":
             self._fill_list()

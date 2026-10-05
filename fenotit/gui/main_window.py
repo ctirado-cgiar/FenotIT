@@ -979,6 +979,7 @@ class MainWindow:
             (t("menu.add_folder"), self._open_folder),
             (t("menu.remove_image"), self._remove_current_image),
             (t("menu.clear_images"), self._clear_images),
+            (t("menu.metadata"), self._open_metadata),
             None,
             (t("menu.export"), self._export_results, "Ctrl+E"),
             None,
@@ -1225,6 +1226,7 @@ class MainWindow:
                                     max_height=self._image_list_room)
         self.image_list.pack(fill=tk.X)
         self.image_list.min_rows = lambda: 1 if self.inspector.winfo_ismapped() else 2   # con el inspector, cede más
+        self.image_list.search_text = lambda p: " ".join(str(v) for v in self._meta_row(p).values())
 
         # Capas del resultado de la imagen actual (con barra solo si no caben)
         views = self._layers = tk.Frame(lf, bg=COLORS["bg_panel"])
@@ -1401,6 +1403,10 @@ class MainWindow:
         corner.pack(side=tk.LEFT, padx=6)
         corner.bind("<Button-1>", lambda e: self._toggle_results_panel())
         Tooltip(corner, t("view.toggle_results"))
+        self._meta_var = tk.StringVar(value="")               # valores de la tabla del usuario de esta foto
+        self._meta_label = tk.Label(bar, textvariable=self._meta_var, bg=COLORS["bg"], fg=COLORS["text_muted"],
+                                    font=FONTS["small"], anchor="e")
+        self._meta_label.pack(side=tk.RIGHT, padx=(6, 4))
         body = self._bottom_body = tk.Frame(wrap, bg=COLORS["bg_card"], highlightthickness=1,
                                             highlightbackground=COLORS["border"])
         body.pack_propagate(False)
@@ -1830,6 +1836,7 @@ class MainWindow:
         self._on_canvas_row_resize()               # otra proporción: quizá conviene arriba y abajo
         self._fit_docked_chart()
         self.image_info_var.set(f"{Path(path).name}  ·  {img.shape[1]} × {img.shape[0]} px")
+        self._show_meta()
         self._update_corr_indicator()
         self.preview_var.set("")
         self._update_step_active(1)
@@ -3388,6 +3395,77 @@ class MainWindow:
                   relief="flat", font=FONTS["body"],
                   cursor="hand2", padx=12).pack(anchor="e", pady=(12, 0))
 
+    # ── Tabla de datos del usuario (genotipo, repetición…) ────────────────────
+
+    def _open_metadata(self):
+        from fenotit.gui.metadata_dialog import MetadataDialog
+        self._single("metadata", lambda: MetadataDialog(
+            self.root, [Path(p).name for p in self.batch_paths], dict(self.project.metadata), self._set_metadata))
+
+    def _set_metadata(self, file: str | None, key_column: str | None):
+        self.project.metadata = {"file": file, "key_column": key_column} if file else {}
+        self._meta_cache = None
+        self.image_list._filter()
+        self._show_meta()
+        m = self._meta_match()
+        self._set_status(t("meta.applied", n=len(m.by_image), total=len(self.batch_paths)) if m
+                         else t("meta.removed"))
+
+    def _meta_table(self):
+        """(columnas, filas) del archivo; se vuelve a leer si cambió en el disco."""
+        from fenotit.core import metadata
+        f = self.project.metadata.get("file")
+        if not f:
+            return None
+        try:
+            stamp = (f, Path(f).stat().st_mtime)
+        except OSError:
+            return None
+        cache = getattr(self, "_meta_file_cache", None)
+        if cache and cache[0] == stamp:
+            return cache[1]
+        try:
+            table = metadata.read_table(f)
+        except Exception:
+            _log.warning("Tabla de datos %s", f, exc_info=True)
+            table = None
+        self._meta_file_cache = (stamp, table)
+        return table
+
+    def _meta_match(self):
+        from fenotit.core import metadata
+        table = self._meta_table()
+        col = self.project.metadata.get("key_column")
+        if not table or col not in table[0]:
+            return None
+        names = tuple(Path(p).name for p in self.batch_paths)
+        key = (id(table), names, col)
+        cache = getattr(self, "_meta_cache", None)
+        if cache and cache[0] == key:
+            return cache[1]
+        m = metadata.match(list(names), table[1], col)
+        self._meta_cache = (key, m)
+        return m
+
+    def _meta_columns(self) -> list[str]:
+        table = self._meta_table()
+        col = self.project.metadata.get("key_column")
+        return [c for c in table[0] if c != col] if table and self._meta_match() else []
+
+    def _meta_row(self, path) -> dict:
+        """Valores de la tabla del usuario para una foto (sin la columna que la identifica)."""
+        m = self._meta_match() if path else None
+        if not m:
+            return {}
+        row = m.by_image.get(Path(path).name) or {}
+        return {c: ("" if row.get(c) is None else row.get(c)) for c in self._meta_columns()}
+
+    def _show_meta(self):
+        if not hasattr(self, "_meta_var"):
+            return
+        row = self._meta_row(getattr(self, "current_image_path", None))
+        self._meta_var.set("  ·  ".join(f"{k}: {v}" for k, v in row.items() if v != ""))
+
     def _single(self, key: str, build):
         """Una sola ventana de cada tipo: si ya está abierta, se trae al frente."""
         wins = self.__dict__.setdefault("_open_windows", {})
@@ -3530,7 +3608,8 @@ class MainWindow:
                 info = {p: self._image_info(p, store.get(p)) for p in paths}
                 part = {p: r for p, r in store.items() if p in info}
                 tables = exporter.collect(name, part, paths, info, self._skipped,
-                                          board=self._board_photos(), ids=ids)
+                                          board=self._board_photos(), ids=ids,
+                                          meta={p: self._meta_row(p) for p in paths})
                 meta = exporter.metadata(key, part, self.project,
                                          {"view_images": "views/" if views else "no",
                                           "images_exported": f"{scope} ({len(paths)} of {len(self.batch_paths)})"})
@@ -3592,7 +3671,8 @@ class MainWindow:
         if not results:
             messagebox.showinfo(t("msg.no_data_title"), t("msg.no_data_batch"), parent=self.root)
             return
-        BatchChartWindow(self.root, results)
+        BatchChartWindow(self.root, results, meta={p: self._meta_row(p) for p in results},
+                         groups=self._meta_columns())
 
     def _save_intra_chart(self, with_image: bool = False):
         """Guarda el gráfico de la foto; opcional, también la imagen de la vista actual."""
