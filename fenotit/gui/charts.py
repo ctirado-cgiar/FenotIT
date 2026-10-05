@@ -23,6 +23,7 @@ except ImportError:
 
 from fenotit import log
 from fenotit.core.image_io import natural_key
+from fenotit.gui.help import HelpIcon
 from fenotit.gui.theme import COLORS, FONTS
 from fenotit.i18n import t
 
@@ -371,10 +372,41 @@ def batch_table(results: dict) -> tuple[list[str], dict[str, dict], dict[str, di
     return names, means, sds
 
 
-class BatchChartWindow(tk.Toplevel):
-    """Comparación entre fotos: un valor por foto (o la media de sus objetos)."""
+def batch_records(results: dict, meta: dict | None = None, unit: str = "images") -> tuple[list[dict], list[str]]:
+    """Los datos de la comparación: una fila por foto (unit="images") o por objeto
+    ("objects"). Cada fila: `_name` (foto), `_meta` (columnas de la tabla del usuario),
+    `_sd` (DE entre los objetos de la foto, solo por foto) y los valores numéricos."""
+    meta = meta or {}
+    stems = {Path(p).stem: p for p in results}
+    recs, cols = [], []
+    if unit == "images":
+        names, means, sds = batch_table(results)
+        for n in names:
+            recs.append({"_name": n, "_meta": meta.get(stems[n]) or {}, "_sd": sds[n], **means[n]})
+            cols += [k for k in means[n] if k not in cols]
+        return recs, cols
+    for path in sorted(results, key=lambda p: natural_key(Path(p).name)):
+        r = results[path]
+        if r is None or r.status != "ok":
+            continue
+        rows = r.measurements or []
+        num = numeric_cols(rows)
+        cols += [c for c in num if c not in cols]
+        for x in rows:
+            recs.append({"_name": Path(path).stem, "_meta": meta.get(path) or {}, "_sd": {},
+                         **{c: float(x[c]) for c in num if isinstance(x.get(c), (int, float)) and x[c] == x[c]}})
+    return recs, cols
 
-    def __init__(self, parent, results: dict):
+
+def _group_name(v) -> str:
+    return t("chart.no_value") if v in (None, "") else str(v)
+
+
+class BatchChartWindow(tk.Toplevel):
+    """Comparación entre fotos: un dato por foto (sus valores o la media de sus objetos)
+    o por objeto; agrupados por una columna de la tabla del usuario (genotipo, rep…)."""
+
+    def __init__(self, parent, results: dict, meta: dict | None = None, groups: list[str] | None = None):
         super().__init__(parent)
         self.title(t("chart.batch_title"))
         self.configure(bg=COLORS["bg_card"])
@@ -382,35 +414,81 @@ class BatchChartWindow(tk.Toplevel):
         w, h = min(1100, int(sw * 0.85)), min(700, int(sh * 0.82))
         self.geometry(f"{w}x{h}+{(sw - w) // 2}+{(sh - h) // 2}")
         self._fig = None
-        self.names, self.means, self.sds = batch_table(results)
-        cols = []
-        for row in self.means.values():
-            cols += [k for k in row if k not in cols]
-        if not MPL_OK or not self.names:
+        self.results, self.meta = results, {p: (meta or {}).get(p) or {} for p in results}
+        self.recs, cols = batch_records(results, self.meta, "images")
+        if not MPL_OK or not self.recs:
             _message(self, t("chart.no_mpl") if not MPL_OK else t("chart.no_data_batch"))
             return
         tk.Frame(self, bg=COLORS["accent"], height=4).pack(fill=tk.X)
         bg = COLORS["bg_panel"]
+        top = tk.Frame(self, bg=bg)
+        top.pack(fill=tk.X)
+        self.units = {t("chart.unit_images"): "images", t("chart.unit_objects"): "objects"}
+        self.unit = tk.StringVar(value=t("chart.unit_images"))
+        tk.Label(top, text=t("chart.unit") + ":", bg=bg, fg=COLORS["text_muted"],
+                 font=FONTS["small"]).pack(side=tk.LEFT, padx=(10, 2))
+        cb = ttk.Combobox(top, textvariable=self.unit, state="readonly", width=9, font=FONTS["small"],
+                          values=list(self.units))
+        cb.pack(side=tk.LEFT, pady=4)
+        cb.bind("<<ComboboxSelected>>", lambda e: self._unit_changed())
+        HelpIcon(top, t("chart.unit"), t("chart.unit_help"), bg=bg).pack(side=tk.LEFT, padx=(4, 0))
+        self.group = tk.StringVar(value=NONE)
+        if groups:
+            tk.Label(top, text=t("chart.group_by") + ":", bg=bg, fg=COLORS["text_muted"],
+                     font=FONTS["small"]).pack(side=tk.LEFT, padx=(14, 2))
+            gb = ttk.Combobox(top, textvariable=self.group, state="readonly", width=14, font=FONTS["small"],
+                              values=[NONE] + list(groups))
+            gb.pack(side=tk.LEFT, pady=4)
+            gb.bind("<<ComboboxSelected>>", lambda e: self._refresh())
+        tk.Button(top, text=t("chart.save"), command=lambda: _save(self._fig, self), bg=COLORS["btn_bg"],
+                  fg=COLORS["accent"], relief="flat", font=FONTS["small"], cursor="hand2").pack(side=tk.RIGHT, padx=8)
         bar = tk.Frame(self, bg=bg)
         bar.pack(fill=tk.X)
         self.chooser = _Chooser(bar, ("bars", "box", "hist", "scatter"), self._refresh, bg)
-        self.chooser.pack(side=tk.LEFT, padx=8, pady=4)
+        self.chooser.pack(side=tk.LEFT, padx=8, pady=(0, 4))
         self.show_sd = tk.BooleanVar(value=False)
         self._sd_check = tk.Checkbutton(self.chooser.extra, text=t("chart.show_sd"), variable=self.show_sd,
                                         command=self._refresh, bg=bg, fg=COLORS["text"],
                                         selectcolor=COLORS["bg_card"], activebackground=bg, font=FONTS["small"])
-        tk.Button(bar, text=t("chart.save"), command=lambda: _save(self._fig, self), bg=COLORS["btn_bg"],
-                  fg=COLORS["accent"], relief="flat", font=FONTS["small"], cursor="hand2").pack(side=tk.RIGHT, padx=8)
         self._frame = tk.Frame(self, bg=COLORS["bg_card"])
         self._frame.pack(fill=tk.BOTH, expand=True)
         self.chooser.set_columns(cols)
         self.after(50, self._refresh)
 
+    def _unit_changed(self):
+        self.recs, cols = batch_records(self.results, self.meta, self.units.get(self.unit.get(), "images"))
+        self.chooser.set_columns(cols)
+        self._refresh()
+
+    def _categories(self, kind: str, col: str) -> list[tuple[str, list[dict]]]:
+        """(nombre, filas) de cada barra/caja/serie: el grupo elegido; sin grupo, cada foto
+        (barras, y cajas por objeto) o todo junto."""
+        g = self.group.get()
+        objects = self.units.get(self.unit.get()) == "objects"
+        if g != NONE:
+            key = lambda r: _group_name(r["_meta"].get(g))
+        elif kind == "bars" or (kind == "box" and objects):
+            key = lambda r: r["_name"]
+        else:
+            key = lambda r: ""
+        out: dict[str, list[dict]] = {}
+        for r in self.recs:
+            if col is None or col in r:
+                out.setdefault(key(r), []).append(r)
+        empty = t("chart.no_value")                 # las fotos sin dato, al final
+        return sorted(out.items(), key=lambda kv: (kv[0] == empty, natural_key(kv[0])))
+
     def _refresh(self):
         kind = self.chooser.kind.get()
         cols = self.chooser.selected()
-        has_sd = kind == "bars" and any(self.sds[n].get(c) for n in self.names for c in cols)
+        grouped = self.group.get() != NONE
+        per_image = self.units.get(self.unit.get()) == "images"
+        within = kind == "bars" and per_image and not grouped        # DE entre los objetos de cada foto
+        has_sd = kind == "bars" and any(
+            (any(r["_sd"].get(c) for r in self.recs) if within
+             else any(len(rows) > 1 for _, rows in self._categories(kind, c))) for c in cols)
         if has_sd:
+            self._sd_check.configure(text=t("chart.show_sd") if within else t("chart.show_sd_group"))
             self._sd_check.pack(side=tk.LEFT)
         else:
             self._sd_check.pack_forget()
@@ -421,47 +499,61 @@ class BatchChartWindow(tk.Toplevel):
         w = max(self._frame.winfo_width(), 600) / 96
         h = max(self._frame.winfo_height(), 300) / 96 - 0.4
         fig = Figure(figsize=(w, h), dpi=96)
+        unit_n = "chart.n_images" if per_image else "chart.n_objects"
         if kind == "scatter":
             if len(cols) < 2:
                 _message(self._frame, t("chart.pick_xy"))
                 return
-            pts = [(self.means[n][cols[0]], self.means[n][cols[1]], n) for n in self.names
-                   if cols[0] in self.means[n] and cols[1] in self.means[n]]
-            if not pts:
+            if not self._scatter(fig, cols[0], cols[1], per_image and not grouped):
                 _message(self._frame, t("chart.no_data_batch"))
                 return
-            xs, ys, labels = zip(*pts)
-            _scatter(fig, xs, ys, cols[0], cols[1], labels)
         else:
+            groups = [name for name, _ in self._categories(kind, None)] if grouped else []
+            colors = {g: PALETTE[i % len(PALETTE)] for i, g in enumerate(groups)}
             for i, col in enumerate(cols):
                 ax = fig.add_subplot(1, len(cols), i + 1)
-                color = PALETTE[i % len(PALETTE)]
-                names = [n for n in self.names if col in self.means[n]]
-                vals = [self.means[n][col] for n in names]
-                if not vals:
+                cats = self._categories(kind, col)
+                vals = [[r[col] for r in rows] for _, rows in cats]
+                n = sum(len(v) for v in vals)
+                if not n:
                     continue
+                names = [c for c, _ in cats]
+                base = PALETTE[i % len(PALETTE)]
+                cc = [colors.get(c, base) for c in names]
                 if kind == "bars":
                     x = np.arange(len(names))
-                    ax.bar(x, vals, color=color, alpha=0.85, width=0.65, edgecolor="white", linewidth=0.5)
+                    ax.bar(x, [np.mean(v) for v in vals], color=cc, alpha=0.85, width=0.65,
+                           edgecolor="white", linewidth=0.5)
                     if self.show_sd.get() and has_sd:
-                        ax.errorbar(x, vals, yerr=[self.sds[n].get(col, 0) for n in names], fmt="none",
+                        err = [r["_sd"].get(col, 0) for _, rows in cats for r in rows[:1]] if within else \
+                            [np.std(v, ddof=1) if len(v) > 1 else 0 for v in vals]
+                        ax.errorbar(x, [np.mean(v) for v in vals], yerr=err, fmt="none",
                                     color="#333333", capsize=2, linewidth=0.8)
-                    ax.set_xticks(x)
-                    ax.set_xticklabels(names if len(names) <= 60 else [""] * len(names),
-                                       rotation=60, ha="right", fontsize=6)
+                    self._xticks(ax, x, names)
                 elif kind == "box":
-                    bp = ax.boxplot([vals], patch_artist=True, widths=0.5,
+                    bp = ax.boxplot(vals, patch_artist=True, widths=0.5, showfliers=False,
                                     medianprops=dict(color="#333333", linewidth=1.5))
-                    bp["boxes"][0].set_facecolor(color + "55")
-                    bp["boxes"][0].set_edgecolor(color)
                     rng = np.random.default_rng(0)
-                    ax.scatter(1 + rng.uniform(-0.12, 0.12, len(vals)), vals, color=color, alpha=0.7, s=14, zorder=3)
-                    ax.set_xticks([])
+                    for k, (box, v) in enumerate(zip(bp["boxes"], vals)):
+                        box.set_facecolor(cc[k] + "55")
+                        box.set_edgecolor(cc[k])
+                        if len(v) <= 2000:
+                            ax.scatter(k + 1 + rng.uniform(-0.12, 0.12, len(v)), v, color=cc[k], alpha=0.6,
+                                       s=10 if len(v) > 100 else 14, zorder=3, linewidths=0)
+                    if len(names) > 1:
+                        self._xticks(ax, np.arange(1, len(names) + 1), names)
+                    else:
+                        ax.set_xticks([])
                 else:
-                    ax.hist(vals, bins=min(20, max(5, len(vals) // 2)), color=color, alpha=0.85,
-                            edgecolor="white", linewidth=0.5)
+                    allv = np.concatenate([np.asarray(v, float) for v in vals])
+                    bins = np.histogram_bin_edges(allv, bins=min(20, max(5, len(allv) // 2)))
+                    for k, (name, v) in enumerate(zip(names, vals)):
+                        ax.hist(v, bins=bins, color=cc[k], alpha=0.55 if len(names) > 1 else 0.85,
+                                edgecolor="white", linewidth=0.5, label=name if grouped else None)
                     ax.set_ylabel(t("chart.frequency"))
-                ax.set_title(f"{_label(col)}\n{t('chart.n_images', n=len(vals))}", fontsize=8)
+                    if grouped:
+                        ax.legend(frameon=False, fontsize=7)
+                ax.set_title(f"{_label(col)}\n{t(unit_n, n=n)}", fontsize=8)
                 _style_ax(ax)
         try:
             fig.tight_layout(pad=1.0)
@@ -469,3 +561,38 @@ class BatchChartWindow(tk.Toplevel):
             _log.debug("tight_layout", exc_info=True)
         self._fig = fig
         _embed(self._frame, fig, toolbar=True)
+
+    @staticmethod
+    def _xticks(ax, x, names):
+        ax.set_xticks(x)
+        many = len(names) > 8 or max((len(n) for n in names), default=0) > 10
+        ax.set_xticklabels(names if len(names) <= 60 else [""] * len(names),
+                           rotation=60 if many else 0, ha="right" if many else "center", fontsize=6 if many else 7)
+
+    def _scatter(self, fig, xc: str, yc: str, labels: bool) -> bool:
+        if self.group.get() == NONE:
+            pts = [(r[xc], r[yc], r["_name"]) for r in self.recs if xc in r and yc in r]
+            if not pts:
+                return False
+            xs, ys, names = zip(*pts)
+            _scatter(fig, xs, ys, xc, yc, list(names) if labels else None)
+            return True
+        cats = [(g, [r for r in rows if xc in r and yc in r]) for g, rows in self._categories("scatter", None)]
+        cats = [(g, rows) for g, rows in cats if rows]
+        if not cats:
+            return False
+        ax = fig.add_subplot(1, 1, 1)
+        xs_all, ys_all = [], []
+        for k, (g, rows) in enumerate(cats):
+            xs, ys = [r[xc] for r in rows], [r[yc] for r in rows]
+            xs_all += xs
+            ys_all += ys
+            ax.scatter(xs, ys, color=PALETTE[k % len(PALETTE)], alpha=0.75, s=22 if len(xs_all) < 300 else 10,
+                       edgecolors="white", linewidths=0.4, zorder=3, label=g)
+        ax.set_xlabel(_label(xc))
+        ax.set_ylabel(_label(yc))
+        ok = len(xs_all) > 2 and np.std(xs_all) > 0 and np.std(ys_all) > 0
+        ax.set_title(f"n = {len(xs_all)}" + (f"   r = {np.corrcoef(xs_all, ys_all)[0, 1]:.2f}" if ok else ""))
+        ax.legend(frameon=False, fontsize=7, title=self.group.get(), title_fontsize=7)
+        _style_ax(ax)
+        return True

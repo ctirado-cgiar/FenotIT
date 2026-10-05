@@ -45,6 +45,21 @@ def test_project_keeps_metadata():
     assert "meta.csv" == Project.load(p.file).to_dict()["metadata"]["file"]
 
 
+def test_export_adds_user_columns():
+    from types import SimpleNamespace
+    from fenotit.core.export import exporter
+    res = {"a/001.jpg": SimpleNamespace(status="ok", error="", extra={"tables": {
+        "image": [{"n_objects": 2}], "objects": [{"object_id": 1, "status": "ok"}]}})}
+    meta = {"a/001.jpg": {"genotipo": "G1", "status": "control"}}
+    tables = exporter.collect("Objetos", res, ["a/001.jpg", "a/002.jpg"], meta=meta)
+    img = tables["image"][0]
+    assert list(img)[:4] == ["Image_ID", "Image_name", "genotipo", "user_status"]
+    assert img["status"] == "ok" and img["user_status"] == "control" and img["n_objects"] == 2
+    obj = tables["objects"][0]
+    assert obj["genotipo"] == "G1" and obj["status"] == "ok" and obj["user_status"] == "control"
+    assert "genotipo" not in tables["image"][1]
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):
