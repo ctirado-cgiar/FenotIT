@@ -80,6 +80,11 @@ def _style_ax(ax):
         spine.set_linewidth(0.5)
 
 
+def _num(v: float) -> str:
+    """Sin notación científica: enteros desde 1000, 4 cifras significativas por debajo."""
+    return f"{v:.0f}" if abs(v) >= 1000 else f"{v:.4g}"
+
+
 def _label(col: str) -> str:
     return col.replace("_", " ")
 
@@ -313,9 +318,9 @@ class IntraImageChartPanel(tk.Frame):
                             alpha=0.85, linewidth=0.5)
                     ax.set_ylabel(t("chart.frequency"))
                 sd = np.std(vals, ddof=1) if len(vals) > 1 else 0.0
-                med = f"{t('chart.median')} = {np.median(vals):.4g}"
-                dev = f"{t('chart.sd')} = {sd:.3g}"
-                ax.set_title(f"{_label(col)}\nn = {len(vals)}\n{med}\n{dev}" if narrow else
+                med = f"{t('chart.mean')} = {_num(np.mean(vals))}"
+                dev = f"{t('chart.sd')} = {_num(sd)}"
+                ax.set_title(f"{_label(col)}\nn = {len(vals)}  {med}\n{dev}" if narrow else
                              f"{_label(col)}\nn = {len(vals)}   {med}   {dev}", fontsize=7 if narrow else 8)
                 if narrow:
                     ax.tick_params(labelsize=7)
