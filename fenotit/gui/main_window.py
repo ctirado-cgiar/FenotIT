@@ -1211,6 +1211,7 @@ class MainWindow:
                                     on_mode=lambda m: settings.set("image_view", m),
                                     max_height=self._image_list_room)
         self.image_list.pack(fill=tk.X)
+        self.image_list.min_rows = lambda: 1 if self.inspector.winfo_ismapped() else 2   # con el inspector, cede más
 
         # Capas del resultado de la imagen actual (con barra solo si no caben)
         views = self._layers = tk.Frame(lf, bg=COLORS["bg_panel"])
@@ -2676,7 +2677,20 @@ class MainWindow:
         self.inspector.show(oid, crop, metrics, colors, oid in (r.extra.get("excluded") or []))
         if not self.inspector.winfo_ismapped():
             self.inspector.pack(side=tk.BOTTOM, fill=tk.X, before=self._layers)
-            self.image_list.refit()
+        self.root.update_idletasks()
+        self.image_list.refit()
+        self.root.after(30, self._keep_layers_visible)
+
+    def _keep_layers_visible(self):
+        """CAPAS nunca desaparece: si con el inspector no cabe, el recorte se achica."""
+        if not self.inspector.winfo_ismapped():
+            return
+        self.root.update_idletasks()
+        rows = self.history_frame.winfo_reqheight() if self.history_frame.winfo_children() else 22
+        need = self._layers_title.winfo_reqheight() + min(rows, 4 * 22) + 12      # al menos 4 capas
+        short = need - self._layers.winfo_height()
+        if short > 0 and self.inspector.shrink(short):
+            self.root.after(30, self._keep_layers_visible)
 
     def _toggle_exclude(self):
         """Excluir / volver a incluir el objeto: se guarda un punto suyo (0-1) en el proyecto

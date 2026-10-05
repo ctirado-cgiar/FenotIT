@@ -164,11 +164,22 @@ def _draw(img, ov, colors, origin, zoom, screen):
     return img
 
 
-def highlight(img: np.ndarray, contour, origin=(0, 0), zoom: float = 1.0, width: int = 2) -> np.ndarray:
-    """Resalta un objeto (el elegido en el inspector): contorno blanco con halo negro."""
+def highlight(img: np.ndarray, contour, origin=(0, 0), zoom: float = 1.0) -> np.ndarray:
+    """Resalta un objeto (el elegido en el inspector) como la segmentación: relleno claro
+    semitransparente y un borde fino."""
     pts = np.round((np.asarray(contour, float) - origin) * zoom).astype(np.int32).reshape(-1, 1, 2)
-    cv2.polylines(img, [pts], True, (0, 0, 0), width + 3, cv2.LINE_AA)
-    cv2.polylines(img, [pts], True, (255, 255, 255), width, cv2.LINE_AA)
+    x, y, w, h = cv2.boundingRect(pts)
+    H, W = img.shape[:2]
+    x0, y0, x1, y1 = max(0, x - 2), max(0, y - 2), min(W, x + w + 2), min(H, y + h + 2)
+    if x1 <= x0 or y1 <= y0:
+        return img
+    roi = img[y0:y1, x0:x1]
+    mask = np.zeros(roi.shape[:2], np.uint8)
+    cv2.fillPoly(mask, [pts - (x0, y0)], 255)
+    tinted = cv2.addWeighted(roi, 0.55, np.full_like(roi, 255), 0.45, 0)
+    roi[mask > 0] = tinted[mask > 0]
+    cv2.polylines(img, [pts], True, (0, 0, 0), 2, cv2.LINE_AA)
+    cv2.polylines(img, [pts], True, (255, 255, 255), 1, cv2.LINE_AA)
     return img
 
 
