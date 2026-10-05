@@ -48,6 +48,17 @@ def object_geometry(labels) -> dict[int, np.ndarray]:
     return out
 
 
+def add_stars(overlays: dict, geometry: dict, ids) -> dict:
+    """Copia de las marcas con una ★ arriba a la derecha de cada objeto destacado (sin
+    tocar las del caché)."""
+    stars = []
+    for oid in ids:
+        c = geometry.get(oid)
+        if c is not None:
+            stars.append((float(c[:, 0].max()), float(c[:, 1].min())))
+    return {k: ({**v, "stars": stars} if v is not None else v) for k, v in overlays.items()}
+
+
 def label_text(out, text, x, y, scale, color=(255, 255, 255)):
     th = max(1, round(scale * 2))
     cv2.putText(out, text, (x + 4, y - 4), cv2.FONT_HERSHEY_SIMPLEX, scale, (0, 0, 0), th + 2, cv2.LINE_AA)

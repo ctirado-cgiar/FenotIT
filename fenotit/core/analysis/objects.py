@@ -56,6 +56,7 @@ def object_chain(params: dict) -> list[dict]:
              {"step": "separate"} if params.get("touching") else {"step": "label"},
              {"step": "filter", "params": {"exclude_border": bool(params.get("exclude_border", True)),
                                            "drop_points": [list(map(float, pt)) for pt in params.get("drop_points") or []],
+                                           "mark_points": [list(map(float, pt)) for pt in params.get("mark_points") or []],
                                            **_size_filter(params)}}]
     return chain
 
@@ -110,6 +111,10 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
     from fenotit.core.pipeline.views import object_geometry
     res.extra["geometry"] = object_geometry(ctx.labels)     # elegir, resaltar y recortar un objeto
     res.extra["excluded"] = sorted(ctx.excluded)
+    res.extra["highlighted"] = sorted(ctx.highlighted)
+    if ctx.highlighted:                                     # ★ en todas las vistas con marcas
+        from fenotit.core.pipeline.views import add_stars
+        res.extra["overlays"] = add_stars(res.extra.get("overlays") or {}, res.extra["geometry"], ctx.highlighted)
     res.extra["base_image"] = ctx.image
     if ctx.labels is not None:
         from fenotit.core.pipeline import overlay
@@ -172,7 +177,8 @@ def _view_tables(ctx, color_mode: str = "object") -> dict[str, list[dict]]:
     """La tabla que acompaña a cada vista: solo las columnas de esa medición."""
     objects = ctx.tables.get("objects", [])
     out = {"image": ctx.tables.get("image", []),
-           "count": [{k: r.get(k) for k in ("object_id", "touching", "centroid_x_px", "centroid_y_px")}
+           "count": [{k: r.get(k) for k in ("object_id", "touching", "centroid_x_px", "centroid_y_px")
+                      + (("status",) if any(x.get("status", "ok") != "ok" for x in objects) else ())}
                      for r in objects]}
     measured = [r for r in objects if any(k.startswith("area_") for k in r)]
     if measured:

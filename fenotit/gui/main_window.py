@@ -1234,7 +1234,7 @@ class MainWindow:
 
         # Inspector del objeto elegido (abajo; aparece al elegir un objeto)
         from fenotit.gui.inspector import Inspector
-        self.inspector = Inspector(lf, self._clear_selection, self._toggle_exclude)
+        self.inspector = Inspector(lf, self._clear_selection, self._toggle_exclude, self._toggle_highlight)
         self._sel: int | None = None
         self._sel_point = None
 
@@ -1671,6 +1671,7 @@ class MainWindow:
         self.project.image_roi.pop(self.project.key(path), None)
         self.project.image_scale.pop(self.project.key(path), None)
         self.project.excluded.pop(self.project.key(path), None)
+        self.project.highlighted.pop(self.project.key(path), None)
         self.project.images = images
         self.project.current_index = min(self.project.current_index, max(len(images) - 1, 0))
         self._update_batch_list()
@@ -1974,6 +1975,7 @@ class MainWindow:
         }
         p["roi_shapes"] = self.project.roi_for(self.current_image_path)
         p["drop_points"] = self.project.excluded_for(self.current_image_path)
+        p["mark_points"] = self.project.marks_for("highlighted", self.current_image_path)
         if self.config_panel:
             p.update(self.config_panel.get_values())
             p["area_unit"] = getattr(self, "_panel_area_unit", "px")
@@ -2042,7 +2044,9 @@ class MainWindow:
             aruco = sc.source == "aruco"
             jobs.append(batch.Job(path, dict(params, mm_per_pixel=None if aruco else sc.mm_per_pixel,
                                              roi_shapes=self.project.roi_for(path),
-                                             drop_points=self.project.excluded_for(path)), aruco_scale=aruco,
+                                             drop_points=self.project.excluded_for(path),
+                                             mark_points=self.project.marks_for("highlighted", path)),
+                                  aruco_scale=aruco,
                                   max_mpx=self.project.max_mpx))
         self._pending = set(paths)                 # al volver a correr, las marcas se rehacen
         self._skipped -= self._pending
@@ -2646,35 +2650,113 @@ class MainWindow:
             self._select_object(int(oid), from_table=True)
 
     def _show_inspector(self):
+        """Solo lo de la capa que se está viendo (ver gui/inspector.py)."""
         from fenotit.core.pipeline import overlay
-        from fenotit.gui.inspector import crop_around
+        from fenotit.core.pipeline.views import _color_text
+        from fenotit.gui import inspector as ins
         r, oid = self.last_result, self._sel
         if r is None or oid is None:
             return
-        contour = self._geometry()[oid]
+        geom = self._geometry()
+        contour = geom[oid]
         view = self.step_names[self.step_idx] if self.step_names and 0 <= self.step_idx < len(self.step_names) else None
+        kind = (r.extra.get("step_folders") or {}).get(view, "")
         ovs = r.extra.get("overlays") or {}
-        base = r.extra.get("base_image") if view in ovs else r.step_images.get(view)
+        base = r.extra.get("base_image")
         if base is None and self.scaler_left.has_image:
             base = self.scaler_left.original
-        crop = None
-        if base is not None:
-            crop, origin, k = crop_around(base, contour)
+        img = base if view in ovs else (r.step_images.get(view) if r.step_images.get(view) is not None else base)
+        tables = r.extra.get("tables") or {}
+        obj = next((x for x in tables.get("objects", []) if x.get("object_id") == oid), {})
+        excluded, starred = oid in (r.extra.get("excluded") or []), oid in (r.extra.get("highlighted") or [])
+        unit = self.project.unit
+        size = (max(140, min(260, self.left_panel.content.winfo_width() - 24)), 140)    # cabe en el panel
+        upx = ins.per_unit(r.stats.get("mm_per_px") or None, unit)        # unidad por px de la foto
+
+        def col(prefix):
+            return next((k for k in obj if k.startswith(prefix)), None)
+
+        def value(key):
+            v = obj.get(key) if key else None
+            return f"{ins.fmt(float(v))} {units.display(key.rsplit('_', 1)[-1])}" if isinstance(v, (int, float)) else "—"
+
+        rows, crop = [], None
+        if kind == "morphometry":
+            crop, origin, k = ins.crop_around(img, contour, size) if img is not None else (None, (0, 0), 1)
+            if crop is not None:
+                overlay.highlight(crop, contour, origin, k)
+                (l1, l2), (w1, w2) = ins.morph_axes(contour)
+                lc, wc = col("length_"), col("width_")
+                for (p1, p2), key in (((l1, l2), lc), ((w1, w2), wc)):
+                    v = obj.get(key)
+                    label = ins.fmt(float(v)) if isinstance(v, (int, float)) else ""
+                    ins.cota(crop, (np.asarray(p1) - origin) * k, (np.asarray(p2) - origin) * k, label)
+                ins.scale_bar(crop, upx / k if upx else None, unit)
+            for name, prefix in (("insp.area", "area_"), ("insp.length", "length_"), ("insp.width", "width_"),
+                                 ("insp.perimeter", "perimeter_")):
+                rows.append((t(name), value(col(prefix))))
+        elif kind == "shape":
+            shapes = tables.get("object_shape", [])
+            ids = [x["object_id"] for x in shapes]
+            if oid in ids:
+                from fenotit.core.efd import from_row
+                from fenotit.core.stats.shape import align
+                coeffs = align([from_row(x) for x in shapes])
+                mean = np.mean(coeffs, axis=0)
+                d = [float(np.sqrt(((c - mean) ** 2).sum())) for c in coeffs]
+                me = d[ids.index(oid)]
+                crop = ins.shape_view(coeffs[ids.index(oid)], mean, size)
+                rows += [(t("insp.shape_diff"), f"{me:.3f}"), (t("insp.shape_typical"), f"{np.median(d):.3f}")]
+            else:
+                crop, origin, k = ins.crop_around(img, contour, size) if img is not None else (None, (0, 0), 1)
+                if crop is not None:
+                    overlay.highlight(crop, contour, origin, k)
+                rows.append((t("insp.no_shape"), ""))
+        elif kind == "color":
+            crop, origin, k = ins.crop_around(img, contour, size) if img is not None else (None, (0, 0), 1)
+            if crop is not None:
+                overlay.highlight(crop, contour, origin, k)
+            cs = [c for c in tables.get("object_colors", []) if c.get("object_id") == oid and c.get("hex")]
+            fmt_ = self.project.display.get("color_format", "RGB")
+            if cs:
+                rows.append(("bar", [(c["hex"], float(c.get("pct", 0))) for c in cs]))
+                rows += [("color", c["hex"], _color_text(c, fmt_), float(c.get("pct", 0))) for c in cs]
+        elif kind == "distances":
+            pairs = [x for x in tables.get("distances", []) if oid in (x.get("object_a"), x.get("object_b"))]
+            dcol = next((k for k in (pairs[0] if pairs else {}) if k.startswith("distance_")), None)
+
+            def centre(c):
+                m = cv2.moments(c.reshape(-1, 1, 2).astype(np.float32))
+                return np.array([m["m10"] / m["m00"], m["m01"] / m["m00"]]) if m["m00"] else c.mean(axis=0)
+            me = centre(contour)
+            neigh = [(x["object_b"] if x["object_a"] == oid else x["object_a"], x.get(dcol)) for x in pairs]
+            neigh = [(n, v) for n, v in neigh if n in geom]
+            extra = np.array([centre(geom[n]) for n, _ in neigh]) if neigh else None
+            crop, origin, k = ins.crop_around(img, contour, size, extra=extra) if img is not None else (None, (0, 0), 1)
+            if crop is not None:
+                for n, _ in neigh:
+                    pts = np.round((geom[n] - origin) * k).astype(np.int32).reshape(-1, 1, 2)
+                    cv2.polylines(crop, [pts], True, (200, 200, 200), 1, cv2.LINE_AA)
+                overlay.highlight(crop, contour, origin, k)
+                for n, v in neigh:
+                    p1, p2 = (me - origin) * k, (centre(geom[n]) - origin) * k
+                    cv2.line(crop, tuple(np.round(p1).astype(int)), tuple(np.round(p2).astype(int)), (0, 200, 255), 1,
+                             cv2.LINE_AA)
+                    if isinstance(v, (int, float)):
+                        ins.text(crop, ins.fmt(float(v)), *((p1 + p2) / 2), 0.32)
+            for name, prefix in (("insp.nearest", "nearest_"), ("insp.mean_neighbor", "mean_neighbor_")):
+                rows.append((t(name), value(col(prefix))))
+            rows.append((t("insp.n_neighbors"), str(obj.get("n_neighbors", len(neigh)))))
+        else:                                              # conteo, máscara
+            crop, origin, k = ins.crop_around(img, contour, size) if img is not None else (None, (0, 0), 1)
             if crop is not None:
                 if view in ovs:
                     overlay.draw(crop, ovs[view], self._mark_colors(r), origin, k, screen=True)
                 overlay.highlight(crop, contour, origin, k)
-        # datos de la capa actual; si la capa no tiene fila para el objeto, los de la tabla de objetos
-        rows = ((r.extra.get("view_tables") or {}).get(view) or [])
-        row = next((x for x in rows if x.get("object_id") == oid), None)
-        if row is None or "cluster" in row:
-            row = next((x for x in (r.extra.get("tables") or {}).get("objects", []) if x.get("object_id") == oid), {})
-        skip = {"object_id", "centroid_x_px", "centroid_y_px", "cluster", "excluded"}
-        metrics = [(k, _cell(v)) for k, v in row.items()
-                   if k not in skip and not k.startswith(("efd_", "mean_")) and v not in (None, "")]
-        colors = [(c.get("hex"), float(c.get("pct", 0))) for c in (r.extra.get("tables") or {}).get("object_colors", [])
-                  if c.get("object_id") == oid and c.get("hex")]
-        self.inspector.show(oid, crop, metrics, colors, oid in (r.extra.get("excluded") or []))
+            status = "excluded" if excluded else "highlighted" if starred else "ok"
+            rows += [(t("insp.touching"), t("insp.yes") if obj.get("touching") else t("insp.no")),
+                     (t("insp.status"), t(f"insp.status.{status}"))]
+        self.inspector.show(oid, crop, rows, excluded, starred)
         if not self.inspector.winfo_ismapped():
             self.inspector.pack(side=tk.BOTTOM, fill=tk.X, before=self._layers)
         self.root.update_idletasks()
@@ -2693,19 +2775,28 @@ class MainWindow:
             self.root.after(30, self._keep_layers_visible)
 
     def _toggle_exclude(self):
-        """Excluir / volver a incluir el objeto: se guarda un punto suyo (0-1) en el proyecto
+        self._toggle_mark("excluded")
+
+    def _toggle_highlight(self):
+        self._toggle_mark("highlighted")
+
+    def _toggle_mark(self, kind: str):
+        """Excluir / destacar (o quitarlo): se guarda un punto del objeto (0-1) en el proyecto
         y la foto se recalcula al momento. El número del objeto no cambia."""
         r, oid, path = self.last_result, self._sel, self.current_image_path
         if r is None or oid is None or not path:
             return
         contour = self._geometry()[oid].reshape(-1, 1, 2).astype(np.float32)
-        w = r.stats.get("image_width_px") or (r.extra["base_image"].shape[1] if r.extra.get("base_image") is not None else 0)
-        h = r.stats.get("image_height_px") or (r.extra["base_image"].shape[0] if r.extra.get("base_image") is not None else 0)
+        base = r.extra.get("base_image")
+        w = r.stats.get("image_width_px") or (base.shape[1] if base is not None else 0)
+        h = r.stats.get("image_height_px") or (base.shape[0] if base is not None else 0)
         if not w or not h:
             return
-        points = self.project.excluded_for(path)
-        if oid in (r.extra.get("excluded") or []):
-            points = [p for p in points if cv2.pointPolygonTest(contour, (p[0] * w, p[1] * h), True) < -15]
+
+        def outside(points):
+            return [p for p in points if cv2.pointPolygonTest(contour, (p[0] * w, p[1] * h), True) < -15]
+        if oid in (r.extra.get(kind) or []):
+            self.project.set_marks(kind, path, outside(self.project.marks_for(kind, path)))
         else:
             pt = self._sel_point
             if pt is None or cv2.pointPolygonTest(contour, (float(pt[0]), float(pt[1])), False) < 0:
@@ -2713,8 +2804,9 @@ class MainWindow:
                 pt = (m["m10"] / m["m00"], m["m01"] / m["m00"]) if m["m00"] else tuple(contour[0, 0])
                 if cv2.pointPolygonTest(contour, (float(pt[0]), float(pt[1])), False) < 0:
                     pt = tuple(contour[0, 0])
-            points.append([pt[0] / w, pt[1] / h])
-        self.project.set_excluded(path, points)
+            self.project.set_marks(kind, path, self.project.marks_for(kind, path) + [[pt[0] / w, pt[1] / h]])
+            other = "highlighted" if kind == "excluded" else "excluded"      # una sola marca por objeto
+            self.project.set_marks(other, path, outside(self.project.marks_for(other, path)))
         self._run_analysis(all_images=False)
 
     def _sort_table(self, col: str):

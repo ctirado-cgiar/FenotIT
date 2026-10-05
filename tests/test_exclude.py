@@ -26,6 +26,7 @@ def test_exclude_keeps_numbers():
     assert after.stats["n_excluded_manual"] == 1
     assert 5 not in {r["object_id"] for r in after.measurements}
     assert 5 not in {r["object_id"] for r in after.extra["tables"]["object_colors"]}
+    assert {r["object_id"]: r["status"] for r in after.extra["tables"]["objects"]}[5] == "excluded"
     for r in after.measurements:                       # el resto: mismo número, mismas medidas
         assert r["area_px2"] == objs[r["object_id"]]["area_px2"]
     dist = ANALYSES["Distancias"].func(img, params)
@@ -33,6 +34,23 @@ def test_exclude_keeps_numbers():
         {r["object_b"] for r in dist.extra["tables"]["distances"]}
 
 
+
+def test_highlight_is_only_a_mark():
+    i18n.load("en")
+    img = load_image(str(IMAGE))
+    h, w = img.shape[:2]
+    before = ANALYSES["Objetos"].func(img, PARAMS)
+    target = {r["object_id"]: r for r in before.extra["tables"]["objects"]}[3]
+    after = ANALYSES["Objetos"].func(img, dict(PARAMS, mark_points=[[target["centroid_x_px"] / w,
+                                                                     target["centroid_y_px"] / h]]))
+    status = {r["object_id"]: r["status"] for r in after.extra["tables"]["objects"]}
+    assert status[3] == "highlighted" and after.extra["highlighted"] == [3]
+    assert after.stats["n_objects"] == before.stats["n_objects"] and after.stats["n_highlighted"] == 1
+    assert len(after.measurements) == len(before.measurements)
+
+
 if __name__ == "__main__":
     test_exclude_keeps_numbers()
     print("ok  test_exclude_keeps_numbers")
+    test_highlight_is_only_a_mark()
+    print("ok  test_highlight_is_only_a_mark")

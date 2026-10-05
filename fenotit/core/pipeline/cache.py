@@ -92,7 +92,8 @@ def _apply(ctx: Context, item: dict):
 def _fresh(prefix: Context, mm_per_px, unit="mm") -> Context:
     return Context(image=prefix.image, mm_per_px=mm_per_px, length_unit=unit, roi=prefix.roi, exclusions=prefix.exclusions,
                    mask=prefix.mask, labels=prefix.labels, detections=prefix.detections,
-                   skeleton=prefix.skeleton, groups=prefix.groups, excluded=prefix.excluded)
+                   skeleton=prefix.skeleton, groups=prefix.groups, excluded=prefix.excluded,
+                   highlighted=prefix.highlighted)
 
 
 def _measure(prefix: Context, item: dict, mm_per_px, unit="mm") -> dict:
