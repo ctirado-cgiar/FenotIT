@@ -157,6 +157,7 @@ def _embed(frame, fig, toolbar=False):
         bar.pack(fill=tk.X, side=tk.BOTTOM)
         NavigationToolbar2Tk(canvas, bar).update()
     canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+    return canvas
 
 
 def _message(frame, text):
@@ -164,6 +165,51 @@ def _message(frame, text):
         w.destroy()
     tk.Label(frame, text=text, bg=COLORS["bg_card"], fg=COLORS["text_muted"], font=FONTS["small"],
              justify="center").pack(pady=20)
+
+
+class _Picker:
+    """Clic (sin arrastrar) en un punto del gráfico → on_pick(dato de ese punto) y un
+    anillo rojo lo marca."""
+
+    def __init__(self):
+        self.sets: list = []
+        self._press = self._ring = None
+
+    def add(self, ax, xs, ys, payloads):
+        if len(payloads):
+            self.sets.append((ax, np.c_[np.asarray(xs, float), np.asarray(ys, float)], list(payloads)))
+
+    def connect(self, canvas, on_pick):
+        if not self.sets or on_pick is None:
+            return
+        canvas.mpl_connect("button_press_event", lambda e: setattr(self, "_press", (e.x, e.y)))
+        canvas.mpl_connect("button_release_event", lambda e: self._release(e, canvas, on_pick))
+
+    def _release(self, e, canvas, on_pick):
+        p = self._press
+        if e.button != 1 or e.x is None or p is None or abs(e.x - p[0]) + abs(e.y - p[1]) > 4:
+            return
+        if getattr(getattr(canvas, "toolbar", None), "mode", ""):       # zoom/mover de la barra
+            return
+        best = None
+        for ax, xy, pl in self.sets:
+            if e.inaxes is not ax:
+                continue
+            d = np.hypot(*(ax.transData.transform(xy) - (e.x, e.y)).T)
+            i = int(np.argmin(d))
+            if d[i] <= 7 and (best is None or d[i] < best[0]):
+                best = (d[i], ax, xy[i], pl[i])
+        if best is None:
+            return
+        if self._ring is not None:
+            try:
+                self._ring.remove()
+            except Exception:
+                pass
+        _, ax, (x, y), payload = best
+        self._ring = ax.plot([x], [y], "o", mfc="none", mec="#D73027", mew=1.6, ms=11, zorder=5)[0]
+        canvas.draw_idle()
+        on_pick(payload)
 
 
 def _save(fig, parent):
@@ -183,6 +229,7 @@ def _save(fig, parent):
 
 def _scatter(fig, xs, ys, x_col, y_col, labels=None):
     ax = fig.add_subplot(1, 1, 1)
+    fig._scatter_ax = ax
     ax.scatter(xs, ys, color=PALETTE[0], alpha=0.75, s=28 if labels else 16, edgecolors="white",
                linewidths=0.5, zorder=3)
     if labels and len(xs) <= 30:
@@ -201,8 +248,9 @@ class IntraImageChartPanel(tk.Frame):
     """Gráficos de los objetos de la foto actual. Se dibuja solo cuando está a la vista
     (al abrir la pestaña Gráficos o al cambiar de foto con la pestaña abierta)."""
 
-    def __init__(self, parent, colors: dict, **kw):
+    def __init__(self, parent, colors: dict, on_pick=None, **kw):
         super().__init__(parent, bg=colors["bg_card"], **kw)
+        self.on_pick = on_pick                          # on_pick(object_id): clic en un punto
         self._rows: list[dict] = []
         self._dirty = False
         self._fig = None
@@ -285,6 +333,7 @@ class IntraImageChartPanel(tk.Frame):
         self._drawn = (fw, fh)
         w, h = max(fw, 300) / 96, max(fh, 160) / 96
         fig = Figure(figsize=(w, h), dpi=96)
+        picker = _Picker()
         stacked = w / h < 1.3                       # alto y angosto: uno debajo del otro
         n_axes = max(1, len(cols))
         narrow = (fw if stacked else fw / n_axes) < 260  # poco ancho por gráfico: título más corto
@@ -292,13 +341,14 @@ class IntraImageChartPanel(tk.Frame):
             if len(cols) < 2:
                 _message(self._frame, t("chart.pick_xy"))
                 return
-            pairs = [(float(r[cols[0]]), float(r[cols[1]])) for r in self._rows
+            pairs = [(float(r[cols[0]]), float(r[cols[1]]), r.get("object_id")) for r in self._rows
                      if isinstance(r.get(cols[0]), (int, float)) and isinstance(r.get(cols[1]), (int, float))]
             if not pairs:
                 _message(self._frame, t("chart.no_data_image"))
                 return
-            xs, ys = zip(*pairs)
+            xs, ys, ids = zip(*pairs)
             _scatter(fig, xs, ys, cols[0], cols[1])
+            picker.add(fig._scatter_ax, xs, ys, ids)
         else:
             for i, col in enumerate(cols):
                 ax = fig.add_subplot(len(cols), 1, i + 1) if stacked else fig.add_subplot(1, len(cols), i + 1)
@@ -312,7 +362,11 @@ class IntraImageChartPanel(tk.Frame):
                     bp["boxes"][0].set_facecolor(color + "66")
                     bp["boxes"][0].set_edgecolor(color)
                     rng = np.random.default_rng(0)
-                    ax.scatter(1 + rng.uniform(-0.15, 0.15, len(vals)), vals, alpha=0.4, s=10, color=color, zorder=3)
+                    jx = 1 + rng.uniform(-0.15, 0.15, len(vals))
+                    ax.scatter(jx, vals, alpha=0.4, s=10, color=color, zorder=3)
+                    ids = [r.get("object_id") for r in self._rows
+                           if isinstance(r.get(col), (int, float)) and r[col] == r[col]]
+                    picker.add(ax, jx, vals, ids)
                     ax.set_xticks([])
                 else:
                     ax.hist(vals, bins=min(20, max(5, len(vals) // 3)), color=color, edgecolor="white",
@@ -331,7 +385,7 @@ class IntraImageChartPanel(tk.Frame):
         except Exception:
             _log.debug("tight_layout", exc_info=True)
         self._fig = fig
-        _embed(self._frame, fig)
+        picker.connect(_embed(self._frame, fig), self.on_pick)
 
     def save_figure(self, image=None):
         """Guarda el gráfico; con `image` = (vista, imagen BGR), también la imagen de la vista."""
@@ -382,7 +436,8 @@ def batch_records(results: dict, meta: dict | None = None, unit: str = "images")
     if unit == "images":
         names, means, sds = batch_table(results)
         for n in names:
-            recs.append({"_name": n, "_meta": meta.get(stems[n]) or {}, "_sd": sds[n], **means[n]})
+            recs.append({"_name": n, "_path": stems[n], "_oid": None, "_meta": meta.get(stems[n]) or {},
+                         "_sd": sds[n], **means[n]})
             cols += [k for k in means[n] if k not in cols]
         return recs, cols
     for path in sorted(results, key=lambda p: natural_key(Path(p).name)):
@@ -393,7 +448,8 @@ def batch_records(results: dict, meta: dict | None = None, unit: str = "images")
         num = numeric_cols(rows)
         cols += [c for c in num if c not in cols]
         for x in rows:
-            recs.append({"_name": Path(path).stem, "_meta": meta.get(path) or {}, "_sd": {},
+            recs.append({"_name": Path(path).stem, "_path": path, "_oid": x.get("object_id"),
+                         "_meta": meta.get(path) or {}, "_sd": {},
                          **{c: float(x[c]) for c in num if isinstance(x.get(c), (int, float)) and x[c] == x[c]}})
     return recs, cols
 
@@ -406,8 +462,11 @@ class BatchChartWindow(tk.Toplevel):
     """Comparación entre fotos: un dato por foto (sus valores o la media de sus objetos)
     o por objeto; agrupados por una columna de la tabla del usuario (genotipo, rep…)."""
 
-    def __init__(self, parent, results: dict, meta: dict | None = None, groups: list[str] | None = None):
+    def __init__(self, parent, results: dict, meta: dict | None = None, groups: list[str] | None = None,
+                 on_pick=None, on_color3d=None):
+        """on_pick(ruta, objeto|None): clic en un punto; on_color3d(): abre Color 3D."""
         super().__init__(parent)
+        self.on_pick = on_pick
         self.title(t("chart.batch_title"))
         self.configure(bg=COLORS["bg_card"])
         sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
@@ -442,6 +501,9 @@ class BatchChartWindow(tk.Toplevel):
             gb.bind("<<ComboboxSelected>>", lambda e: self._refresh())
         tk.Button(top, text=t("chart.save"), command=lambda: _save(self._fig, self), bg=COLORS["btn_bg"],
                   fg=COLORS["accent"], relief="flat", font=FONTS["small"], cursor="hand2").pack(side=tk.RIGHT, padx=8)
+        if on_color3d:
+            tk.Button(top, text=t("c3d.open"), command=on_color3d, bg=COLORS["btn_bg"], fg=COLORS["accent"],
+                      relief="flat", font=FONTS["small"], cursor="hand2").pack(side=tk.RIGHT, padx=2)
         bar = tk.Frame(self, bg=bg)
         bar.pack(fill=tk.X)
         self.chooser = _Chooser(bar, ("bars", "box", "hist", "scatter"), self._refresh, bg)
@@ -499,6 +561,7 @@ class BatchChartWindow(tk.Toplevel):
         w = max(self._frame.winfo_width(), 600) / 96
         h = max(self._frame.winfo_height(), 300) / 96 - 0.4
         fig = Figure(figsize=(w, h), dpi=96)
+        self._picker = _Picker()
         unit_n = "chart.n_images" if per_image else "chart.n_objects"
         if kind == "scatter":
             if len(cols) < 2:
@@ -538,8 +601,10 @@ class BatchChartWindow(tk.Toplevel):
                         box.set_facecolor(cc[k] + "55")
                         box.set_edgecolor(cc[k])
                         if len(v) <= 2000:
-                            ax.scatter(k + 1 + rng.uniform(-0.12, 0.12, len(v)), v, color=cc[k], alpha=0.6,
-                                       s=10 if len(v) > 100 else 14, zorder=3, linewidths=0)
+                            jx = k + 1 + rng.uniform(-0.12, 0.12, len(v))
+                            ax.scatter(jx, v, color=cc[k], alpha=0.6, s=10 if len(v) > 100 else 14, zorder=3,
+                                       linewidths=0)
+                            self._picker.add(ax, jx, v, [(r["_path"], r["_oid"]) for r in cats[k][1]])
                     if len(names) > 1:
                         self._xticks(ax, np.arange(1, len(names) + 1), names)
                     else:
@@ -560,7 +625,8 @@ class BatchChartWindow(tk.Toplevel):
         except Exception:
             _log.debug("tight_layout", exc_info=True)
         self._fig = fig
-        _embed(self._frame, fig, toolbar=True)
+        self._picker.connect(_embed(self._frame, fig, toolbar=True),
+                             (lambda pl: self.on_pick(*pl)) if self.on_pick else None)
 
     @staticmethod
     def _xticks(ax, x, names):
@@ -571,11 +637,12 @@ class BatchChartWindow(tk.Toplevel):
 
     def _scatter(self, fig, xc: str, yc: str, labels: bool) -> bool:
         if self.group.get() == NONE:
-            pts = [(r[xc], r[yc], r["_name"]) for r in self.recs if xc in r and yc in r]
+            pts = [(r[xc], r[yc], r["_name"], (r["_path"], r["_oid"])) for r in self.recs if xc in r and yc in r]
             if not pts:
                 return False
-            xs, ys, names = zip(*pts)
+            xs, ys, names, pl = zip(*pts)
             _scatter(fig, xs, ys, xc, yc, list(names) if labels else None)
+            self._picker.add(fig._scatter_ax, xs, ys, pl)
             return True
         cats = [(g, [r for r in rows if xc in r and yc in r]) for g, rows in self._categories("scatter", None)]
         cats = [(g, rows) for g, rows in cats if rows]
@@ -589,6 +656,7 @@ class BatchChartWindow(tk.Toplevel):
             ys_all += ys
             ax.scatter(xs, ys, color=PALETTE[k % len(PALETTE)], alpha=0.75, s=22 if len(xs_all) < 300 else 10,
                        edgecolors="white", linewidths=0.4, zorder=3, label=g)
+            self._picker.add(ax, xs, ys, [(r["_path"], r["_oid"]) for r in rows])
         ax.set_xlabel(_label(xc))
         ax.set_ylabel(_label(yc))
         ok = len(xs_all) > 2 and np.std(xs_all) > 0 and np.std(ys_all) > 0

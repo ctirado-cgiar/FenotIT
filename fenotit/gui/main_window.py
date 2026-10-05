@@ -1438,7 +1438,8 @@ class MainWindow:
         # ── Gráficos (hijo de la zona central: puede pasar al lugar de una imagen) ──
         tab_charts = tk.Frame(body, bg=COLORS["bg_card"])
         self._tab_frames = {"table": tab_table, "charts": tab_charts}
-        self._chart_panel = IntraImageChartPanel(cf, colors=COLORS)
+        self._chart_panel = IntraImageChartPanel(
+            cf, colors=COLORS, on_pick=lambda oid: self._goto_object(self.current_image_path, oid))
         self._chart_panel.pack(in_=tab_charts, fill=tk.BOTH, expand=True)
         if hasattr(self._chart_panel, "bar"):
             self._dock_icon = ImageTk.PhotoImage(icon("dock_up", 14, COLORS["accent"]))
@@ -1455,6 +1456,9 @@ class MainWindow:
             save.configure(menu=menu)
             save.pack(side=tk.RIGHT, padx=2, pady=3)
             tk.Button(self._chart_panel.bar, text=t("chart.whole_batch"), command=self._show_batch_chart,
+                      bg=COLORS["btn_bg"], fg=COLORS["accent"], relief="flat", font=FONTS["small"],
+                      cursor="hand2", pady=2).pack(side=tk.RIGHT, padx=2, pady=3)
+            tk.Button(self._chart_panel.bar, text=t("c3d.open"), command=lambda: self._show_color3d("image"),
                       bg=COLORS["btn_bg"], fg=COLORS["accent"], relief="flat", font=FONTS["small"],
                       cursor="hand2", pady=2).pack(side=tk.RIGHT, padx=2, pady=3)
 
@@ -2640,6 +2644,9 @@ class MainWindow:
     def _refresh_selection(self):
         """Nuevo resultado o capa: el mismo objeto si sigue existiendo (la numeración se
         conserva al excluir); si no, se quita la selección."""
+        pick = getattr(self, "_pending_pick", None)
+        if pick and pick[0] == self.current_image_path and pick[1] in self._geometry():
+            self._pending_pick, self._sel, self._sel_point = None, pick[1], None
         if self._sel is None:
             return
         if self._sel in self._geometry():
@@ -3672,7 +3679,65 @@ class MainWindow:
             messagebox.showinfo(t("msg.no_data_title"), t("msg.no_data_batch"), parent=self.root)
             return
         BatchChartWindow(self.root, results, meta={p: self._meta_row(p) for p in results},
-                         groups=self._meta_columns())
+                         groups=self._meta_columns(), on_pick=self._goto_object,
+                         on_color3d=lambda: self._show_color3d("batch"))
+
+    def _color_images(self, paths) -> list:
+        """[(ruta, Image_ID, nombre, tablas)] con resultado del análisis elegido."""
+        ids = {p: i for i, p in enumerate(self.batch_paths, 1)}
+        out = []
+        for p in paths:
+            r = self.results_cache.get(p)
+            if r is not None and r.status == "ok" and p in ids:
+                out.append((p, ids[p], Path(p).name, r.extra.get("tables") or {}))
+        return out
+
+    def _show_color3d(self, scope: str = "image"):
+        from fenotit.gui.color3d import Color3DWindow
+        current = self._color_images([self.current_image_path] if self.current_image_path else [])
+        batch = self._color_images(self.batch_paths)
+        Color3DWindow(self.root, current, batch, scope=scope, on_goto=self._goto_object, thumb=self._object_thumb)
+
+    def _goto_object(self, path: str, oid: int | None = None):
+        """Desde un gráfico: abre esa foto y, si es un objeto, lo elige (inspector)."""
+        if path not in self.batch_paths:
+            return
+        if path == self.current_image_path:
+            if oid is not None:
+                self._select_object(oid, from_table=False)
+            return
+        self._pending_pick = (path, oid) if oid is not None else None
+        self._select_image(self.batch_paths.index(path))
+
+    def _object_thumb(self, path: str, oid: int | None):
+        """Imagen para el punto elegido: el objeto recortado si la foto está abierta; si
+        no, la foto en miniatura."""
+        from fenotit.core.pipeline import overlay
+        from fenotit.gui import inspector as ins
+        r = self.last_result
+        if path == self.current_image_path and r is not None:
+            base = r.extra.get("base_image")
+            if base is None and self.scaler_left.has_image:
+                base = self.scaler_left.original
+            geom = self._geometry()
+            if base is not None:
+                if oid in geom:
+                    crop, origin, k = ins.crop_around(base, geom[oid], (206, 170))
+                    if crop is not None:
+                        overlay.highlight(crop, geom[oid], origin, k)
+                    return crop
+                return cv2.resize(base, None, fx=206 / base.shape[1], fy=206 / base.shape[1],
+                                  interpolation=cv2.INTER_AREA)
+        try:
+            from PIL import Image as _Im, ImageOps
+            with _Im.open(path) as im:
+                im.draft("RGB", (412, 412))
+                im = ImageOps.exif_transpose(im).convert("RGB")
+                im.thumbnail((206, 206))
+                return np.asarray(im)[:, :, ::-1].copy()
+        except Exception:
+            _log.debug("miniatura %s", path, exc_info=True)
+            return None
 
     def _save_intra_chart(self, with_image: bool = False):
         """Guarda el gráfico de la foto; opcional, también la imagen de la vista actual."""
