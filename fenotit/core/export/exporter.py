@@ -73,15 +73,17 @@ def _params_of(result) -> dict:
 
 def collect(analysis: str, results: dict[str, Any], images: list[str],
             image_info: dict[str, dict] | None = None, skipped: set | None = None,
-            board: set | None = None) -> dict[str, list[dict]]:
-    """Tablas del análisis. `image` lleva una fila por foto de la lista (también las no
-    analizadas): estado, sus mediciones de imagen y escala/áreas."""
+            board: set | None = None, ids: dict[str, int] | None = None) -> dict[str, list[dict]]:
+    """Tablas del análisis. `image` lleva una fila por foto de `images` (también las no
+    analizadas): estado, sus mediciones de imagen y escala/áreas. `ids` = Image_ID de cada
+    foto (su posición en el proyecto) cuando se exporta solo una parte."""
     image_info = image_info or {}
     skipped = skipped or set()
     tables: dict[str, list[dict]] = {"image": []}
     params = [_params_of(r) for r in results.values() if r.status == "ok"]
     varied = any(p != params[0] for p in params[1:]) if params else False
-    for image_id, path in enumerate(images, 1):
+    for k, path in enumerate(images, 1):
+        image_id = (ids or {}).get(path, k)
         name = Path(path).name
         r = results.get(path)
         status = ("calibration" if path in (board or ()) else "skipped" if path in skipped else "not_analyzed") \

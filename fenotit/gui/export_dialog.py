@@ -8,7 +8,7 @@ import subprocess
 import sys
 import tkinter as tk
 from pathlib import Path
-from tkinter import filedialog, ttk
+from tkinter import filedialog, messagebox, ttk
 
 from fenotit import log
 from fenotit.gui.theme import COLORS, FONTS
@@ -30,15 +30,17 @@ def open_folder(path: str):
 class ExportDialog(tk.Toplevel):
 
     def __init__(self, parent, analyses: list[tuple[str, str, int]], folder: str, run, cancel,
-                 views_default: bool = False):
-        """analyses: (nombre, etiqueta, nº de fotos con resultado).
-        run(folder, nombres, excel, views, dialog); cancel()."""
+                 views_default: bool = False, scopes: list[tuple[str, str]] | None = None,
+                 stamp: bool = True, existing=None):
+        """analyses: (nombre, etiqueta, nº de fotos con resultado); scopes: (clave, texto) de
+        qué fotos exportar (la primera = todas). run(folder, nombres, excel, views, dialog,
+        scope, stamp); cancel(). existing(folder, nombres) = lo que se reemplazaría."""
         super().__init__(parent)
         self.title(t("export.title"))
         self.configure(bg=COLORS["bg_card"])
         self.resizable(False, False)
         self.transient(parent)
-        self._run, self._cancel = run, cancel
+        self._run, self._cancel, self._existing = run, cancel, existing
         self._busy = False
         bg = COLORS["bg_card"]
 
@@ -63,6 +65,18 @@ class ExportDialog(tk.Toplevel):
                  relief="solid", bd=1, font=FONTS["small"]).pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=2)
         tk.Button(row, text="…", command=self._pick, bg=COLORS["btn_bg"], fg=COLORS["accent"], relief="flat",
                   cursor="hand2", font=FONTS["body"], width=3).pack(side=tk.LEFT, padx=(4, 0))
+        self.stamp = tk.BooleanVar(value=stamp)
+        tk.Checkbutton(body, variable=self.stamp, text=t("export.stamp"), bg=bg, fg=COLORS["text"],
+                       selectcolor=COLORS["bg_panel"], activebackground=bg, font=FONTS["small"],
+                       anchor="w").pack(fill=tk.X, pady=(2, 0))
+
+        self.scope = tk.StringVar(value=(scopes or [("all", "")])[0][0])
+        if scopes and len(scopes) > 1:
+            section(t("export.photos"))
+            for key, text in scopes:
+                tk.Radiobutton(body, variable=self.scope, value=key, text=text, bg=bg, fg=COLORS["text"],
+                               selectcolor=COLORS["bg_panel"], activebackground=bg, font=FONTS["body"],
+                               anchor="w").pack(fill=tk.X)
 
         section(t("export.analyses"))
         self.chosen: dict[str, tk.BooleanVar] = {}
@@ -101,7 +115,7 @@ class ExportDialog(tk.Toplevel):
         self._go.pack(side=tk.RIGHT)
         self._open = tk.Button(btns, text=t("export.open_folder"), bg=bg, fg=COLORS["accent"], relief="flat",
                                font=FONTS["body"], cursor="hand2",
-                               command=lambda: open_folder(self.folder.get()))
+                               command=lambda: open_folder(getattr(self, "_done_folder", None) or self.folder.get()))
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self.bind("<Escape>", lambda e: self._on_close())
 
@@ -126,12 +140,16 @@ class ExportDialog(tk.Toplevel):
         if not names:
             self.msg.set(t("export.no_analysis"))
             return
+        if not self.stamp.get() and self._existing:
+            found = self._existing(folder, names)
+            if found and not messagebox.askyesno(t("export.title"), t("export.overwrite", items=found), parent=self):
+                return
         self._busy = True
         self._go.config(state="disabled")
         self._close.config(text=t("common.cancel"))
         self._open.pack_forget()
         self.msg.set(t("export.writing"))
-        self._run(folder, names, self.excel.get(), self.views.get(), self)
+        self._run(folder, names, self.excel.get(), self.views.get(), self, self.scope.get(), self.stamp.get())
 
     # llamados por la ventana principal (hilo principal)
     def progress(self, i: int, n: int, text: str):
@@ -142,9 +160,10 @@ class ExportDialog(tk.Toplevel):
         self._bar.config(maximum=max(n, 1), value=i)
         self.msg.set(text)
 
-    def finished(self, text: str, ok: bool = True):
+    def finished(self, text: str, ok: bool = True, folder: str | None = None):
         if not self.winfo_exists():
             return
+        self._done_folder = folder
         self._busy = False
         self._bar.pack_forget()
         self.msg.set(text)
