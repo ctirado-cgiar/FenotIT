@@ -125,12 +125,12 @@ class Inspector(tk.Frame):
 
 # ── Dibujo del recorte por capa (sin tkinter) ────────────────────────────────
 
-def crop_around(img: np.ndarray, contour: np.ndarray, size=CROP, extra=None):
+def crop_around(img: np.ndarray, contour: np.ndarray, size=CROP, extra=None, margin: float = 0.25):
     """Recorte del objeto (y de `extra`, puntos que también deben verse) con margen,
     escalado para caber en `size`: (recorte, origen, zoom)."""
     pts = contour if extra is None or not len(extra) else np.vstack([contour, np.asarray(extra, float)])
     x, y, w, h = cv2.boundingRect(np.asarray(pts, np.float32).reshape(-1, 1, 2))
-    m = int(max(w, h) * 0.25) + 6
+    m = int(max(w, h) * margin) + 6
     H, W = img.shape[:2]
     x0, y0 = max(0, x - m), max(0, y - m)
     x1, y1 = min(W, x + w + m), min(H, y + h + m)
@@ -157,33 +157,75 @@ def fmt(v: float) -> str:
     return f"{v:.0f}" if abs(v) >= 100 else f"{v:.1f}" if abs(v) >= 10 else f"{v:.2f}"
 
 
-def cota(img, p1, p2, label):
-    """Cota: línea con topes en los extremos y el valor al lado."""
+def _box(img, s, x, y, scale):
+    (tw, th), _ = cv2.getTextSize(s, cv2.FONT_HERSHEY_SIMPLEX, scale, 1)
+    return int(x - tw / 2) - 2, int(y - th / 2) - 3, int(x + tw / 2) + 2, int(y + th / 2) + 3
+
+
+def _free(img, box, mask, taken) -> bool:
+    """¿El rótulo cabe en el recorte sin tapar el objeto ni otro rótulo?"""
+    x0, y0, x1, y1 = box
+    h, w = img.shape[:2]
+    if x0 < 1 or y0 < 1 or x1 > w - 1 or y1 > h - 1:
+        return False
+    if mask is not None and mask[y0:y1, x0:x1].mean() > 8:
+        return False
+    return not any(x0 < b[2] and b[0] < x1 and y0 < b[3] and b[1] < y1 for b in taken)
+
+
+def label_at(img, s, candidates, mask, taken, scale=0.38):
+    """Escribe `s` en el primer lugar libre de `candidates` (si ninguno lo está, en el primero)."""
+    spots = [np.asarray(c, float) for c in candidates]
+    c = next((p for p in spots if _free(img, _box(img, s, p[0], p[1], scale), mask, taken)), spots[0])
+    taken.append(_box(img, s, c[0], c[1], scale))
+    text(img, s, c[0], c[1], scale)
+
+
+def cota(img, p1, p2, label, mask=None, taken=None):
+    """Cota: línea con topes en los extremos y el valor fuera del objeto, donde no tape
+    nada (después de un extremo o a un lado)."""
     p1, p2 = np.asarray(p1, float), np.asarray(p2, float)
     d = p2 - p1
-    n = np.array([-d[1], d[0]]) / (np.hypot(*d) or 1) * 4
+    u = d / (np.hypot(*d) or 1)
+    n = np.array([-u[1], u[0]])
     for col, wd in ((DARK, 3), (WHITE, 1)):
         cv2.line(img, tuple(np.round(p1).astype(int)), tuple(np.round(p2).astype(int)), col, wd, cv2.LINE_AA)
         for p in (p1, p2):
-            cv2.line(img, tuple(np.round(p - n).astype(int)), tuple(np.round(p + n).astype(int)), col, wd, cv2.LINE_AA)
-    u = d / (np.hypot(*d) or 1)
-    end = p2 + u * 12                       # el valor después del extremo, fuera del objeto
-    text(img, label, end[0], end[1])
+            cv2.line(img, tuple(np.round(p - n * 4).astype(int)), tuple(np.round(p + n * 4).astype(int)), col, wd,
+                     cv2.LINE_AA)
+    if label:
+        mid = (p1 + p2) / 2
+        label_at(img, label, [p2 + u * 16, p1 - u * 16, p2 + u * 16 + n * 10, p1 - u * 16 - n * 10,
+                              mid + n * 14, mid - n * 14], mask, taken if taken is not None else [])
 
 
-def scale_bar(img, unit_per_px: float | None, unit: str):
-    """Barra de escala abajo a la izquierda (largo redondo ≈ 25 % del recorte).
-    unit_per_px: unidades reales por píxel del recorte."""
+def scale_bar(img, unit_per_px: float | None, unit: str, mask=None, taken=None):
+    """Barra de escala (largo redondo ≈ 25 % del recorte) en la esquina que no tape el
+    objeto ni los rótulos. unit_per_px: unidades reales por píxel del recorte."""
     if not unit_per_px:
         return
+    taken = taken if taken is not None else []
     h, w = img.shape[:2]
     target = w * 0.25 * unit_per_px
     nice = min((v * 10 ** e for e in range(-3, 4) for v in (1, 2, 5)), key=lambda v: abs(v - target))
-    px = nice / unit_per_px
-    x0, y = 8, h - 8
+    px = int(round(nice / unit_per_px))
+    best = None
+    for x0, y in ((8, h - 8), (w - 8 - px, h - 8), (8, 22), (w - 8 - px, 22)):
+        box = (x0 - 2, y - 22, x0 + px + 2, y + 3)
+        if _free(img, box, mask, taken):
+            best = (x0, y, box)
+            break
+    x0, y, box = best or (8, h - 8, (6, h - 30, 10 + px, h - 5))
+    taken.append(box)
     for col, wd in ((DARK, 4), (WHITE, 2)):
-        cv2.line(img, (x0, y), (int(x0 + px), y), col, wd)
-    text(img, f"{nice:g} {display(unit)}", x0 + px / 2, y - 9, 0.34)
+        cv2.line(img, (x0, y), (x0 + px, y), col, wd)
+    text(img, f"{nice:g} {display(unit)}", x0 + px / 2, y - 10, 0.34)
+
+
+def object_mask(shape, contour, origin, k):
+    m = np.zeros(shape[:2], np.uint8)
+    cv2.fillPoly(m, [np.round((np.asarray(contour, float) - origin) * k).astype(np.int32).reshape(-1, 1, 2)], 255)
+    return m
 
 
 def morph_axes(contour):
