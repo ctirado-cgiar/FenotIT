@@ -1329,6 +1329,7 @@ class MainWindow:
                                     highlightbackground=COLORS["border"])
         self._chart_host.pack_propagate(False)        # el gráfico no agranda la ventana
         self._chart_host.pack(fill=tk.BOTH, expand=True)
+        self._chart_host.bind("<Configure>", lambda e: self._fit_docked_chart(), add="+")
         self._canvas_row = canvas_row
         self._results_shown = False
         self._layout_sides()
@@ -1794,6 +1795,7 @@ class MainWindow:
             return
         self.scaler_left.set_image(img)
         self._on_canvas_row_resize()               # otra proporción: quizá conviene arriba y abajo
+        self._fit_docked_chart()
         self.image_info_var.set(f"{Path(path).name}  ·  {img.shape[1]} × {img.shape[0]} px")
         self._update_corr_indicator()
         self.preview_var.set("")
@@ -2348,8 +2350,8 @@ class MainWindow:
         self._chart_title.pack(side=edge, padx=2)
         self._chart_eye.pack(side=edge)
         self._chart_panel.pack_forget()
-        self._chart_panel.pack(in_=self._chart_host, fill=tk.BOTH, expand=True)
         self._chart_panel.lift()
+        self._fit_docked_chart()
         self._dock_btn.pack_forget()
         self._results_visible = False
         if self._bottom_tab == "charts":
@@ -2358,9 +2360,27 @@ class MainWindow:
         self._layout_results()
         self.root.after(80, self._after_dock)
 
+    def _fit_docked_chart(self):
+        """Arriba, el gráfico mide lo mismo que la foto ajustada a su recuadro (no todo el
+        recuadro), centrado como ella."""
+        if not self._chart_dock:
+            return
+        host = self._chart_host
+        hw, hh = host.winfo_width(), host.winfo_height()
+        if hw < 50 or hh < 50:
+            return
+        w, h = hw, hh
+        if self.scaler_left.has_image:
+            ih, iw = self.scaler_left.original.shape[:2]
+            k = min(hw / iw, hh / ih)
+            w, h = max(300, min(hw, round(iw * k))), max(220, min(hh, round(ih * k)))
+        self._chart_panel.place(in_=host, relx=0.5, rely=0.5, anchor="center", width=w, height=h)
+        self._chart_panel.lift()
+
     def _undock_chart(self):
         if not self._chart_dock:
             return
+        self._chart_panel.place_forget()
         hidden, _visible = self._dock_saved
         self._hidden, self._chart_dock = hidden, None
         self._chart_panel.pack_forget()
