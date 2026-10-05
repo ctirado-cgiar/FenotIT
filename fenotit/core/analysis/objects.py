@@ -114,7 +114,8 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
     res.extra["highlighted"] = sorted(ctx.highlighted)
     if ctx.highlighted:                                     # ★ en todas las vistas con marcas
         from fenotit.core.pipeline.views import add_stars
-        res.extra["overlays"] = add_stars(res.extra.get("overlays") or {}, res.extra["geometry"], ctx.highlighted)
+        res.extra["overlays"] = add_stars(res.extra.get("overlays") or {}, res.extra["geometry"], ctx.highlighted,
+                                          list(res.step_images))
     res.extra["base_image"] = ctx.image
     if ctx.labels is not None:
         from fenotit.core.pipeline import overlay
