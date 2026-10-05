@@ -3101,7 +3101,24 @@ class MainWindow:
                   relief="flat", font=FONTS["body"],
                   cursor="hand2", padx=12).pack(anchor="e", pady=(12, 0))
 
+    def _single(self, key: str, build):
+        """Una sola ventana de cada tipo: si ya está abierta, se trae al frente."""
+        wins = self.__dict__.setdefault("_open_windows", {})
+        win = wins.get(key)
+        if win is not None and win.winfo_exists():
+            win.deiconify()
+            win.lift()
+            win.focus_force()
+            return win
+        win = build()
+        if win is not None:
+            wins[key] = win
+        return win
+
     def _choose_language(self):
+        self._single("language", self._language_window)
+
+    def _language_window(self):
         langs = i18n.available()
         win = tk.Toplevel(self.root)
         win.title(t("lang.title"))
@@ -3135,6 +3152,7 @@ class MainWindow:
         sw, sh = win.winfo_screenwidth(), win.winfo_screenheight()
         w, h = max(win.winfo_reqwidth(), 260), win.winfo_reqheight()
         win.geometry(f"{w}x{h}+{(sw - w) // 2}+{(sh - h) // 2}")
+        return win
 
     def _system_info(self) -> str:
         try:
@@ -3149,7 +3167,7 @@ class MainWindow:
 
     def _about(self):
         from fenotit.gui import about_dialog
-        about_dialog.show(self.root, _assets() / "logo.ico", self._system_info())
+        self._single("about", lambda: about_dialog.show(self.root, _assets() / "logo.ico", self._system_info()))
 
     # ── Exportación ───────────────────────────────────────────────────────────
 
