@@ -61,7 +61,7 @@
   "chart.dock": "Move the chart up, in place of an image",
   "chart.frequency": "Frequency",
   "chart.hist": "Histogram",
-  "chart.median": "median",
+  "chart.mean": "x̄",
   "chart.n_images": "{n} photos",
   "chart.no_data_batch": "No analysed photos to compare yet.",
   "chart.no_data_image": "This photo has no measurements to plot.",

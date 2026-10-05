@@ -61,7 +61,7 @@
   "chart.dock": "Llevar el gráfico arriba, al lugar de una imagen",
   "chart.frequency": "Frecuencia",
   "chart.hist": "Histograma",
-  "chart.median": "mediana",
+  "chart.mean": "x̄",
   "chart.n_images": "{n} fotos",
   "chart.no_data_batch": "Todavía no hay fotos analizadas para comparar.",
   "chart.no_data_image": "Esta foto no tiene mediciones para graficar.",
