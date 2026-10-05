@@ -113,7 +113,7 @@ class Color3DWindow(tk.Toplevel):
 
         self.layer_bar = tk.Frame(self, bg=bg)
         self.layer_bar.pack(fill=tk.X)
-        self.layers = {k: tk.BooleanVar(value=False) for k in cs.LEVELS}
+        self.per = tk.StringVar(value="")
         self.warn = tk.Label(self.layer_bar, text="", bg=bg, fg="#B35806", font=FONTS["small"])
 
         body = tk.Frame(self, bg=COLORS["bg_card"])
@@ -122,7 +122,7 @@ class Color3DWindow(tk.Toplevel):
                              highlightbackground=COLORS["border"])
         self.info.pack_propagate(False)
         self._frame = tk.Frame(body, bg=COLORS["bg_card"])
-        self._frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self._frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
         self._scope_changed()
 
     # ── datos ─────────────────────────────────────────────────────────────────
@@ -131,27 +131,30 @@ class Color3DWindow(tk.Toplevel):
     def _has(images) -> bool:
         return bool(images) and any(tb.get("object_colors") or tb.get("image_colors") for *_, tb in images)
 
-    def _available(self) -> list[str]:
+    def _per_levels(self) -> dict[str, str]:
+        """Un punto por… → nivel: color (de cada objeto, o de la foto si no hay objetos), objeto, foto."""
         imgs = self.data[self.scope.get()]
         have_obj = any(tb.get("object_colors") for *_, tb in imgs)
-        return [k for k in cs.LEVELS if have_obj or k in ("image_colors", "images")]
+        out = {"color": "object_colors" if have_obj else "image_colors"}
+        if have_obj:
+            out["object"] = "objects"
+        out["photo"] = "images"
+        return out
 
     def _scope_changed(self):
         for w in self.layer_bar.winfo_children():
             if w is not self.warn:
                 w.destroy()
         bg = COLORS["bg_panel"]
-        tk.Label(self.layer_bar, text=t("c3d.layers") + ":", bg=bg, fg=COLORS["text_muted"],
+        tk.Label(self.layer_bar, text=t("c3d.per") + ":", bg=bg, fg=COLORS["text_muted"],
                  font=FONTS["small"]).pack(side=tk.LEFT, padx=(10, 2))
-        avail = self._available()
+        opts = self._per_levels()
         batch = self.scope.get() == "batch"
-        default = "images" if batch else ("objects" if "objects" in avail else "image_colors")
-        for k in avail:
-            self.layers[k].set(k == default)
-            text = t(f"c3d.level.{k}" + ("_batch" if batch and k in ("image_colors", "images") else ""))
-            tk.Checkbutton(self.layer_bar, text=text, variable=self.layers[k], command=self._redraw, bg=bg,
-                           fg=COLORS["text"], selectcolor=COLORS["bg_card"], activebackground=bg,
-                           font=FONTS["small"]).pack(side=tk.LEFT, padx=(4, 0))
+        self.per.set("photo" if batch else ("object" if "object" in opts else "color"))
+        for k in opts:
+            tk.Radiobutton(self.layer_bar, text=t(f"c3d.per.{k}"), variable=self.per, value=k,
+                           command=self._redraw, bg=bg, fg=COLORS["text"], selectcolor=COLORS["bg_card"],
+                           activebackground=bg, font=FONTS["small"]).pack(side=tk.LEFT)
         self.warn.pack(side=tk.LEFT, padx=12)
         self._redraw()
 
@@ -161,7 +164,7 @@ class Color3DWindow(tk.Toplevel):
         if self._ax is not None:                         # se conserva el giro y el zoom
             self._view = (self._ax.elev, self._ax.azim, self._ax.get_xlim3d(), self._ax.get_ylim3d(),
                           self._ax.get_zlim3d(), self._drawn_space)
-        levels = [k for k in self._available() if self.layers[k].get()]
+        levels = [self._per_levels().get(self.per.get(), "images")]
         space = self.space.get()
         pts = cs.points(self.data[self.scope.get()], levels, space)
         self._pts, self._picked = pts, None
@@ -170,7 +173,7 @@ class Color3DWindow(tk.Toplevel):
         self.warn.configure(text=t("c3d.many", n=len(pts)) if len(pts) > MANY else "")
         if not pts:
             self._fig = self._ax = None
-            _message(self._frame, t("c3d.no_points"))
+            _message(self._frame, t("c3d.no_data"))
             return
         plt.rcParams.update(MPL_STYLE)
         if self._canvas is None or not self._canvas.get_tk_widget().winfo_exists():
@@ -182,10 +185,11 @@ class Color3DWindow(tk.Toplevel):
             self._canvas.mpl_connect("scroll_event", self._on_scroll)
             self._canvas.mpl_connect("button_press_event", self._on_press)
             self._canvas.mpl_connect("button_release_event", self._on_release)
+            self._canvas.mpl_connect("motion_notify_event", self._on_drag)
         fig = self._fig
         fig.clear()
         ax = self._ax = fig.add_subplot(111, projection="3d")
-        ax.mouse_init(rotate_btn=1, zoom_btn=3)
+        ax.disable_mouse_rotation()                 # el giro lo hace _on_drag (más fiable en Windows)
         many = len(pts) > 1500
         sizes = []
         for p in pts:
@@ -302,8 +306,19 @@ class Color3DWindow(tk.Toplevel):
 
     def _on_press(self, e):
         self._press = (e.x, e.y)
+        self._press_view = (self._ax.elev, self._ax.azim) if self._ax is not None and e.button == 1 else None
+
+    def _on_drag(self, e):
+        """Arrastrar con el botón izquierdo = girar (0.4° por píxel)."""
+        pv, p0 = getattr(self, "_press_view", None), getattr(self, "_press", None)
+        if pv is None or p0 is None or e.x is None or self._ax is None:
+            return
+        elev = float(np.clip(pv[0] - (e.y - p0[1]) * 0.4, -90, 90))
+        self._ax.view_init(elev, pv[1] - (e.x - p0[0]) * 0.4)
+        self._canvas.draw_idle()
 
     def _on_release(self, e):
+        self._press_view = None
         p0 = getattr(self, "_press", None)
         if self._ax is None or p0 is None or e.button != 1 or e.x is None:
             return
@@ -344,7 +359,7 @@ class Color3DWindow(tk.Toplevel):
         for w in info.winfo_children():
             w.destroy()
         if not info.winfo_ismapped():
-            info.pack(side=tk.RIGHT, fill=tk.Y, before=self._frame)
+            info.pack(side=tk.LEFT, fill=tk.Y, before=self._frame)
         bg = COLORS["bg_card"]
         head = tk.Frame(info, bg=bg)
         head.pack(fill=tk.X, padx=10, pady=(8, 4))
@@ -361,9 +376,6 @@ class Color3DWindow(tk.Toplevel):
         rows = [(t("c3d.photo"), f"{p.image_id} · {p.name}")]
         if p.object_id is not None:
             rows.append((t("c3d.object"), str(p.object_id)))
-        batch = self.scope.get() == "batch"
-        rows.append((t("c3d.layer"), t(f"c3d.level.{p.level}" + ("_batch" if batch and p.level in
-                                                                   ("image_colors", "images") else ""))))
         if p.level in ("object_colors", "image_colors"):
             rows.append(("%", f"{p.pct:.1f}"))
         rows.append((self.space.get(), ", ".join(f"{v:.0f}" for v in p.xyz)))
