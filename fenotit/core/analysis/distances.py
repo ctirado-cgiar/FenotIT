@@ -54,6 +54,10 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
     from fenotit.core.pipeline.views import object_geometry
     res.extra["geometry"] = object_geometry(ctx.labels)     # elegir, resaltar y recortar un objeto
     res.extra["excluded"] = sorted(ctx.excluded)
+    res.extra["highlighted"] = sorted(ctx.highlighted)
+    if ctx.highlighted:                                     # ★ en todas las vistas con marcas
+        from fenotit.core.pipeline.views import add_stars
+        res.extra["overlays"] = add_stars(res.extra.get("overlays") or {}, res.extra["geometry"], ctx.highlighted)
     res.extra["base_image"] = ctx.image
     res.extra["contrast"] = __import__("fenotit.core.pipeline.overlay", fromlist=["x"]).contrast_color(
         ctx.image, ctx.labels > 0)

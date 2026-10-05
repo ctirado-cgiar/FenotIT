@@ -473,6 +473,7 @@ def _merge_flat_necks(labels, dist, ratio, owner=None):
     {"key": "ar_max", "type": "float", "default": 1000.0, "min": 1.0, "max": 1000.0},
     {"key": "exclude_border", "type": "bool", "default": True},
     {"key": "drop_points", "type": "list", "default": []},
+    {"key": "mark_points", "type": "list", "default": []},
 ])
 def filter_objects(ctx, p):
     """Filtra objetos (tamaños en px) y renumera 1..n por filas, de izquierda a derecha.
@@ -515,6 +516,7 @@ def filter_objects(ctx, p):
         region[labels[sl] == oid] = new_id
     ctx.labels = out
     ctx.excluded = _picked(out, p.get("drop_points") or [])
+    ctx.highlighted = _picked(out, p.get("mark_points") or []) - ctx.excluded
 
 
 def _picked(labels, points) -> set[int]:

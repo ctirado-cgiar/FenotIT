@@ -33,6 +33,7 @@ class Context:
     skeleton: np.ndarray | None = None
     groups: np.ndarray | None = None                 # componentes antes de desagrupar
     excluded: set = field(default_factory=set)       # objetos que el usuario excluyó (no se miden)
+    highlighted: set = field(default_factory=set)    # objetos destacados (★; se miden igual)
     tables: dict[str, list[dict]] = field(default_factory=dict)
     images: dict[str, np.ndarray] = field(default_factory=dict)
     extra: dict[str, Any] = field(default_factory=dict)

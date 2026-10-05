@@ -201,6 +201,8 @@ def count(ctx, p):
     ctx.image_row().update({"n_objects": len(ids), "n_touching": len(touching & ids)})
     if ctx.excluded:
         ctx.image_row()["n_excluded_manual"] = len(ctx.excluded)
+    if ctx.highlighted:
+        ctx.image_row()["n_highlighted"] = len(ctx.highlighted)
     rows = ctx.object_rows()
     # vista de conteo: un punto por objeto contado (dos puntos en una semilla = partida;
     # una semilla sin punto = no contada)
@@ -216,9 +218,8 @@ def count(ctx, p):
         x, y = inside_point(m)
         x, y = x + sl[1].start, y + sl[0].start
         out = oid in ctx.excluded
-        if out:                                # excluido: conserva su número, en gris y sin punto
-            row["excluded"] = 1
-        else:
+        row["status"] = "excluded" if out else ("highlighted" if oid in ctx.highlighted else "ok")
+        if not out:                            # excluido: conserva su número, en gris y sin punto
             ov["dots"].append((x, y))
         if p["numbers"]:
             ov["labels"].append((x, y, str(oid), not out))

@@ -124,6 +124,7 @@ def metadata(analysis: str, results: dict[str, Any], project=None, extra: dict |
                  ("analysis_areas_all_images", len(project.roi)),
                  ("images_with_own_areas", len(project.image_roi)),
                  ("objects_excluded_manually", sum(len(v) for v in getattr(project, "excluded", {}).values())),
+                 ("objects_highlighted", sum(len(v) for v in getattr(project, "highlighted", {}).values())),
                  ("segmentation", f"{seg.color_space} channel {seg.channel} "
                                   + ("Otsu" if seg.auto else f"{seg.min_val}-{seg.max_val}")),
                  ("corrections", ", ".join(corr.active()) or "none"),

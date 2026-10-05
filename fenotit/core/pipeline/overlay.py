@@ -22,7 +22,19 @@ _AUTO_CANDIDATES = ("green", "magenta", "yellow", "cyan", "red", "orange", "blue
 
 
 def empty() -> dict:
-    return {"outlines": [], "dots": [], "labels": [], "lines": [], "size": 0}
+    return {"outlines": [], "dots": [], "labels": [], "lines": [], "stars": [], "size": 0}
+
+
+STAR = (0, 200, 255)             # BGR, amarillo
+
+
+def star(img, x: float, y: float, r: float):
+    """Estrella de 5 puntas (objeto destacado) con borde oscuro."""
+    a = np.deg2rad(np.arange(10) * 36 - 90)
+    rad = np.where(np.arange(10) % 2 == 0, r, r * 0.45)
+    pts = np.column_stack([x + rad * np.cos(a), y + rad * np.sin(a)]).round().astype(np.int32)
+    cv2.fillPoly(img, [pts], STAR, cv2.LINE_AA)
+    cv2.polylines(img, [pts], True, (30, 30, 30), 1, cv2.LINE_AA)
 
 
 def typical_size(labels: np.ndarray) -> float:
@@ -150,6 +162,10 @@ def _draw(img, ov, colors, origin, zoom, screen):
         for x, y in tr(ov["dots"]):
             cv2.circle(img, (int(x), int(y)), radius + 1, (0, 0, 0), -1, cv2.LINE_AA)
             cv2.circle(img, (int(x), int(y)), radius, colors["dot"], -1, cv2.LINE_AA)
+    if ov.get("stars"):
+        r = max(5.0, radius * 1.8)
+        for x, y in tr(ov["stars"]):
+            star(img, float(x), float(y), r)
     h, w = img.shape[:2]
     shift = radius if ov.get("dots") else 0
     if screen and seen:
