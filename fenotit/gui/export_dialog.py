@@ -11,6 +11,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from fenotit import log
+from fenotit.gui.help import HelpIcon
 from fenotit.gui.theme import COLORS, FONTS
 from fenotit.i18n import t
 
@@ -50,10 +51,12 @@ class ExportDialog(tk.Toplevel):
         tk.Label(body, text=t("export.title"), bg=bg, fg=COLORS["accent"],
                  font=("Segoe UI", 13, "bold")).pack(anchor="w")
 
-        def section(text):
+        def section(text, help_key=None):
             row = tk.Frame(body, bg=bg)
             row.pack(fill=tk.X, pady=(14, 4))
             tk.Label(row, text=text, bg=bg, fg=COLORS["accent"], font=("Segoe UI", 8, "bold")).pack(side=tk.LEFT)
+            if help_key:
+                HelpIcon(row, text.capitalize(), t(help_key), bg=bg).pack(side=tk.LEFT, padx=(6, 0))
             tk.Frame(row, bg=COLORS["border"], height=1).pack(side=tk.LEFT, fill=tk.X, expand=True,
                                                              padx=(8, 0), pady=(2, 0))
 
@@ -66,13 +69,15 @@ class ExportDialog(tk.Toplevel):
         tk.Button(row, text="…", command=self._pick, bg=COLORS["btn_bg"], fg=COLORS["accent"], relief="flat",
                   cursor="hand2", font=FONTS["body"], width=3).pack(side=tk.LEFT, padx=(4, 0))
         self.stamp = tk.BooleanVar(value=stamp)
-        tk.Checkbutton(body, variable=self.stamp, text=t("export.stamp"), bg=bg, fg=COLORS["text"],
-                       selectcolor=COLORS["bg_panel"], activebackground=bg, font=FONTS["small"],
-                       anchor="w").pack(fill=tk.X, pady=(2, 0))
+        row = tk.Frame(body, bg=bg)
+        row.pack(fill=tk.X, pady=(2, 0))
+        tk.Checkbutton(row, variable=self.stamp, text=t("export.stamp"), bg=bg, fg=COLORS["text"],
+                       selectcolor=COLORS["bg_panel"], activebackground=bg, font=FONTS["small"]).pack(side=tk.LEFT)
+        HelpIcon(row, t("export.stamp"), t("export.stamp_help"), bg=bg).pack(side=tk.LEFT, padx=(4, 0))
 
         self.scope = tk.StringVar(value=(scopes or [("all", "")])[0][0])
         if scopes and len(scopes) > 1:
-            section(t("export.photos"))
+            section(t("export.photos"), "export.photos_help")
             row = tk.Frame(body, bg=bg)
             row.pack(fill=tk.X)
             for key, text in scopes:
@@ -88,16 +93,17 @@ class ExportDialog(tk.Toplevel):
                            fg=COLORS["text"], selectcolor=COLORS["bg_panel"], activebackground=bg,
                            font=FONTS["body"], anchor="w").pack(fill=tk.X)
 
-        section(t("export.include"))
-        tk.Label(body, text=t("export.always"), bg=bg, fg=COLORS["text_muted"], font=FONTS["small"],
-                 anchor="w", justify="left", wraplength=420).pack(fill=tk.X, pady=(0, 2))
+        section(t("export.include"), "export.always")
         self.excel = tk.BooleanVar(value=True)
         self.views = tk.BooleanVar(value=views_default)
-        for var, text in ((self.excel, t("export.excel")), (self.views, t("export.views"))):
-            tk.Checkbutton(body, variable=var, text=text, bg=bg, fg=COLORS["text"], selectcolor=COLORS["bg_panel"],
-                           activebackground=bg, font=FONTS["body"], anchor="w").pack(fill=tk.X)
-        tk.Label(body, text=t("export.views_note"), bg=bg, fg=COLORS["text_muted"], font=FONTS["small"],
-                 anchor="w", justify="left", wraplength=420).pack(fill=tk.X, padx=(22, 0))
+        for var, text, help_key in ((self.excel, t("export.excel"), None),
+                                    (self.views, t("export.views"), "export.views_note")):
+            row = tk.Frame(body, bg=bg)
+            row.pack(fill=tk.X)
+            tk.Checkbutton(row, variable=var, text=text, bg=bg, fg=COLORS["text"], selectcolor=COLORS["bg_panel"],
+                           activebackground=bg, font=FONTS["body"]).pack(side=tk.LEFT)
+            if help_key:
+                HelpIcon(row, text, t(help_key), bg=bg).pack(side=tk.LEFT, padx=(4, 0))
 
         self.msg = tk.StringVar(value="")
         self._bar = ttk.Progressbar(body, mode="determinate", length=420)
