@@ -2746,17 +2746,28 @@ class MainWindow:
             neigh = [(n, v) for n, v in neigh if n in geom]
             extra = np.array([centre(geom[n]) for n, _ in neigh]) if neigh else None
             crop, origin, k = ins.crop_around(img, contour, size, extra=extra) if img is not None else (None, (0, 0), 1)
-            if crop is not None:
+            if crop is not None:                          # foto tenue: resaltan las líneas y los valores
+                crop[:] = (crop.astype(np.float32) * 0.35 + 255 * 0.65).astype(np.uint8)
                 for n, _ in neigh:
                     pts = np.round((geom[n] - origin) * k).astype(np.int32).reshape(-1, 1, 2)
-                    cv2.polylines(crop, [pts], True, (200, 200, 200), 1, cv2.LINE_AA)
-                overlay.highlight(crop, contour, origin, k)
-                for n, v in neigh:
-                    p1, p2 = (me - origin) * k, (centre(geom[n]) - origin) * k
-                    cv2.line(crop, tuple(np.round(p1).astype(int)), tuple(np.round(p2).astype(int)), (0, 200, 255), 1,
-                             cv2.LINE_AA)
+                    cv2.polylines(crop, [pts], True, (150, 150, 150), 1, cv2.LINE_AA)
+                pts = np.round((contour - origin) * k).astype(np.int32).reshape(-1, 1, 2)
+                cv2.polylines(crop, [pts], True, (60, 60, 60), 1, cv2.LINE_AA)
+                mask, taken = ins.object_mask(crop.shape, contour, origin, k), []
+                p1 = (me - origin) * k
+                for n, _ in neigh:
+                    p2 = (centre(geom[n]) - origin) * k
+                    cv2.line(crop, tuple(np.round(p1).astype(int)), tuple(np.round(p2).astype(int)),
+                             (172, 102, 33), 1, cv2.LINE_AA)
+                    cv2.circle(crop, tuple(np.round(p2).astype(int)), 2, (172, 102, 33), -1, cv2.LINE_AA)
+                for n, v in neigh:                         # el valor en la punta, por fuera
                     if isinstance(v, (int, float)):
-                        ins.text(crop, ins.fmt(float(v)), *((p1 + p2) / 2), 0.32)
+                        p2 = (centre(geom[n]) - origin) * k
+                        u = (p2 - p1) / (np.hypot(*(p2 - p1)) or 1)
+                        nn = np.array([-u[1], u[0]])
+                        ins.label_at(crop, ins.fmt(float(v)), [p2 + u * 13, p2 + u * 13 + nn * 10,
+                                                               p2 + u * 13 - nn * 10, p2 + nn * 11, p2 - nn * 11],
+                                     mask, taken, 0.34, dark=True)
             for name, prefix in (("insp.nearest", "nearest_"), ("insp.mean_neighbor", "mean_neighbor_")):
                 rows.append((t(name), value(col(prefix))))
             rows.append((t("insp.n_neighbors"), str(obj.get("n_neighbors", len(neigh)))))
