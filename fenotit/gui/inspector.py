@@ -145,12 +145,13 @@ def crop_around(img: np.ndarray, contour: np.ndarray, size=CROP, extra=None, mar
     return np.ascontiguousarray(out), (x0, y0), k
 
 
-def text(img, s, x, y, scale=0.38):
+def text(img, s, x, y, scale=0.38, dark=False):
     (tw, th), _ = cv2.getTextSize(s, cv2.FONT_HERSHEY_SIMPLEX, scale, 1)
     x = int(min(max(2, x - tw / 2), img.shape[1] - tw - 2))
     y = int(min(max(th + 2, y + th / 2), img.shape[0] - 3))
-    cv2.putText(img, s, (x, y), cv2.FONT_HERSHEY_SIMPLEX, scale, DARK, 3, cv2.LINE_AA)
-    cv2.putText(img, s, (x, y), cv2.FONT_HERSHEY_SIMPLEX, scale, WHITE, 1, cv2.LINE_AA)
+    halo, ink = (WHITE, DARK) if dark else (DARK, WHITE)      # dark = texto oscuro sobre fondo claro
+    cv2.putText(img, s, (x, y), cv2.FONT_HERSHEY_SIMPLEX, scale, halo, 3, cv2.LINE_AA)
+    cv2.putText(img, s, (x, y), cv2.FONT_HERSHEY_SIMPLEX, scale, ink, 1, cv2.LINE_AA)
 
 
 def fmt(v: float) -> str:
@@ -173,12 +174,12 @@ def _free(img, box, mask, taken) -> bool:
     return not any(x0 < b[2] and b[0] < x1 and y0 < b[3] and b[1] < y1 for b in taken)
 
 
-def label_at(img, s, candidates, mask, taken, scale=0.38):
+def label_at(img, s, candidates, mask, taken, scale=0.38, dark=False):
     """Escribe `s` en el primer lugar libre de `candidates` (si ninguno lo está, en el primero)."""
     spots = [np.asarray(c, float) for c in candidates]
     c = next((p for p in spots if _free(img, _box(img, s, p[0], p[1], scale), mask, taken)), spots[0])
     taken.append(_box(img, s, c[0], c[1], scale))
-    text(img, s, c[0], c[1], scale)
+    text(img, s, c[0], c[1], scale, dark)
 
 
 def cota(img, p1, p2, label, mask=None, taken=None):
