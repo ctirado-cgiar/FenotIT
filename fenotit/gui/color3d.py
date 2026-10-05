@@ -22,6 +22,7 @@ if MPL_OK:
     from matplotlib.figure import Figure
     from matplotlib.lines import Line2D
     from matplotlib.markers import MarkerStyle
+    from matplotlib import patheffects
     from matplotlib.path import Path as MPath
     from mpl_toolkits.mplot3d import proj3d
 
@@ -209,9 +210,14 @@ class Color3DWindow(tk.Toplevel):
                            edgecolors=EDGE, linewidths=0.3, alpha=0.9)
         mode = self.labels.get(self.label_var.get())
         if mode:
+            ax.computed_zorder = False          # las etiquetas siempre encima de los puntos
+            halo = [patheffects.withStroke(linewidth=2.2, foreground="white")]
             top = [p for p in pts if p.level in ("images", "objects")] or pts
+            size = {id(p): sz for p, sz in zip(pts, self._sizes)}
             for p in top[:200]:
-                ax.text(*p.xyz, " " + (p.label_id if mode == "id" else self._name(p)), fontsize=6, color="#333333")
+                pad = " " * (int(np.sqrt(size[id(p)]) / 3.4) + 1)      # justo al lado del punto
+                ax.text(*p.xyz, pad + (p.label_id if mode == "id" else self._point_name(p)), fontsize=6,
+                        color="#222222", zorder=10, path_effects=halo)
         names = cs.SPACES[space]
         ax.set_xlabel(names[0])
         ax.set_ylabel(names[1])
@@ -232,7 +238,7 @@ class Color3DWindow(tk.Toplevel):
         fig.subplots_adjust(left=0, right=1, bottom=0, top=0.95)
         self._canvas.draw_idle()
 
-    def _name(self, p) -> str:
+    def _point_name(self, p) -> str:
         return p.name.rsplit(".", 1)[0] + (f"-{p.object_id}" if p.object_id is not None else "")
 
     @staticmethod
