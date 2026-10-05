@@ -463,8 +463,8 @@ class BatchChartWindow(tk.Toplevel):
     o por objeto; agrupados por una columna de la tabla del usuario (genotipo, rep…)."""
 
     def __init__(self, parent, results: dict, meta: dict | None = None, groups: list[str] | None = None,
-                 on_pick=None, on_color3d=None):
-        """on_pick(ruta, objeto|None): clic en un punto; on_color3d(): abre Color 3D."""
+                 on_pick=None):
+        """on_pick(ruta, objeto|None): clic en un punto."""
         super().__init__(parent)
         self.on_pick = on_pick
         self.title(t("chart.batch_title"))
@@ -482,14 +482,14 @@ class BatchChartWindow(tk.Toplevel):
         bg = COLORS["bg_panel"]
         top = tk.Frame(self, bg=bg)
         top.pack(fill=tk.X)
-        self.units = {t("chart.unit_images"): "images", t("chart.unit_objects"): "objects"}
-        self.unit = tk.StringVar(value=t("chart.unit_images"))
+        self.units = {"images": "images", "objects": "objects"}
+        self.unit = tk.StringVar(value="images")
         tk.Label(top, text=t("chart.unit") + ":", bg=bg, fg=COLORS["text_muted"],
                  font=FONTS["small"]).pack(side=tk.LEFT, padx=(10, 2))
-        cb = ttk.Combobox(top, textvariable=self.unit, state="readonly", width=9, font=FONTS["small"],
-                          values=list(self.units))
-        cb.pack(side=tk.LEFT, pady=4)
-        cb.bind("<<ComboboxSelected>>", lambda e: self._unit_changed())
+        for key in ("images", "objects"):
+            tk.Radiobutton(top, text=t(f"chart.unit_{key}"), variable=self.unit, value=key,
+                           command=self._unit_changed, bg=bg, fg=COLORS["text"], selectcolor=COLORS["bg_card"],
+                           activebackground=bg, font=FONTS["small"]).pack(side=tk.LEFT, pady=4)
         HelpIcon(top, t("chart.unit"), t("chart.unit_help"), bg=bg).pack(side=tk.LEFT, padx=(4, 0))
         self.group = tk.StringVar(value=NONE)
         if groups:
@@ -501,9 +501,6 @@ class BatchChartWindow(tk.Toplevel):
             gb.bind("<<ComboboxSelected>>", lambda e: self._refresh())
         tk.Button(top, text=t("chart.save"), command=lambda: _save(self._fig, self), bg=COLORS["btn_bg"],
                   fg=COLORS["accent"], relief="flat", font=FONTS["small"], cursor="hand2").pack(side=tk.RIGHT, padx=8)
-        if on_color3d:
-            tk.Button(top, text=t("c3d.open"), command=on_color3d, bg=COLORS["btn_bg"], fg=COLORS["accent"],
-                      relief="flat", font=FONTS["small"], cursor="hand2").pack(side=tk.RIGHT, padx=2)
         bar = tk.Frame(self, bg=bg)
         bar.pack(fill=tk.X)
         self.chooser = _Chooser(bar, ("bars", "box", "hist", "scatter"), self._refresh, bg)

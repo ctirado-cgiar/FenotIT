@@ -3679,8 +3679,7 @@ class MainWindow:
             messagebox.showinfo(t("msg.no_data_title"), t("msg.no_data_batch"), parent=self.root)
             return
         BatchChartWindow(self.root, results, meta={p: self._meta_row(p) for p in results},
-                         groups=self._meta_columns(), on_pick=self._goto_object,
-                         on_color3d=lambda: self._show_color3d("batch"))
+                         groups=self._meta_columns(), on_pick=self._goto_object)
 
     def _color_images(self, paths) -> list:
         """[(ruta, Image_ID, nombre, tablas)] con resultado del análisis elegido."""
