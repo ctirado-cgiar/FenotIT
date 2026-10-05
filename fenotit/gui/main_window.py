@@ -2694,16 +2694,17 @@ class MainWindow:
 
         rows, crop = [], None
         if kind == "morphometry":
-            crop, origin, k = ins.crop_around(img, contour, size) if img is not None else (None, (0, 0), 1)
+            crop, origin, k = ins.crop_around(img, contour, size, margin=0.5) if img is not None else (None, (0, 0), 1)
             if crop is not None:
                 overlay.highlight(crop, contour, origin, k)
                 (l1, l2), (w1, w2) = ins.morph_axes(contour)
                 lc, wc = col("length_"), col("width_")
+                mask, taken = ins.object_mask(crop.shape, contour, origin, k), []
                 for (p1, p2), key in (((l1, l2), lc), ((w1, w2), wc)):
                     v = obj.get(key)
                     label = ins.fmt(float(v)) if isinstance(v, (int, float)) else ""
-                    ins.cota(crop, (np.asarray(p1) - origin) * k, (np.asarray(p2) - origin) * k, label)
-                ins.scale_bar(crop, upx / k if upx else None, unit)
+                    ins.cota(crop, (np.asarray(p1) - origin) * k, (np.asarray(p2) - origin) * k, label, mask, taken)
+                ins.scale_bar(crop, upx / k if upx else None, unit, mask, taken)
             for name, prefix in (("insp.area", "area_"), ("insp.length", "length_"), ("insp.width", "width_"),
                                  ("insp.perimeter", "perimeter_")):
                 rows.append((t(name), value(col(prefix))))
