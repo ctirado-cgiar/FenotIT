@@ -73,10 +73,12 @@ class ExportDialog(tk.Toplevel):
         self.scope = tk.StringVar(value=(scopes or [("all", "")])[0][0])
         if scopes and len(scopes) > 1:
             section(t("export.photos"))
+            row = tk.Frame(body, bg=bg)
+            row.pack(fill=tk.X)
             for key, text in scopes:
-                tk.Radiobutton(body, variable=self.scope, value=key, text=text, bg=bg, fg=COLORS["text"],
-                               selectcolor=COLORS["bg_panel"], activebackground=bg, font=FONTS["body"],
-                               anchor="w").pack(fill=tk.X)
+                tk.Radiobutton(row, variable=self.scope, value=key, text=text, bg=bg, fg=COLORS["text"],
+                               selectcolor=COLORS["bg_panel"], activebackground=bg,
+                               font=FONTS["body"]).pack(side=tk.LEFT, padx=(0, 14))
 
         section(t("export.analyses"))
         self.chosen: dict[str, tk.BooleanVar] = {}

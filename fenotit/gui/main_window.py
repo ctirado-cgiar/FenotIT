@@ -3148,12 +3148,12 @@ class MainWindow:
         n = len(self.batch_paths)
         scopes = [("all", t("export.scope_all", n=n))]
         if self.current_image_path and n > 1:
-            scopes.append(("current", t("export.scope_current", name=Path(self.current_image_path).name)))
+            scopes.append(("current", t("export.scope_current")))
         found = self._search_paths()
         if found is not None and 0 < len(found) < n:
-            scopes.append(("search", t("export.scope_search", n=len(found), q=self.image_list._query())))
+            scopes.append(("search", t("export.scope_search", n=len(found))))
         ExportDialog(self.root, done, folder, run=self._run_export, cancel=self._cancel_export, scopes=scopes,
-                     stamp=bool(settings.get("export_stamp", True)), existing=self._export_existing)
+                     stamp=bool(settings.get("export_stamp", False)), existing=self._export_existing)
 
     def _search_paths(self) -> list[str] | None:
         """Fotos que deja ver el buscador de la lista (None si no hay búsqueda)."""
