@@ -55,6 +55,7 @@ def object_chain(params: dict) -> list[dict]:
     chain = [seg, {"step": "roi"}, {"step": "clean"},
              {"step": "separate"} if params.get("touching") else {"step": "label"},
              {"step": "filter", "params": {"exclude_border": bool(params.get("exclude_border", True)),
+                                           "drop_points": [list(map(float, pt)) for pt in params.get("drop_points") or []],
                                            **_size_filter(params)}}]
     return chain
 
@@ -106,6 +107,9 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
     res.extra["view_tables"] = view_tables
     res.extra["legends"] = legends
     res.extra["overlays"] = overlays          # marcas como datos: se dibujan con el estilo elegido
+    from fenotit.core.pipeline.views import object_geometry
+    res.extra["geometry"] = object_geometry(ctx.labels)     # elegir, resaltar y recortar un objeto
+    res.extra["excluded"] = sorted(ctx.excluded)
     res.extra["base_image"] = ctx.image
     if ctx.labels is not None:
         from fenotit.core.pipeline import overlay

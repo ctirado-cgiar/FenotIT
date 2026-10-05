@@ -34,6 +34,20 @@ def _outline(out, m, sl, color, width):
     cv2.drawContours(out, cnts, -1, color, width, cv2.LINE_AA)
 
 
+def object_geometry(labels) -> dict[int, np.ndarray]:
+    """Contorno de cada objeto (px de la imagen, simplificado): para elegir un objeto con
+    un clic, resaltarlo y recortarlo, también en resultados livianos (sin imágenes)."""
+    out = {}
+    if labels is None:
+        return out
+    for oid, sl, m in regions(labels):
+        cnts, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE,
+                                   offset=(sl[1].start, sl[0].start))
+        if cnts:
+            out[oid] = max(cnts, key=cv2.contourArea).reshape(-1, 2).astype(np.int32)
+    return out
+
+
 def label_text(out, text, x, y, scale, color=(255, 255, 255)):
     th = max(1, round(scale * 2))
     cv2.putText(out, text, (x + 4, y - 4), cv2.FONT_HERSHEY_SIMPLEX, scale, (0, 0, 0), th + 2, cv2.LINE_AA)

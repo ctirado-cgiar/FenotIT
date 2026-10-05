@@ -164,6 +164,14 @@ def _draw(img, ov, colors, origin, zoom, screen):
     return img
 
 
+def highlight(img: np.ndarray, contour, origin=(0, 0), zoom: float = 1.0, width: int = 2) -> np.ndarray:
+    """Resalta un objeto (el elegido en el inspector): contorno blanco con halo negro."""
+    pts = np.round((np.asarray(contour, float) - origin) * zoom).astype(np.int32).reshape(-1, 1, 2)
+    cv2.polylines(img, [pts], True, (0, 0, 0), width + 3, cv2.LINE_AA)
+    cv2.polylines(img, [pts], True, (255, 255, 255), width, cv2.LINE_AA)
+    return img
+
+
 def tint(image: np.ndarray, mask: np.ndarray, colors: dict) -> np.ndarray:
     """Vista previa de la segmentación: color semitransparente y borde con halo."""
     out = image.copy()

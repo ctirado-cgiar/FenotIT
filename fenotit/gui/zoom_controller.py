@@ -198,6 +198,9 @@ class ZoomController:
         self._zoom_var: tk.StringVar | None = None
         self._drag = None
         self._rect_start = None
+        self._click = None
+        self.on_pick = None                   # (x, y) en px de imagen: clic con "inspeccionar"
+        self.highlight = None                 # contorno (px de imagen) del objeto elegido
 
         for c in (canvas_left, canvas_right):
             c.config(takefocus=True)
@@ -226,7 +229,7 @@ class ZoomController:
 
     def _update_cursor(self, canvas):
         busy = self._roi_drawing(canvas) or self.tool == "zoom_area"
-        canvas.config(cursor="crosshair" if busy else "fleur")
+        canvas.config(cursor="crosshair" if busy else ("hand2" if self.tool == "inspect" else "fleur"))
 
     def _ref(self) -> tk.Canvas:
         """El canvas que se ve (si se ocultó la entrada, el del resultado)."""
@@ -271,6 +274,15 @@ class ZoomController:
             self._rect_start = (event.widget, event.x, event.y)
             return
         self._drag = (event.x, event.y)
+        self._click = (event.widget, event.x, event.y) if button == "1" and self.tool == "inspect" else None
+
+    def _to_image(self, canvas, x, y):
+        img = self._img_left if self._img_left is not None else self._img_right
+        if img is None:
+            return None
+        cw, ch = max(canvas.winfo_width(), 1), max(canvas.winfo_height(), 1)
+        ox, oy = self.state.image_offset(cw, ch, img.shape[1], img.shape[0])
+        return (x - ox) / self.state.zoom, (y - oy) / self.state.zoom
 
     def _motion(self, event, button):
         if getattr(self, "_mini_drag", False):
@@ -297,6 +309,13 @@ class ZoomController:
 
     def _release(self, event, button):
         self._drag = None
+        click, self._click = self._click, None
+        if click and button == "1" and click[0] is event.widget \
+                and abs(event.x - click[1]) < 4 and abs(event.y - click[2]) < 4 and self.on_pick:
+            pt = self._to_image(event.widget, event.x, event.y)
+            if pt is not None:
+                self.on_pick(*pt)
+            return
         if getattr(self, "_mini_drag", False):
             self._mini_drag = False
             return "break"
@@ -409,7 +428,7 @@ class ZoomController:
         if left is not None and self._img_left is not None and left is not self._img_left:
             size = (self._img_left.shape[1], self._img_left.shape[0])
         self._draw_canvas(self.cl,  left,
-                          "_photo_left",  left=True, size=size)
+                          "_photo_left",  left=True, size=size, marks=None)
         self._draw_canvas(self.cr,  self._right_aligned(),
                           "_photo_right", left=False, marks=self._marks_right)
         self._draw_minimap()
@@ -430,10 +449,16 @@ class ZoomController:
         iw, ih = size or (img_bgr.shape[1], img_bgr.shape[0])
         try:
             post = None
-            if marks is not None:
+            hl = self.highlight
+            if marks is not None or hl is not None:
                 from fenotit.core.pipeline import overlay
-                ov, colors, keep = marks
-                post = lambda out, origin, z: overlay.draw(out, ov, colors, origin, z, screen=True, keep=keep)
+
+                def post(out, origin, z):
+                    if marks is not None:
+                        ov, colors, keep = marks
+                        overlay.draw(out, ov, colors, origin, z, screen=True, keep=keep)
+                    if hl is not None:
+                        overlay.highlight(out, hl, origin, z)
             view = render(img_bgr, self.state, cw, ch, post, size)
             if view is not None:
                 rgb, x, y = view

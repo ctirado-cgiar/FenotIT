@@ -19,7 +19,7 @@ def shape(ctx, p):
     touching = ctx.touching_ids() if p["isolated_only"] else set()
     rows, smooth = [], {}
     for oid, sl in enumerate(find_objects(ctx.labels), 1):
-        if sl is None or oid in touching:
+        if sl is None or oid in touching or oid in ctx.excluded:
             continue
         m = (ctx.labels[sl] == oid).astype(np.uint8)
         cnts, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)

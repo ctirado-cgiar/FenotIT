@@ -20,7 +20,7 @@ def morphometry(ctx, p):
     axes = {}
     for oid, sl, m in regions(ctx.labels):
         rows[oid]["touching"] = int(oid in touching)
-        if p["isolated_only"] and oid in touching:
+        if oid in ctx.excluded or (p["isolated_only"] and oid in touching):
             continue
         cnts, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         cnt = max(cnts, key=cv2.contourArea)
@@ -65,8 +65,8 @@ def morphometry(ctx, p):
         })
     measured = [r for r in rows.values() if f"area_{u}2" in r]
     ctx.image_row().update({
-        "n_objects": len(rows),
-        "n_touching": len(touching & set(rows)),
+        "n_objects": len(set(rows) - ctx.excluded),
+        "n_touching": len((touching & set(rows)) - ctx.excluded),
         "n_measured": len(measured),
     })
     included_view(ctx, "morphometry", {r["object_id"] for r in measured})
@@ -155,6 +155,8 @@ def color(ctx, p):
     k = int(p["n_colors"])
     objs = []
     for oid, sl, m in regions(ctx.labels):
+        if oid in ctx.excluded:
+            continue
         m = _core(m, int(p["edge_trim"]))
         px = rgb_img[sl][m > 0].reshape(-1, 3)
         objs.append((oid, sl, m, px))
@@ -194,9 +196,11 @@ def color(ctx, p):
     {"key": "numbers", "type": "bool", "default": True},
 ])
 def count(ctx, p):
-    ids = {i for i, s in enumerate(find_objects(ctx.labels), 1) if s is not None}
+    ids = {i for i, s in enumerate(find_objects(ctx.labels), 1) if s is not None} - ctx.excluded
     touching = ctx.touching_ids()
     ctx.image_row().update({"n_objects": len(ids), "n_touching": len(touching & ids)})
+    if ctx.excluded:
+        ctx.image_row()["n_excluded_manual"] = len(ctx.excluded)
     rows = ctx.object_rows()
     # vista de conteo: un punto por objeto contado (dos puntos en una semilla = partida;
     # una semilla sin punto = no contada)
@@ -211,7 +215,11 @@ def count(ctx, p):
             row["centroid_y_px"] = int(round(ys.mean() + sl[0].start))
         x, y = inside_point(m)
         x, y = x + sl[1].start, y + sl[0].start
-        ov["dots"].append((x, y))
+        out = oid in ctx.excluded
+        if out:                                # excluido: conserva su número, en gris y sin punto
+            row["excluded"] = 1
+        else:
+            ov["dots"].append((x, y))
         if p["numbers"]:
-            ov["labels"].append((x, y, str(oid), True))
+            ov["labels"].append((x, y, str(oid), not out))
     add_overlay(ctx, "count", ov)
