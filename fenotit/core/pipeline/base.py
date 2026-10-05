@@ -1,0 +1,149 @@
+"""Cadena de análisis: segmentadores → procesadores → mediciones.
+
+Cada pieza se registra con @step y declara qué necesita (requires) y qué produce
+(provides) del contexto. Una cadena es una lista serializable:
+    [{"step": "threshold", "params": {...}}, {"step": "morphometry"}, ...]
+"""
+from __future__ import annotations
+
+import importlib
+import pkgutil
+from dataclasses import dataclass, field
+from typing import Any, Callable
+
+import numpy as np
+
+from fenotit import log
+
+_log = log.get("pipeline")
+
+KINDS = ("segmenter", "processor", "measurement")
+
+
+@dataclass
+class Context:
+    image: np.ndarray
+    mm_per_px: float | None = None                   # escala (siempre en mm/px)
+    length_unit: str = "mm"                          # unidad en que se reportan los resultados
+    roi: np.ndarray | None = None                    # uint8, tamaño de la imagen
+    exclusions: list = field(default_factory=list)   # [(puntos Nx2, color BGR)]
+    mask: np.ndarray | None = None                   # uint8 0/255
+    labels: np.ndarray | None = None                 # int32, 0 = fondo
+    detections: list[dict] | None = None             # [{"x", "y", ...}]
+    skeleton: np.ndarray | None = None
+    groups: np.ndarray | None = None                 # componentes antes de desagrupar
+    tables: dict[str, list[dict]] = field(default_factory=dict)
+    images: dict[str, np.ndarray] = field(default_factory=dict)
+    extra: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def unit(self) -> str:
+        """Unidad de las columnas (ASCII: um, mm, cm, m) o px sin escala."""
+        from fenotit.core.units import ascii_name
+        return ascii_name(self.length_unit) if self.mm_per_px else "px"
+
+    @property
+    def scale(self) -> float:
+        """Unidades por píxel (1 sin escala)."""
+        from fenotit.core.units import per_px
+        return per_px(self.mm_per_px, self.length_unit) or 1.0
+
+    def digits(self, power: int = 1, base: int = 3) -> int:
+        """Decimales para una medida (longitud power=1, área 2): con unidades más grandes que
+        el mm se agregan decimales para no perder precisión (0.143 cm² → 0.14273)."""
+        import math
+        from fenotit.core.units import TO_MM
+        k = TO_MM.get(self.unit, 1.0) if self.mm_per_px else 1.0
+        return base + max(0, power * round(math.log10(k)))
+
+    def object_rows(self) -> dict[int, dict]:
+        """Filas de la tabla 'objects' indexadas por id de objeto (se crean si faltan)."""
+        rows = self.extra.setdefault("_object_rows", {})
+        if self.labels is not None and not rows:
+            for oid in np.unique(self.labels):
+                if oid:
+                    rows[int(oid)] = {"object_id": int(oid)}
+            self.tables["objects"] = list(rows.values())
+        return rows
+
+    def touching_ids(self) -> set[int]:
+        """Objetos que salieron de desagrupar un grupo (se tocaban con otro)."""
+        if self.groups is None or self.labels is None:
+            return set()
+        cache = self.extra.get("_touching")
+        if cache is not None and cache[0] is self.labels:
+            return cache[1]
+        fg = (self.labels > 0) & (self.groups > 0)
+        if not fg.any():
+            return set()
+        lab, grp = self.labels[fg].astype(np.int64), self.groups[fg].astype(np.int64)
+        pairs = np.unique(lab * (int(grp.max()) + 1) + grp)
+        objs, grps = pairs // (int(grp.max()) + 1), pairs % (int(grp.max()) + 1)
+        gid, n = np.unique(grps, return_counts=True)
+        shared = gid[n > 1]
+        result = {int(o) for o in objs[np.isin(grps, shared)]}
+        self.extra["_touching"] = (self.labels, result)
+        return result
+
+    def image_row(self) -> dict:
+        t = self.tables.setdefault("image", [{}])
+        return t[0]
+
+
+@dataclass
+class Step:
+    key: str
+    kind: str
+    func: Callable[[Context, dict], None]
+    params: list[dict] = field(default_factory=list)
+    requires: tuple[str, ...] = ()
+    provides: tuple[str, ...] = ()
+    label: str = ""
+
+    def defaults(self) -> dict:
+        return {p["key"]: p["default"] for p in self.params}
+
+
+REGISTRY: dict[str, Step] = {}
+
+
+class PipelineError(RuntimeError):
+    pass
+
+
+def step(key: str, kind: str, params: list[dict] | None = None,
+         requires: tuple[str, ...] = (), provides: tuple[str, ...] = (), label: str = ""):
+    assert kind in KINDS, kind
+
+    def deco(func):
+        REGISTRY[key] = Step(key, kind, func, params or [], tuple(requires), tuple(provides), label or key)
+        return func
+    return deco
+
+
+def discover() -> dict[str, Step]:
+    """Importa todas las piezas de fenotit.core.pipeline.steps."""
+    from fenotit.core.pipeline import steps
+    for mod in pkgutil.iter_modules(steps.__path__):
+        try:
+            importlib.import_module(f"{steps.__name__}.{mod.name}")
+        except Exception:
+            _log.exception("No se pudo cargar la pieza %s", mod.name)
+    return REGISTRY
+
+
+def run(image: np.ndarray, chain: list[dict], mm_per_px: float | None = None,
+        roi: np.ndarray | None = None, exclusions: list | None = None, unit: str = "mm") -> Context:
+    if any(item["step"] not in REGISTRY for item in chain):
+        discover()
+    ctx = Context(image=image, mm_per_px=mm_per_px, length_unit=unit, roi=roi, exclusions=exclusions or [])
+    for item in chain:
+        s = REGISTRY.get(item["step"])
+        if s is None:
+            raise PipelineError(f"unknown step '{item['step']}'")
+        missing = [r for r in s.requires if getattr(ctx, r) is None]
+        if missing:
+            raise PipelineError(f"'{s.key}' needs {missing}")
+        params = {**s.defaults(), **(item.get("params") or {})}
+        s.func(ctx, params)
+    return ctx

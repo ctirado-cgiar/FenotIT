@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fenotit"
+dynamic = ["version"]
+description = "Digital plant phenotyping platform"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Alliance of Bioversity International and CIAT" }]
+dependencies = [
+    "numpy>=2.0",
+    "opencv-python>=4.7",
+    "pillow",
+    "matplotlib",
+    "scikit-learn",
+    "scikit-image",
+    "scipy",
+    "openpyxl",
+    "pyyaml",
+]
+
+[project.scripts]
+fenotit = "fenotit.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "fenotit.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["fenotit*"]
+
+[tool.setuptools.package-data]
+fenotit = ["assets/*", "lang/*.json"]
