@@ -280,6 +280,8 @@ class IntraImageChartPanel(tk.Frame):
         w, h = max(fw, 300) / 96, max(fh, 160) / 96
         fig = Figure(figsize=(w, h), dpi=96)
         stacked = w / h < 1.3                       # alto y angosto: uno debajo del otro
+        n_axes = max(1, len(cols))
+        narrow = (fw if stacked else fw / n_axes) < 260  # poco ancho por gráfico: título más corto
         if kind == "scatter":
             if len(cols) < 2:
                 _message(self._frame, t("chart.pick_xy"))
@@ -310,9 +312,13 @@ class IntraImageChartPanel(tk.Frame):
                     ax.hist(vals, bins=min(20, max(5, len(vals) // 3)), color=color, edgecolor="white",
                             alpha=0.85, linewidth=0.5)
                     ax.set_ylabel(t("chart.frequency"))
-                ax.set_title(f"{_label(col)}\nn = {len(vals)}   {t('chart.median')} = {np.median(vals):.2f}"
-                             f"   {t('chart.sd')} = {np.std(vals, ddof=1) if len(vals) > 1 else 0:.2f}",
-                             fontsize=8)
+                sd = np.std(vals, ddof=1) if len(vals) > 1 else 0.0
+                med = f"{t('chart.median')} = {np.median(vals):.4g}"
+                dev = f"{t('chart.sd')} = {sd:.3g}"
+                ax.set_title(f"{_label(col)}\nn = {len(vals)}\n{med}\n{dev}" if narrow else
+                             f"{_label(col)}\nn = {len(vals)}   {med}   {dev}", fontsize=7 if narrow else 8)
+                if narrow:
+                    ax.tick_params(labelsize=7)
                 _style_ax(ax)
         try:
             fig.tight_layout(pad=0.8)
