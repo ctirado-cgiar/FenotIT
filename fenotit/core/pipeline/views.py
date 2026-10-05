@@ -48,15 +48,22 @@ def object_geometry(labels) -> dict[int, np.ndarray]:
     return out
 
 
-def add_stars(overlays: dict, geometry: dict, ids) -> dict:
+def add_stars(overlays: dict, geometry: dict, ids, views=()) -> dict:
     """Copia de las marcas con una ★ arriba a la derecha de cada objeto destacado (sin
-    tocar las del caché)."""
+    tocar las del caché). Las vistas sin marcas (Color, Máscara) reciben solo las ★,
+    dibujadas sobre su propia imagen (`on_view`)."""
+    from fenotit.core.pipeline import overlay
     stars = []
     for oid in ids:
         c = geometry.get(oid)
         if c is not None:
             stars.append((float(c[:, 0].max()), float(c[:, 1].min())))
-    return {k: ({**v, "stars": stars} if v is not None else v) for k, v in overlays.items()}
+    out = {k: ({**v, "stars": stars} if v is not None else v) for k, v in overlays.items()}
+    sizes = [v.get("size", 0) for v in overlays.values() if v]
+    for view in views:
+        if out.get(view) is None:
+            out[view] = {**overlay.empty(), "stars": stars, "on_view": True, "size": max(sizes, default=0)}
+    return out
 
 
 def label_text(out, text, x, y, scale, color=(255, 255, 255)):
@@ -225,10 +232,12 @@ def decorate(result, display: dict, image_name: str | None = None):
     colors = overlay.resolve(display.get("style"), auto=result.extra.get("contrast"))
 
     def draw(name: str, img: np.ndarray, with_marks: bool = True, box: list | None = None) -> np.ndarray:
-        if name in marks and base is not None:
-            img = base.copy()
-            if with_marks:
-                img = overlay.draw(img, marks[name], colors)
+        if name in marks and marks[name] is not None:
+            on_view = marks[name].get("on_view")          # marcas sobre la imagen de la vista (Color)
+            if on_view or base is not None:
+                img = img.copy() if on_view else base.copy()
+                if with_marks:
+                    img = overlay.draw(img, marks[name], colors)
         spec = legends.get(name)
         if not spec or not display.get("legend", True):
             return img

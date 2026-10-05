@@ -81,6 +81,19 @@ def _analysis_key(name: str) -> str:
     return ANALYSES[name].func.__module__.rsplit(".", 1)[-1]
 
 
+def _row_objects(row: dict) -> list[int]:
+    """Objetos de una fila de tabla: object_id, o los dos de un par (Distancias)."""
+    ids = [row.get(k) for k in ("object_id", "object_a", "object_b")]
+    return [int(i) for i in ids if isinstance(i, (int, np.integer))]
+
+
+def _on_base(result, view) -> bool:
+    """¿La vista se dibuja como foto + marcas (contornos, puntos)? Las de Color o Máscara
+    tienen su propia imagen (y, a lo sumo, ★ encima)."""
+    ov = (result.extra.get("overlays") or {}).get(view) if result is not None else None
+    return ov is not None and not ov.get("on_view")
+
+
 def _analysis_label(name: str) -> str:
     return t(f"analysis.{_analysis_key(name)}.name", name)
 
@@ -2631,7 +2644,7 @@ class MainWindow:
         items = getattr(self, "_table_items", {})
         self._table_syncing = True
         try:
-            want = [iid for iid, row in items.items() if self._sel is not None and row.get("object_id") == self._sel]
+            want = [iid for iid, row in items.items() if self._sel is not None and self._sel in _row_objects(row)]
             self.table.selection_set(want)
             if want:
                 self.table.see(want[0])
@@ -2644,10 +2657,9 @@ class MainWindow:
         sel = self.table.selection()
         if not sel:
             return
-        row = getattr(self, "_table_items", {}).get(sel[0], {})
-        oid = row.get("object_id")
-        if isinstance(oid, (int, np.integer)):
-            self._select_object(int(oid), from_table=True)
+        ids = _row_objects(getattr(self, "_table_items", {}).get(sel[0], {}))
+        if ids:                         # en Distancias (una fila por par) se elige el primero
+            self._select_object(self._sel if self._sel in ids else ids[0], from_table=True)
 
     def _show_inspector(self):
         """Solo lo de la capa que se está viendo (ver gui/inspector.py)."""
@@ -2665,7 +2677,7 @@ class MainWindow:
         base = r.extra.get("base_image")
         if base is None and self.scaler_left.has_image:
             base = self.scaler_left.original
-        img = base if view in ovs else (r.step_images.get(view) if r.step_images.get(view) is not None else base)
+        img = base if _on_base(r, view) else (r.step_images.get(view) if r.step_images.get(view) is not None else base)
         tables = r.extra.get("tables") or {}
         obj = next((x for x in tables.get("objects", []) if x.get("object_id") == oid), {})
         excluded, starred = oid in (r.extra.get("excluded") or []), oid in (r.extra.get("highlighted") or [])
@@ -2991,7 +3003,7 @@ class MainWindow:
                     self.last_result = dataclasses.replace(
                         self.last_result, extra={**self.last_result.extra, "base_image": self.scaler_left.original})
                 self._show_step_img(name, self.scaler_left.original)
-            self._schedule_rehydrate(600 if name in (self.last_result.extra.get("overlays") or {}) else 30)
+            self._schedule_rehydrate(600 if _on_base(self.last_result, name) else 30)
         else:
             self._show_step_img(name, img)
         self._update_view_controls(name)
@@ -3585,7 +3597,7 @@ class MainWindow:
             return
         name = self.step_names[self.step_idx]
         ovs = r.extra.get("overlays") or {}
-        base = r.extra.get("base_image") if name in ovs else r.step_images.get(name)
+        base = r.extra.get("base_image") if _on_base(r, name) else r.step_images.get(name)
         if base is None:
             return
         try:
@@ -3607,7 +3619,7 @@ class MainWindow:
             return None
         name = self.step_names[self.step_idx]
         img = r.step_images.get(name)
-        if img is None and name in (r.extra.get("overlays") or {}):
+        if img is None and _on_base(r, name):
             img = r.extra.get("base_image")
         if img is None:
             return None
