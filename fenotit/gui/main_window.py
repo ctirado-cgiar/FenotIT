@@ -692,6 +692,7 @@ class MainWindow:
             self._display_result(self.results_cache[path], self.step_names_cache.get(path, []))
         else:
             self.last_result, self.step_names, self.step_idx = None, [], 0
+            self._clear_selection()
             self._show_results_ui(False)
             self.canvas_right.delete("all")
         self._refresh_history()
@@ -1009,6 +1010,7 @@ class MainWindow:
             (t("view.zoom_100"), self.do_zoom_100, "Ctrl+1"),
             (t("view.zoom_area"), lambda: self._set_zoom_tool("zoom_area"), "Z"),
             (t("view.pan"), lambda: self._set_zoom_tool("pan"), "H"),
+            (t("view.inspect"), lambda: self._set_zoom_tool("inspect"), "I"),
             None,
             (t("menu.language"), self._choose_language),
         ])
@@ -1052,10 +1054,11 @@ class MainWindow:
                 ("zoom_out", self.do_zoom_out, f"{t('view.zoom_out')}  (Ctrl+−)"),
                 ("fit", self.do_zoom_fit, f"{t('view.zoom_fit')}  (Ctrl+0)"),
                 ("zoom_area", lambda: self._set_zoom_tool("zoom_area"), f"{t('view.zoom_area')}  (Z)"),
-                ("pan", lambda: self._set_zoom_tool("pan"), f"{t('view.pan')}  (H)")):
+                ("pan", lambda: self._set_zoom_tool("pan"), f"{t('view.pan')}  (H)"),
+                ("inspect", lambda: self._set_zoom_tool("inspect"), f"{t('view.inspect')}  (I)")):
             b = IconButton(bar, name, cmd, tip, **kw)
             b.pack(side=tk.LEFT, padx=1, pady=6)
-            if name in ("zoom_area", "pan"):
+            if name in ("zoom_area", "pan", "inspect"):
                 self._zoom_tools[name] = b
         pct.pack(side=tk.LEFT, padx=(4, 0))
         tk.Frame(bar, bg="#4a8fd4", width=1).pack(side=tk.LEFT, fill=tk.Y, pady=8, padx=(6, 4))
@@ -1228,10 +1231,17 @@ class MainWindow:
             cv.bind_all(ev, lambda e, d=d: self._layers_wheel(e, d), add="+")
         cv.bind_all("<MouseWheel>", lambda e: self._layers_wheel(e, -1 if e.delta > 0 else 1), add="+")
 
+        # Inspector del objeto elegido (abajo; aparece al elegir un objeto)
+        from fenotit.gui.inspector import Inspector
+        self.inspector = Inspector(lf, self._clear_selection, self._toggle_exclude)
+        self._sel: int | None = None
+        self._sel_point = None
+
     def _layers_need(self) -> int:
-        """Alto que piden CAPAS (título + filas). El inspector sumará el suyo."""
+        """Alto que piden CAPAS (título + filas) y el inspector, si está abierto."""
         rows = self.history_frame.winfo_reqheight() if self.history_frame.winfo_children() else 0
-        return self._layers_title.winfo_reqheight() + max(rows, 22) + 12
+        insp = self.inspector.winfo_reqheight() if self.inspector.winfo_ismapped() else 0
+        return self._layers_title.winfo_reqheight() + max(rows, 22) + 12 + insp
 
     def _image_list_room(self) -> int:
         """Tope de la lista de imágenes: 45 % del espacio, y menos si CAPAS lo necesita."""
@@ -1344,6 +1354,7 @@ class MainWindow:
             on_redraw=self._on_zoom_redraw)
         self.zoom_ctrl.set_zoom_var(self._zoom_pct_var)
         self.zoom_ctrl.on_tool_change = self._on_zoom_tool_change
+        self.zoom_ctrl.on_pick = self._pick_object
         # Referencia para que ZoomController informe al ROI
         self.canvas_left._roi_selector_ref = self.areas
         self._build_area_tools()
@@ -1402,6 +1413,7 @@ class MainWindow:
         self._table_xsb = xsb                   # solo aparece si las columnas no caben
         self.table.pack(fill=tk.BOTH, expand=True)
         self.table.bind("<Configure>", self._fit_table_columns, add="+")
+        self.table.bind("<<TreeviewSelect>>", self._on_table_select, add="+")
 
         # ── Gráficos (hijo de la zona central: puede pasar al lugar de una imagen) ──
         tab_charts = tk.Frame(body, bg=COLORS["bg_card"])
@@ -1657,6 +1669,7 @@ class MainWindow:
         self._clear_all_results(path)
         self.project.image_roi.pop(self.project.key(path), None)
         self.project.image_scale.pop(self.project.key(path), None)
+        self.project.excluded.pop(self.project.key(path), None)
         self.project.images = images
         self.project.current_index = min(self.project.current_index, max(len(images) - 1, 0))
         self._update_batch_list()
@@ -1706,6 +1719,8 @@ class MainWindow:
         self.zoom_ctrl.set_tool(tool)
         if tool == "zoom_area":
             self._set_status(t("view.zoom_area_hint"))
+        elif tool == "inspect":
+            self._set_status(t("view.inspect_hint"))
 
     def _on_zoom_tool_change(self, tool: str):
         for name, btn in getattr(self, "_zoom_tools", {}).items():
@@ -1793,6 +1808,9 @@ class MainWindow:
             messagebox.showerror(t("common.error"), t("msg.image_unreadable", name=Path(path).name),
                                  parent=self.root)
             return
+        if path != getattr(self, "_sel_path", None):          # otra foto: sin objeto elegido
+            self._clear_selection()
+        self._sel_path = path
         self.scaler_left.set_image(img)
         self._on_canvas_row_resize()               # otra proporción: quizá conviene arriba y abajo
         self._fit_docked_chart()
@@ -1954,6 +1972,7 @@ class MainWindow:
             "length_unit":      self.project.unit,
         }
         p["roi_shapes"] = self.project.roi_for(self.current_image_path)
+        p["drop_points"] = self.project.excluded_for(self.current_image_path)
         if self.config_panel:
             p.update(self.config_panel.get_values())
             p["area_unit"] = getattr(self, "_panel_area_unit", "px")
@@ -2021,7 +2040,8 @@ class MainWindow:
             sc = self.project.scale_for(path)
             aruco = sc.source == "aruco"
             jobs.append(batch.Job(path, dict(params, mm_per_pixel=None if aruco else sc.mm_per_pixel,
-                                             roi_shapes=self.project.roi_for(path)), aruco_scale=aruco,
+                                             roi_shapes=self.project.roi_for(path),
+                                             drop_points=self.project.excluded_for(path)), aruco_scale=aruco,
                                   max_mpx=self.project.max_mpx))
         self._pending = set(paths)                 # al volver a correr, las marcas se rehacen
         self._skipped -= self._pending
@@ -2545,8 +2565,143 @@ class MainWindow:
 
     def _fill_table(self):
         self.table.delete(*self.table.get_children())
+        self._table_items = {}
         for row in self._table_rows:
-            self.table.insert("", "end", values=[_cell(row.get(c)) for c in self._table_cols])
+            iid = self.table.insert("", "end", values=[_cell(row.get(c)) for c in self._table_cols])
+            self._table_items[iid] = row
+        self._sync_table_selection()
+
+    # ── Inspector: objeto elegido (herramienta Inspeccionar o fila de la tabla) ──
+
+    def _geometry(self) -> dict:
+        return (self.last_result.extra.get("geometry") or {}) if self.last_result else {}
+
+    def _pick_object(self, x: float, y: float):
+        """Clic con Inspeccionar: el objeto que contiene el punto (o nada)."""
+        for oid, c in self._geometry().items():
+            x0, y0 = c.min(axis=0)
+            x1, y1 = c.max(axis=0)
+            if x0 - 2 <= x <= x1 + 2 and y0 - 2 <= y <= y1 + 2 \
+                    and cv2.pointPolygonTest(c.reshape(-1, 1, 2).astype(np.float32), (float(x), float(y)), True) >= -2:
+                self._sel_point = (x, y)
+                self._select_object(oid)
+                return
+        self._clear_selection()
+
+    def _select_object(self, oid: int, from_table: bool = False):
+        geom = self._geometry()
+        if oid not in geom:
+            self._clear_selection()
+            return
+        if oid != self._sel and from_table:
+            self._sel_point = None
+        self._sel = oid
+        self.zoom_ctrl.highlight = geom[oid]
+        self.zoom_ctrl._redraw()
+        if not from_table:
+            self._sync_table_selection()
+        self._show_inspector()
+
+    def _clear_selection(self):
+        self._sel, self._sel_point = None, None
+        if self.zoom_ctrl:
+            self.zoom_ctrl.highlight = None
+            self.zoom_ctrl._redraw()
+        if self.inspector.winfo_ismapped():
+            self.inspector.pack_forget()
+            self.image_list.refit()
+        self._sync_table_selection()
+
+    def _refresh_selection(self):
+        """Nuevo resultado o capa: el mismo objeto si sigue existiendo (la numeración se
+        conserva al excluir); si no, se quita la selección."""
+        if self._sel is None:
+            return
+        if self._sel in self._geometry():
+            self._select_object(self._sel, from_table=False)
+        else:
+            self._clear_selection()
+
+    def _sync_table_selection(self):
+        items = getattr(self, "_table_items", {})
+        self._table_syncing = True
+        try:
+            want = [iid for iid, row in items.items() if self._sel is not None and row.get("object_id") == self._sel]
+            self.table.selection_set(want)
+            if want:
+                self.table.see(want[0])
+        finally:
+            self.root.after_idle(lambda: setattr(self, "_table_syncing", False))
+
+    def _on_table_select(self, _e=None):
+        if getattr(self, "_table_syncing", False):
+            return
+        sel = self.table.selection()
+        if not sel:
+            return
+        row = getattr(self, "_table_items", {}).get(sel[0], {})
+        oid = row.get("object_id")
+        if isinstance(oid, (int, np.integer)):
+            self._select_object(int(oid), from_table=True)
+
+    def _show_inspector(self):
+        from fenotit.core.pipeline import overlay
+        from fenotit.gui.inspector import crop_around
+        r, oid = self.last_result, self._sel
+        if r is None or oid is None:
+            return
+        contour = self._geometry()[oid]
+        view = self.step_names[self.step_idx] if self.step_names and 0 <= self.step_idx < len(self.step_names) else None
+        ovs = r.extra.get("overlays") or {}
+        base = r.extra.get("base_image") if view in ovs else r.step_images.get(view)
+        if base is None and self.scaler_left.has_image:
+            base = self.scaler_left.original
+        crop = None
+        if base is not None:
+            crop, origin, k = crop_around(base, contour)
+            if crop is not None:
+                if view in ovs:
+                    overlay.draw(crop, ovs[view], self._mark_colors(r), origin, k, screen=True)
+                overlay.highlight(crop, contour, origin, k)
+        # datos de la capa actual; si la capa no tiene fila para el objeto, los de la tabla de objetos
+        rows = ((r.extra.get("view_tables") or {}).get(view) or [])
+        row = next((x for x in rows if x.get("object_id") == oid), None)
+        if row is None or "cluster" in row:
+            row = next((x for x in (r.extra.get("tables") or {}).get("objects", []) if x.get("object_id") == oid), {})
+        skip = {"object_id", "centroid_x_px", "centroid_y_px", "cluster", "excluded"}
+        metrics = [(k, _cell(v)) for k, v in row.items()
+                   if k not in skip and not k.startswith(("efd_", "mean_")) and v not in (None, "")]
+        colors = [(c.get("hex"), float(c.get("pct", 0))) for c in (r.extra.get("tables") or {}).get("object_colors", [])
+                  if c.get("object_id") == oid and c.get("hex")]
+        self.inspector.show(oid, crop, metrics, colors, oid in (r.extra.get("excluded") or []))
+        if not self.inspector.winfo_ismapped():
+            self.inspector.pack(side=tk.BOTTOM, fill=tk.X, before=self._layers)
+            self.image_list.refit()
+
+    def _toggle_exclude(self):
+        """Excluir / volver a incluir el objeto: se guarda un punto suyo (0-1) en el proyecto
+        y la foto se recalcula al momento. El número del objeto no cambia."""
+        r, oid, path = self.last_result, self._sel, self.current_image_path
+        if r is None or oid is None or not path:
+            return
+        contour = self._geometry()[oid].reshape(-1, 1, 2).astype(np.float32)
+        w = r.stats.get("image_width_px") or (r.extra["base_image"].shape[1] if r.extra.get("base_image") is not None else 0)
+        h = r.stats.get("image_height_px") or (r.extra["base_image"].shape[0] if r.extra.get("base_image") is not None else 0)
+        if not w or not h:
+            return
+        points = self.project.excluded_for(path)
+        if oid in (r.extra.get("excluded") or []):
+            points = [p for p in points if cv2.pointPolygonTest(contour, (p[0] * w, p[1] * h), True) < -15]
+        else:
+            pt = self._sel_point
+            if pt is None or cv2.pointPolygonTest(contour, (float(pt[0]), float(pt[1])), False) < 0:
+                m = cv2.moments(contour)
+                pt = (m["m10"] / m["m00"], m["m01"] / m["m00"]) if m["m00"] else tuple(contour[0, 0])
+                if cv2.pointPolygonTest(contour, (float(pt[0]), float(pt[1])), False) < 0:
+                    pt = tuple(contour[0, 0])
+            points.append([pt[0] / w, pt[1] / h])
+        self.project.set_excluded(path, points)
+        self._run_analysis(all_images=False)
 
     def _sort_table(self, col: str):
         """Ordena por esa columna; otro clic invierte el orden (▲ / ▼ en el título)."""
@@ -2738,6 +2893,7 @@ class MainWindow:
             f"{name}  ({idx+1}/{len(self.step_names)})")
         self._update_table(self.last_result, name)
         self._refresh_history()
+        self._refresh_selection()
 
     # ── ROI ───────────────────────────────────────────────────────────────────
 
@@ -2895,6 +3051,7 @@ class MainWindow:
             r.bind_all(f"<{seq}>", key(fn))
         r.bind_all("<Key-z>", key(lambda: self._set_zoom_tool("zoom_area")))
         r.bind_all("<Key-h>", key(lambda: self._set_zoom_tool("pan")))
+        r.bind_all("<Key-i>", key(lambda: self._set_zoom_tool("inspect")))
         r.bind_all("<Key-s>", key(lambda: self._toggle_area_tool("select")))
         r.bind_all("<Key-r>", key(lambda: self._toggle_area_tool("include_rect")))
         r.bind_all("<Key-p>", key(lambda: self._toggle_area_tool("include_poly")))

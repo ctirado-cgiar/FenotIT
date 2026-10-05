@@ -48,6 +48,7 @@ class Project:
     roi: list[dict] = field(default_factory=list)          # áreas de todas las fotos (core.roi, 0-1)
     image_roi: dict[str, list] = field(default_factory=dict)     # foto -> sus propias áreas
     image_scale: dict[str, Scale] = field(default_factory=dict)  # foto -> su propia escala
+    excluded: dict[str, list] = field(default_factory=dict)      # foto -> objetos excluidos a mano ([x, y] 0-1)
     corrections: Corrections = field(default_factory=Corrections)
     metadata: dict[str, str] = field(default_factory=dict)   # {"file": ruta, "key_column": col}
     max_mpx: float | None = 50.0                             # resolución de trabajo del análisis (None = completa)
@@ -82,6 +83,15 @@ class Project:
 
     def others_with_own_roi(self, path) -> int:
         return sum(1 for k in self.image_roi if k != self.key(path))
+
+    def excluded_for(self, path) -> list[list[float]]:
+        return list(self.excluded.get(self.key(path), [])) if path else []
+
+    def set_excluded(self, path, points: list):
+        if points:
+            self.excluded[self.key(path)] = [[round(float(x), 6), round(float(y), 6)] for x, y in points]
+        else:
+            self.excluded.pop(self.key(path), None)
 
     def scale_for(self, path) -> Scale:
         return self.image_scale.get(self.key(path), self.scale) if path else self.scale
@@ -137,6 +147,7 @@ class Project:
             "roi": self.roi,
             "image_roi": {self._rel(Path(k)): v for k, v in self.image_roi.items()},
             "image_scale": {self._rel(Path(k)): asdict(v) for k, v in self.image_scale.items()},
+            "excluded_objects": {self._rel(Path(k)): v for k, v in self.excluded.items()},
             "corrections": self.corrections.to_dict(),
             "ran": self.ran,
             "max_mpx": self.max_mpx,
@@ -188,6 +199,7 @@ class Project:
             roi=from_legacy(d.get("roi")),
             image_roi={cls.key(resolve(k)): from_legacy(v) for k, v in (d.get("image_roi") or {}).items()},
             image_scale={cls.key(resolve(k)): Scale(**v) for k, v in (d.get("image_scale") or {}).items()},
+            excluded={cls.key(resolve(k)): v for k, v in (d.get("excluded_objects") or {}).items()},
             corrections=Corrections.from_dict(d.get("corrections"), folder),
             ran=list(d.get("ran") or []),
             max_mpx=d.get("max_mpx", 50.0),

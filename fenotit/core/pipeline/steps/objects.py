@@ -472,6 +472,7 @@ def _merge_flat_necks(labels, dist, ratio, owner=None):
     {"key": "length_max", "type": "int", "default": 0, "min": 0, "max": 1_000_000},
     {"key": "ar_max", "type": "float", "default": 1000.0, "min": 1.0, "max": 1000.0},
     {"key": "exclude_border", "type": "bool", "default": True},
+    {"key": "drop_points", "type": "list", "default": []},
 ])
 def filter_objects(ctx, p):
     """Filtra objetos (tamaños en px) y renumera 1..n por filas, de izquierda a derecha.
@@ -513,3 +514,24 @@ def filter_objects(ctx, p):
         region = out[sl]
         region[labels[sl] == oid] = new_id
     ctx.labels = out
+    ctx.excluded = _picked(out, p.get("drop_points") or [])
+
+
+def _picked(labels, points) -> set[int]:
+    """Objetos que el usuario excluyó: los que contienen cada punto (x, y en 0-1). Si el
+    punto cae justo fuera (la segmentación cambió un poco), el objeto más cercano a ≤ 15 px.
+    Siguen en la numeración; las mediciones no los cuentan ni los miden."""
+    h, w = labels.shape
+    out = set()
+    for xf, yf in points:
+        x, y = min(w - 1, max(0, int(xf * w))), min(h - 1, max(0, int(yf * h)))
+        oid = int(labels[y, x])
+        if not oid:
+            win = labels[max(0, y - 15):y + 16, max(0, x - 15):x + 16]
+            ys, xs = np.nonzero(win)
+            if len(xs):
+                k = int(np.argmin((ys - min(15, y)) ** 2 + (xs - min(15, x)) ** 2))
+                oid = int(win[ys[k], xs[k]])
+        if oid:
+            out.add(oid)
+    return out

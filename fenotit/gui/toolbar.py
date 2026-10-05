@@ -167,6 +167,17 @@ def _tune(d, s, w, color):
         d.ellipse((s * kx - r, s * y - r, s * kx + r, s * y + r), fill=color)
 
 
+def _inspect(d, s, w, color):
+    """Inspeccionar: mira con un punto al centro (elegir un objeto)."""
+    c, r = s * 0.5, s * 0.30
+    d.ellipse((c - r, c - r, c + r, c + r), outline=color, width=w)
+    for a, b in (((c, s * 0.04), (c, s * 0.26)), ((c, s * 0.74), (c, s * 0.96)),
+                 ((s * 0.04, c), (s * 0.26, c)), ((s * 0.74, c), (s * 0.96, c))):
+        d.line((a, b), fill=color, width=w)
+    q = s * 0.08
+    d.ellipse((c - q, c - q, c + q, c + q), fill=color)
+
+
 def _dock_up(d, s, w, color):
     """Ventana con flecha hacia arriba: llevar el gráfico al lugar de una imagen."""
     x0, y0, x1, y1 = s * 0.08, s * 0.16, s * 0.92, s * 0.84
@@ -176,7 +187,7 @@ def _dock_up(d, s, w, color):
     d.polygon([(cx, s * 0.26), (cx - s * 0.17, s * 0.45), (cx + s * 0.17, s * 0.45)], fill=color)
 
 
-_DRAW = {"palette": _palette, "dock_up": _dock_up, "list": _list, "grid": _grid, "tune": _tune,
+_DRAW = {"palette": _palette, "dock_up": _dock_up, "inspect": _inspect, "list": _list, "grid": _grid, "tune": _tune,
          "panel_left": lambda d, s, w, c: _panel(d, s, w, c, "left"),
          "panel_right": lambda d, s, w, c: _panel(d, s, w, c, "right"),
          "panel_bottom": lambda d, s, w, c: _panel(d, s, w, c, "bottom"), "select": _select,

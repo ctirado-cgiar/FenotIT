@@ -51,6 +51,9 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
         rows.append((f"Clark-Evans R = {row['clark_evans_R']:.2f}  ({_pattern(row)})", None))
     res.extra["legends"] = {label: {"title": t("step.distances"), "rows": rows}}
     res.extra["overlays"] = {label: ctx.extra.get("overlays", {}).get("distances")}
+    from fenotit.core.pipeline.views import object_geometry
+    res.extra["geometry"] = object_geometry(ctx.labels)     # elegir, resaltar y recortar un objeto
+    res.extra["excluded"] = sorted(ctx.excluded)
     res.extra["base_image"] = ctx.image
     res.extra["contrast"] = __import__("fenotit.core.pipeline.overlay", fromlist=["x"]).contrast_color(
         ctx.image, ctx.labels > 0)

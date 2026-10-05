@@ -87,7 +87,7 @@ def _contours(labels, ids):
     {"key": "measure", "type": "choice", "choices": ["edge_line", "edge_nearest", "center"], "default": "edge_line"},
 ])
 def distances(ctx, p):
-    cents = _centroids(ctx.labels)
+    cents = {k: v for k, v in _centroids(ctx.labels).items() if k not in ctx.excluded}
     ids = sorted(cents)
     pts = np.array([cents[i] for i in ids], float).reshape(-1, 2)
     pairs = _pairs(ids, pts, p["neighbors"], p["k"])
@@ -149,7 +149,7 @@ def distances(ctx, p):
     for oid, sl, m in regions(ctx.labels):
         cnts, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE,
                                    offset=(sl[1].start, sl[0].start))
-        ov["outlines"] += [(c.reshape(-1, 2), True) for c in cnts]
+        ov["outlines"] += [(c.reshape(-1, 2), oid not in ctx.excluded) for c in cnts]
     if lines:
         ds = np.array([d for *_, d in lines])
         lo, hi = float(ds.min()), float(ds.max())
