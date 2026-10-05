@@ -223,7 +223,8 @@ class ImageList(tk.Frame):
                 self.listbox.config(height=max(n, 1))
             content = self.listbox.winfo_reqheight()             # Tk mide las filas exactas
         head = self._top.winfo_reqheight() + 6 + 4
-        floor = head + (MIN_ROWS if n >= MIN_ROWS else 1) * rh + 6
+        min_rows = self.min_rows() if callable(getattr(self, "min_rows", None)) else MIN_ROWS
+        floor = head + (min_rows if n >= min_rows else 1) * rh + 6
         limit = max(floor, self.max_height())
         want = head + content
         scroll = want > limit

@@ -42,10 +42,34 @@ class Inspector(tk.Frame):
                               relief="flat", font=FONTS["small"], cursor="hand2", pady=2)
         self._btn.pack(fill=tk.X, padx=10, pady=(6, 8))
         self._photo = None
+        self._crop = None
 
     def show(self, oid: int, crop: np.ndarray | None, metrics: list[tuple[str, str]],
              colors: list[tuple[str, float]], excluded: bool):
         self._title.config(text=t("insp.title", n=oid))
+        self._crop = crop
+        self._set_pic(crop)
+        if excluded:
+            self._state.config(text=t("insp.excluded"))
+            self._state.pack(fill=tk.X, padx=10, before=self._rows)
+        else:
+            self._state.pack_forget()
+        self._fill(metrics, colors, excluded)
+
+    def shrink(self, px: int) -> bool:
+        """Achica el recorte para dejar sitio a CAPAS. False si ya no se puede."""
+        if self._crop is None:
+            return False
+        h = self._pic.winfo_reqheight() - px - 4
+        if h < 50:
+            self._pic.pack_forget()
+            return False
+        k = h / self._crop.shape[0]
+        self._set_pic(cv2.resize(self._crop, (max(1, int(self._crop.shape[1] * k)), max(1, int(h))),
+                                 interpolation=cv2.INTER_AREA))
+        return True
+
+    def _set_pic(self, crop):
         if crop is not None:
             im = Image.fromarray(cv2.cvtColor(crop, cv2.COLOR_BGR2RGB))
             self._photo = ImageTk.PhotoImage(im)
@@ -53,11 +77,8 @@ class Inspector(tk.Frame):
             self._pic.pack(padx=8, pady=(6, 4), before=self._rows)
         else:
             self._pic.pack_forget()
-        if excluded:
-            self._state.config(text=t("insp.excluded"))
-            self._state.pack(fill=tk.X, padx=10, before=self._rows)
-        else:
-            self._state.pack_forget()
+
+    def _fill(self, metrics, colors, excluded):
         for w in self._rows.winfo_children():
             w.destroy()
         for i, (k, v) in enumerate(metrics[:MAX_ROWS]):
