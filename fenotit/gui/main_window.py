@@ -37,6 +37,7 @@ from fenotit.gui.calibration_dialogs import ScaleDialog
 from fenotit.gui.corrections_dialog import CorrectionsDialog
 from fenotit.core.corrections import pipeline as corrections
 from fenotit.gui.export_dialog import ExportDialog
+from fenotit.gui.help import HelpIcon
 from fenotit.gui.charts import IntraImageChartPanel, BatchChartWindow
 from fenotit.gui.theme import COLORS, FONTS
 
@@ -1485,7 +1486,8 @@ class MainWindow:
     def _build_segmentation_block(self, rf):
         """Espacio de color, canal y rango (o Otsu), con vista previa en vivo."""
         bg, small = COLORS["bg_panel"], FONTS["small"]
-        self._section_lbl(rf, t("seg.title"))
+        head = self._section_lbl(rf, t("seg.title"))
+        HelpIcon(head, t("seg.title").capitalize(), t("seg.help"), bg=bg).pack(side=tk.LEFT)
         box = tk.Frame(rf, bg=bg)
         box.pack(fill=tk.X, padx=8, pady=(2, 4))
 
@@ -1509,9 +1511,12 @@ class MainWindow:
         self._update_channel_names()
 
         self.auto_var = tk.BooleanVar(value=False)
-        tk.Checkbutton(box, text=t("seg.auto"), variable=self.auto_var, command=self._on_auto_change,
+        arow = tk.Frame(box, bg=bg)
+        arow.pack(anchor="w", pady=(2, 0))
+        tk.Checkbutton(arow, text=t("seg.auto"), variable=self.auto_var, command=self._on_auto_change,
                        bg=bg, fg=COLORS["text"], selectcolor=COLORS["bg_card"],
-                       activebackground=bg, font=small, padx=0).pack(anchor="w", pady=(2, 0))
+                       activebackground=bg, font=small, padx=0).pack(side=tk.LEFT)
+        HelpIcon(arow, t("seg.auto"), t("seg.auto_help"), bg=bg).pack(side=tk.LEFT, padx=(4, 0))
 
         self.min_slider = self._range_row(box, t("seg.min"), 0)
         self.max_slider = self._range_row(box, t("seg.max"), 255)
