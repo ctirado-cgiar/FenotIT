@@ -45,6 +45,10 @@ python -m fenotit --version
 
 Typical workflow: add images → set the segmentation (channel and threshold, or Otsu) → optionally draw the analysis area → tick the measurements → **▶ Run** (this image or all) → **File → Export**. **Help → Shortcuts** lists the keyboard shortcuts.
 
+## Methods
+
+How every measurement is computed (equations, references and figures): [`docs/`](docs/README.md).
+
 ## Development
 
 - Code layout and how to add a new step or analysis: [`README_ESTRUCTURA.md`](README_ESTRUCTURA.md)
