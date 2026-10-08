@@ -755,6 +755,7 @@ class MainWindow:
         self._set_status(t("project.opened", path=project.file))
 
     def _apply_project(self, project: Project):
+        self._undo_stack, self._redo_stack = [], []
         self.config_panel = None
         self.project = project
         seg = project.segmentation
@@ -970,20 +971,24 @@ class MainWindow:
         self._vdiv()
 
         self._drop(self.topbar, t("menu.file"), [
-            (t("menu.new_project"), self._new_project),
-            (t("menu.open_project"), self._open_project),
+            (t("menu.new_project"), self._new_project, "Ctrl+N"),
+            (t("menu.open_project"), self._open_project, "Ctrl+Shift+O"),
             (t("menu.save_project"), self._save_project, "Ctrl+S"),
-            (t("menu.save_project_as"), self._save_project_as),
+            (t("menu.save_project_as"), self._save_project_as, "Ctrl+Shift+S"),
             None,
             (t("menu.add_images"), self._open_image, "Ctrl+O"),
             (t("menu.add_folder"), self._open_folder),
             (t("menu.remove_image"), self._remove_current_image),
             (t("menu.clear_images"), self._clear_images),
-            (t("menu.metadata"), self._open_metadata),
+            (t("menu.metadata"), self._open_metadata, "Ctrl+D"),
             None,
             (t("menu.export"), self._export_results, "Ctrl+E"),
             None,
-            (t("menu.exit"), self._on_close),
+            (t("menu.exit"), self._on_close, "Ctrl+Q"),
+        ])
+        self._drop(self.topbar, t("menu.edit"), [
+            (lambda: self._undo_label("undo"), self._undo, "Ctrl+Z"),
+            (lambda: self._undo_label("redo"), self._redo, "Ctrl+Y"),
         ])
         self._drop(self.topbar, t("menu.calibration"), [
             (t("menu.corrections"), self._open_corrections),
@@ -1007,10 +1012,10 @@ class MainWindow:
         self._drop(self.topbar, t("menu.analysis"), [
             (_analysis_label(n), lambda n=n: self._open_analysis(n)) for n in ANALYSES])
         self._drop(self.topbar, t("menu.view"), [
-            (t("view.toggle_legend"), self._toggle_legend),
+            (t("view.toggle_legend"), self._toggle_legend, "L"),
             (t("view.left_panel"), lambda: self._toggle_panel(self.left_panel)),
             (t("view.analysis_panel"), lambda: self._toggle_panel(self.right_panel)),
-            (t("view.results_panel"), self._toggle_results_panel),
+            (t("view.results_panel"), self._toggle_results_panel, "Ctrl+T"),
             None,
             (self._sides_label("auto"), lambda: self._set_sides_mode("auto")),
             (self._sides_label("row"), lambda: self._set_sides_mode("row")),
@@ -1029,7 +1034,7 @@ class MainWindow:
             (t("menu.language"), self._choose_language),
         ])
         self._drop(self.topbar, t("menu.help"), [
-            (t("help.shortcuts"), self._show_shortcuts),
+            (t("help.shortcuts"), self._show_shortcuts, "F1"),
             (t("help.log"), self._open_log_folder),
             None,
             (t("menu.about"), self._about),
@@ -2812,6 +2817,52 @@ class MainWindow:
         if short > 0 and self.inspector.shrink(short):
             self.root.after(30, self._keep_layers_visible)
 
+    # ── Deshacer / rehacer: áreas y objetos excluidos o destacados ─────────────
+
+    UNDO_MAX = 50
+    _UNDO_FIELDS = ("roi", "image_roi", "excluded", "highlighted")
+
+    def _snapshot(self) -> dict:
+        import copy
+        return {f: copy.deepcopy(getattr(self.project, f)) for f in self._UNDO_FIELDS}
+
+    def _remember(self, what: str):
+        """Antes de cambiar áreas o marcas: guarda cómo estaba (Ctrl+Z vuelve ahí)."""
+        stack = self.__dict__.setdefault("_undo_stack", [])
+        stack.append((what, self.current_image_path, self._snapshot()))
+        del stack[:-self.UNDO_MAX]
+        self._redo_stack = []
+
+    def _undo_label(self, which: str) -> str:
+        stack = getattr(self, "_undo_stack" if which == "undo" else "_redo_stack", None) or []
+        return t(f"edit.{which}") + (f": {t(stack[-1][0])}" if stack else "")
+
+    def _undo(self):
+        self._swap("_undo_stack", "_redo_stack", "edit.undone")
+
+    def _redo(self):
+        self._swap("_redo_stack", "_undo_stack", "edit.redone")
+
+    def _swap(self, src: str, dst: str, msg: str):
+        stack = getattr(self, src, None) or []
+        if not stack:
+            return
+        what, path, state = stack.pop()
+        self.__dict__.setdefault(dst, []).append((what, path, self._snapshot()))
+        key = self.project.key(path) if path else None
+        marks_changed = any(getattr(self.project, f).get(key) != state[f].get(key) for f in ("excluded", "highlighted"))
+        for f, v in state.items():
+            setattr(self.project, f, v)
+        if path and path in self.batch_paths and path != self.current_image_path:
+            self._select_image(self.batch_paths.index(path))       # se ve lo que se deshizo
+        elif self.areas and self.current_image_path:
+            self.areas.set_shapes(self.project.roi_for(self.current_image_path))
+            self._update_area_scope()
+            self._show_preview()
+        if marks_changed and path in self.results_cache:       # excluidos/destacados: se recalcula
+            self._run_analysis(all_images=False)
+        self._set_status(t(msg, what=t(what)))
+
     def _toggle_exclude(self):
         self._toggle_mark("excluded")
 
@@ -2833,6 +2884,7 @@ class MainWindow:
 
         def outside(points):
             return [p for p in points if cv2.pointPolygonTest(contour, (p[0] * w, p[1] * h), True) < -15]
+        self._remember(f"undo.{kind}")
         if oid in (r.extra.get(kind) or []):
             self.project.set_marks(kind, path, outside(self.project.marks_for(kind, path)))
         else:
@@ -3070,6 +3122,7 @@ class MainWindow:
 
     def _on_areas_change(self, shapes: list):
         """Lo que se dibuja o borra queda como áreas propias de esta foto."""
+        self._remember("undo.areas")
         if self.current_image_path:
             self.project.set_roi(self.current_image_path, shapes)
         self._update_area_scope()
@@ -3083,6 +3136,7 @@ class MainWindow:
         n = self.project.others_with_own_roi(path)
         if n and not messagebox.askyesno(t("roi.apply_all"), t("roi.apply_all_warn", n=n), parent=self.root):
             return
+        self._remember("undo.apply_all")
         self.project.apply_roi_to_all(self.project.roi_for(path))
         self._update_area_scope()
         self._set_status(t("roi.applied_all", n=len(self.project.images)))
@@ -3155,15 +3209,57 @@ class MainWindow:
             messagebox.showinfo(t("help.log"), str(folder), parent=self.root)
 
     def _show_shortcuts(self):
-        rows = [("Ctrl+Enter", t("run.current")), ("Ctrl+Shift+Enter", t("run.all")),
-                ("Ctrl+O", t("menu.add_images")), ("Ctrl+S", t("menu.save_project")),
-                ("Ctrl+E", t("menu.export")), ("← →", t("help.key_images")), ("↑ ↓", t("help.key_layers")),
-                ("Ctrl+ +  −", t("help.key_zoom")), ("Ctrl+0", t("view.zoom_fit")),
-                ("Ctrl+1", t("view.zoom_100")), ("Z", t("view.zoom_area")), ("H", t("view.pan")),
-                (t("help.mouse_wheel"), t("help.key_zoom")), ("Shift + " + t("help.mouse_wheel"), t("help.key_pan")),
-                (t("help.mouse_drag"), t("help.key_pan")), ("Esc", t("help.key_esc"))]
-        messagebox.showinfo(t("help.shortcuts"), "\n".join(f"{k:<18}  {v}" for k, v in rows),
-                            parent=self.root)
+        groups = [
+            (t("menu.file"), [("Ctrl+N", t("menu.new_project")), ("Ctrl+Shift+O", t("menu.open_project")),
+                              ("Ctrl+S", t("menu.save_project")), ("Ctrl+Shift+S", t("menu.save_project_as")),
+                              ("Ctrl+O", t("menu.add_images")), ("Ctrl+D", t("menu.metadata")),
+                              ("Ctrl+E", t("menu.export")), ("Ctrl+Q", t("menu.exit"))]),
+            (t("menu.edit"), [("Ctrl+Z", t("edit.undo")), ("Ctrl+Y", t("edit.redo"))]),
+            (t("menu.analysis"), [("Ctrl+Enter", t("run.current")), ("Ctrl+Shift+Enter", t("run.all"))]),
+            (t("menu.areas"), [("R", t("roi.area_rect")), ("P", t("roi.area_polygon")), ("X", t("roi.exclude_rect")),
+                               ("Shift+X", t("roi.exclude_polygon")), ("S", t("roi.select")),
+                               ("Supr", t("help.key_delete"))]),
+            (t("help.inspector"), [("I", t("view.inspect")), ("E", t("insp.exclude") + " / " + t("insp.include")),
+                                   ("D", t("insp.highlight") + " / " + t("insp.unhighlight"))]),
+            (t("menu.view"), [("← →", t("help.key_images")), ("↑ ↓", t("help.key_layers")),
+                              ("Ctrl+ +  −", t("help.key_zoom")), ("Ctrl+0", t("view.zoom_fit")),
+                              ("Ctrl+1", t("view.zoom_100")), ("Z", t("view.zoom_area")), ("H", t("view.pan")),
+                              ("L", t("view.toggle_legend")), ("Ctrl+T", t("view.results_panel")),
+                              (t("help.mouse_wheel"), t("help.key_zoom")),
+                              ("Shift + " + t("help.mouse_wheel"), t("help.key_pan")), ("Esc", t("help.key_esc"))]),
+        ]
+
+        import re
+
+        def build():
+            win = tk.Toplevel(self.root)
+            win.title(t("help.shortcuts"))
+            win.configure(bg=COLORS["bg_card"])
+            win.transient(self.root)
+            win.resizable(False, False)
+            tk.Frame(win, bg=COLORS["accent"], height=4).pack(fill=tk.X)
+            body = tk.Frame(win, bg=COLORS["bg_card"])
+            body.pack(padx=20, pady=(10, 14))
+            col = None
+            for i, (title, rows) in enumerate(groups):
+                if i in (0, 3):                       # dos columnas
+                    col = tk.Frame(body, bg=COLORS["bg_card"])
+                    col.pack(side=tk.LEFT, anchor="n", padx=(0, 28))
+                tk.Label(col, text=title.upper(), bg=COLORS["bg_card"], fg=COLORS["accent"],
+                         font=("Segoe UI", 8, "bold")).pack(anchor="w", pady=(8, 2))
+                g = tk.Frame(col, bg=COLORS["bg_card"])
+                g.pack(anchor="w", fill=tk.X)
+                g.columnconfigure(0, minsize=150 if i < 3 else 170)
+                for r, (k, v) in enumerate(rows):
+                    v = re.sub(r"^[^\w(]+", "", v).rstrip("…").strip()          # sin íconos ni "…"
+                    v = v[:1].upper() + v[1:]
+                    tk.Label(g, text=k, bg=COLORS["bg_panel"], fg=COLORS["text"], font=FONTS["small"],
+                             padx=5).grid(row=r, column=0, sticky="w", pady=1)
+                    tk.Label(g, text=v, bg=COLORS["bg_card"], fg=COLORS["text"], font=FONTS["small"]).grid(
+                        row=r, column=1, sticky="w", padx=(8, 0))
+            win.bind("<Escape>", lambda e: win.destroy())
+            return win
+        self._single("shortcuts", build)
 
     def _bind_shortcuts(self):
         def typing() -> bool:
@@ -3201,6 +3297,14 @@ class MainWindow:
         r.bind_all("<Key-p>", key(lambda: self._toggle_area_tool("include_poly")))
         r.bind_all("<Key-x>", key(lambda: self._toggle_area_tool("exclude_rect")))
         r.bind_all("<Key-X>", key(lambda: self._toggle_area_tool("exclude_poly")))
+        r.bind_all("<Key-l>", key(self._toggle_legend))
+        r.bind_all("<Key-e>", key(lambda: self._toggle_mark("excluded")))
+        r.bind_all("<Key-d>", key(lambda: self._toggle_mark("highlighted")))
+        for seq, fn in (("n", self._new_project), ("O", self._open_project), ("S", self._save_project_as),
+                        ("d", self._open_metadata), ("q", self._on_close), ("t", self._toggle_results_panel),
+                        ("z", self._undo), ("y", self._redo), ("Z", self._redo)):
+            r.bind_all(f"<Control-{seq}>", key(fn))         # en un campo de texto, Ctrl+Z es del campo
+        r.bind_all("<F1>", lambda e=None: self._show_shortcuts())
         r.bind_all("<Delete>", key(self._on_delete_key))
         r.bind_all("<Escape>", lambda e=None: self._on_escape())
 
