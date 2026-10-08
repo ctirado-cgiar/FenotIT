@@ -96,7 +96,12 @@ class Color3DWindow(tk.Toplevel):
                                font=FONTS["small"]).pack(side=tk.LEFT)
         label(top, t("c3d.space") + ":", (14, 2))
         self.space = tk.StringVar(value="Lab")
-        combo(top, self.space, list(cs.SPACES), 6)
+        combo(top, self.space, list(cs.SPACES), 6).bind("<<ComboboxSelected>>", lambda e: self._space_changed())
+        label(top, t("c3d.view") + ":", (14, 2))
+        self.dims = tk.StringVar(value="1,2")          # 2D a*·b* (diagrama de cromaticidad) o "3d"
+        self.dims_bar = tk.Frame(top, bg=bg)
+        self.dims_bar.pack(side=tk.LEFT)
+        self._build_dims()
         label(top, t("c3d.labels") + ":", (14, 2))
         self.labels = {NONE: None, "ID": "id", t("c3d.name"): "name"}
         self.label_var = tk.StringVar(value=NONE)
@@ -124,6 +129,30 @@ class Color3DWindow(tk.Toplevel):
         self._frame = tk.Frame(body, bg=COLORS["bg_card"])
         self._frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
         self._scope_changed()
+
+    def _build_dims(self):
+        """Vista: tres planos 2D del espacio elegido (en Lab: a*·b*, L*·a*, L*·b*) o 3D."""
+        for w in self.dims_bar.winfo_children():
+            w.destroy()
+        names = cs.SPACES[self.space.get()]
+        bg = COLORS["bg_panel"]
+        for key in ("1,2", "0,1", "0,2", "3d"):
+            text = "3D" if key == "3d" else "·".join(names[int(i)] for i in key.split(","))
+            tk.Radiobutton(self.dims_bar, text=text, variable=self.dims, value=key, command=self._redraw, bg=bg,
+                           fg=COLORS["text"], selectcolor=COLORS["bg_card"], activebackground=bg,
+                           font=FONTS["small"]).pack(side=tk.LEFT)
+
+    def _space_changed(self):
+        self._build_dims()
+        self._redraw()
+
+    @property
+    def is3d(self) -> bool:
+        return self.dims.get() == "3d"
+
+    def _plane(self) -> tuple[int, int]:
+        i, j = (int(v) for v in self.dims.get().split(","))
+        return i, j
 
     # ── datos ─────────────────────────────────────────────────────────────────
 
@@ -161,7 +190,7 @@ class Color3DWindow(tk.Toplevel):
     # ── dibujo ────────────────────────────────────────────────────────────────
 
     def _redraw(self):
-        if self._ax is not None:                         # se conserva el giro y el zoom
+        if self._ax is not None and getattr(self._ax, "name", "") == "3d":     # se conserva el giro
             self._view = (self._ax.elev, self._ax.azim, self._ax.get_xlim3d(), self._ax.get_ylim3d(),
                           self._ax.get_zlim3d(), self._drawn_space)
         levels = [self._per_levels().get(self.per.get(), "images")]
@@ -188,8 +217,10 @@ class Color3DWindow(tk.Toplevel):
             self._canvas.mpl_connect("motion_notify_event", self._on_drag)
         fig = self._fig
         fig.clear()
-        ax = self._ax = fig.add_subplot(111, projection="3d")
-        ax.disable_mouse_rotation()                 # el giro lo hace _on_drag (más fiable en Windows)
+        three = self.is3d
+        ax = self._ax = fig.add_subplot(111, projection="3d") if three else fig.add_subplot(111)
+        if three:
+            ax.disable_mouse_rotation()             # el giro lo hace _on_drag (más fiable en Windows)
         many = len(pts) > 1500
         sizes = []
         for p in pts:
@@ -203,50 +234,77 @@ class Color3DWindow(tk.Toplevel):
                 sizes.append(240)
         self._sizes = np.array(sizes, float)
         xyz = np.array([p.xyz for p in pts])
+        coords = xyz if three else xyz[:, list(self._plane())]
+        kw = {"depthshade": False} if three else {}
         for level in cs.LEVELS:
             idx = [i for i, p in enumerate(pts) if p.level == level]
             if not idx:
                 continue
             if level in ("objects", "images"):
-                self._pies(ax, [pts[i] for i in idx], xyz[idx], self._sizes[idx])
+                self._pies(ax, [pts[i] for i in idx], coords[idx], self._sizes[idx], kw)
             else:
-                ax.scatter(*xyz[idx].T, c=[pts[i].rgb for i in idx], s=self._sizes[idx], depthshade=False,
-                           edgecolors=EDGE, linewidths=0.3, alpha=0.9)
+                ax.scatter(*coords[idx].T, c=[pts[i].rgb for i in idx], s=self._sizes[idx],
+                           edgecolors=EDGE, linewidths=0.3, alpha=0.9, **kw)
         mode = self.labels.get(self.label_var.get())
         if mode:
-            ax.computed_zorder = False          # las etiquetas siempre encima de los puntos
             halo = [patheffects.withStroke(linewidth=2.2, foreground="white")]
             top = [p for p in pts if p.level in ("images", "objects")] or pts
             size = {id(p): sz for p, sz in zip(pts, self._sizes)}
+            where = {id(p): c for p, c in zip(pts, coords)}
+            if three:
+                ax.computed_zorder = False      # las etiquetas siempre encima de los puntos
             for p in top[:200]:
-                pad = " " * (int(np.sqrt(size[id(p)]) / 3.4) + 1)      # justo al lado del punto
-                ax.text(*p.xyz, pad + (p.label_id if mode == "id" else self._point_name(p)), fontsize=6,
-                        color="#222222", zorder=10, path_effects=halo)
+                text = p.label_id if mode == "id" else self._point_name(p)
+                if three:
+                    pad = " " * (int(np.sqrt(size[id(p)]) / 3.4) + 1)      # justo al lado del punto
+                    ax.text(*p.xyz, pad + text, fontsize=6, color="#222222", zorder=10, path_effects=halo)
+                else:
+                    ax.annotate(text, where[id(p)], xytext=(np.sqrt(size[id(p)]) / 2 + 2, 0),
+                                textcoords="offset points", va="center", fontsize=6, color="#222222",
+                                zorder=10, path_effects=halo)
         names = cs.SPACES[space]
-        ax.set_xlabel(names[0])
-        ax.set_ylabel(names[1])
-        ax.set_zlabel(names[2])
-        for a in (ax.xaxis, ax.yaxis, ax.zaxis):
-            a.pane.set_facecolor((0.97, 0.97, 0.97, 1))
+        if three:
+            ax.set_xlabel(names[0])
+            ax.set_ylabel(names[1])
+            ax.set_zlabel(names[2])
+            for a in (ax.xaxis, ax.yaxis, ax.zaxis):
+                a.pane.set_facecolor((0.97, 0.97, 0.97, 1))
+        else:
+            i, j = self._plane()
+            ax.set_xlabel(names[i])
+            ax.set_ylabel(names[j])
+            if space == "Lab":                   # ejes neutros (a* = 0, b* = 0): grises
+                for k, line in ((i, ax.axvline), (j, ax.axhline)):
+                    if k > 0:
+                        line(0, color="#999999", lw=0.7, zorder=0)
+                if (i, j) == (1, 2):
+                    ax.set_aspect("equal", adjustable="datalim")   # distancias de color reales
+            for spine in ax.spines.values():
+                spine.set_edgecolor("#CCCCCC")
         n_img = len({p.path for p in pts})
         n_obj = len({(p.path, p.object_id) for p in pts if p.object_id is not None})
         title = f"{space}  ·  " + t("chart.n_images", n=n_img) + (f"  ·  {t('chart.n_objects', n=n_obj)}" if n_obj else "")
         ax.set_title(title, fontsize=9)
         if self.legend.get():
             self._legend(fig, levels)
-        if self._view and self._view[5] == space:      # mismo giro; límites según los puntos de ahora
-            ax.view_init(*self._view[:2])
+        if three:
+            if self._view and self._view[5] == space:      # mismo giro; límites según los puntos de ahora
+                ax.view_init(*self._view[:2])
+            else:
+                ax.view_init(22, -60)
+            self._home = (ax.get_xlim3d(), ax.get_ylim3d(), ax.get_zlim3d())
+            fig.subplots_adjust(left=0, right=1, bottom=0, top=0.95)
         else:
-            ax.view_init(22, -60)
-        self._home = (ax.get_xlim3d(), ax.get_ylim3d(), ax.get_zlim3d())
-        fig.subplots_adjust(left=0, right=1, bottom=0, top=0.95)
+            ax.margins(0.08)
+            fig.subplots_adjust(left=0.1, right=0.97, bottom=0.1, top=0.93)
+            self._home = None
         self._canvas.draw_idle()
 
     def _point_name(self, p) -> str:
         return p.name.rsplit(".", 1)[0] + (f"-{p.object_id}" if p.object_id is not None else "")
 
     @staticmethod
-    def _pies(ax, pts, xyz, sizes):
+    def _pies(ax, pts, xyz, sizes, kw=None):
         """Cada punto es una torta con sus colores (sectores = % de cada color). Los
         sectores con la misma forma van juntos: pocas llamadas aunque haya muchos puntos."""
         groups: dict[tuple[int, int], list[tuple[int, tuple]]] = {}
@@ -262,8 +320,8 @@ class Color3DWindow(tk.Toplevel):
         for (a, b), items in groups.items():
             ii = [i for i, _ in items]
             ax.scatter(*xyz[ii].T, c=[rgb for _, rgb in items], s=sizes[ii], marker=_wedge(a, b),
-                       depthshade=False, linewidths=0)
-        ax.scatter(*xyz.T, s=sizes, facecolors="none", edgecolors=EDGE, linewidths=0.5, depthshade=False)
+                       linewidths=0, **(kw or {}))
+        ax.scatter(*xyz.T, s=sizes, facecolors="none", edgecolors=EDGE, linewidths=0.5, **(kw or {}))
 
     def _legend(self, fig, levels):
         batch = self.scope.get() == "batch"
@@ -285,6 +343,14 @@ class Color3DWindow(tk.Toplevel):
         if self._ax is None:
             return
         k = 0.85 if e.button == "up" else 1 / 0.85
+        if not self.is3d:                               # 2D: acerca hacia el cursor
+            if e.xdata is None:
+                return
+            for (lo, hi), c, put in ((self._ax.get_xlim(), e.xdata, self._ax.set_xlim),
+                                     (self._ax.get_ylim(), e.ydata, self._ax.set_ylim)):
+                put(c - (c - lo) * k, c + (hi - c) * k)
+            self._canvas.draw_idle()
+            return
         for get, put in ((self._ax.get_xlim3d, self._ax.set_xlim3d), (self._ax.get_ylim3d, self._ax.set_ylim3d),
                          (self._ax.get_zlim3d, self._ax.set_zlim3d)):
             lo, hi = get()
@@ -294,6 +360,9 @@ class Color3DWindow(tk.Toplevel):
 
     def _reset_view(self):
         if self._ax is None:
+            return
+        if not self.is3d:
+            self._redraw()
             return
         self._ax.view_init(22, -60)
         xl, yl, zl = self._home
@@ -306,12 +375,13 @@ class Color3DWindow(tk.Toplevel):
 
     def _on_press(self, e):
         self._press = (e.x, e.y)
-        self._press_view = (self._ax.elev, self._ax.azim) if self._ax is not None and e.button == 1 else None
+        self._press_view = (self._ax.elev, self._ax.azim) if self._ax is not None and e.button == 1 \
+            and self.is3d else None
 
     def _on_drag(self, e):
         """Arrastrar con el botón izquierdo = girar (0.4° por píxel)."""
         pv, p0 = getattr(self, "_press_view", None), getattr(self, "_press", None)
-        if pv is None or p0 is None or e.x is None or self._ax is None:
+        if not self.is3d or pv is None or p0 is None or e.x is None or self._ax is None:
             return
         elev = float(np.clip(pv[0] - (e.y - p0[1]) * 0.4, -90, 90))
         self._ax.view_init(elev, pv[1] - (e.x - p0[0]) * 0.4)
@@ -330,6 +400,8 @@ class Color3DWindow(tk.Toplevel):
 
     def screen_xy(self) -> np.ndarray:
         xyz = np.array([p.xyz for p in self._pts])
+        if not self.is3d:
+            return self._ax.transData.transform(xyz[:, list(self._plane())])
         x, y, _ = proj3d.proj_transform(xyz[:, 0], xyz[:, 1], xyz[:, 2], self._ax.get_proj())
         return self._ax.transData.transform(np.c_[x, y])
 
@@ -352,8 +424,9 @@ class Color3DWindow(tk.Toplevel):
                 self._picked.remove()
             except Exception:
                 pass
-        self._picked = self._ax.scatter(*np.array([p.xyz]).T, s=self._sizes[i] * 2.2 + 60, facecolors="none",
-                                        edgecolors="#D73027", linewidths=1.6, depthshade=False)
+        at = np.array([p.xyz]) if self.is3d else np.array([p.xyz])[:, list(self._plane())]
+        self._picked = self._ax.scatter(*at.T, s=self._sizes[i] * 2.2 + 60, facecolors="none", edgecolors="#D73027",
+                                        linewidths=1.6, zorder=11, **({"depthshade": False} if self.is3d else {}))
         self._canvas.draw_idle()
         info = self.info
         for w in info.winfo_children():
