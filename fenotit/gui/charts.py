@@ -447,11 +447,21 @@ def batch_records(results: dict, meta: dict | None = None, unit: str = "images")
         rows = r.measurements or []
         num = numeric_cols(rows)
         cols += [c for c in num if c not in cols]
+        n = (r.stats or {}).get("n_objects")            # conteo de su foto: ¿más objetos, más chicos?
         for x in rows:
             recs.append({"_name": Path(path).stem, "_path": path, "_oid": x.get("object_id"),
                          "_meta": meta.get(path) or {}, "_sd": {},
+                         **({"n_objects": float(n)} if isinstance(n, (int, float)) else {}),
                          **{c: float(x[c]) for c in num if isinstance(x.get(c), (int, float)) and x[c] == x[c]}})
+    if any("n_objects" in r for r in recs):
+        cols.append("n_objects")
     return recs, cols
+
+
+def _count_vs_size(cols: list[str]) -> list[str]:
+    """Dispersión por defecto en el lote: conteo de la foto vs. tamaño medio de sus objetos."""
+    size = next((c for p in PREFERRED for c in cols if c.lower().startswith(p)), None)
+    return ["n_objects", size] if "n_objects" in cols and size else []
 
 
 def _group_name(v) -> str:
@@ -512,11 +522,16 @@ class BatchChartWindow(tk.Toplevel):
         self._frame = tk.Frame(self, bg=COLORS["bg_card"])
         self._frame.pack(fill=tk.BOTH, expand=True)
         self.chooser.set_columns(cols)
+        self.chooser.chosen.setdefault("scatter", _count_vs_size(cols))
         self.after(50, self._refresh)
 
     def _unit_changed(self):
         self.recs, cols = batch_records(self.results, self.meta, self.units.get(self.unit.get(), "images"))
         self.chooser.set_columns(cols)
+        if not [c for c in self.chooser.chosen.get("scatter", []) if c in cols][1:]:
+            self.chooser.chosen["scatter"] = _count_vs_size(cols)
+        if self.chooser.kind.get() == "scatter":
+            self.chooser._build_vars()
         self._refresh()
 
     def _categories(self, kind: str, col: str) -> list[tuple[str, list[dict]]]:
