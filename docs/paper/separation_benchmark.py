@@ -35,7 +35,7 @@ N_SEEDS, N_SCENES, SIZE, CLUSTER = 30, 20, 1300, 5
 VERSIONS = ["Connected\ncomponents", "Watershed,\nfixed spacing", "+ spacing from\nobject size",
             "+ neck\nmerge", "+ notch and\nsize rules", "FenotIT\n(current)"]
 COLORS = ["#999999", "#E08214", "#FDB863", "#B2ABD2", "#5E3C99", "#2166AC"]
-plt.rcParams.update({"font.size": 8, "axes.titlesize": 9, "figure.dpi": 150, "savefig.bbox": "tight",
+plt.rcParams.update({"font.size": 8, "axes.titlesize": 9, "figure.dpi": 150, "savefig.dpi": 300, "savefig.bbox": "tight",
                      "axes.spines.top": False, "axes.spines.right": False})
 
 

@@ -29,7 +29,7 @@ from fenotit.core.corrections import pipeline as P  # noqa: E402
 OUT = Path(__file__).resolve().parent / "out"
 IMG = ROOT / "tests" / "images"
 BLUE, RED, GRAY = "#2166AC", "#D6604D", "#7F7F7F"
-plt.rcParams.update({"font.size": 8, "axes.titlesize": 9, "figure.dpi": 150, "savefig.bbox": "tight",
+plt.rcParams.update({"font.size": 8, "axes.titlesize": 9, "figure.dpi": 150, "savefig.dpi": 300, "savefig.bbox": "tight",
                      "axes.spines.top": False, "axes.spines.right": False})
 rows_out: list[dict] = []
 
@@ -128,7 +128,7 @@ def fig_lens():
     cfg = P.Distortion(True, res.mtx.tolist(), res.dist.tolist(), res.rms_error, "synthetic", [W, H])
     fixed = P.undistort(dist_img, cfg)
 
-    # per-seed area relative to the centre of the image, before and after
+    # per-seed area relative to the center of the image, before and after
     lab_i, ids_i, a_i, c_i = seeds(ideal)
     lab_d, ids_d, a_d, _ = seeds(dist_img)
     lab_f, ids_f, a_f, _ = seeds(fixed)
@@ -153,9 +153,9 @@ def fig_lens():
         if jd in ids_d and jf in ids_f:
             rows.append((r[k], a_i[i], a_d[jd], a_f[jf]))
     rows = np.array(rows)
-    centre = rows[:, 0] < 0.25                          # scale set on the centre of the photo, as a user would
-    kd = np.median(rows[centre, 2] / rows[centre, 1])
-    kf = np.median(rows[centre, 3] / rows[centre, 1])
+    center = rows[:, 0] < 0.25                          # scale set on the center of the photo, as a user would
+    kd = np.median(rows[center, 2] / rows[center, 1])
+    kf = np.median(rows[center, 3] / rows[center, 1])
     err_d = 100 * (rows[:, 2] / kd / rows[:, 1] - 1)
     err_f = 100 * (rows[:, 3] / kf / rows[:, 1] - 1)
     for rr, ed, ef in zip(rows[:, 0], err_d, err_f):
@@ -191,7 +191,7 @@ def fig_lens():
     a5.scatter(rows[:, 0], err_d, s=6, color=RED, alpha=0.6, label="Distorted photo")
     a5.scatter(rows[:, 0], err_f, s=6, color=BLUE, alpha=0.6, label="After correction")
     a5.axhline(0, color="#333", lw=0.6)
-    a5.set_xlabel("Distance from image centre (0 = centre, 1 = corner)")
+    a5.set_xlabel("Distance from image center (0 = center, 1 = corner)")
     a5.set_ylabel("Seed area error (%)")
     a5.legend(frameon=False, fontsize=7)
     label(a5, "F  Error in seed area across the photo")
