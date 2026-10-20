@@ -758,7 +758,7 @@ class MainWindow:
         self._set_status(t("project.opened", path=project.file))
 
     def _apply_project(self, project: Project):
-        self._undo_stack, self._redo_stack = [], []
+        self._undo_stack, self._redo_stack, self._settled = [], [], None
         self.config_panel = None
         self.project = project
         seg = project.segmentation
@@ -1124,6 +1124,7 @@ class MainWindow:
         if self._after_preview_id:
             self.root.after_cancel(self._after_preview_id)
         self._after_preview_id = self.root.after(60, self._show_preview)
+        self._settings_changed()
 
     PREVIEW_PX = 16_000_000
 
@@ -1768,6 +1769,7 @@ class MainWindow:
         path = self.current_image_path
         if not path:
             return
+        self._remember("undo.remove_image")
         images = [p for p in self.project.images if str(p) != str(path)]
         self._clear_all_results(path)
         self.project.image_roi.pop(self.project.key(path), None)
@@ -2065,6 +2067,9 @@ class MainWindow:
             units=self._unit_labels(self._panel_area_unit))
         self.config_panel.set_values({k: v for k, v in stored.items() if not k.startswith("_")})
         self.config_panel.pack(fill=tk.BOTH, expand=True)
+        for var in self.config_panel._vars.values():          # cambios del panel: Ctrl+Z
+            var.trace_add("write", lambda *_: self._settings_changed())
+        self.root.after_idle(self._mark_settled)
         self._show_cached_result()
         self._sync_area_units()
 
@@ -2964,18 +2969,54 @@ class MainWindow:
     # ── Deshacer / rehacer: áreas y objetos excluidos o destacados ─────────────
 
     UNDO_MAX = 50
-    _UNDO_FIELDS = ("roi", "image_roi", "excluded", "highlighted")
+    _UNDO_FIELDS = ("roi", "image_roi", "image_scale", "excluded", "highlighted", "images")
 
     def _snapshot(self) -> dict:
+        """Lo que Ctrl+Z puede devolver: áreas, marcas, fotos de la lista, segmentación
+        (espacio, canal, Mín/Máx, Otsu) y parámetros del análisis elegido."""
         import copy
-        return {f: copy.deepcopy(getattr(self.project, f)) for f in self._UNDO_FIELDS}
+        snap = {f: copy.deepcopy(getattr(self.project, f)) for f in self._UNDO_FIELDS}
+        snap["_seg"] = (self.cs_var.get(), int(self.ch_var.get()), int(self.min_slider.get()),
+                        int(self.max_slider.get()), bool(self.auto_var.get()))
+        cp = getattr(self, "config_panel", None)
+        snap["_params"] = (self._selected_analysis(), cp.get_values(warn=False) if cp else {})
+        return snap
 
-    def _remember(self, what: str):
-        """Antes de cambiar áreas o marcas: guarda cómo estaba (Ctrl+Z vuelve ahí)."""
+    def _push_undo(self, what: str, path, snap: dict):
         stack = self.__dict__.setdefault("_undo_stack", [])
-        stack.append((what, self.current_image_path, self._snapshot()))
+        stack.append((what, path, snap))
         del stack[:-self.UNDO_MAX]
         self._redo_stack = []
+
+    def _remember(self, what: str):
+        """Antes de cambiar áreas, marcas o la lista de fotos: guarda cómo estaba."""
+        if getattr(self, "_settle_job", None):          # un cambio de umbral pendiente va antes
+            self.root.after_cancel(self._settle_job)
+            self._settle()
+        self._push_undo(what, self.current_image_path, self._snapshot())
+        self.root.after_idle(self._mark_settled)
+
+    # Segmentación y parámetros cambian de a poco (arrastrar un deslizador): se guarda un
+    # paso de deshacer cuando se quedan quietos 0.7 s.
+    def _settings_changed(self):
+        if getattr(self, "_restoring", False) or not hasattr(self, "min_slider"):
+            return
+        if getattr(self, "_settle_job", None):
+            self.root.after_cancel(self._settle_job)
+        self._settle_job = self.root.after(700, self._settle)
+
+    def _settle(self):
+        self._settle_job = None
+        old, now = getattr(self, "_settled", None), self._snapshot()
+        if old is not None:
+            seg = old["_seg"] != now["_seg"]
+            params = old["_params"][0] == now["_params"][0] and old["_params"][1] != now["_params"][1]
+            if seg or params:
+                self._push_undo("undo.segmentation" if seg else "undo.params", self.current_image_path, old)
+        self._settled = now
+
+    def _mark_settled(self):
+        self._settled = self._snapshot()
 
     def _undo_label(self, which: str) -> str:
         stack = getattr(self, "_undo_stack" if which == "undo" else "_redo_stack", None) or []
@@ -2988,15 +3029,51 @@ class MainWindow:
         self._swap("_redo_stack", "_undo_stack", "edit.redone")
 
     def _swap(self, src: str, dst: str, msg: str):
+        if getattr(self, "_settle_job", None):        # un cambio a medio guardar entra primero
+            self.root.after_cancel(self._settle_job)
+            self._settle()
         stack = getattr(self, src, None) or []
         if not stack:
             return
         what, path, state = stack.pop()
         self.__dict__.setdefault(dst, []).append((what, path, self._snapshot()))
+        self._restoring = True
+        try:
+            self._restore(path, state)
+        finally:
+            self._restoring = False
+        self._mark_settled()
+        self._set_status(t(msg, what=t(what)))
+
+    def _restore(self, path, state: dict):
         key = self.project.key(path) if path else None
         marks_changed = any(getattr(self.project, f).get(key) != state[f].get(key) for f in ("excluded", "highlighted"))
-        for f, v in state.items():
-            setattr(self.project, f, v)
+        # la lista de fotos solo vuelve atrás si se quitó una (agregar fotos no se deshace):
+        # las que faltan vuelven a su lugar, las agregadas después se quedan
+        now = [str(p) for p in self.project.images]
+        missing = [(i, p) for i, p in enumerate(state["images"]) if str(p) not in now]
+        images = list(self.project.images)
+        for i, p in missing:
+            images.insert(min(i, len(images)), p)
+        images_changed = bool(missing)
+        for f in self._UNDO_FIELDS:
+            if f != "images":
+                setattr(self.project, f, state[f])
+        self.project.images = images
+        cs, ch, lo, hi, auto = state["_seg"]
+        if (cs, ch, lo, hi, auto) != (self.cs_var.get(), int(self.ch_var.get()), int(self.min_slider.get()),
+                                       int(self.max_slider.get()), bool(self.auto_var.get())):
+            self.cs_var.set(cs)
+            self._update_channel_names()
+            self.ch_var.set(ch)
+            self._sync_sliders(lo, hi)
+            self.auto_var.set(auto)
+        name, values = state["_params"]
+        if self.config_panel is not None and name == self._selected_analysis():
+            self.config_panel.set_values(values)
+        if images_changed:                            # foto quitada que vuelve (sin resultados)
+            self._update_batch_list()
+            self._update_start()
         if path and path in self.batch_paths and path != self.current_image_path:
             self._select_image(self.batch_paths.index(path))       # se ve lo que se deshizo
         elif self.areas and self.current_image_path:
@@ -3005,7 +3082,6 @@ class MainWindow:
             self._show_preview()
         if marks_changed and path in self.results_cache:       # excluidos/destacados: se recalcula
             self._run_analysis(all_images=False)
-        self._set_status(t(msg, what=t(what)))
 
     def _toggle_exclude(self):
         self._toggle_mark("excluded")
