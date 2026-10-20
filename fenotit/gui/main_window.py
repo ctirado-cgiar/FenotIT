@@ -1385,6 +1385,7 @@ class MainWindow:
         self.zoom_ctrl.set_zoom_var(self._zoom_pct_var)
         self.zoom_ctrl.on_tool_change = self._on_zoom_tool_change
         self.zoom_ctrl.on_pick = self._pick_object
+        self.zoom_ctrl.on_hover = self._hover_object
         # Referencia para que ZoomController informe al ROI
         self.canvas_left._roi_selector_ref = self.areas
         self._build_area_tools()
@@ -2713,6 +2714,55 @@ class MainWindow:
                 self._select_object(oid)
                 return
         self._clear_selection()
+
+    def _object_at(self, x: float, y: float) -> int | None:
+        for oid, c in self._geometry().items():
+            x0, y0 = c.min(axis=0)
+            x1, y1 = c.max(axis=0)
+            if x0 - 2 <= x <= x1 + 2 and y0 - 2 <= y <= y1 + 2 \
+                    and cv2.pointPolygonTest(c.reshape(-1, 1, 2).astype(np.float32), (float(x), float(y)), True) >= -2:
+                return oid
+        return None
+
+    def _hover_object(self, canvas, p):
+        """Inspeccionar en la capa Distancias: al pasar el mouse sobre un objeto se ven las
+        líneas a sus vecinos con la distancia (en los dos lados)."""
+        r = self.last_result
+        view = self.step_names[self.step_idx] if r and self.step_names and 0 <= self.step_idx < len(self.step_names) else None
+        kind = (r.extra.get("step_folders") or {}).get(view) if r else None
+        oid = self._object_at(*p) if p is not None and kind == "distances" else None
+        if oid == getattr(self, "_hover_oid", None):
+            return
+        self._hover_oid = oid
+        for c in (self.canvas_left, self.canvas_right):
+            c.delete("hover")
+        if oid is None:
+            return
+        tables = r.extra.get("tables") or {}
+        cents = {o["object_id"]: (o.get("centroid_x_px"), o.get("centroid_y_px")) for o in tables.get("objects", [])}
+        pairs = [x for x in tables.get("distances", []) if oid in (x.get("object_a"), x.get("object_b"))]
+        dcol = next((k for k in (pairs[0] if pairs else {}) if k.startswith("distance_")), None)
+        from fenotit.gui import inspector as ins
+        for c in (self.canvas_left, self.canvas_right):
+            if not c.winfo_ismapped() or cents.get(oid, (None,))[0] is None:
+                continue
+            a = self.zoom_ctrl.to_canvas(c, *cents[oid])
+            for x in pairs:
+                other = x["object_b"] if x["object_a"] == oid else x["object_a"]
+                if cents.get(other, (None,))[0] is None or a is None:
+                    continue
+                b = self.zoom_ctrl.to_canvas(c, *cents[other])
+                c.create_line(*a, *b, fill="#FFFFFF", width=4, tags="hover")
+                c.create_line(*a, *b, fill="#2166AC", width=2, tags="hover")
+                v = x.get(dcol)
+                if isinstance(v, (int, float)):
+                    tx, ty = (a[0] + 2 * b[0]) / 3, (a[1] + 2 * b[1]) / 3     # cerca del vecino
+                    for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                        c.create_text(tx + dx, ty + dy, text=ins.fmt(float(v)), fill="#FFFFFF",
+                                      font=("Segoe UI", 9, "bold"), tags="hover")
+                    c.create_text(tx, ty, text=ins.fmt(float(v)), fill="#0B2E59", font=("Segoe UI", 9, "bold"),
+                                  tags="hover")
+            c.create_oval(a[0] - 4, a[1] - 4, a[0] + 4, a[1] + 4, fill="#D73027", outline="#FFFFFF", tags="hover")
 
     def _select_object(self, oid: int, from_table: bool = False):
         geom = self._geometry()

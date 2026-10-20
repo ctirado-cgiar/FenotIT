@@ -201,6 +201,7 @@ class ZoomController:
         self._click = None
         self.on_pick = None                   # (x, y) en px de imagen: clic con "inspeccionar"
         self.highlight = None                 # contorno (px de imagen) del objeto elegido
+        self.on_hover = None                  # (canvas, (x, y) px de imagen | None) con "inspeccionar"
 
         for c in (canvas_left, canvas_right):
             c.config(takefocus=True)
@@ -213,6 +214,8 @@ class ZoomController:
                 c.bind(f"<B{btn}-Motion>", lambda e, b=btn: self._motion(e, b), add="+")
                 c.bind(f"<ButtonRelease-{btn}>", lambda e, b=btn: self._release(e, b), add="+")
             c.bind("<Enter>", lambda e: self._update_cursor(e.widget), add="+")
+            c.bind("<Motion>", self._hover, add="+")
+            c.bind("<Leave>", lambda e: self.on_hover and self.on_hover(e.widget, None), add="+")
 
     # ── Herramientas ──────────────────────────────────────────────────────────
 
@@ -275,6 +278,19 @@ class ZoomController:
             return
         self._drag = (event.x, event.y)
         self._click = (event.widget, event.x, event.y) if button == "1" and self.tool == "inspect" else None
+
+    def _hover(self, event):
+        if self.tool == "inspect" and self.on_hover and self._drag is None:
+            self.on_hover(event.widget, self._to_image(event.widget, event.x, event.y))
+
+    def to_canvas(self, canvas, x, y):
+        """Punto en px de imagen → coordenadas del canvas (inverso de _to_image)."""
+        img = self._img_left if self._img_left is not None else self._img_right
+        if img is None:
+            return None
+        cw, ch = max(canvas.winfo_width(), 1), max(canvas.winfo_height(), 1)
+        ox, oy = self.state.image_offset(cw, ch, img.shape[1], img.shape[0])
+        return ox + x * self.state.zoom, oy + y * self.state.zoom
 
     def _to_image(self, canvas, x, y):
         img = self._img_left if self._img_left is not None else self._img_right
