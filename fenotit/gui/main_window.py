@@ -1535,32 +1535,17 @@ class MainWindow:
                        activebackground=bg, font=small, padx=0).pack(side=tk.LEFT)
         HelpIcon(arow, t("seg.auto"), t("seg.auto_help"), bg=bg).pack(side=tk.LEFT, padx=(4, 0))
 
-        self.min_slider = self._range_row(box, t("seg.min"), 0)
-        self.max_slider = self._range_row(box, t("seg.max"), 255)
-        from fenotit.gui.histogram import ChannelHistogram
+        from fenotit.gui.histogram import ChannelHistogram, RangeSlider
+        rrow = tk.Frame(box, bg=bg)
+        rrow.pack(fill=tk.X, pady=(6, 0))
+        tk.Label(rrow, text=t("seg.range"), bg=bg, fg=COLORS["text_muted"], font=small).pack(side=tk.LEFT)
+        HelpIcon(rrow, t("seg.range"), t("seg.range_help"), bg=bg).pack(side=tk.LEFT, padx=(4, 0))
+        self.range_slider = RangeSlider(box, on_change=lambda lo, hi: self._on_slider_moved(), bg=bg)
+        self.range_slider.pack(fill=tk.X)
+        self.min_slider = self.range_slider.end("lo")
+        self.max_slider = self.range_slider.end("hi")
         self.histogram = ChannelHistogram(box, on_drag=self._on_hist_drag, bg=bg)
-        self.histogram.pack(fill=tk.X, pady=(2, 0))
-
-    def _range_row(self, parent, label: str, value: int) -> tk.Scale:
-        """Deslizador 0-255 con botones ‹ › para mover de a uno."""
-        bg = COLORS["bg_panel"]
-        row = tk.Frame(parent, bg=bg)
-        row.pack(fill=tk.X)
-        tk.Label(row, text=label, bg=bg, fg=COLORS["text_muted"], font=FONTS["small"],
-                 width=4, anchor="w").pack(side=tk.LEFT, anchor="s", pady=(0, 4))
-        scale = tk.Scale(row, from_=0, to=255, orient=tk.HORIZONTAL, bg=bg, fg=COLORS["text"],
-                         troughcolor=COLORS["slider_trough"], activebackground=COLORS["accent"],
-                         highlightthickness=0, showvalue=True, font=FONTS["small"],
-                         command=lambda _: self._on_slider_moved())
-        scale.set(value)
-        btn = dict(bg=COLORS["btn_bg"], fg=COLORS["accent"], relief="flat",
-                   font=FONTS["small"], width=2, cursor="hand2", padx=0, pady=0)
-        tk.Button(row, text="‹", command=lambda: scale.set(max(0, scale.get() - 1)),
-                  **btn).pack(side=tk.LEFT, anchor="s", pady=(0, 4))
-        scale.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2)
-        tk.Button(row, text="›", command=lambda: scale.set(min(255, scale.get() + 1)),
-                  **btn).pack(side=tk.LEFT, anchor="s", pady=(0, 4))
-        return scale
+        self.histogram.pack(fill=tk.X)
 
     def _on_auto_change(self):
         """Otsu se ve de inmediato y deja Mín/Máx en su rango; moverlos después lo apaga."""
