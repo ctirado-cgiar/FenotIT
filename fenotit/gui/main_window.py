@@ -763,8 +763,7 @@ class MainWindow:
         self.cs_var.set(seg.color_space)
         self._update_channel_names()
         self.ch_var.set(seg.channel)
-        self.min_slider.set(seg.min_val)
-        self.max_slider.set(seg.max_val)
+        self._sync_sliders(seg.min_val, seg.max_val)
         self.auto_var.set(seg.auto)
         self._on_auto_change()
         self.legend_var.set(project.display.get("legend", True))
@@ -855,6 +854,9 @@ class MainWindow:
               background=[("active", COLORS["btn_hover"])],
               foreground=[("active", COLORS["accent"])])
         s.configure("TSeparator",  background=COLORS["border"])
+        for name in ("Horizontal.TProgressbar", "Thin.Horizontal.TProgressbar"):   # barras de avance azules
+            s.configure(name, background=COLORS["accent"], troughcolor=COLORS["bg_panel"],
+                        bordercolor=COLORS["border"], lightcolor=COLORS["accent"], darkcolor=COLORS["accent"])
         s.configure("TScrollbar",  background=COLORS["bg_panel"],
                     troughcolor=COLORS["bg"], borderwidth=0, arrowsize=12)
         s.configure("TCombobox",
@@ -935,7 +937,9 @@ class MainWindow:
                                     font=FONTS["small"], padx=10)
         self._corr_label.pack(side=tk.RIGHT)
         self._corr_tip = Tooltip(self._corr_label, t("corr.applied_tip"))
-        ttk.Style(self.root).configure("Thin.Horizontal.TProgressbar", thickness=8)
+        ttk.Style(self.root).configure("Thin.Horizontal.TProgressbar", thickness=8, background=COLORS["accent"],
+                                       lightcolor=COLORS["accent"], darkcolor=COLORS["accent"],
+                                       troughcolor=COLORS["bg_panel"], bordercolor=COLORS["border"])
         self._progress_bar = ttk.Progressbar(self.statusbar, length=160, mode="determinate",
                                              style="Thin.Horizontal.TProgressbar")
         self._cancel_link = tk.Label(self.statusbar, text=t("common.cancel"), bg=COLORS["bg_panel"],
@@ -1160,6 +1164,7 @@ class MainWindow:
                     "color_space": self.cs_var.get(), "channel": int(ch_idx)}}])
                 mask = ctx.mask
                 self._otsu_value = int(ctx.extra.get("otsu_threshold", 0))
+                self._sync_sliders(*ctx.extra.get("otsu_range", (0, 255)))   # muestran el rango de Otsu
             else:
                 if cs_code is not None:
                     converted = cv2.cvtColor(img_original, cs_code)
@@ -1461,12 +1466,14 @@ class MainWindow:
             menu.add_command(label=t("chart.save_with_image"), command=lambda: self._save_intra_chart(True))
             save.configure(menu=menu)
             save.pack(side=tk.RIGHT, padx=2, pady=3)
-            tk.Button(self._chart_panel.bar, text=t("chart.whole_batch"), command=self._show_batch_chart,
+            self._compare_btn = tk.Button(self._chart_panel.bar, text=t("chart.whole_batch"), command=self._show_batch_chart,
                       bg=COLORS["btn_bg"], fg=COLORS["accent"], relief="flat", font=FONTS["small"],
-                      cursor="hand2", pady=2).pack(side=tk.RIGHT, padx=2, pady=3)
-            tk.Button(self._chart_panel.bar, text=t("c3d.open"), command=lambda: self._show_color3d("image"),
-                      bg=COLORS["btn_bg"], fg=COLORS["accent"], relief="flat", font=FONTS["small"],
-                      cursor="hand2", pady=2).pack(side=tk.RIGHT, padx=2, pady=3)
+                      cursor="hand2", pady=2)
+            self._compare_btn.pack(side=tk.RIGHT, padx=2, pady=3)
+            self._colors_btn = tk.Button(self._chart_panel.bar, text=t("c3d.open"),
+                                         command=lambda: self._show_color3d("image"), bg=COLORS["btn_bg"],
+                                         fg=COLORS["accent"], relief="flat", font=FONTS["small"],
+                                         cursor="hand2", pady=2)      # solo en la capa Color
 
     # ── Panel derecho ─────────────────────────────────────────────────────────
 
@@ -1531,7 +1538,7 @@ class MainWindow:
         scale = tk.Scale(row, from_=0, to=255, orient=tk.HORIZONTAL, bg=bg, fg=COLORS["text"],
                          troughcolor=COLORS["slider_trough"], activebackground=COLORS["accent"],
                          highlightthickness=0, showvalue=True, font=FONTS["small"],
-                         command=lambda _: self._on_slider_change())
+                         command=lambda _: self._on_slider_moved())
         scale.set(value)
         btn = dict(bg=COLORS["btn_bg"], fg=COLORS["accent"], relief="flat",
                    font=FONTS["small"], width=2, cursor="hand2", padx=0, pady=0)
@@ -1543,10 +1550,27 @@ class MainWindow:
         return scale
 
     def _on_auto_change(self):
-        state = tk.DISABLED if self.auto_var.get() else tk.NORMAL
-        for s in (self.min_slider, self.max_slider):
-            s.config(state=state)
+        """Otsu se ve de inmediato y deja Mín/Máx en su rango; moverlos después lo apaga."""
+        if self.auto_var.get():
+            self._show_preview()
+        else:
+            self._on_slider_change()
+
+    def _on_slider_moved(self):
+        """El command de Scale también llega cuando el valor se pone por código (y tarde):
+        solo cuenta como cambio del usuario si difiere del último valor puesto."""
+        cur = (int(self.min_slider.get()), int(self.max_slider.get()))
+        if cur == getattr(self, "_slider_state", None):
+            return
+        self._slider_state = cur
+        if self.auto_var.get():                 # el usuario toma el control: umbral manual
+            self.auto_var.set(False)
         self._on_slider_change()
+
+    def _sync_sliders(self, lo: int, hi: int):
+        self._slider_state = (int(lo), int(hi))
+        self.min_slider.set(lo)
+        self.max_slider.set(hi)
 
     # ── Helpers layout ────────────────────────────────────────────────────────
 
@@ -1751,6 +1775,8 @@ class MainWindow:
             return
         if self.areas and self.areas.active:
             self.areas.stop()
+        if tool != "pan" and self.zoom_ctrl.tool == tool:       # otro clic la apaga: vuelve la mano
+            tool = "pan"
         self.zoom_ctrl.set_tool(tool)
         if tool == "zoom_area":
             self._set_status(t("view.zoom_area_hint"))
@@ -2508,6 +2534,13 @@ class MainWindow:
 
     def _update_view_controls(self, name: str):
         """Solo si la vista tiene leyenda; el formato de color solo en la vista de color."""
+        btn = getattr(self, "_colors_btn", None)
+        if btn is not None:                  # "Colores…" solo en la capa Color
+            kind = ((self.last_result.extra.get("step_folders") or {}).get(name) if self.last_result else None)
+            if kind == "color" and not btn.winfo_ismapped():
+                btn.pack(side=tk.RIGHT, padx=2, pady=3, after=self._compare_btn)
+            elif kind != "color":
+                btn.pack_forget()
         spec = (self.last_result.extra.get("legends") or {}).get(name) if self.last_result else None
         if not spec:
             self._view_ctrl.place_forget()
@@ -2569,6 +2602,11 @@ class MainWindow:
             width = max([head.measure(col + " ▼") + 20] + [font.measure(v) + 14 for v in sample])
             self._table_widths[col] = min(max(width, 60), 260)
             self.table.heading(col, text=col, anchor="w", command=lambda c=col: self._sort_table(c))
+        first = cols[0]                    # ▲ en la primera columna si ya viene ordenada: se ve que se puede ordenar
+        vals = [r.get(first) for r in rows]
+        if all(isinstance(v, (int, float)) for v in vals) and vals == sorted(vals):
+            self._table_sort = (first, False)
+            self.table.heading(first, text=first + " ▲")
         self._fit_table_columns()
         self._fill_table()
 
@@ -2682,6 +2720,8 @@ class MainWindow:
         if not sel:
             return
         ids = _row_objects(getattr(self, "_table_items", {}).get(sel[0], {}))
+        if ids and self.zoom_ctrl and self.zoom_ctrl.tool != "inspect":
+            self.zoom_ctrl.set_tool("inspect")          # la tabla elige objetos: también la imagen
         if ids:                         # en Distancias (una fila por par) se elige el primero
             self._select_object(self._sel if self._sel in ids else ids[0], from_table=True)
 
@@ -3787,8 +3827,9 @@ class MainWindow:
         if not results:
             messagebox.showinfo(t("msg.no_data_title"), t("msg.no_data_batch"), parent=self.root)
             return
-        BatchChartWindow(self.root, results, meta={p: self._meta_row(p) for p in results},
-                         groups=self._meta_columns(), on_pick=self._goto_object)
+        self._replace_window("batch_chart", lambda: BatchChartWindow(
+            self.root, results, meta={p: self._meta_row(p) for p in results},
+            groups=self._meta_columns(), on_pick=self._goto_object))
 
     def _color_images(self, paths) -> list:
         """[(ruta, Image_ID, nombre, tablas)] con resultado del análisis elegido."""
@@ -3804,7 +3845,23 @@ class MainWindow:
         from fenotit.gui.color3d import Color3DWindow
         current = self._color_images([self.current_image_path] if self.current_image_path else [])
         batch = self._color_images(self.batch_paths)
-        Color3DWindow(self.root, current, batch, scope=scope, on_goto=self._goto_object, thumb=self._object_thumb)
+        self._replace_window("colors", lambda: Color3DWindow(
+            self.root, current, batch, scope=scope, on_goto=self._goto_object, thumb=self._object_thumb))
+
+    def _replace_window(self, key: str, build):
+        """Una sola ventana de cada tipo: la abierta se cierra y la nueva (con los datos de
+        ahora) toma su lugar y tamaño."""
+        wins = self.__dict__.setdefault("_open_windows", {})
+        old = wins.get(key)
+        geom = None
+        if old is not None and old.winfo_exists():
+            geom = old.geometry()
+            old.destroy()
+        win = build()
+        if win is not None:
+            if geom:
+                win.geometry(geom)
+            wins[key] = win
 
     def _goto_object(self, path: str, oid: int | None = None):
         """Desde un gráfico: abre esa foto y, si es un objeto, lo elige (inspector)."""

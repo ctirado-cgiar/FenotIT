@@ -46,7 +46,7 @@
   "board.too_many": "You chose {n} photos: {max} will be used, spread across all of them.",
   "c3d.all_photos": "All ({n})",
   "c3d.goto": "Show in photo",
-  "c3d.help": "Each point is a color in the chosen space (CIELab by default). 2D view: one plane of the space; a*·b* is the chromaticity diagram (a*: green–red, b*: blue–yellow). 3D view: drag to rotate.\n\nWheel = zoom. Click a point = see its photo or object.\n\nColor: each color of each object. Object: its mean color, as a pie of its colors. Photo: the same per photo. Point size is its % of area.",
+  "c3d.help": "Each point is a color in the chosen space (CIELab by default). Drag to rotate, wheel to zoom, click a point to see its photo or object.\n\nColor: each color of each object. Object: its mean color, as a pie of its colors. Photo: the same per photo. Point size is its % of area.\n\na*·b* view (Lab only): the chromaticity diagram (a*: green–red, b*: blue–yellow), useful for printed figures.",
   "c3d.labels": "Labels",
   "c3d.legend": "Legend",
   "c3d.legend_note": "size = % of area",

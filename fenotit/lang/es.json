@@ -46,7 +46,7 @@
   "board.too_many": "Elegiste {n} fotos: se usarán {max}, repartidas entre todas.",
   "c3d.all_photos": "Todas ({n})",
   "c3d.goto": "Ver en la foto",
-  "c3d.help": "Cada punto es un color en el espacio elegido (CIELab por defecto). Vista 2D: un plano del espacio; a*·b* es el diagrama de cromaticidad (a*: verde–rojo, b*: azul–amarillo). Vista 3D: arrastra para girar.\n\nRueda = acercar. Clic en un punto = ver su foto u objeto.\n\nColor: cada color de cada objeto. Objeto: su color medio, como torta de sus colores. Foto: lo mismo por foto. El tamaño del punto es su % de área.",
+  "c3d.help": "Cada punto es un color en el espacio elegido (CIELab por defecto). Arrastra para girar, rueda para acercar y clic en un punto para ver su foto u objeto.\n\nColor: cada color de cada objeto. Objeto: su color medio, como torta de sus colores. Foto: lo mismo por foto. El tamaño del punto es su % de área.\n\nVista a*·b* (solo en Lab): el diagrama de cromaticidad (a*: verde–rojo, b*: azul–amarillo), útil para figuras impresas.",
   "c3d.labels": "Etiquetas",
   "c3d.legend": "Leyenda",
   "c3d.legend_note": "tamaño = % de área",
