@@ -96,6 +96,8 @@ def collect(analysis: str, results: dict[str, Any], images: list[str],
         tail = dict(image_info.get(path, {}))
         if r is not None and r.status != "ok":
             tail["error"] = r.error
+        if r is not None and r.extra.get("processing_s") is not None:
+            tail["processing_s"] = r.extra["processing_s"]
         if varied and r is not None and r.status == "ok":
             tail["params"] = "; ".join(f"{k}={v}" for k, v in _params_of(r).items())
         own = (r.extra.get("tables") or {}).get("image") if r is not None and r.status == "ok" else None
@@ -130,6 +132,10 @@ def metadata(analysis: str, results: dict[str, Any], project=None, extra: dict |
             ("python", platform.python_version()), ("system", f"{platform.system()} {platform.release()}"),
             ("analysis", analysis), ("n_images_ok", len(ok)),
             ("n_images_error", sum(1 for r in results.values() if r.status != "ok"))]
+    secs = [r.extra["processing_s"] for r in results.values() if r.extra.get("processing_s") is not None]
+    if secs:
+        rows += [("processing_s_total", round(sum(secs), 2)),
+                 ("processing_s_per_image_mean", round(sum(secs) / len(secs), 3))]
     if project is not None:
         seg = project.segmentation
         corr = project.corrections

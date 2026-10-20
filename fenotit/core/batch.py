@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import multiprocessing as mp
 import os
+import time
 import threading
 from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from dataclasses import dataclass, field, replace
@@ -105,6 +106,7 @@ def process(analysis: str, job: Job, corrections, keep_images: bool = False) -> 
     from fenotit.core.corrections import pipeline as corr
     from fenotit.core.image_io import load_image
 
+    t0 = time.perf_counter()
     img = load_image(job.path)
     if img is None:
         return Outcome(job.path, "unreadable")
@@ -128,6 +130,7 @@ def process(analysis: str, job: Job, corrections, keep_images: bool = False) -> 
         _log.exception("%s falló en %s", analysis, job.path)
         result = AnalysisResult(status="error", error=str(e))
     result.extra["params"] = params          # para recalcular la vista o exportarla igual
+    result.extra["processing_s"] = round(time.perf_counter() - t0, 3)   # leer + corregir + analizar
     if result.status != "ok":
         return Outcome(job.path, "error", message=result.error, mm_per_px=params.get("mm_per_pixel"))
     return Outcome(job.path, "ok", result if keep_images else light(result),

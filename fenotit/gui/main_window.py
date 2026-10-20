@@ -15,6 +15,7 @@ import platform
 import subprocess
 import sys
 import threading
+import time
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
 import tkinter.font as tkfont
@@ -228,6 +229,14 @@ def _peek_tab(host, image, command, side: str):
 
 
 _SUMMARY_SKIP = ("image_width_px", "image_height_px")
+
+
+def _duration(seconds: float) -> str:
+    """12.3 s · 2 min 05 s"""
+    if seconds < 60:
+        return f"{seconds:.1f} s" if seconds < 10 else f"{seconds:.0f} s"
+    m, s = divmod(int(round(seconds)), 60)
+    return f"{m} min {s:02d} s"
 
 
 def _summary(stats: dict, limit: int = 6) -> str:
@@ -1041,6 +1050,7 @@ class MainWindow:
             (t("menu.language"), self._choose_language),
         ])
         self._drop(self.topbar, t("menu.help"), [
+            (t("tour.menu"), self._start_tour),
             (t("help.shortcuts"), self._show_shortcuts, "F1"),
             (t("help.log"), self._open_log_folder),
             None,
@@ -1051,6 +1061,7 @@ class MainWindow:
         tk.Frame(self.topbar, bg=COLORS["bg_topbar"], width=24).pack(side=tk.RIGHT)
         run = tk.Frame(self.topbar, bg="#FFFFFF")
         run.pack(side=tk.RIGHT, padx=(6, 0), pady=8)
+        self._run_frame = run
         tk.Button(run, text=t("topbar.run"), command=lambda: self._run_analysis(False),
                   bg="#FFFFFF", fg=COLORS["accent"], font=("Segoe UI", 9, "bold"),
                   relief="flat", bd=0, activebackground=COLORS["accent_light"],
@@ -1100,8 +1111,46 @@ class MainWindow:
         tk.Frame(self.topbar, bg="#4a8fd4", width=1).pack(
             side=tk.LEFT, fill=tk.Y, pady=6, padx=4)
 
+    # ── Recorrido guiado ──────────────────────────────────────────────────────
+
+    def _start_tour(self):
+        from fenotit.gui.tour import Step, Tour
+        if getattr(self, "_tour", None):
+            return
+        settings.set("tour_seen", True)
+        menus = getattr(self, "_menus", {})
+        has_photo = lambda: bool(self.current_image_path)
+        panel_on = lambda: self.right_panel.winfo_ismapped() and getattr(self, "_analysis_chosen", False)
+        results = lambda: bool(self.last_result)
+        steps = [
+            Step(t("tour.welcome.title"), t("tour.welcome.text")),
+            Step(t("tour.photos.title"), t("tour.photos.text"), lambda: self.image_list, has_photo),
+            Step(t("tour.image.title"), t("tour.image.text"), lambda: self.canvas_left, has_photo),
+            Step(t("tour.areas.title"), t("tour.areas.text"), lambda: menus.get(t("menu.areas"))),
+            Step(t("tour.analysis.title"), t("tour.analysis.text"), lambda: menus.get(t("menu.analysis"))),
+            Step(t("tour.segment.title"), t("tour.segment.text"), lambda: getattr(self, "_seg_box", None),
+                 lambda: panel_on() and self._uses_threshold()),
+            Step(t("tour.params.title"), t("tour.params.text"), lambda: self.config_container, panel_on),
+            Step(t("tour.run.title"), t("tour.run.text"), lambda: getattr(self, "_run_frame", None)),
+            Step(t("tour.layers.title"), t("tour.layers.text"), lambda: self._layers_title.master,
+                 results),
+            Step(t("tour.results.title"), t("tour.results.text"),
+                 lambda: next(iter(self._tab_labels.values())).master, results),
+            Step(t("tour.export.title"), t("tour.export.text"), lambda: menus.get(t("menu.file"))),
+            Step(t("tour.end.title"), t("tour.end.text")),
+        ]
+
+        def done():
+            self._tour = None
+        self._tour = Tour(self.root, steps, on_close=done)
+        self._tour.start()
+
     def _drop(self, parent, text, items):
-        DropMenu(parent, text, items, COLORS).pack(side=tk.LEFT)
+        m = DropMenu(parent, text, items, COLORS)
+        m.pack(side=tk.LEFT)
+        self._menus = getattr(self, "_menus", {})
+        self._menus[text] = m
+        return m
 
     def _update_channel_names(self):
         cs    = self.cs_var.get()
@@ -1507,6 +1556,7 @@ class MainWindow:
         HelpIcon(head, t("seg.title").capitalize(), t("seg.help"), bg=bg).pack(side=tk.LEFT)
         box = tk.Frame(rf, bg=bg)
         box.pack(fill=tk.X, padx=8, pady=(2, 4))
+        self._seg_box = box
 
         row = tk.Frame(box, bg=bg)
         row.pack(fill=tk.X, pady=2)
@@ -1749,6 +1799,8 @@ class MainWindow:
         self._update_start()
         self._load_single(new[0])
         self._sync_listbox()
+        if not settings.get("tour_seen", False):          # primera vez con fotos: recorrido guiado
+            self.root.after(1500, self._start_tour)
 
     def _remove_current_image(self):
         path = self.current_image_path
@@ -2108,12 +2160,14 @@ class MainWindow:
         self.root.config(cursor="watch")
         params = self._build_params()
         def worker():
+            t0 = time.perf_counter()
             try:
                 result = ANALYSES[name].func(image, params)
             except Exception as e:
                 _log.exception("%s falló en %s", name, path)
                 result = AnalysisResult(status="error", error=str(e))
             result.extra["params"] = params
+            result.extra["processing_s"] = round(time.perf_counter() - t0, 3)
             self.root.after(0, lambda: self._on_result(name, result, path))
         threading.Thread(target=worker, daemon=True).start()
 
@@ -2148,6 +2202,7 @@ class MainWindow:
         self._progress(0, total)
         self._update_batch_list()
         self._sync_listbox()
+        self._batch_t0 = time.perf_counter()
         after = self.root.after
         self._batch = batch.BatchRunner(
             name, jobs, self.project.corrections,
@@ -2213,6 +2268,10 @@ class MainWindow:
             msg += "  ·  " + t("status.skipped", n=n_skipped)
         if failed:
             msg += "  ·  " + t("status.failed", n=failed)
+        elapsed = time.perf_counter() - getattr(self, "_batch_t0", time.perf_counter())
+        done = ok + failed
+        if done:
+            msg += "  ·  " + t("status.batch_time", total=_duration(elapsed), per=_duration(elapsed / done))
         self._set_status(msg)
         if n_skipped and not cancelled:
             messagebox.showwarning(t("corr.skip_title"), t("corr.skip_summary", n=n_skipped), parent=self.root)
@@ -2293,6 +2352,8 @@ class MainWindow:
         self._update_batch_list()
         self._set_status(t("status.done", name=_analysis_label(name),
                            detail=_summary(result.stats)))
+        if result.extra.get("processing_s") is not None:
+            self._set_status(self.status_var.get() + "  ·  " + _duration(result.extra["processing_s"]))
         reused = result.extra.get("reused")
         if reused:
             items = ", ".join(t(f"step.{k}", k) for k in reused)
