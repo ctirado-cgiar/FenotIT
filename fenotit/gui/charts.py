@@ -45,12 +45,13 @@ SKIP = {"index", "_total", "object_id", "touching", "Image_ID", "centroid_x", "c
         "centroid_x_px", "centroid_y_px", "image_width_px", "image_height_px"}
 PREFERRED = ("area", "length", "width")
 
-# tipo → (n.º de variables, nombres de los ejes)
+# tipo → (variables al empezar, máximo, nombres de los ejes). Se agregan con "+"; en
+# dispersión la tercera (Z) la vuelve 3D.
 KINDS = {
-    "bars":    (3, None),
-    "box":     (3, None),
-    "hist":    (3, None),
-    "scatter": (2, ("X", "Y")),
+    "bars":    (1, 3, None),
+    "box":     (1, 3, None),
+    "hist":    (1, 3, None),
+    "scatter": (2, 3, ("X", "Y", "Z")),
 }
 
 
@@ -99,6 +100,7 @@ class _Chooser(tk.Frame):
         self.kind = tk.StringVar(value=kinds[0])
         self.cols: list[str] = []
         self.chosen: dict[str, list[str]] = {}
+        self.count: dict[str, int] = {}             # cuántas variables muestra cada tipo
         for k in kinds:
             tk.Radiobutton(self, text=t(f"chart.{k}"), variable=self.kind, value=k, command=self._kind_changed,
                            bg=bg, fg=COLORS["text"], selectcolor=COLORS["bg_card"], activebackground=bg,
@@ -127,20 +129,40 @@ class _Chooser(tk.Frame):
         for w in self.vars_frame.winfo_children():
             w.destroy()
         kind = self.kind.get()
-        n, names = KINDS[kind]
-        current = self.chosen.get(kind) or _defaults(self.cols, n)
+        base, most, names = KINDS[kind]
+        n = min(max(self.count.get(kind, base), base), most, max(len(self.cols), 1))
+        current = [c for c in (self.chosen.get(kind) or []) if c in self.cols][:n]
+        current += [c for c in _defaults(self.cols, most + len(current)) if c not in current][:n - len(current)]
         self._svars = []
         for i in range(n):
             name = names[i] if names else f"V{i + 1}"
             tk.Label(self.vars_frame, text=f"{name}:", bg=self.bg, fg=COLORS["text_muted"],
                      font=FONTS["small"]).pack(side=tk.LEFT, padx=(4, 1))
-            optional = names is None and i > 0
             sv = tk.StringVar(value=current[i] if i < len(current) else NONE)
             cb = ttk.Combobox(self.vars_frame, textvariable=sv, state="readonly", width=14, font=FONTS["small"],
-                              values=([NONE] if optional else []) + self.cols)
+                              values=self.cols)
             cb.pack(side=tk.LEFT, padx=2, pady=3)
             cb.bind("<<ComboboxSelected>>", lambda e: self._vars_changed())
             self._svars.append(sv)
+        from fenotit.gui.toolbar import Tooltip
+        btn = dict(bg=COLORS["btn_bg"], fg=COLORS["accent"], relief="flat", font=("Segoe UI", 10, "bold"),
+                   cursor="hand2", padx=6, pady=0, bd=0)
+        if n > base:
+            b = tk.Button(self.vars_frame, text="−", command=lambda: self._resize(-1), **btn)
+            b.pack(side=tk.LEFT, padx=(2, 0))
+            Tooltip(b, t("chart.remove_var"))
+        if n < min(most, len(self.cols)):
+            b = tk.Button(self.vars_frame, text="+", command=lambda: self._resize(1), **btn)
+            b.pack(side=tk.LEFT, padx=(2, 0))
+            Tooltip(b, t("chart.add_z") if kind == "scatter" else t("chart.add_var"))
+
+    def _resize(self, d: int):
+        kind = self.kind.get()
+        self.chosen[kind] = [v.get() for v in self._svars]
+        self.count[kind] = len(self._svars) + d
+        self._build_vars()
+        self.chosen[kind] = [v.get() for v in self._svars]
+        self.on_change()
 
     def _vars_changed(self):
         self.chosen[self.kind.get()] = [v.get() for v in self._svars]
@@ -157,6 +179,8 @@ def _embed(frame, fig, toolbar=False):
         bar.pack(fill=tk.X, side=tk.BOTTOM)
         NavigationToolbar2Tk(canvas, bar).update()
     canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+    if getattr(fig, "_rot3d", None) is not None:
+        _rotatable(canvas, fig._rot3d)
     return canvas
 
 
@@ -240,6 +264,43 @@ def _scatter(fig, xs, ys, x_col, y_col, labels=None):
     r = np.corrcoef(xs, ys)[0, 1] if len(xs) > 2 and np.std(xs) > 0 and np.std(ys) > 0 else None
     ax.set_title(f"n = {len(xs)}" + (f"   r = {r:.2f}" if r is not None else ""))
     _style_ax(ax)
+
+
+def _scatter3d(fig, series, cols, legend_title=None):
+    """Dispersión 3D (X, Y, Z). series = [(nombre, xs, ys, zs, color)]. Se gira arrastrando."""
+    ax = fig.add_subplot(1, 1, 1, projection="3d")
+    n = 0
+    for name, xs, ys, zs, color in series:
+        ax.scatter(xs, ys, zs, color=color, s=18 if len(xs) < 300 else 8, alpha=0.8, depthshade=False,
+                   edgecolors="white", linewidths=0.3, label=name)
+        n += len(xs)
+    ax.set_xlabel(_label(cols[0]))
+    ax.set_ylabel(_label(cols[1]))
+    ax.set_zlabel(_label(cols[2]))
+    ax.set_title(f"n = {n}")
+    if len(series) > 1:
+        ax.legend(frameon=False, fontsize=7, title=legend_title, title_fontsize=7)
+    ax.view_init(22, -60)
+    ax.disable_mouse_rotation()
+    fig._rot3d = ax
+    return ax
+
+
+def _rotatable(canvas, ax):
+    """Girar un gráfico 3D arrastrando con el botón izquierdo (0.4° por píxel)."""
+    state = {}
+
+    def press(e):
+        state["p"] = (e.x, e.y, ax.elev, ax.azim) if e.button == 1 else None
+
+    def move(e):
+        p = state.get("p")
+        if p and e.x is not None:
+            ax.view_init(float(np.clip(p[2] - (e.y - p[1]) * 0.4, -90, 90)), p[3] - (e.x - p[0]) * 0.4)
+            canvas.draw_idle()
+    canvas.mpl_connect("button_press_event", press)
+    canvas.mpl_connect("motion_notify_event", move)
+    canvas.mpl_connect("button_release_event", lambda e: state.update(p=None))
 
 
 # ── Foto actual ───────────────────────────────────────────────────────────────
@@ -341,14 +402,19 @@ class IntraImageChartPanel(tk.Frame):
             if len(cols) < 2:
                 _message(self._frame, t("chart.pick_xy"))
                 return
-            pairs = [(float(r[cols[0]]), float(r[cols[1]]), r.get("object_id")) for r in self._rows
-                     if isinstance(r.get(cols[0]), (int, float)) and isinstance(r.get(cols[1]), (int, float))]
-            if not pairs:
+            use = cols[:3]
+            pts = [tuple(float(r[c]) for c in use) + (r.get("object_id"),) for r in self._rows
+                   if all(isinstance(r.get(c), (int, float)) for c in use)]
+            if not pts:
                 _message(self._frame, t("chart.no_data_image"))
                 return
-            xs, ys, ids = zip(*pairs)
-            _scatter(fig, xs, ys, cols[0], cols[1])
-            picker.add(fig._scatter_ax, xs, ys, ids)
+            if len(use) == 3:
+                xs, ys, zs, _ = zip(*pts)
+                _scatter3d(fig, [("", xs, ys, zs, PALETTE[0])], use)
+            else:
+                xs, ys, ids = zip(*pts)
+                _scatter(fig, xs, ys, cols[0], cols[1])
+                picker.add(fig._scatter_ax, xs, ys, ids)
         else:
             for i, col in enumerate(cols):
                 ax = fig.add_subplot(len(cols), 1, i + 1) if stacked else fig.add_subplot(1, len(cols), i + 1)
@@ -579,7 +645,7 @@ class BatchChartWindow(tk.Toplevel):
             if len(cols) < 2:
                 _message(self._frame, t("chart.pick_xy"))
                 return
-            if not self._scatter(fig, cols[0], cols[1], per_image and not grouped):
+            if not self._scatter(fig, cols[0], cols[1], per_image and not grouped, cols[2] if len(cols) > 2 else None):
                 _message(self._frame, t("chart.no_data_batch"))
                 return
         else:
@@ -647,7 +713,19 @@ class BatchChartWindow(tk.Toplevel):
         ax.set_xticklabels(names if len(names) <= 60 else [""] * len(names),
                            rotation=60 if many else 0, ha="right" if many else "center", fontsize=6 if many else 7)
 
-    def _scatter(self, fig, xc: str, yc: str, labels: bool) -> bool:
+    def _scatter(self, fig, xc: str, yc: str, labels: bool, zc: str | None = None) -> bool:
+        if zc:                                       # tercera variable: dispersión 3D
+            cats = [(g, [r for r in rows if xc in r and yc in r and zc in r])
+                    for g, rows in self._categories("scatter", None)]
+            cats = [(g, rows) for g, rows in cats if rows]
+            if not cats:
+                return False
+            grouped = self.group.get() != NONE
+            _scatter3d(fig, [(g if grouped else "", [r[xc] for r in rows], [r[yc] for r in rows],
+                              [r[zc] for r in rows], PALETTE[k % len(PALETTE)] if grouped else PALETTE[0])
+                             for k, (g, rows) in enumerate(cats)], [xc, yc, zc],
+                       self.group.get() if grouped else None)
+            return True
         if self.group.get() == NONE:
             pts = [(r[xc], r[yc], r["_name"], (r["_path"], r["_oid"])) for r in self.recs if xc in r and yc in r]
             if not pts:

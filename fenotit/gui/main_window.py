@@ -3987,6 +3987,7 @@ class MainWindow:
                           bg=COLORS["btn_bg"], fg=COLORS["accent"], relief="flat", font=FONTS["small"],
                           cursor="hand2", pady=2).pack(side=tk.RIGHT, padx=8, pady=3)
                 panel.chooser.chosen = {k: list(v) for k, v in src.chooser.chosen.items()}
+                panel.chooser.count = dict(src.chooser.count)
                 panel.chooser.kind.set(src.chooser.kind.get())
             panel.pack(fill=tk.BOTH, expand=True)
             win.bind("<Escape>", lambda e: win.destroy())
