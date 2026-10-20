@@ -479,6 +479,8 @@
   "seg.help": "Separa los objetos del fondo según un canal de color: los píxeles con valor entre Mín y Máx son objeto.\n\nElige el espacio y el canal donde los objetos se distinguen mejor del fondo (la vista previa los pinta en vivo). Ejemplo: semillas sobre fondo azul → YCrCb, canal Cr.\n\nEl umbral es el mismo para todos los análisis y todas las fotos.",
   "seg.max": "Máx",
   "seg.min": "Mín",
+  "seg.range": "Rango",
+  "seg.range_help": "Píxeles del canal entre Mín y Máx = objeto. Arrastra las manijas o las líneas rojas del histograma; tras tocar una manija, ← → la mueven de a uno.",
   "seg.title": "SEGMENTACIÓN",
   "splash.analysis": "Cargando análisis…",
   "splash.charts": "Preparando gráficos y exportación…",

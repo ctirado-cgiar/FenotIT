@@ -1,6 +1,6 @@
-"""Histograma del canal elegido para segmentar, con el rango Mín–Máx marcado. Las dos
-líneas se mueven con los deslizadores o arrastrándolas; lo que queda dentro (objeto) se
-pinta en azul y lo de fuera en gris."""
+"""Deslizador de rango Mín–Máx (0-255) y, debajo, el histograma del canal elegido para
+segmentar. Los dos usan el mismo margen, así cada manija queda sobre su línea. Lo que queda
+dentro del rango (objeto) se pinta en azul y lo de fuera en gris."""
 from __future__ import annotations
 
 import tkinter as tk
@@ -10,7 +10,7 @@ import numpy as np
 from fenotit.gui.theme import COLORS, FONTS
 
 HEIGHT = 64
-PAD = 6
+PAD = 9                                         # = radio de la manija + 2: alinea deslizador e histograma
 
 
 class ChannelHistogram(tk.Canvas):
@@ -18,7 +18,7 @@ class ChannelHistogram(tk.Canvas):
     def __init__(self, parent, on_drag=None, bg: str | None = None):
         """on_drag(lo, hi): el usuario movió una línea."""
         bg = bg or parent.cget("bg")
-        super().__init__(parent, height=HEIGHT + 14, bg=bg, highlightthickness=0, cursor="sb_h_double_arrow")
+        super().__init__(parent, height=HEIGHT + 4, bg=bg, highlightthickness=0, cursor="sb_h_double_arrow")
         self.on_drag = on_drag
         self.hist: np.ndarray | None = None
         self.lo, self.hi = 0, 255
@@ -71,12 +71,9 @@ class ChannelHistogram(tk.Canvas):
                                       fill=COLORS["accent"] if inside else "#B9C2CC")
         else:
             self.create_text(w / 2, HEIGHT / 2, text="—", fill=COLORS["text_muted"], font=FONTS["small"])
-        for v in (self.lo, self.hi):                  # las dos líneas del rango
+        for v in (self.lo, self.hi):                  # las dos líneas del rango (el valor va en el deslizador)
             x = self._x(v)
-            self.create_line(x, 2, x, base + 3, fill="#D73027", width=2)
-            anchor = "w" if x < 20 else "e" if x > w - 20 else "center"     # sin cortarse en los bordes
-            self.create_text(x, base + 9, text=str(v), anchor=anchor, fill=COLORS["text_muted"],
-                             font=("Segoe UI", 7))
+            self.create_line(x, 0, x, base + 3, fill="#D73027", width=2)
 
     # ── arrastrar las líneas ──────────────────────────────────────────────────
 
@@ -96,3 +93,138 @@ class ChannelHistogram(tk.Canvas):
         self.redraw()
         if self.on_drag:
             self.on_drag(self.lo, self.hi)
+
+
+class RangeSlider(tk.Canvas):
+    """Una barra 0-255 con dos manijas redondas (Mín y Máx), el tramo entre ellas en azul y
+    el valor de cada una en una burbuja encima. Mín nunca pasa a Máx. Arrastrar mueve la
+    manija más cercana; ← → (o la rueda) la mueven de a uno después de tocarla."""
+
+    R = 7                    # radio de la manija
+    BUBBLE = 16              # alto de la burbuja
+
+    def __init__(self, parent, on_change=None, bg: str | None = None):
+        """on_change(lo, hi): el usuario movió una manija (no se llama al poner valores por código)."""
+        bg = bg or parent.cget("bg")
+        super().__init__(parent, height=self.BUBBLE + 2 * self.R + 8, bg=bg, highlightthickness=0,
+                         takefocus=1, cursor="hand2")
+        self.on_change = on_change
+        self.lo, self.hi = 0, 255
+        self.active = "lo"
+        self._grab = None
+        self.bind("<Configure>", lambda e: self.redraw())
+        self.bind("<ButtonPress-1>", self._press)
+        self.bind("<B1-Motion>", self._move)
+        self.bind("<ButtonRelease-1>", lambda e: setattr(self, "_grab", None))
+        self.bind("<FocusIn>", lambda e: self.redraw())
+        self.bind("<FocusOut>", lambda e: self.redraw())
+        for k, d in (("<Left>", -1), ("<Right>", 1), ("<Down>", -1), ("<Up>", 1)):
+            self.bind(k, lambda e, d=d: self._step(d))
+        self.bind("<MouseWheel>", lambda e: self._wheel(e, 1 if e.delta > 0 else -1))
+        self.bind("<Button-4>", lambda e: self._wheel(e, 1))
+        self.bind("<Button-5>", lambda e: self._wheel(e, -1))
+
+    # ── valores ───────────────────────────────────────────────────────────────
+
+    def set_values(self, lo: int, hi: int):
+        lo, hi = int(np.clip(lo, 0, 255)), int(np.clip(hi, 0, 255))
+        if lo > hi:
+            lo = hi
+        if (lo, hi) != (self.lo, self.hi):
+            self.lo, self.hi = lo, hi
+            self.redraw()
+
+    def end(self, which: str) -> "_End":
+        """Objeto con get()/set() para un extremo (compatible con tk.Scale)."""
+        return _End(self, which)
+
+    def _put(self, which: str, v: int):
+        """Cambio del usuario: frena la manija en la otra y avisa."""
+        v = int(np.clip(v, 0, 255))
+        lo, hi = (min(v, self.hi), self.hi) if which == "lo" else (self.lo, max(v, self.lo))
+        if (lo, hi) == (self.lo, self.hi):
+            return
+        self.lo, self.hi = lo, hi
+        self.redraw()
+        if self.on_change:
+            self.on_change(lo, hi)
+
+    # ── dibujo ────────────────────────────────────────────────────────────────
+
+    def _x(self, v: float) -> float:
+        w = max(self.winfo_width(), 60)
+        return PAD + v / 255 * (w - 2 * PAD)
+
+    def _v(self, x: float) -> int:
+        w = max(self.winfo_width(), 60)
+        return int(round(np.clip((x - PAD) / (w - 2 * PAD) * 255, 0, 255)))
+
+    def redraw(self):
+        self.delete("all")
+        w = max(self.winfo_width(), 60)
+        r, acc = self.R, COLORS["accent"]
+        y = self.BUBBLE + 4 + r
+        self.create_line(PAD, y, w - PAD, y, fill=COLORS["slider_trough"], width=4, capstyle="round")
+        xl, xh = self._x(self.lo), self._x(self.hi)
+        self.create_line(xl, y, xh, y, fill=acc, width=4, capstyle="round")
+        xs = self._bubble_x(xl, xh, w)
+        focus = self.focus_get() is self
+        for name, x, bx in (("lo", xl, xs[0]), ("hi", xh, xs[1])):
+            ring = acc if not (focus and name == self.active) else "#0B3C6E"
+            self.create_oval(x - r, y - r, x + r, y + r, fill="white", outline=ring, width=2)
+            text = str(self.lo if name == "lo" else self.hi)
+            bw = 26
+            self.create_rectangle(bx - bw / 2, 1, bx + bw / 2, self.BUBBLE, fill=acc, outline=acc)
+            self.create_polygon(x - 3, self.BUBBLE, x + 3, self.BUBBLE, x, self.BUBBLE + 3, fill=acc, outline=acc)
+            self.create_text(bx, 1 + self.BUBBLE / 2, text=text, fill="white", font=("Segoe UI", 8, "bold"))
+
+    @staticmethod
+    def _bubble_x(xl: float, xh: float, w: float) -> tuple[float, float]:
+        """Centros de las burbujas: dentro del canvas y sin encimarse cuando las manijas se juntan."""
+        half, gap = 13, 2
+        bl, bh = xl, xh
+        if bh - bl < 2 * half + gap:
+            mid = (bl + bh) / 2
+            bl, bh = mid - half - gap / 2, mid + half + gap / 2
+        shift = max(0, half + 1 - bl) - max(0, bh - (w - half - 1))
+        return bl + shift, bh + shift
+
+    # ── interacción ───────────────────────────────────────────────────────────
+
+    def _nearest(self, x: float) -> str:
+        xl, xh = self._x(self.lo), self._x(self.hi)
+        if abs(xl - xh) < 1:                      # juntas: la que deja moverse hacia el clic
+            return "lo" if x < xl else "hi"
+        return "lo" if abs(x - xl) <= abs(x - xh) else "hi"
+
+    def _press(self, e):
+        self.focus_set()
+        self._grab = self.active = self._nearest(e.x)
+        self._move(e)
+
+    def _move(self, e):
+        if self._grab:
+            self._put(self._grab, self._v(e.x))
+
+    def _step(self, d: int):
+        self._put(self.active, (self.lo if self.active == "lo" else self.hi) + d)
+        return "break"                            # ← → no cambian de foto aquí
+
+    def _wheel(self, e, d: int):
+        self.active = self._nearest(e.x)
+        return self._step(d)
+
+
+class _End:
+    def __init__(self, slider: RangeSlider, which: str):
+        self.slider, self.which = slider, which
+
+    def get(self) -> int:
+        return self.slider.lo if self.which == "lo" else self.slider.hi
+
+    def set(self, v):
+        s = self.slider
+        if self.which == "lo":
+            s.set_values(v, max(int(v), s.hi))
+        else:
+            s.set_values(min(int(v), s.lo), v)

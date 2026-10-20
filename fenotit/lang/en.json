@@ -479,6 +479,8 @@
   "seg.help": "Separates objects from the background using one color channel: pixels with a value between Min and Max are object.\n\nChoose the space and channel where objects stand out best from the background (the preview paints them live). Example: seeds on a blue background → YCrCb, Cr channel.\n\nThe threshold is shared by all analyses and all photos.",
   "seg.max": "Max",
   "seg.min": "Min",
+  "seg.range": "Range",
+  "seg.range_help": "Channel pixels between Min and Max = object. Drag the handles or the red lines on the histogram; after clicking a handle, ← → move it by one.",
   "seg.title": "SEGMENTATION",
   "splash.analysis": "Loading analyses…",
   "splash.charts": "Preparing charts and export…",
