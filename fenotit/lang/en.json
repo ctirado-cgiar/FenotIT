@@ -89,6 +89,7 @@
   "chart.box": "Box",
   "chart.dock": "Move the chart up, in place of an image",
   "chart.frequency": "Frequency",
+  "chart.fullscreen": "Full screen",
   "chart.group_by": "Group by",
   "chart.hist": "Histogram",
   "chart.mean": "x̄",

@@ -29,15 +29,18 @@ between-class variance of the channel histogram:
 $$t^* = \arg\max_t\ \omega_0(t)\,\omega_1(t)\,[\mu_0(t) - \mu_1(t)]^2$$
 
 where $\omega_i$ and $\mu_i$ are the probability and mean of the two classes split at $t$.
-Because the object class may be the bright or the dark one, the mask is inverted when more
-than half of the image border falls in it (objects rarely cover the border; the background
-does). The threshold found is exported as `otsu_threshold`.
+If analysis areas are drawn, the histogram is computed only from the pixels inside them (minus
+the excluded areas), so the threshold is not pulled by what lies outside. Because the object
+class may be the bright or the dark one, the mask is inverted when more than half of the
+border of that region (or of the image, without areas) falls in it (objects rarely cover the
+border; the background does). The threshold found is exported as `otsu_threshold`.
 
 ![Otsu](../img/otsu_histogram.png)
 
 *Figure 2.2. Histogram of the Cr channel of the same photo. Here Otsu splits off the dark
-square in the corner (left mode), not the seeds (right mode): with an uneven background a
-manual range is more reliable. This is why the manual threshold is the default.*
+square in the corner (left mode), not the seeds (right mode). With an analysis area drawn
+around the seeds, Otsu uses only those pixels and gives 117, close to the manual 122. With an
+uneven background, draw an analysis area or use a manual range (the default).*
 
 ## 2.4 Analysis areas and excluded areas
 

@@ -187,7 +187,16 @@ def _dock_up(d, s, w, color):
     d.polygon([(cx, s * 0.26), (cx - s * 0.17, s * 0.45), (cx + s * 0.17, s * 0.45)], fill=color)
 
 
-_DRAW = {"palette": _palette, "dock_up": _dock_up, "inspect": _inspect, "list": _list, "grid": _grid, "tune": _tune,
+def _expand(d, s, w, color):
+    """Dos flechas en diagonal hacia las esquinas: pantalla completa."""
+    a, b, h = s * 0.14, s * 0.86, s * 0.26
+    for (x0, y0, x1, y1, sx, sy) in ((s * 0.56, s * 0.44, b, a, -1, 1), (s * 0.44, s * 0.56, a, b, 1, -1)):
+        d.line((x0, y0, x1, y1), fill=color, width=w)
+        d.line((x1, y1, x1 + sx * h, y1), fill=color, width=w)
+        d.line((x1, y1, x1, y1 + sy * h), fill=color, width=w)
+
+
+_DRAW = {"palette": _palette, "dock_up": _dock_up, "expand": _expand, "inspect": _inspect, "list": _list, "grid": _grid, "tune": _tune,
          "panel_left": lambda d, s, w, c: _panel(d, s, w, c, "left"),
          "panel_right": lambda d, s, w, c: _panel(d, s, w, c, "right"),
          "panel_bottom": lambda d, s, w, c: _panel(d, s, w, c, "bottom"), "select": _select,

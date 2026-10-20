@@ -33,14 +33,22 @@ def whole(ctx, p):
     {"key": "auto_polarity", "type": "bool", "default": True},
 ])
 def otsu(ctx, p):
-    """Umbral automático. auto_polarity: si la máscara cubre la mayor parte del borde
-    de la foto, se invierte (el fondo suele tocar el borde, los objetos no)."""
+    """Umbral automático (Otsu) calculado solo con los píxeles del área de análisis, sin
+    las zonas excluidas (si las hay). auto_polarity: si la máscara cubre la mayor parte
+    del borde de esa zona (o de la foto), se invierte: el fondo suele tocar el borde, los
+    objetos no."""
     ch = colorspaces.channel(ctx.image, p["color_space"], p["channel"])
-    mode = cv2.THRESH_BINARY_INV if p["invert"] else cv2.THRESH_BINARY
-    t, mask = cv2.threshold(ch, 0, 255, mode | cv2.THRESH_OTSU)
+    region = _region(ctx, ch.shape)
+    vals = ch[region > 0] if region is not None and region.any() else ch.ravel()
+    t, _ = cv2.threshold(vals.reshape(-1, 1), 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
     inverted = bool(p["invert"])
+    mask = ((ch > t) != inverted).astype(np.uint8) * 255
     if p["auto_polarity"]:
-        border = np.concatenate([mask[0], mask[-1], mask[:, 0], mask[:, -1]])
+        if region is not None and region.any():
+            edge = (region > 0) & (cv2.erode(region, np.ones((3, 3), np.uint8)) == 0)
+            border = mask[edge]
+        else:
+            border = np.concatenate([mask[0], mask[-1], mask[:, 0], mask[:, -1]])
         if (border > 0).mean() > 0.5:
             mask = 255 - mask
             inverted = not inverted
@@ -48,3 +56,18 @@ def otsu(ctx, p):
     ctx.images["mask"] = mask
     ctx.extra["otsu_threshold"] = float(t)
     ctx.extra["otsu_range"] = (0, int(t)) if inverted else (int(t) + 1, 255)   # objeto = este rango
+
+
+def _region(ctx, shape):
+    """Área de análisis menos zonas excluidas (uint8 0/1), o None si no hay áreas."""
+    if ctx.roi is None and not ctx.exclusions:
+        return None
+    if ctx.roi is not None:
+        roi = ctx.roi if ctx.roi.shape[:2] == shape[:2] else cv2.resize(
+            ctx.roi, (shape[1], shape[0]), interpolation=cv2.INTER_NEAREST)
+        region = (roi > 0).astype(np.uint8)
+    else:
+        region = np.ones(shape[:2], np.uint8)
+    for pts, _color in ctx.exclusions or []:
+        cv2.fillPoly(region, [np.asarray(pts, np.int32)], 0)
+    return region

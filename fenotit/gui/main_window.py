@@ -9,6 +9,7 @@ Cambios vs v1.2:
 """
 
 import dataclasses
+import json
 import os
 import platform
 import subprocess
@@ -1159,9 +1160,12 @@ class MainWindow:
         max_val = self.max_slider.get()
 
         try:
-            if self.auto_var.get():
+            from fenotit.core import roi as areas
+            inc, exc = areas.masks(self.project.roi_for(self.current_image_path),
+                                   img_original.shape[1], img_original.shape[0])
+            if self.auto_var.get():                   # Otsu solo con el área de análisis
                 ctx = pipeline.run(img_original, [{"step": "otsu", "params": {
-                    "color_space": self.cs_var.get(), "channel": int(ch_idx)}}])
+                    "color_space": self.cs_var.get(), "channel": int(ch_idx)}}], roi=inc, exclusions=exc)
                 mask = ctx.mask
                 self._otsu_value = int(ctx.extra.get("otsu_threshold", 0))
                 self._sync_sliders(*ctx.extra.get("otsu_range", (0, 255)))   # muestran el rango de Otsu
@@ -1179,11 +1183,9 @@ class MainWindow:
                 _, t_max = cv2.threshold(channel, max_val,   255,
                                          cv2.THRESH_BINARY_INV)
                 mask = cv2.bitwise_and(t_min, t_max)
+            self._update_histogram(img_original, inc, exc)
 
             # Áreas de análisis y zonas excluidas de esta foto
-            from fenotit.core import roi as areas
-            inc, exc = areas.masks(self.project.roi_for(self.current_image_path),
-                                   mask.shape[1], mask.shape[0])
             if inc is not None:
                 mask = cv2.bitwise_and(mask, inc)
             if exc:
@@ -1459,6 +1461,11 @@ class MainWindow:
             self._dock_btn.pack(side=tk.RIGHT, padx=(2, 6))
             self._dock_btn.bind("<Button-1>", lambda e: self._dock_chart())
             Tooltip(self._dock_btn, t("chart.dock"))
+            self._full_icon = ImageTk.PhotoImage(icon("expand", 14, COLORS["accent"]))
+            full = tk.Label(self._chart_panel.bar, image=self._full_icon, bg=COLORS["bg_panel"], cursor="hand2", padx=4)
+            full.pack(side=tk.RIGHT, padx=(2, 0))
+            full.bind("<Button-1>", lambda e: self._chart_fullscreen())
+            Tooltip(full, t("chart.fullscreen"))
             save = self._save_btn = tk.Menubutton(self._chart_panel.bar, text=t("chart.save") + " ▾", bg=COLORS["btn_bg"],
                                  fg=COLORS["text_muted"], relief="flat", font=FONTS["small"], cursor="hand2", pady=2)
             menu = tk.Menu(save, tearoff=0)
@@ -1527,6 +1534,9 @@ class MainWindow:
 
         self.min_slider = self._range_row(box, t("seg.min"), 0)
         self.max_slider = self._range_row(box, t("seg.max"), 255)
+        from fenotit.gui.histogram import ChannelHistogram
+        self.histogram = ChannelHistogram(box, on_drag=self._on_hist_drag, bg=bg)
+        self.histogram.pack(fill=tk.X, pady=(2, 0))
 
     def _range_row(self, parent, label: str, value: int) -> tk.Scale:
         """Deslizador 0-255 con botones ‹ › para mover de a uno."""
@@ -1560,9 +1570,14 @@ class MainWindow:
         """El command de Scale también llega cuando el valor se pone por código (y tarde):
         solo cuenta como cambio del usuario si difiere del último valor puesto."""
         cur = (int(self.min_slider.get()), int(self.max_slider.get()))
-        if cur == getattr(self, "_slider_state", None):
+        prev = getattr(self, "_slider_state", None)
+        if cur == prev:
             return
+        if cur[0] > cur[1]:                     # Mín no pasa a Máx ni Máx baja de Mín
+            cur = (cur[1], cur[1]) if prev is None or cur[0] != prev[0] else (cur[0], cur[0])
+            self._sync_sliders(*cur)
         self._slider_state = cur
+        self.histogram.set_range(*cur)
         if self.auto_var.get():                 # el usuario toma el control: umbral manual
             self.auto_var.set(False)
         self._on_slider_change()
@@ -1571,6 +1586,34 @@ class MainWindow:
         self._slider_state = (int(lo), int(hi))
         self.min_slider.set(lo)
         self.max_slider.set(hi)
+        if hasattr(self, "histogram"):
+            self.histogram.set_range(lo, hi)
+
+    def _on_hist_drag(self, lo: int, hi: int):
+        """Arrastrar una línea del histograma = mover el deslizador (umbral manual)."""
+        self.auto_var.set(False)
+        self._sync_sliders(lo, hi)
+        self._on_slider_change()
+
+    def _update_histogram(self, img: np.ndarray, inc, exc):
+        """Histograma del canal elegido, solo dentro del área de análisis (sin excluidas)."""
+        key = (id(img), self.cs_var.get(), self.ch_var.get(),
+               json.dumps(self.project.roi_for(self.current_image_path), sort_keys=True, default=str))
+        if getattr(self, "_hist_key", None) != key:
+            self._hist_key = key
+            from fenotit.core import colorspaces
+            ch = colorspaces.channel(img, self.cs_var.get(), int(self.ch_var.get()))
+            if inc is not None or exc:
+                region = (inc > 0) if inc is not None else np.ones(ch.shape, bool)
+                if exc:
+                    region = region.astype(np.uint8)
+                    cv2.fillPoly(region, [pts for pts, _ in exc], 0)
+                    region = region > 0
+                vals = ch[region]
+            else:
+                vals = ch[::2, ::2]
+            self.histogram.set_data(vals)
+        self.histogram.set_range(int(self.min_slider.get()), int(self.max_slider.get()))
 
     # ── Helpers layout ────────────────────────────────────────────────────────
 
@@ -2568,6 +2611,11 @@ class MainWindow:
         self._show_results_ui(True)
         if self._chart_panel:
             self._chart_panel.load(result.measurements)
+            full = (getattr(self, "_open_windows", {}) or {}).get("chart_full")
+            if full is not None and full.winfo_exists():        # la ventana completa sigue a la foto
+                for w in full.winfo_children():
+                    if isinstance(w, IntraImageChartPanel):
+                        w.load(result.measurements)
         if not self.step_names:
             self._update_table(result)
             return
@@ -3903,6 +3951,37 @@ class MainWindow:
         except Exception:
             _log.debug("miniatura %s", path, exc_info=True)
             return None
+
+    def _chart_fullscreen(self):
+        """El gráfico de la foto en una ventana maximizada (una sola), con las mismas opciones."""
+        src = self._chart_panel
+        if not getattr(src, "_rows", None):
+            return
+
+        def build():
+            win = tk.Toplevel(self.root)
+            win.title(t("chart.fullscreen"))
+            win.configure(bg=COLORS["bg_card"])
+            win.geometry(f"{win.winfo_screenwidth()}x{win.winfo_screenheight() - 60}+0+0")
+            try:
+                win.state("zoomed")                  # Windows
+            except tk.TclError:
+                win.attributes("-zoomed", True)      # Linux
+            panel = IntraImageChartPanel(win, colors=COLORS,
+                                         on_pick=lambda oid: self._goto_object(self.current_image_path, oid))
+            if hasattr(panel, "bar"):
+                tk.Button(panel.bar, text=t("chart.save"), command=lambda: panel.save_figure(),
+                          bg=COLORS["btn_bg"], fg=COLORS["accent"], relief="flat", font=FONTS["small"],
+                          cursor="hand2", pady=2).pack(side=tk.RIGHT, padx=8, pady=3)
+                panel.chooser.chosen = {k: list(v) for k, v in src.chooser.chosen.items()}
+                panel.chooser.kind.set(src.chooser.kind.get())
+            panel.pack(fill=tk.BOTH, expand=True)
+            win.bind("<Escape>", lambda e: win.destroy())
+            win.update_idletasks()
+            panel.load(src._rows)
+            win.after(100, panel.redraw)
+            return win
+        self._replace_window("chart_full", build)
 
     def _save_intra_chart(self, with_image: bool = False):
         """Guarda el gráfico de la foto; opcional, también la imagen de la vista actual."""
