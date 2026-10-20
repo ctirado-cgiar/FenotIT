@@ -38,10 +38,13 @@ def otsu(ctx, p):
     ch = colorspaces.channel(ctx.image, p["color_space"], p["channel"])
     mode = cv2.THRESH_BINARY_INV if p["invert"] else cv2.THRESH_BINARY
     t, mask = cv2.threshold(ch, 0, 255, mode | cv2.THRESH_OTSU)
+    inverted = bool(p["invert"])
     if p["auto_polarity"]:
         border = np.concatenate([mask[0], mask[-1], mask[:, 0], mask[:, -1]])
         if (border > 0).mean() > 0.5:
             mask = 255 - mask
+            inverted = not inverted
     ctx.mask = mask
     ctx.images["mask"] = mask
     ctx.extra["otsu_threshold"] = float(t)
+    ctx.extra["otsu_range"] = (0, int(t)) if inverted else (int(t) + 1, 255)   # objeto = este rango

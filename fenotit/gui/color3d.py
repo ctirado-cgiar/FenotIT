@@ -97,8 +97,8 @@ class Color3DWindow(tk.Toplevel):
         label(top, t("c3d.space") + ":", (14, 2))
         self.space = tk.StringVar(value="Lab")
         combo(top, self.space, list(cs.SPACES), 6).bind("<<ComboboxSelected>>", lambda e: self._space_changed())
-        label(top, t("c3d.view") + ":", (14, 2))
-        self.dims = tk.StringVar(value="1,2")          # 2D a*·b* (diagrama de cromaticidad) o "3d"
+        self._dims_label = tk.Label(top, text=t("c3d.view") + ":", bg=bg, fg=COLORS["text_muted"], font=FONTS["small"])
+        self.dims = tk.StringVar(value="3d")           # 3D o, en Lab, el plano a*·b* (para figuras)
         self.dims_bar = tk.Frame(top, bg=bg)
         self.dims_bar.pack(side=tk.LEFT)
         self._build_dims()
@@ -131,16 +131,19 @@ class Color3DWindow(tk.Toplevel):
         self._scope_changed()
 
     def _build_dims(self):
-        """Vista: tres planos 2D del espacio elegido (en Lab: a*·b*, L*·a*, L*·b*) o 3D."""
+        """Vista: 3D; en Lab también el plano a*·b* (diagrama de cromaticidad, útil en
+        figuras impresas, donde un 3D no se puede girar)."""
         for w in self.dims_bar.winfo_children():
             w.destroy()
-        names = cs.SPACES[self.space.get()]
+        lab = self.space.get() == "Lab"
+        if not lab:
+            self.dims.set("3d")
         bg = COLORS["bg_panel"]
-        for key in ("1,2", "0,1", "0,2", "3d"):
-            text = "3D" if key == "3d" else "·".join(names[int(i)] for i in key.split(","))
+        for key, text in (("3d", "3D"), ("1,2", "a*·b*")) if lab else ():
             tk.Radiobutton(self.dims_bar, text=text, variable=self.dims, value=key, command=self._redraw, bg=bg,
                            fg=COLORS["text"], selectcolor=COLORS["bg_card"], activebackground=bg,
                            font=FONTS["small"]).pack(side=tk.LEFT)
+        self._dims_label.pack(side=tk.LEFT, padx=(14, 2), before=self.dims_bar) if lab else self._dims_label.pack_forget()
 
     def _space_changed(self):
         self._build_dims()
