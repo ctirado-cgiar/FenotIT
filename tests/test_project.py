@@ -84,6 +84,26 @@ def test_relative_images():
         assert Project.load(moved).images[0].exists()
 
 
+def test_relink_by_name():
+    """Proyecto abierto en otro computador: las fotos se buscan por nombre en otra carpeta."""
+    import shutil
+    from fenotit.core.project import find_by_name
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        src = sorted((Path(__file__).parent / "images").glob("0*.jpg"))[:3]
+        p = Project(name="x", images=[Path("C:/otro/pc/ensayo/rep1") / f.name for f in src])
+        p.set_roi(p.images[0], [{"kind": "include", "type": "rect", "points": [[0, 0], [1, 1]]}])
+        dest = tmp / "copia" / "rep1"
+        dest.mkdir(parents=True)
+        for f in src[:2]:
+            shutil.copy(f, dest / f.name.upper())
+        found = find_by_name(p.missing_images(), tmp)
+        assert len(found) == 2
+        p.relink(found)
+        assert sum(1 for x in p.images if x.exists()) == 2
+        assert p.has_own_roi(p.images[0])
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):
