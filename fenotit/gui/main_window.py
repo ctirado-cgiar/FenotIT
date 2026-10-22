@@ -1051,6 +1051,7 @@ class MainWindow:
         ])
         self._drop(self.topbar, t("menu.help"), [
             (t("tour.menu"), self._start_tour),
+            (t("tour.menu_restart"), lambda: self._start_tour(True)),
             (t("help.shortcuts"), self._show_shortcuts, "F1"),
             (t("help.log"), self._open_log_folder),
             None,
@@ -1113,7 +1114,7 @@ class MainWindow:
 
     # ── Recorrido guiado ──────────────────────────────────────────────────────
 
-    def _start_tour(self):
+    def _start_tour(self, from_start: bool = False):
         from fenotit.gui.tour import Step, Tour
         if getattr(self, "_tour", None):
             return
@@ -1123,27 +1124,38 @@ class MainWindow:
         panel_on = lambda: self.right_panel.winfo_ismapped() and getattr(self, "_analysis_chosen", False)
         results = lambda: bool(self.last_result)
         steps = [
-            Step(t("tour.welcome.title"), t("tour.welcome.text")),
-            Step(t("tour.photos.title"), t("tour.photos.text"), lambda: self.image_list, has_photo),
-            Step(t("tour.image.title"), t("tour.image.text"), lambda: self.canvas_left, has_photo),
-            Step(t("tour.areas.title"), t("tour.areas.text"), lambda: menus.get(t("menu.areas"))),
-            Step(t("tour.analysis.title"), t("tour.analysis.text"), lambda: menus.get(t("menu.analysis"))),
+            Step(t("tour.welcome.title"), t("tour.welcome.text"), key="welcome"),
+            Step(t("tour.photos.title"), t("tour.photos.text"), lambda: self.image_list, has_photo, key="photos"),
+            Step(t("tour.image.title"), t("tour.image.text"), lambda: self.canvas_left, has_photo, key="image"),
+            Step(t("tour.areas.title"), t("tour.areas.text"), lambda: menus.get(t("menu.areas")), key="areas"),
+            Step(t("tour.analysis.title"), t("tour.analysis.text"), lambda: menus.get(t("menu.analysis")),
+                 key="analysis"),
             Step(t("tour.segment.title"), t("tour.segment.text"), lambda: getattr(self, "_seg_box", None),
-                 lambda: panel_on() and self._uses_threshold()),
-            Step(t("tour.params.title"), t("tour.params.text"), lambda: self.config_container, panel_on),
-            Step(t("tour.run.title"), t("tour.run.text"), lambda: getattr(self, "_run_frame", None)),
+                 lambda: panel_on() and self._uses_threshold(), key="segment"),
+            Step(t("tour.params.title"), t("tour.params.text"), lambda: self.config_container, panel_on,
+                 key="params"),
+            Step(t("tour.run.title"), t("tour.run.text"), lambda: getattr(self, "_run_frame", None), key="run"),
             Step(t("tour.layers.title"), t("tour.layers.text"), lambda: self._layers_title.master,
-                 results),
+                 results, key="layers"),
             Step(t("tour.results.title"), t("tour.results.text"),
-                 lambda: next(iter(self._tab_labels.values())).master, results),
-            Step(t("tour.export.title"), t("tour.export.text"), lambda: menus.get(t("menu.file"))),
-            Step(t("tour.end.title"), t("tour.end.text")),
+                 lambda: next(iter(self._tab_labels.values())).master, results, key="results"),
+            Step(t("tour.export.title"), t("tour.export.text"), lambda: menus.get(t("menu.file")), key="export"),
+            Step(t("tour.end.title"), t("tour.end.text"), key="end"),
         ]
+        # empieza donde está el usuario: lo siguiente que le toca hacer
+        if from_start or not has_photo():
+            at = "welcome"
+        elif results():
+            at = "layers"
+        elif panel_on():
+            at = "segment" if self._uses_threshold() else "params"
+        else:
+            at = "areas"
 
         def done():
             self._tour = None
         self._tour = Tour(self.root, steps, on_close=done)
-        self._tour.start()
+        self._tour.start(at)
 
     def _drop(self, parent, text, items):
         m = DropMenu(parent, text, items, COLORS)
@@ -1800,7 +1812,7 @@ class MainWindow:
         self._load_single(new[0])
         self._sync_listbox()
         if not settings.get("tour_seen", False):          # primera vez con fotos: recorrido guiado
-            self.root.after(1500, self._start_tour)
+            self.root.after(1500, lambda: self._start_tour(True))
 
     def _remove_current_image(self):
         path = self.current_image_path
