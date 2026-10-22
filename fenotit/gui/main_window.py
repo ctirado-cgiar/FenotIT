@@ -903,6 +903,29 @@ class MainWindow:
         if key not in self.project.ran:
             self.project.ran.append(key)
 
+    def _restart(self):
+        """Reinicia la aplicación (p. ej. al cambiar el idioma): pregunta si guardar, abre otro
+        proceso con el mismo proyecto y cierra este. Si el usuario cancela, el cambio queda
+        para la próxima vez."""
+        import subprocess
+        if self._is_dirty() and not self._confirm_discard():
+            messagebox.showinfo(t("lang.title"), t("lang.restart"), parent=self.root)
+            return
+        project = str(self.project.file) if self.project.file and Path(self.project.file).exists() else None
+        if getattr(sys, "frozen", False):                  # instalado (.exe)
+            cmd = [sys.executable]
+        elif Path(sys.argv[0]).name == "__main__.py":       # python -m fenotit
+            cmd = [sys.executable, "-m", "fenotit"]
+        else:                                               # python main.py
+            cmd = [sys.executable, str(Path(sys.argv[0]).resolve())]
+        try:
+            subprocess.Popen(cmd + ([project] if project else []), cwd=os.getcwd(), close_fds=True)
+        except Exception:
+            _log.exception("No se pudo reiniciar")
+            messagebox.showinfo(t("lang.title"), t("lang.restart"), parent=self.root)
+            return
+        self.root.destroy()
+
     def _on_close(self):
         if self._is_dirty():
             if not self._confirm_discard():
@@ -4078,7 +4101,7 @@ class MainWindow:
             if code == i18n.current():
                 return
             i18n.set_language(code)
-            messagebox.showinfo(t("lang.title"), t("lang.restart"), parent=self.root)
+            self._restart()
 
         tk.Button(body, text="OK", command=apply,
                   bg=COLORS["btn_bg"], fg=COLORS["accent"],
