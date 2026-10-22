@@ -111,6 +111,22 @@ def _assets() -> Path:
 
 # ── DropMenu (igual que v1.2) ─────────────────────────────────────────────────
 
+class _CanvasTools:
+    """Las herramientas que dibujan sobre la Entrada (áreas y pincel): el zoom no mueve la
+    imagen con el botón izquierdo mientras una está activa, y todas siguen el zoom."""
+
+    def __init__(self, *tools):
+        self.tools = tools
+
+    @property
+    def active(self) -> bool:
+        return any(t.active for t in self.tools)
+
+    def set_image_offset(self, *a):
+        for t in self.tools:
+            t.set_image_offset(*a)
+
+
 class Sub:
     """Submenú que se arma al abrirlo (p. ej. Recientes)."""
     def __init__(self, fn):
@@ -424,6 +440,8 @@ class MainWindow:
         # (izquierdo) o al elegir un análisis (derecho).
         self._show_panel(self.left_panel, False)
         self._show_panel(self.right_panel, False)
+        self._set_seg_state(dataclasses.asdict(self.project.segmentation))
+        self._examples = {}
         self._update_start()
         self._saved_state = self._collect_state()
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -594,6 +612,7 @@ class MainWindow:
     def _blank_project(self) -> Project:
         p = Project(name=t("project.untitled"))
         p.max_mpx = self._default_max_mpx()
+        p.segmentation.classes = self._default_classes()
         return p
 
     def _clear_scale(self):
@@ -683,11 +702,50 @@ class MainWindow:
 
     def _collect_state(self) -> dict:
         self._store_panel_params()
-        self.project.segmentation = Segmentation(
-            self.cs_var.get(), int(self.ch_var.get()),
-            int(self.min_slider.get()), int(self.max_slider.get()), bool(self.auto_var.get()),
-            *self._morph_values())
+        self.project.segmentation = Segmentation(**self._seg_state())
         return self.project.to_dict()
+
+    # ── Segmentación (paso 1): estado de los controles ↔ proyecto ─────────────
+
+    def _detail(self) -> float:
+        return next((k for k, v in self._detail_names.items() if v == self.detail_var.get()), 1.0)
+
+    def _seg_state(self) -> dict:
+        """Todo lo del paso 1 (lo guarda el proyecto y lo devuelve Ctrl+Z)."""
+        return {"method": self._seg_method, "color_space": self.cs_var.get(), "channel": int(self.ch_var.get()),
+                "min_val": int(self.min_slider.get()), "max_val": int(self.max_slider.get()),
+                "auto": bool(self.auto_var.get()), "refine": self.refine_list.get(),
+                "classes": self.class_list.get(), "detail": self._detail()}
+
+    def _set_seg_state(self, d: dict):
+        self.cs_var.set(d.get("color_space", "BGR"))
+        self._update_channel_names()
+        self.ch_var.set(int(d.get("channel", 0)))
+        self._sync_sliders(int(d.get("min_val", 0)), int(d.get("max_val", 255)))
+        self.auto_var.set(bool(d.get("auto", False)))
+        self.refine_list.set(d.get("refine") or [])
+        self.class_list.set(d.get("classes") or self._default_classes())
+        self.detail_var.set(self._detail_names.get(float(d.get("detail", 1.0)), self._detail_names[1.0]))
+        self._set_seg_method(d.get("method", "threshold"), quiet=True)
+        self.strokes.colors = [c["color"] for c in self.class_list.classes]
+        self._update_seg_tab()
+
+    @staticmethod
+    def _default_classes() -> list[dict]:
+        return [{"name": t("cls.background_name"), "color": "#9E9E9E", "object": False},
+                {"name": t("cls.object_name"), "color": "#2166AC", "object": True}]
+
+    def _seg_params(self) -> dict:
+        """La segmentación para el análisis (core.segmentation). Los ejemplos de la
+        segmentación por ejemplos se agregan al correr (_with_examples)."""
+        d = self._seg_state()
+        seg = {k: d[k] for k in ("method", "color_space", "channel", "min_val", "max_val", "auto", "refine")}
+        if d["method"] == "classifier":
+            seg["classifier"] = {"names": [c["name"] for c in d["classes"]],
+                                 "colors": [c["color"] for c in d["classes"]],
+                                 "objects": [i for i, c in enumerate(d["classes"]) if i and c.get("object", True)],
+                                 "detail": d["detail"]}
+        return seg
 
     def _is_dirty(self) -> bool:
         return self._collect_state() != self._saved_state
@@ -913,14 +971,8 @@ class MainWindow:
         self._undo_stack, self._redo_stack, self._settled = [], [], None
         self.config_panel = None
         self.project = project
-        seg = project.segmentation
-        self.cs_var.set(seg.color_space)
-        self._update_channel_names()
-        self.ch_var.set(seg.channel)
-        self._sync_sliders(seg.min_val, seg.max_val)
-        self.auto_var.set(seg.auto)
-        self._set_morph(seg.morph_op, seg.morph_size, seg.morph_iter)
-        self._morph_last = self._morph_values()
+        self._set_seg_state(dataclasses.asdict(project.segmentation))
+        self._examples = {}
         self._on_auto_change()
         self.legend_var.set(project.display.get("legend", True))
         self._paint_pos_grid()
@@ -1380,12 +1432,14 @@ class MainWindow:
             Step(t("tour.photos.title"), t("tour.photos.text"), lambda: self.image_list, has_photo, key="photos"),
             Step(t("tour.image.title"), t("tour.image.text"), lambda: self.canvas_left, has_photo, key="image"),
             Step(t("tour.areas.title"), t("tour.areas.text"), lambda: menus.get(t("menu.areas")), key="areas"),
-            Step(t("tour.analysis.title"), t("tour.analysis.text"), lambda: menus.get(t("menu.analysis")),
+            Step(t("tour.segment.title"), t("tour.segment.text"), lambda: self._rtab_body, has_photo,
+                 before=lambda: (self._show_panel(self.right_panel, True), self._select_right_tab("seg")),
+                 key="segment"),
+            Step(t("tour.analysis.title"), t("tour.analysis.text"), lambda: self._analysis_cards, has_photo,
+                 before=lambda: (self._show_panel(self.right_panel, True), self._select_right_tab("analysis")),
                  key="analysis"),
-            Step(t("tour.segment.title"), t("tour.segment.text"), lambda: getattr(self, "_seg_box", None),
-                 lambda: panel_on() and self._uses_threshold(), key="segment"),
             Step(t("tour.params.title"), t("tour.params.text"), lambda: self.config_container, panel_on,
-                 key="params"),
+                 before=lambda: self._select_right_tab("analysis"), key="params"),
             Step(t("tour.run.title"), t("tour.run.text"), lambda: getattr(self, "_run_frame", None), key="run"),
             Step(t("tour.layers.title"), t("tour.layers.text"), lambda: self._layers_title.master,
                  results, key="layers"),
@@ -1400,7 +1454,9 @@ class MainWindow:
         elif results():
             at = "layers"
         elif panel_on():
-            at = "segment" if self._uses_threshold() else "params"
+            at = "params"
+        elif self.right_panel.winfo_ismapped():
+            at = "segment" if self._right_tab == "seg" else "analysis"
         else:
             at = "areas"
         self._tour = Tour(self.root, steps, on_close=done)
@@ -1455,81 +1511,75 @@ class MainWindow:
         return small
 
     def _show_preview(self):
-        """
-        Muestra en el canvas izquierdo la imagen original con la máscara
-        superpuesta en verde semitransparente, respetando el zoom actual.
-        """
+        """La segmentación (paso 1) sobre la Entrada, con el zoom actual: umbral al instante;
+        por ejemplos, en segundo plano (aprender y clasificar tarda un poco)."""
         if not self.scaler_left.has_image or self.zoom_ctrl is None:
             return
-        if not self._uses_threshold():
+        if not self._seg_preview_on():
             self.zoom_ctrl.redraw_with_overlay(overlay_left=None)
+            self.preview_var.set("")
             return
-
-        img_original = self._preview_source()
-        cs_code = CV2_CODES.get(self.cs_var.get())
-        ch_idx  = self.ch_var.get()
-        min_val = self.min_slider.get()
-        max_val = self.max_slider.get()
-
+        img = self._preview_source()
         try:
             from fenotit.core import roi as areas
-            inc, exc = areas.masks(self.project.roi_for(self.current_image_path),
-                                   img_original.shape[1], img_original.shape[0])
+            inc, exc = areas.masks(self.project.roi_for(self.current_image_path), img.shape[1], img.shape[0])
+            if self._seg_method == "classifier":
+                self._classifier_preview(img, inc, exc)
+                return
             if self.auto_var.get():                   # Otsu solo con el área de análisis
-                ctx = pipeline.run(img_original, [{"step": "otsu", "params": {
-                    "color_space": self.cs_var.get(), "channel": int(ch_idx)}}], roi=inc, exclusions=exc)
+                ctx = pipeline.run(img, [{"step": "otsu", "params": {
+                    "color_space": self.cs_var.get(), "channel": int(self.ch_var.get())}}], roi=inc, exclusions=exc)
                 mask = ctx.mask
                 self._otsu_value = int(ctx.extra.get("otsu_threshold", 0))
                 self._sync_sliders(*ctx.extra.get("otsu_range", (0, 255)))   # muestran el rango de Otsu
             else:
-                if cs_code is not None:
-                    converted = cv2.cvtColor(img_original, cs_code)
-                else:
-                    converted = img_original
-
-                channel = converted[:, :, min(ch_idx, converted.shape[2]-1)] \
-                          if converted.ndim == 3 else converted
-
-                _, t_min = cv2.threshold(channel, min_val-1, 255,
-                                         cv2.THRESH_BINARY)
-                _, t_max = cv2.threshold(channel, max_val,   255,
-                                         cv2.THRESH_BINARY_INV)
-                mask = cv2.bitwise_and(t_min, t_max)
-            self._update_histogram(img_original, inc, exc)
-
-            # Áreas de análisis y zonas excluidas de esta foto
-            if inc is not None:
-                mask = cv2.bitwise_and(mask, inc)
-            if exc:
-                mask = mask.copy()
-                cv2.fillPoly(mask, [pts for pts, _ in exc], 0)
-            op, size, it = self._morph_values()
-            if op != "none":                           # misma operación que el análisis, a la escala de la vista previa
-                from fenotit.core.pipeline.steps.objects import morph
-                k = img_original.shape[1] / self.scaler_left.original.shape[1]
-                mask = morph(mask, op, max(1, round(size * k)), it)
-
-            from fenotit.core.pipeline import overlay as marks
-            colors = marks.resolve(self.project.display.get("style"), img_original, mask)
-            overlay = marks.tint(img_original, mask, colors)
-
-            # Pasar al zoom controller — renderiza con zoom actual
-            self.zoom_ctrl.redraw_with_overlay(overlay_left=overlay)
-
-            full = self.scaler_left.original
-            k = full.shape[0] * full.shape[1] / mask.size        # >1 si la vista previa es reducida
-            n_px = int(np.count_nonzero(mask) * k)
-            pct  = round(n_px / (mask.size * k) * 100, 1)
-            text = t("status.preview", px=f"{n_px:,}", pct=pct)
-            if self.auto_var.get():
-                text += "  ·  Otsu = " + str(getattr(self, "_otsu_value", ""))
-            self.preview_var.set(text)
-
+                from fenotit.core import colorspaces
+                ch = colorspaces.channel(img, self.cs_var.get(), int(self.ch_var.get()))
+                mask = ((ch >= int(self.min_slider.get())) & (ch <= int(self.max_slider.get()))).astype(np.uint8) * 255
+            self._update_histogram(img, inc, exc)
+            self._show_mask_overlay(img, self._finish_mask(mask, img, inc, exc))
         except Exception:
             _log.debug("Preview falló", exc_info=True)
             if self.zoom_ctrl:
-                self.zoom_ctrl.redraw_with_overlay(overlay_left=img_original)
+                self.zoom_ctrl.redraw_with_overlay(overlay_left=img)
             self.preview_var.set("")
+
+    def _finish_mask(self, mask, img, inc, exc):
+        """Áreas de análisis, zonas excluidas y "Afinar máscara" (a la escala de la vista previa)."""
+        from fenotit.core import segmentation as S
+        if inc is not None:
+            mask = cv2.bitwise_and(mask, inc)
+        if exc:
+            mask = mask.copy()
+            cv2.fillPoly(mask, [pts for pts, _ in exc], 0)
+        k = img.shape[1] / self.scaler_left.original.shape[1]
+        return S.refine(mask, self.refine_list.get(), scale=k)
+
+    def _show_mask_overlay(self, img, mask, colored=None):
+        from fenotit.core.pipeline import overlay as marks
+        if colored is None:
+            colors = marks.resolve(self.project.display.get("style"), img, mask)
+            view = marks.tint(img, mask, colors)
+        else:
+            view = colored
+        self.zoom_ctrl.redraw_with_overlay(overlay_left=view)
+        full = self.scaler_left.original
+        k = full.shape[0] * full.shape[1] / mask.size        # >1 si la vista previa es reducida
+        n_px = int(np.count_nonzero(mask) * k)
+        pct = round(n_px / (mask.size * k) * 100, 1)
+        text = t("status.preview", px=f"{n_px:,}", pct=pct)
+        if self._seg_method == "threshold" and self.auto_var.get():
+            text += "  ·  Otsu = " + str(getattr(self, "_otsu_value", ""))
+        self.preview_var.set(text)
+
+    def _seg_preview_on(self) -> bool:
+        """La segmentación se ve en la pestaña Segmentar y, después, si el análisis elegido
+        segmenta."""
+        if not self._analysis_segments():
+            return False
+        if getattr(self, "_analysis_chosen", False):
+            return True
+        return self._right_tab == "seg" and self.right_panel.winfo_ismapped()
 
     # ── Panel izquierdo ───────────────────────────────────────────────────────
 
@@ -1693,6 +1743,8 @@ class MainWindow:
 
         self.areas = AreaEditor(self.canvas_left, self._on_areas_change)
         self.areas.on_done = self._on_roi_tool_done
+        from fenotit.gui.strokes import StrokeEditor
+        self.strokes = StrokeEditor(self.canvas_left, self._on_strokes_change)
 
         # ZoomController sincroniza ambos canvas
         self.zoom_ctrl = ZoomController(
@@ -1703,7 +1755,7 @@ class MainWindow:
         self.zoom_ctrl.on_pick = self._pick_object
         self.zoom_ctrl.on_hover = self._hover_object
         # Referencia para que ZoomController informe al ROI
-        self.canvas_left._roi_selector_ref = self.areas
+        self.canvas_left._roi_selector_ref = _CanvasTools(self.areas, self.strokes)
         self._build_area_tools()
 
         self._canvas_row = canvas_row
@@ -1805,27 +1857,359 @@ class MainWindow:
     # ── Panel derecho ─────────────────────────────────────────────────────────
 
     def _build_right_panel(self):
-        """ANÁLISIS (lista de tipos) → los bloques que pide el análisis elegido."""
+        """Dos pasos en pestañas: 1 Segmentar (método, ajustes, afinar máscara) y
+        2 Analizar (tipo de análisis y sus mediciones)."""
         rf = self.right_panel.content
-        self._section_lbl(rf, t("panel.analysis"), pad_left=26)       # deja sitio al ícono del panel
-        self._analysis_cards = tk.Frame(rf, bg=COLORS["bg_panel"])
-        self._analysis_cards.pack(fill=tk.X, padx=6, pady=(2, 6))
-        self._seg_block = tk.Frame(rf, bg=COLORS["bg_panel"])
-        self._seg_block.pack(fill=tk.X)
-        self._build_segmentation_block(self._seg_block)
-        self.config_container = tk.Frame(rf, bg=COLORS["bg_panel"])
+        bg = COLORS["bg_panel"]
+        tabs = tk.Frame(rf, bg=bg)
+        tabs.pack(fill=tk.X, padx=(26, 6), pady=(4, 0))          # deja sitio al ícono del panel
+        self._rtab_labels = {}
+        for key, text in (("seg", t("rtab.segment")), ("analysis", t("rtab.analyze"))):
+            lbl = tk.Label(tabs, text=text, bg=bg, font=("Segoe UI", 9, "bold"), cursor="hand2", padx=10, pady=4)
+            lbl.pack(side=tk.LEFT)
+            lbl.bind("<Button-1>", lambda e, k=key: self._select_right_tab(k))
+            self._rtab_labels[key] = lbl
+        tk.Frame(rf, bg=COLORS["border"], height=1).pack(fill=tk.X)
+        self._rtab_body = tk.Frame(rf, bg=bg)
+        self._rtab_body.pack(fill=tk.BOTH, expand=True)
+        self._seg_tab = tk.Frame(self._rtab_body, bg=bg)
+        self._an_tab = tk.Frame(self._rtab_body, bg=bg)
+        self._build_seg_tab(self._seg_tab)
+        self._analysis_cards = tk.Frame(self._an_tab, bg=bg)
+        self._analysis_cards.pack(fill=tk.X, padx=6, pady=(6, 6))
+        self.config_container = tk.Frame(self._an_tab, bg=bg)
         self.config_container.pack(fill=tk.BOTH, expand=True, padx=4)
         self.config_panel: ConfigPanel | None = None
+        self._right_tab = "seg"
+        self._select_right_tab("seg")
 
-    def _build_segmentation_block(self, rf):
+    def _select_right_tab(self, key: str):
+        self._right_tab = key
+        for k, lbl in self._rtab_labels.items():
+            on = k == key
+            lbl.config(fg=COLORS["accent"] if on else COLORS["text_muted"],
+                       bg=COLORS["bg_card"] if on else COLORS["bg_panel"])
+        (self._an_tab if key == "seg" else self._seg_tab).pack_forget()
+        (self._seg_tab if key == "seg" else self._an_tab).pack(fill=tk.BOTH, expand=True)
+        self._update_seg_tab()
+        self._update_stroke_tool()
+        if hasattr(self, "zoom_ctrl"):
+            self._on_slider_change()
+
+    def _build_seg_tab(self, rf):
+        """MÉTODO (Umbral / Por ejemplos) → sus ajustes → AFINAR MÁSCARA → Analizar."""
+        bg, small = COLORS["bg_panel"], FONTS["small"]
+        self._seg_note = tk.Label(rf, text=t("seg.not_used"), bg=bg, fg=COLORS["text_muted"], font=small,
+                                  justify="left", wraplength=240)
+        head = self._section_lbl(rf, t("seg.method"))
+        HelpIcon(head, t("seg.method").capitalize(), t("seg.method_help"), bg=bg).pack(side=tk.LEFT)
+        self._seg_head = head
+        bar = tk.Frame(rf, bg=bg)
+        bar.pack(fill=tk.X, padx=8, pady=(2, 4))
+        self._seg_method = "threshold"
+        self._method_btns = {}
+        for key in ("threshold", "classifier"):
+            b = tk.Label(bar, text=t(f"seg.method.{key}"), font=small, cursor="hand2", padx=8, pady=3,
+                         highlightthickness=1)
+            b.pack(side=tk.LEFT, padx=(0, 4))
+            b.bind("<Button-1>", lambda e, k=key: self._set_seg_method(k))
+            self._method_btns[key] = b
+        self._seg_bar = bar
+        self._thr_box = tk.Frame(rf, bg=bg)
+        self._build_threshold_box(self._thr_box)
+        self._cls_box = tk.Frame(rf, bg=bg)
+        self._build_classifier_box(self._cls_box)
+        self._refine_head = self._section_lbl(rf, t("refine.title"))
+        HelpIcon(self._refine_head, t("refine.title").capitalize(), t("refine.help"), bg=bg).pack(side=tk.LEFT)
+        from fenotit.gui.segment_widgets import RefineList
+        self.refine_list = RefineList(rf, self._on_refine_change)
+        self.refine_list.pack(fill=tk.X, padx=8, pady=(2, 6))
+        self._next_btn = tk.Button(rf, text=t("seg.next"), command=lambda: self._select_right_tab("analysis"),
+                                   bg=COLORS["accent"], fg="#FFFFFF", activebackground=COLORS["accent"],
+                                   activeforeground="#FFFFFF", relief="flat", font=("Segoe UI", 9, "bold"),
+                                   cursor="hand2", pady=4)
+        self._next_btn.pack(fill=tk.X, padx=8, pady=(6, 8))
+        self._paint_method_btns()
+
+    def _update_seg_tab(self):
+        """Si el análisis elegido no segmenta (Color de imagen), la pestaña lo dice."""
+        uses = self._analysis_segments()
+        widgets = (self._seg_head, self._seg_bar, self._thr_box, self._cls_box, self._refine_head,
+                   self.refine_list, self._next_btn)
+        if uses:
+            self._seg_note.pack_forget()
+            for w in widgets:
+                w.pack_forget()
+            self._seg_head.pack(fill=tk.X)
+            self._seg_bar.pack(fill=tk.X, padx=8, pady=(2, 4))
+            box = self._cls_box if self._seg_method == "classifier" else self._thr_box
+            box.pack(fill=tk.X, padx=8, pady=(2, 4))
+            self._refine_head.pack(fill=tk.X)
+            self.refine_list.pack(fill=tk.X, padx=8, pady=(2, 6))
+            self._next_btn.pack(fill=tk.X, padx=8, pady=(6, 8))
+        else:
+            for w in widgets:
+                w.pack_forget()
+            self._seg_note.pack(fill=tk.X, padx=10, pady=10)
+
+    def _analysis_segments(self) -> bool:
+        """El análisis elegido usa la segmentación (o aún no hay análisis elegido)."""
+        name = self._selected_analysis()
+        if not getattr(self, "_analysis_chosen", False) or name not in ANALYSES:
+            return True
+        return ANALYSES[name].segmentation is not None
+
+    def _paint_method_btns(self):
+        for k, b in self._method_btns.items():
+            on = k == self._seg_method
+            b.config(bg=COLORS["accent"] if on else COLORS["bg_card"], fg="#FFFFFF" if on else COLORS["text"],
+                     highlightbackground=COLORS["accent"] if on else COLORS["border"])
+
+    def _set_seg_method(self, key: str, quiet: bool = False):
+        if key == self._seg_method:
+            return
+        if not quiet:
+            self._remember("undo.segmentation")
+        self._seg_method = key
+        self._paint_method_btns()
+        self._update_seg_tab()
+        self._update_stroke_tool()
+        if self.config_panel is not None and not quiet:
+            self._on_analysis_selected(None, choose=getattr(self, "_analysis_chosen", False))
+        self._on_slider_change()
+
+    # ── Segmentación por ejemplos: pincel, clases, aprender y clasificar ─────
+
+    def _update_stroke_tool(self):
+        st = getattr(self, "strokes", None)
+        if st is None or not hasattr(self, "class_list"):
+            return
+        seg_tab = self._right_tab == "seg" and self.right_panel.winfo_ismapped()
+        on = self._seg_method == "classifier" and seg_tab and bool(self.current_image_path) \
+            and self._analysis_segments() and not (self.areas and self.areas.mode)
+        st.active = on
+        st.visible = on and bool(self.show_strokes_var.get())
+        st.colors = [c["color"] for c in self.class_list.classes]
+        st.current = self.class_list.current
+        st.brush = int(self.brush_var.get())
+        st.redraw()
+        if self.zoom_ctrl:
+            self.zoom_ctrl._update_cursor(self.canvas_left)
+        if self._seg_method == "classifier":
+            self._update_cls_status()
+
+    def _on_strokes_change(self, strokes: list):
+        path = self.current_image_path
+        if not path:
+            return
+        self._remember("undo.strokes")
+        key = self.project.key(path)
+        if strokes:
+            self.project.strokes[key] = strokes
+        else:
+            self.project.strokes.pop(key, None)
+        self._on_slider_change()
+
+    def _clear_strokes(self):
+        path = self.current_image_path
+        if not path or not self.project.strokes.get(self.project.key(path)):
+            return
+        self._remember("undo.strokes")
+        self.project.strokes.pop(self.project.key(path), None)
+        self.strokes.set_strokes([])
+        self._on_slider_change()
+
+    def _on_classes_change(self, removed: int | None = None):
+        if removed is not None:                   # los trazos de esa clase se van; las siguientes bajan
+            self._remember("undo.classes")
+            for key, strokes in list(self.project.strokes.items()):
+                kept = [dict(s, c=s["c"] - (s["c"] > removed)) for s in strokes if s["c"] != removed]
+                if kept:
+                    self.project.strokes[key] = kept
+                else:
+                    self.project.strokes.pop(key)
+            if self.current_image_path:
+                self.strokes.set_strokes(self.project.strokes.get(self.project.key(self.current_image_path)))
+        else:
+            self._settings_changed()
+        self._update_stroke_tool()
+        self._on_slider_change()
+
+    def _on_refine_change(self):
+        self._settings_changed()
+        if self._seg_method == "classifier":
+            self._show_preview()
+        else:
+            self._on_slider_change()
+
+    def _on_class_pick(self, i: int):
+        self.strokes.current = i
+        self._update_stroke_tool()
+
+    def _on_brush(self):
+        self.strokes.brush = int(self.brush_var.get())
+        if getattr(self, "_brush_job", None):
+            self.root.after_cancel(self._brush_job)
+        self._brush_job = self.root.after(600, lambda: settings.set("brush", int(self.brush_var.get())))
+
+    def _on_show_strokes(self):
+        self._update_stroke_tool()
+
+    def _update_cls_status(self, extra: str = ""):
+        n_strokes = sum(len(v) for v in self.project.strokes.values())
+        n_photos = sum(1 for v in self.project.strokes.values() if v)
+        painted = {s["c"] for v in self.project.strokes.values() for s in v}
+        text = t("cls.status", n=n_strokes, photos=n_photos) if n_strokes else t("cls.start")
+        if n_strokes and len(painted) < 2:
+            text += "  ·  " + t("cls.need_two")
+        self.cls_status.set(text + (f"  ·  {extra}" if extra else ""))
+
+    def _corr_signature(self) -> str:
+        return json.dumps([self.project.corrections.to_dict(), self.project.max_mpx], sort_keys=True, default=str)
+
+    def _gather_examples(self, strokes: dict, detail: float, cur_path, cur_feat, corrections, max_mpx, sig):
+        """Rasgos de los píxeles pintados en todas las fotos con trazos (en un hilo). Las
+        fotos que no están abiertas se leen y corrigen igual que en el análisis."""
+        from fenotit.core.segmentation import classifier as C
+        from fenotit.core.corrections import pipeline as corr
+        Xs, ys = [], []
+        for key, st in strokes.items():
+            if not st:
+                continue
+            k = (json.dumps(st, sort_keys=True), detail, sig if key != cur_path else ("cur", id(cur_feat)))
+            hit = self._examples.get(key)
+            if hit and hit[0] == k:
+                X, y = hit[1], hit[2]
+            else:
+                if key == cur_path and cur_feat is not None:
+                    F = cur_feat
+                else:
+                    img = load_image(key)
+                    if img is None:
+                        continue
+                    img, info = corr.apply(img, corrections)
+                    img = corr.to_working(img, info, max_mpx)
+                    F = C.features(C.work_copy(img, detail))
+                X, y = C.samples(F, st)
+                self._examples[key] = (k, X, y)
+            Xs.append(X)
+            ys.append(y)
+        if not Xs:
+            return None, None
+        return C.balance(np.concatenate(Xs), np.concatenate(ys))
+
+    def _classifier_preview(self, img, inc, exc):
+        """Aprende de los trazos y clasifica la foto actual en un hilo; mientras, se ve la foto
+        con los trazos. Si los trazos cambian antes de terminar, el resultado viejo se tira."""
+        from fenotit.core.segmentation import classifier as C
+        full = self.scaler_left.original
+        detail = self._detail()
+        strokes = {k: list(v) for k, v in self.project.strokes.items()
+                   if k in {self.project.key(p) for p in self.project.images}}
+        key = (id(full), detail, json.dumps(strokes, sort_keys=True), self._corr_signature())
+        cached = getattr(self, "_cls_cache", None)
+        if cached is not None and cached[0] == key:
+            self._render_classes(img, cached[1], inc, exc)
+            return
+        self.zoom_ctrl.redraw_with_overlay(overlay_left=img)
+        painted = {s["c"] for v in strokes.values() for s in v}
+        if len(painted) < 2:
+            self._update_cls_status()
+            self.preview_var.set("")
+            return
+        self._cls_gen = getattr(self, "_cls_gen", 0) + 1
+        gen = self._cls_gen
+        self._update_cls_status(t("cls.learning"))
+        cur = self.project.key(self.current_image_path)
+        corrections, max_mpx, sig = self.project.corrections, self.project.max_mpx, self._corr_signature()
+        feat_cache = getattr(self, "_feat_cache", None)
+
+        def work():
+            t0 = time.perf_counter()
+            try:
+                if feat_cache is not None and feat_cache[0] == (id(full), detail):
+                    F = feat_cache[1]
+                else:
+                    F = C.features(C.work_copy(full, detail))
+                    self._feat_cache = ((id(full), detail), F)
+                if gen != self._cls_gen:
+                    return
+                X, y = self._gather_examples(strokes, detail, cur, F, corrections, max_mpx, sig)
+                if X is None or gen != self._cls_gen:
+                    return
+                model = C.train(X, y)
+                cm = C.predict(model, F)
+                secs = time.perf_counter() - t0
+                self.root.after(0, lambda: self._on_classified(gen, key, cm, secs))
+            except Exception:
+                _log.exception("Segmentación por ejemplos")
+                self.root.after(0, lambda: self._update_cls_status(t("cls.failed")))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_classified(self, gen, key, cm, secs):
+        if gen != getattr(self, "_cls_gen", 0):
+            return
+        self._cls_cache = (key, cm)
+        self._update_cls_status(t("cls.learned", s=f"{secs:.1f}"))
+        self._show_preview()
+
+    def _render_classes(self, img, cm, inc, exc):
+        """Clases sobre la foto: las de objeto pintadas con su color dentro de la máscara."""
+        from fenotit.core.segmentation import classifier as C
+        cmp = cv2.resize(cm, (img.shape[1], img.shape[0]), interpolation=cv2.INTER_NEAREST)
+        classes = self.class_list.classes
+        objects = [i for i, c in enumerate(classes) if i and c.get("object", True)]
+        mask = self._finish_mask((np.isin(cmp, objects) * 255).astype(np.uint8), img, inc, exc)
+        colored = img.copy()
+        inside = mask > 0
+        lut = C.colorize(np.arange(len(classes), dtype=np.uint8), [c["color"] for c in classes])
+        paint = lut[np.minimum(cmp, len(classes) - 1)]
+        colored[inside] = (0.45 * img[inside] + 0.55 * paint[inside]).astype(np.uint8)
+        self._show_mask_overlay(img, mask, colored)
+
+    def _with_examples(self, params: dict, then, on_fail=None):
+        """Antes de correr con la segmentación por ejemplos: junta los ejemplos de todas
+        las fotos, los guarda (.npz en la carpeta de datos de la app) y deja su ruta en los
+        parámetros; luego `then(params)`."""
+        seg = params.get("segmentation") or {}
+        if seg.get("method") != "classifier":
+            then(params)
+            return
+        from fenotit.core.segmentation import classifier as C
+        strokes = {k: list(v) for k, v in self.project.strokes.items()
+                   if k in {self.project.key(p) for p in self.project.images}}
+        if len({s["c"] for v in strokes.values() for s in v}) < 2:
+            messagebox.showinfo(t("seg.method.classifier"), t("cls.need_two_msg"), parent=self.root)
+            if on_fail:
+                on_fail()
+            return
+        detail = seg["classifier"]["detail"]
+        full = self.scaler_left.original if self.scaler_left.has_image else None
+        cur = self.project.key(self.current_image_path) if self.current_image_path else None
+        feat = getattr(self, "_feat_cache", None)
+        F = feat[1] if feat is not None and full is not None and feat[0] == (id(full), detail) else None
+        corrections, max_mpx, sig = self.project.corrections, self.project.max_mpx, self._corr_signature()
+        self._set_status(t("cls.preparing"))
+
+        def work():
+            try:
+                X, y = self._gather_examples(strokes, detail, cur if F is not None else None, F,
+                                             corrections, max_mpx, sig)
+                path, key = C.store(X, y, settings.data_dir() / "examples")
+            except Exception as e:
+                _log.exception("Ejemplos")
+                msg = str(e)
+                self.root.after(0, lambda: (messagebox.showerror(t("common.error"), msg, parent=self.root),
+                                            on_fail and on_fail()))
+                return
+            seg["classifier"].update(samples=path, hash=key)
+            self.root.after(0, lambda: then(params))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _build_threshold_box(self, box):
         """Espacio de color, canal y rango (o Otsu), con vista previa en vivo."""
         bg, small = COLORS["bg_panel"], FONTS["small"]
-        head = self._section_lbl(rf, t("seg.title"))
-        HelpIcon(head, t("seg.title").capitalize(), t("seg.help"), bg=bg).pack(side=tk.LEFT)
-        box = tk.Frame(rf, bg=bg)
-        box.pack(fill=tk.X, padx=8, pady=(2, 4))
         self._seg_box = box
-
         row = tk.Frame(box, bg=bg)
         row.pack(fill=tk.X, pady=2)
         tk.Label(row, text=t("controls.space"), bg=bg, fg=COLORS["text_muted"],
@@ -1864,63 +2248,45 @@ class MainWindow:
         self.max_slider = self.range_slider.end("hi")
         self.histogram = ChannelHistogram(box, on_drag=self._on_hist_drag, bg=bg)
         self.histogram.pack(fill=tk.X)
-        self._build_morph_row(box)
 
-    MORPH_OPS = ("none", "erode", "dilate", "open", "close")
-
-    def _build_morph_row(self, box):
-        """Operación morfológica sobre la máscara (una sola, con tamaño y repeticiones)."""
+    def _build_classifier_box(self, box):
+        """Por ejemplos: clases (la elegida es la del pincel), pincel, detalle y estado."""
+        from fenotit.gui.segment_widgets import ClassList
         bg, small = COLORS["bg_panel"], FONTS["small"]
-        row = tk.Frame(box, bg=bg)
-        row.pack(fill=tk.X, pady=(6, 0))
-        tk.Label(row, text=t("morph.title"), bg=bg, fg=COLORS["text_muted"], font=small).pack(side=tk.LEFT)
-        HelpIcon(row, t("morph.title"), t("morph.help"), bg=bg).pack(side=tk.LEFT, padx=(4, 6))
-        self._morph_labels = {k: t(f"morph.{k}") for k in self.MORPH_OPS}
-        self.morph_var = tk.StringVar(value=self._morph_labels["none"])
-        cb = ttk.Combobox(row, textvariable=self.morph_var, values=list(self._morph_labels.values()),
-                          state="readonly", width=10, font=small)
-        cb.pack(side=tk.LEFT)
-        cb.bind("<<ComboboxSelected>>", lambda e: self._on_morph_change())
-        self._morph_opts = tk.Frame(box, bg=bg)
-        self.morph_size = tk.IntVar(value=3)
-        self.morph_iter = tk.IntVar(value=1)
-        for label, var, lo, hi in ((t("morph.size"), self.morph_size, 1, 99),
-                                   (t("morph.iter"), self.morph_iter, 1, 20)):
-            tk.Label(self._morph_opts, text=label, bg=bg, fg=COLORS["text_muted"], font=small).pack(side=tk.LEFT)
-            tk.Spinbox(self._morph_opts, from_=lo, to=hi, textvariable=var, width=4, font=small,
-                       command=self._on_morph_change).pack(side=tk.LEFT, padx=(3, 10))
-        for var in (self.morph_size, self.morph_iter):
-            var.trace_add("write", lambda *a: self.root.after_idle(self._on_morph_change))
-
-    def _morph_op(self) -> str:
-        label = self.morph_var.get()
-        return next((k for k, v in self._morph_labels.items() if v == label), "none")
-
-    def _morph_values(self) -> tuple[str, int, int]:
-        def num(var, default):
-            try:
-                return max(1, int(var.get()))
-            except (tk.TclError, ValueError):
-                return default
-        return self._morph_op(), num(self.morph_size, 3), num(self.morph_iter, 1)
-
-    def _set_morph(self, op: str, size: int, it: int):
-        self.morph_var.set(self._morph_labels.get(op, self._morph_labels["none"]))
-        self.morph_size.set(size)
-        self.morph_iter.set(it)
-        self._show_morph_opts()
-
-    def _show_morph_opts(self):
-        if self._morph_op() == "none":
-            self._morph_opts.pack_forget()
-        else:
-            self._morph_opts.pack(fill=tk.X, pady=(3, 0))
-
-    def _on_morph_change(self):
-        self._show_morph_opts()
-        if getattr(self, "_morph_last", None) != self._morph_values():
-            self._morph_last = self._morph_values()
-            self._on_slider_change()
+        head = tk.Frame(box, bg=bg)
+        head.pack(fill=tk.X)
+        tk.Label(head, text=t("cls.title"), bg=bg, fg=COLORS["text_muted"], font=small).pack(side=tk.LEFT)
+        HelpIcon(head, t("cls.title"), t("cls.help"), bg=bg).pack(side=tk.LEFT, padx=(4, 0))
+        self.class_list = ClassList(box, self._on_classes_change, self._on_class_pick)
+        self.class_list.pack(fill=tk.X, pady=(2, 4))
+        brow = tk.Frame(box, bg=bg)
+        brow.pack(fill=tk.X, pady=(2, 0))
+        tk.Label(brow, text=t("cls.brush"), bg=bg, fg=COLORS["text_muted"], font=small).pack(side=tk.LEFT)
+        self.brush_var = tk.IntVar(value=int(settings.get("brush", 12)))
+        ttk.Scale(brow, from_=3, to=60, variable=self.brush_var, orient="horizontal",
+                  command=lambda v: self._on_brush()).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=6)
+        drow = tk.Frame(box, bg=bg)
+        drow.pack(fill=tk.X, pady=(4, 0))
+        tk.Label(drow, text=t("cls.detail"), bg=bg, fg=COLORS["text_muted"], font=small).pack(side=tk.LEFT)
+        self._detail_names = {0.5: t("cls.detail.low"), 1.0: t("cls.detail.mid"), 2.0: t("cls.detail.high")}
+        self.detail_var = tk.StringVar(value=self._detail_names[1.0])
+        cb = ttk.Combobox(drow, textvariable=self.detail_var, values=list(self._detail_names.values()),
+                          state="readonly", width=12, font=small)
+        cb.pack(side=tk.LEFT, padx=(4, 4))
+        cb.bind("<<ComboboxSelected>>", lambda e: self._on_classes_change())
+        HelpIcon(drow, t("cls.detail"), t("cls.detail_help"), bg=bg).pack(side=tk.LEFT)
+        arow = tk.Frame(box, bg=bg)
+        arow.pack(fill=tk.X, pady=(6, 0))
+        clear = tk.Label(arow, text=t("cls.clear_photo"), bg=bg, fg=COLORS["accent"], font=small, cursor="hand2")
+        clear.pack(side=tk.LEFT)
+        clear.bind("<Button-1>", lambda e: self._clear_strokes())
+        self.show_strokes_var = tk.BooleanVar(value=True)
+        tk.Checkbutton(arow, text=t("cls.show_strokes"), variable=self.show_strokes_var, bg=bg,
+                       activebackground=bg, selectcolor=COLORS["bg_card"], font=small,
+                       command=self._on_show_strokes).pack(side=tk.RIGHT)
+        self.cls_status = tk.StringVar(value="")
+        tk.Label(box, textvariable=self.cls_status, bg=bg, fg=COLORS["text_muted"], font=small,
+                 justify="left", wraplength=240, anchor="w").pack(fill=tk.X, pady=(4, 0))
 
     def _on_auto_change(self):
         """Otsu se ve de inmediato y deja Mín/Máx en su rango; moverlos después lo apaga."""
@@ -2124,7 +2490,11 @@ class MainWindow:
         self.project.images = [Path(p) for p in current + new]
         self.project.current_index = len(current)
         self._update_batch_list()
+        first = not current
         self._show_panel(self.left_panel, True)
+        if first:                                  # paso 1 a la vista: segmentar
+            self._show_panel(self.right_panel, True)
+            self._select_right_tab("seg" if not getattr(self, "_analysis_chosen", False) else self._right_tab)
         self._update_start()
         self._load_single(new[0])
         self._sync_listbox()
@@ -2142,6 +2512,7 @@ class MainWindow:
         self.project.image_scale.pop(self.project.key(path), None)
         self.project.excluded.pop(self.project.key(path), None)
         self.project.highlighted.pop(self.project.key(path), None)
+        self.project.strokes.pop(self.project.key(path), None)
         self.project.images = images
         self.project.current_index = min(self.project.current_index, max(len(images) - 1, 0))
         self._update_batch_list()
@@ -2300,6 +2671,8 @@ class MainWindow:
             self.zoom_ctrl.set_left(self.scaler_left.original)
         if self.areas:
             self.areas.set_shapes(self.project.roi_for(path))
+        self.strokes.set_strokes(self.project.strokes.get(self.project.key(path)))
+        self._update_stroke_tool()
         self._update_area_scope()
         self._on_slider_change()          # vista previa de la segmentación en la nueva imagen
 
@@ -2363,28 +2736,38 @@ class MainWindow:
             self._on_analysis_selected(None, choose=False)
 
     def _render_analysis_cards(self):
-        """Encabezado del panel: solo el análisis elegido (se cambia en el menú Análisis)."""
+        """Los análisis como tarjetas: la elegida en azul con su descripción; clic = elegir."""
         box = self._analysis_cards
         for w in box.winfo_children():
             w.destroy()
-        name = self._selected_analysis()
-        if name is None:
-            return
-        bg = COLORS["accent_light"]
-        card = tk.Frame(box, bg=bg, highlightthickness=1, highlightbackground=COLORS["accent"])
-        card.pack(fill=tk.X, pady=1)
-        tk.Label(card, text=_analysis_label(name), bg=bg, fg=COLORS["accent"],
-                 font=("Segoe UI", 9, "bold"), anchor="w").pack(fill=tk.X, padx=8, pady=(4, 0))
-        desc = t(f"analysis.{_analysis_key(name)}.desc", ANALYSES[name].description)
-        tk.Label(card, text=desc, bg=bg, fg=COLORS["text_muted"], font=FONTS["small"], anchor="w",
-                 justify="left", wraplength=230).pack(fill=tk.X, padx=8, pady=(0, 4))
+        cur = self._selected_analysis() if getattr(self, "_analysis_chosen", False) else None
+        for name in ANALYSES:
+            on = name == cur
+            bg = COLORS["accent_light"] if on else COLORS["bg_card"]
+            card = tk.Frame(box, bg=bg, highlightthickness=1, cursor="hand2",
+                            highlightbackground=COLORS["accent"] if on else COLORS["border"])
+            card.pack(fill=tk.X, pady=1)
+            title = tk.Label(card, text=_analysis_label(name), bg=bg, fg=COLORS["accent"] if on else COLORS["text"],
+                             font=("Segoe UI", 9, "bold"), anchor="w", cursor="hand2")
+            title.pack(fill=tk.X, padx=8, pady=(4, 4 if not on else 0))
+            parts = [card, title]
+            if on:
+                desc = t(f"analysis.{_analysis_key(name)}.desc", ANALYSES[name].description)
+                d = tk.Label(card, text=desc, bg=bg, fg=COLORS["text_muted"], font=FONTS["small"], anchor="w",
+                             justify="left", wraplength=230, cursor="hand2")
+                d.pack(fill=tk.X, padx=8, pady=(0, 4))
+                parts.append(d)
+            else:
+                Tooltip(title, t(f"analysis.{_analysis_key(name)}.desc", ANALYSES[name].description))
+            for w in parts:
+                w.bind("<Button-1>", lambda e, n=name: self._open_analysis(n))
 
     def _open_analysis(self, name: str):
         if name != self._selected_analysis() or not getattr(self, "_analysis_chosen", False):
             self.analysis_var.set(_analysis_label(name))
             self._on_analysis_selected(None)
         self._show_panel(self.right_panel, True)
-        self._on_slider_change()                 # la vista previa aparece si el análisis segmenta
+        self._select_right_tab("analysis")
 
     def _show_panel(self, panel, on: bool):
         if on:
@@ -2396,12 +2779,6 @@ class MainWindow:
     def _toggle_panel(self, panel):
         hidden = str(self.paned.panecget(panel, "hide")) in ("1", "true")
         panel.expand() if hidden else panel.collapse()
-
-    def _uses_threshold(self) -> bool:
-        """La vista previa de la segmentación solo con un análisis elegido que segmenta."""
-        name = self._selected_analysis()
-        return bool(getattr(self, "_analysis_chosen", False)) and name is not None \
-            and ANALYSES[name].segmentation == "threshold"
 
     def _selected_analysis(self) -> str | None:
         label = self.analysis_var.get()
@@ -2419,17 +2796,15 @@ class MainWindow:
             self._analysis_chosen = True
             self.project.analysis = _analysis_key(name)
         self._render_analysis_cards()
-        if self._uses_threshold():
-            self._seg_block.pack(fill=tk.X, before=self.config_container)
-        else:
-            self._seg_block.pack_forget()
+        self._update_seg_tab()
         for w in self.config_container.winfo_children():
             w.destroy()
         stored = self.project.params.get(self.project.analysis, {})
         self._panel_area_unit = stored.get("_area_unit", "px")
         self.config_panel = ConfigPanel(
             self.config_container,
-            schema=ANALYSES[name].params_schema,
+            schema=[i for i in ANALYSES[name].params_schema
+                    if i.get("segmentation") in (None, self._seg_method)],
             colors=COLORS, prefix=_analysis_key(name),
             units=self._unit_labels(self._panel_area_unit))
         self.config_panel.set_values({k: v for k, v in stored.items() if not k.startswith("_")})
@@ -2457,7 +2832,7 @@ class MainWindow:
             p.update(self.config_panel.get_values())
             p["area_unit"] = getattr(self, "_panel_area_unit", "px")
         p["auto_threshold"] = bool(self.auto_var.get())
-        p["morph_op"], p["morph_size"], p["morph_iter"] = self._morph_values()
+        p["segmentation"] = self._seg_params()
         info = self._corr_info.get(self.current_image_path)
         p["work_scale"] = round(info.work_k, 6) if info else 1.0
         return p
@@ -2487,9 +2862,12 @@ class MainWindow:
                          self.current_image_path or "imagen")
 
     def _run_single(self, name: str, image: np.ndarray, path: str):
+        self._with_examples(self._build_params(), lambda params: self._start_single(name, image, path, params))
+
+    def _start_single(self, name: str, image: np.ndarray, path: str, params: dict):
         self._set_status(t("status.running", name=_analysis_label(name)))
         self.root.config(cursor="watch")
-        params = self._build_params()
+
         def worker():
             t0 = time.perf_counter()
             try:
@@ -2508,16 +2886,23 @@ class MainWindow:
         if not self.batch_paths:
             messagebox.showwarning(t("msg.no_batch_title"), t("msg.no_batch"))
             return
-        if self._batch is not None:
+        if self._batch is not None or getattr(self, "_preparing", False):
             return
         board = self._board_photos()
         paths = [p for p in self.batch_paths if p not in board]
         if not paths:
             messagebox.showwarning(t("msg.no_batch_title"), t("msg.no_batch"))
             return
+        self._preparing = True                     # no se lanza otro mientras se juntan los ejemplos
+
+        def go(params):
+            self._preparing = False
+            self._start_batch(name, paths, params)
+        self._with_examples(self._build_params(), go, on_fail=lambda: setattr(self, "_preparing", False))
+
+    def _start_batch(self, name: str, paths: list, params: dict):
         total = len(paths)
         self._set_status(t("status.running_batch", name=_analysis_label(name), n=total))
-        params = self._build_params()
         jobs = []
         for path in paths:
             sc = self.project.scale_for(path)
@@ -2980,6 +3365,7 @@ class MainWindow:
 
     def _after_panel_toggle(self):
         self.root.after(50, self._refit_images)
+        self.root.after(60, self._update_stroke_tool)
 
     def _refit_images(self):
         self._do_resize()
@@ -3347,15 +3733,14 @@ class MainWindow:
 
     UNDO_MAX = 50
     _UNDO_FIELDS = ("roi", "image_roi", "image_scale", "excluded", "highlighted", "images",
-                    "scale", "unit", "max_mpx", "corrections", "metadata")
+                    "scale", "unit", "max_mpx", "corrections", "metadata", "strokes")
 
     def _snapshot(self) -> dict:
         """Lo que Ctrl+Z puede devolver: áreas, marcas, fotos de la lista, segmentación
         (espacio, canal, Mín/Máx, Otsu) y parámetros del análisis elegido."""
         import copy
         snap = {f: copy.deepcopy(getattr(self.project, f)) for f in self._UNDO_FIELDS}
-        snap["_seg"] = (self.cs_var.get(), int(self.ch_var.get()), int(self.min_slider.get()),
-                        int(self.max_slider.get()), bool(self.auto_var.get()), *self._morph_values())
+        snap["_seg"] = self._seg_state()
         cp = getattr(self, "config_panel", None)
         snap["_params"] = (self._selected_analysis(), cp.get_values(warn=False) if cp else {})
         return snap
@@ -3440,18 +3825,14 @@ class MainWindow:
             if f != "images":
                 setattr(self.project, f, state[f])
         self.project.images = images
-        cs, ch, lo, hi, auto, *mo = state["_seg"]
-        mo = tuple(mo) if mo else ("none", 3, 1)
-        if (cs, ch, lo, hi, auto, *mo) != (self.cs_var.get(), int(self.ch_var.get()), int(self.min_slider.get()),
-                                            int(self.max_slider.get()), bool(self.auto_var.get()),
-                                            *self._morph_values()):
-            self.cs_var.set(cs)
-            self._update_channel_names()
-            self.ch_var.set(ch)
-            self._sync_sliders(lo, hi)
-            self.auto_var.set(auto)
-            self._set_morph(*mo)
-            self._morph_last = self._morph_values()
+        if state["_seg"] != self._seg_state():
+            method_changed = state["_seg"].get("method") != self._seg_method
+            self._set_seg_state(state["_seg"])
+            if method_changed and self.config_panel is not None:
+                self._on_analysis_selected(None, choose=getattr(self, "_analysis_chosen", False))
+        if self.current_image_path:
+            self.strokes.set_strokes(self.project.strokes.get(self.project.key(self.current_image_path)))
+        self._on_slider_change()
         name, values = state["_params"]
         if self.config_panel is not None and name == self._selected_analysis():
             self.config_panel.set_values(values)

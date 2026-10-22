@@ -19,14 +19,34 @@ IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"}
 
 @dataclass
 class Segmentation:
+    """Paso 1 (core.segmentation). Las clases y el detalle son de la segmentación por
+    ejemplos; los trazos de cada foto van en Project.strokes."""
+    method: str = "threshold"     # threshold | classifier | model
     color_space: str = "BGR"
     channel: int = 0
     min_val: int = 0
     max_val: int = 255
     auto: bool = False            # umbral automático (Otsu) en el canal elegido
-    morph_op: str = "none"        # none | erode | dilate | open | close
-    morph_size: int = 3           # px (elemento circular)
-    morph_iter: int = 1
+    refine: list = field(default_factory=lambda: [{"op": "fill_holes"}])   # afinar máscara, en orden
+    classes: list = field(default_factory=lambda: [dict(c) for c in DEFAULT_CLASSES])
+    detail: float = 1.0           # MP de la copia en que se clasifica (por ejemplos)
+
+    @classmethod
+    def from_dict(cls, d: dict | None) -> "Segmentation":
+        d = dict(d or {})
+        op = d.pop("morph_op", "none")                     # versiones anteriores: una operación
+        size, it = d.pop("morph_size", 3), d.pop("morph_iter", 1)
+        if "refine" not in d:
+            d["refine"] = ([{"op": op, "size": int(size), "iter": int(it)}] if op != "none" else []) \
+                + [{"op": "fill_holes"}]
+        return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
+
+    def object_classes(self) -> list[int]:
+        return [i for i, c in enumerate(self.classes) if i and c.get("object", True)]
+
+
+DEFAULT_CLASSES = [{"name": "Fondo", "color": "#9E9E9E", "object": False},
+                   {"name": "Objeto", "color": "#2166AC", "object": True}]
 
 
 @dataclass
@@ -53,6 +73,7 @@ class Project:
     image_scale: dict[str, Scale] = field(default_factory=dict)  # foto -> su propia escala
     excluded: dict[str, list] = field(default_factory=dict)      # foto -> objetos excluidos a mano ([x, y] 0-1)
     highlighted: dict[str, list] = field(default_factory=dict)   # foto -> objetos destacados ★ ([x, y] 0-1)
+    strokes: dict[str, list] = field(default_factory=dict)       # foto -> trazos de ejemplo (segmentación por ejemplos)
     corrections: Corrections = field(default_factory=Corrections)
     metadata: dict[str, str] = field(default_factory=dict)   # {"file": ruta, "key_column": col}
     max_mpx: float | None = 50.0                             # resolución de trabajo del análisis (None = completa)
@@ -161,6 +182,7 @@ class Project:
             "image_scale": {self._rel(Path(k)): asdict(v) for k, v in self.image_scale.items()},
             "excluded_objects": {self._rel(Path(k)): v for k, v in self.excluded.items()},
             "highlighted_objects": {self._rel(Path(k)): v for k, v in self.highlighted.items()},
+            "strokes": {self._rel(Path(k)): v for k, v in self.strokes.items() if v},
             "corrections": self.corrections.to_dict(),
             "ran": self.ran,
             "max_mpx": self.max_mpx,
@@ -210,8 +232,7 @@ class Project:
             current_index=int(d.get("current_index", 0)),
             mode=d.get("mode", "individual"),
             analysis=d.get("analysis"),
-            segmentation=Segmentation(**{k: v for k, v in (d.get("segmentation") or {}).items()
-                                         if k in Segmentation.__dataclass_fields__}),
+            segmentation=Segmentation.from_dict(d.get("segmentation")),
             scale=Scale(**d.get("scale", {})),
             unit=d.get("unit", "mm"),
             params=d.get("params", {}) or {},
@@ -220,6 +241,7 @@ class Project:
             image_scale={cls.key(resolve(k)): Scale(**v) for k, v in (d.get("image_scale") or {}).items()},
             excluded={cls.key(resolve(k)): v for k, v in (d.get("excluded_objects") or {}).items()},
             highlighted={cls.key(resolve(k)): v for k, v in (d.get("highlighted_objects") or {}).items()},
+            strokes={cls.key(resolve(k)): v for k, v in (d.get("strokes") or {}).items()},
             corrections=Corrections.from_dict(d.get("corrections"), folder),
             ran=list(d.get("ran") or []),
             max_mpx=d.get("max_mpx", 50.0),
@@ -236,7 +258,7 @@ class Project:
         foto (áreas, escala, marcas). Devuelve cuántas se cambiaron."""
         old_new = {self.key(a): Path(b) for a, b in found.items()}
         self.images = [old_new.get(self.key(p), p) for p in self.images]
-        for name in ("image_roi", "image_scale", "excluded", "highlighted"):
+        for name in ("image_roi", "image_scale", "excluded", "highlighted", "strokes"):
             d = getattr(self, name)
             setattr(self, name, {(self.key(old_new[k]) if k in old_new else k): v for k, v in d.items()})
         return len(old_new)
