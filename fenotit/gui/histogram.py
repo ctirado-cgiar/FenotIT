@@ -1,6 +1,7 @@
 """Deslizador de rango Mín–Máx (0-255) y, debajo, el histograma del canal elegido para
-segmentar. Los dos usan el mismo margen, así cada manija queda sobre su línea. Lo que queda
-dentro del rango (objeto) se pinta en azul y lo de fuera en gris."""
+segmentar. Los dos usan el mismo margen, así cada manija queda sobre su línea. El canal
+elegido se dibuja relleno en su color (dentro del rango, intenso; fuera, claro) y los otros
+dos canales del espacio de fondo, como silueta tenue."""
 from __future__ import annotations
 
 import tkinter as tk
@@ -21,6 +22,8 @@ class ChannelHistogram(tk.Canvas):
         super().__init__(parent, height=HEIGHT + 4, bg=bg, highlightthickness=0, cursor="sb_h_double_arrow")
         self.on_drag = on_drag
         self.hist: np.ndarray | None = None
+        self.others: list[tuple[np.ndarray, str]] = []      # los otros dos canales, de fondo
+        self.color = COLORS["accent"]
         self.lo, self.hi = 0, 255
         self._grab = None
         self.bind("<Configure>", lambda e: self.redraw())
@@ -30,13 +33,19 @@ class ChannelHistogram(tk.Canvas):
 
     # ── datos ─────────────────────────────────────────────────────────────────
 
-    def set_data(self, values: np.ndarray | None):
-        """values: píxeles del canal (uint8) o None (sin foto)."""
+    def set_data(self, values: np.ndarray | None, color: str | None = None,
+                 others: list[tuple[np.ndarray, str]] | None = None):
+        """values: píxeles del canal elegido (uint8) o None (sin foto); color: el del canal;
+        others: [(píxeles, color)] de los otros canales del espacio, que se dibujan de fondo
+        para comparar de un vistazo cuál separa mejor objeto y fondo."""
+        def hist(v):
+            return np.log1p(np.bincount(v.ravel(), minlength=256)[:256].astype(float))   # escala log
         if values is None or values.size == 0:
-            self.hist = None
+            self.hist, self.others = None, []
         else:
-            h = np.bincount(values.ravel(), minlength=256)[:256].astype(float)
-            self.hist = np.log1p(h)                 # el fondo domina: escala logarítmica
+            self.hist = hist(values)
+            self.others = [(hist(v), c) for v, c in (others or []) if v is not None and v.size]
+        self.color = color or COLORS["accent"]
         self.redraw()
 
     def set_range(self, lo: int, hi: int):
@@ -60,20 +69,27 @@ class ChannelHistogram(tk.Canvas):
         base = HEIGHT
         self.create_line(PAD, base, w - PAD, base, fill=COLORS["border"])
         if self.hist is not None and self.hist.max() > 0:
-            hs = self.hist / self.hist.max() * (HEIGHT - 4)
+            top = max([self.hist.max()] + [h.max() for h, _ in self.others])
             step = (w - 2 * PAD) / 256
+            for h, c in self.others:                      # otros canales: solo la silueta, tenue
+                hs = h / top * (HEIGHT - 4)
+                pts = []
+                for v in range(256):
+                    pts += [PAD + (v + 0.5) * step, base - hs[v]]
+                self.create_line(*pts, fill=_tint(c, 0.55), width=1)
+            hs = self.hist / top * (HEIGHT - 4)
+            light = _tint(self.color, 0.72)
             for v in range(256):
                 if hs[v] <= 0:
                     continue
-                inside = self.lo <= v <= self.hi
                 x0 = PAD + v * step
                 self.create_rectangle(x0, base - hs[v], x0 + max(step, 1), base, width=0,
-                                      fill=COLORS["accent"] if inside else "#B9C2CC")
+                                      fill=self.color if self.lo <= v <= self.hi else light)
         else:
             self.create_text(w / 2, HEIGHT / 2, text="—", fill=COLORS["text_muted"], font=FONTS["small"])
         for v in (self.lo, self.hi):                  # las dos líneas del rango (el valor va en el deslizador)
             x = self._x(v)
-            self.create_line(x, 0, x, base + 3, fill="#D73027", width=2)
+            self.create_line(x, 0, x, base + 3, fill="#222222", width=1.5)
 
     # ── arrastrar las líneas ──────────────────────────────────────────────────
 
@@ -110,6 +126,7 @@ class RangeSlider(tk.Canvas):
                          takefocus=1, cursor="hand2")
         self.on_change = on_change
         self.lo, self.hi = 0, 255
+        self.track = COLORS["accent"]                     # color del tramo elegido (el del canal)
         self.active = "lo"
         self._grab = None
         self.bind("<Configure>", lambda e: self.redraw())
@@ -132,6 +149,11 @@ class RangeSlider(tk.Canvas):
             lo = hi
         if (lo, hi) != (self.lo, self.hi):
             self.lo, self.hi = lo, hi
+            self.redraw()
+
+    def set_track(self, color: str):
+        if color != self.track:
+            self.track = color
             self.redraw()
 
     def end(self, which: str) -> "_End":
@@ -166,7 +188,7 @@ class RangeSlider(tk.Canvas):
         y = self.BUBBLE + 4 + r
         self.create_line(PAD, y, w - PAD, y, fill=COLORS["slider_trough"], width=4, capstyle="round")
         xl, xh = self._x(self.lo), self._x(self.hi)
-        self.create_line(xl, y, xh, y, fill=acc, width=4, capstyle="round")
+        self.create_line(xl, y, xh, y, fill=self.track, width=4, capstyle="round")
         xs = self._bubble_x(xl, xh, w)
         focus = self.focus_get() is self
         for name, x, bx in (("lo", xl, xs[0]), ("hi", xh, xs[1])):
@@ -228,3 +250,9 @@ class _End:
             s.set_values(v, max(int(v), s.hi))
         else:
             s.set_values(min(int(v), s.lo), v)
+
+
+def _tint(color: str, k: float) -> str:
+    """Mezcla el color con blanco (k = 0 color puro, 1 blanco)."""
+    r, g, b = (int(color[i:i + 2], 16) for i in (1, 3, 5))
+    return "#%02X%02X%02X" % tuple(int(c + (255 - c) * k) for c in (r, g, b))

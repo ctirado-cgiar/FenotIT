@@ -1652,17 +1652,21 @@ class MainWindow:
         if getattr(self, "_hist_key", None) != key:
             self._hist_key = key
             from fenotit.core import colorspaces
-            ch = colorspaces.channel(img, self.cs_var.get(), int(self.ch_var.get()))
+            space, sel = self.cs_var.get(), int(self.ch_var.get())
+            chans = colorspaces.channels(img, space)
+            region = None
             if inc is not None or exc:
-                region = (inc > 0) if inc is not None else np.ones(ch.shape, bool)
+                region = (inc > 0) if inc is not None else np.ones(chans[0].shape, bool)
                 if exc:
                     region = region.astype(np.uint8)
                     cv2.fillPoly(region, [pts for pts, _ in exc], 0)
                     region = region > 0
-                vals = ch[region]
-            else:
-                vals = ch[::2, ::2]
-            self.histogram.set_data(vals)
+            vals = [c[region] if region is not None else c[::2, ::2] for c in chans]
+            colors = colorspaces.CHANNEL_COLORS.get(space, [COLORS["accent"]] * 3)
+            sel = min(sel, len(vals) - 1)
+            self.histogram.set_data(vals[sel], colors[sel],
+                                    [(v, colors[i]) for i, v in enumerate(vals) if i != sel])
+            self.range_slider.set_track(colors[sel])
         self.histogram.set_range(int(self.min_slider.get()), int(self.max_slider.get()))
 
     # ── Helpers layout ────────────────────────────────────────────────────────
