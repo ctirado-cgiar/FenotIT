@@ -196,7 +196,15 @@ def _expand(d, s, w, color):
         d.line((x1, y1, x1, y1 + sy * h), fill=color, width=w)
 
 
-_DRAW = {"palette": _palette, "dock_up": _dock_up, "expand": _expand, "inspect": _inspect, "list": _list, "grid": _grid, "tune": _tune,
+def _home(d, s, w, color):
+    """Casa: techo y cuerpo con puerta."""
+    m = s * 0.16
+    d.line((m, s * 0.5, s / 2, m, s - m, s * 0.5), fill=color, width=w, joint="curve")
+    d.line((s * 0.26, s * 0.42, s * 0.26, s - m, s * 0.74, s - m, s * 0.74, s * 0.42), fill=color, width=w)
+    d.line((s * 0.44, s - m, s * 0.44, s * 0.64, s * 0.56, s * 0.64, s * 0.56, s - m), fill=color, width=w)
+
+
+_DRAW = {"home": _home, "palette": _palette, "dock_up": _dock_up, "expand": _expand, "inspect": _inspect, "list": _list, "grid": _grid, "tune": _tune,
          "panel_left": lambda d, s, w, c: _panel(d, s, w, c, "left"),
          "panel_right": lambda d, s, w, c: _panel(d, s, w, c, "right"),
          "panel_bottom": lambda d, s, w, c: _panel(d, s, w, c, "bottom"), "select": _select,

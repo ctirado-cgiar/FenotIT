@@ -379,6 +379,8 @@ class MainWindow:
         self._saved_state = self._collect_state()
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         self._update_title()
+        if not settings.get("tour_seen", False):            # primera vez que se abre la app
+            self.root.after(1800, lambda: not self.project.images and self._start_tour())
 
     # ── Estado del proyecto ───────────────────────────────────────────────────
 
@@ -700,6 +702,14 @@ class MainWindow:
             return
         self._apply_project(Project(name=t("project.untitled")))
 
+    def _go_home(self):
+        """Volver a la pantalla de inicio (proyectos recientes); pregunta si guardar."""
+        if not self.project.images:
+            return
+        if not self._confirm_discard():
+            return
+        self._apply_project(Project(name=t("project.untitled")))
+
     def _open_project(self):
         if not self._confirm_discard():
             return
@@ -973,23 +983,31 @@ class MainWindow:
     # ── Topbar ────────────────────────────────────────────────────────────────
 
     def _build_topbar(self):
+        size = max(16, int(round(18 * self.root.winfo_fpixels("1i") / 96)))
+        home = IconButton(self.topbar, "home", self._go_home, t("menu.home"), bg=COLORS["bg_topbar"],
+                          hover="#3a7cc4", active="#0d3f75", size=size)
+        home.pack(side=tk.LEFT, padx=(8, 0), pady=6)
+        brand = []
         try:
             ico  = _assets() / "logo.ico"
             img  = Image.open(str(ico)).resize((26, 26), Image.LANCZOS)
             self._topbar_logo = ImageTk.PhotoImage(img)
-            tk.Label(self.topbar, image=self._topbar_logo,
-                     bg=COLORS["bg_topbar"]).pack(
-                         side=tk.LEFT, padx=(10, 2), pady=6)
+            brand.append(tk.Label(self.topbar, image=self._topbar_logo, bg=COLORS["bg_topbar"], cursor="hand2"))
+            brand[-1].pack(side=tk.LEFT, padx=(6, 2), pady=6)
         except Exception:
             _log.debug("ignorado", exc_info=True)
 
-        tk.Label(self.topbar, text=APP_NAME,
-                 bg=COLORS["bg_topbar"], fg="#FFFFFF",
-                 font=("Segoe UI", 12, "bold")).pack(
-                     side=tk.LEFT, padx=(0, 8))
+        brand.append(tk.Label(self.topbar, text=APP_NAME, bg=COLORS["bg_topbar"], fg="#FFFFFF",
+                              font=("Segoe UI", 12, "bold"), cursor="hand2"))
+        brand[-1].pack(side=tk.LEFT, padx=(0, 8))
+        for w in brand:                                    # como en la mayoría de apps: el logo lleva al inicio
+            w.bind("<Button-1>", lambda e: self._go_home())
+            Tooltip(w, t("menu.home"))
         self._vdiv()
 
         self._drop(self.topbar, t("menu.file"), [
+            (t("menu.home"), self._go_home),
+            None,
             (t("menu.new_project"), self._new_project, "Ctrl+N"),
             (t("menu.open_project"), self._open_project, "Ctrl+Shift+O"),
             (t("menu.save_project"), self._save_project, "Ctrl+S"),
@@ -1054,7 +1072,6 @@ class MainWindow:
         ])
         self._drop(self.topbar, t("menu.help"), [
             (t("tour.menu"), self._start_tour),
-            (t("tour.menu_restart"), lambda: self._start_tour(True)),
             (t("help.shortcuts"), self._show_shortcuts, "F1"),
             (t("help.log"), self._open_log_folder),
             None,
@@ -1117,11 +1134,30 @@ class MainWindow:
 
     # ── Recorrido guiado ──────────────────────────────────────────────────────
 
-    def _start_tour(self, from_start: bool = False):
+    def _start_tour(self):
+        """Un solo recorrido guiado: en la pantalla de inicio explica esa pantalla; con un
+        proyecto abierto empieza en lo que le toca hacer al usuario (Anterior lleva a lo de antes)."""
         from fenotit.gui.tour import Step, Tour
         if getattr(self, "_tour", None):
             return
-        settings.set("tour_seen", True)
+
+        def done():
+            self._tour = None
+        start = getattr(self, "_start", None)
+        if start is not None and start.winfo_ismapped():
+            settings.set("tour_seen", True)
+            tg = start.targets
+            steps = [Step(t("tour.home.title"), t("tour.home.text")),
+                     Step(t("tour.new.title"), t("tour.new.text"), lambda: tg.get("new")),
+                     Step(t("tour.open.title"), t("tour.open.text"), lambda: tg.get("open")),
+                     Step(t("tour.recent.title"), t("tour.recent.text"), lambda: tg.get("recent"),
+                          lambda: tg.get("recent") is not None),
+                     Step(t("tour.lang.title"), t("tour.lang.text"), lambda: tg.get("language")),
+                     Step(t("tour.help.title"), t("tour.help.text"), lambda: tg.get("help"))]
+            self._tour = Tour(self.root, steps, on_close=done)
+            self._tour.start()
+            return
+        settings.set("tour_work_seen", True)
         menus = getattr(self, "_menus", {})
         has_photo = lambda: bool(self.current_image_path)
         panel_on = lambda: self.right_panel.winfo_ismapped() and getattr(self, "_analysis_chosen", False)
@@ -1146,7 +1182,7 @@ class MainWindow:
             Step(t("tour.end.title"), t("tour.end.text"), key="end"),
         ]
         # empieza donde está el usuario: lo siguiente que le toca hacer
-        if from_start or not has_photo():
+        if not has_photo():
             at = "welcome"
         elif results():
             at = "layers"
@@ -1154,9 +1190,6 @@ class MainWindow:
             at = "segment" if self._uses_threshold() else "params"
         else:
             at = "areas"
-
-        def done():
-            self._tour = None
         self._tour = Tour(self.root, steps, on_close=done)
         self._tour.start(at)
 
@@ -1464,7 +1497,8 @@ class MainWindow:
         from fenotit.gui.start_screen import StartScreen
         self._start = StartScreen(cf, COLORS, FONTS, self._open_image, self._open_folder,
                                   self._open_project, self._open_recent,
-                                  links=((t("menu.language"), self._choose_language), (t("menu.about"), self._about)))
+                                  links=((t("menu.language"), self._choose_language), (t("menu.about"), self._about),
+                                         (t("start.help"), self._start_tour)))
         self._build_view_controls()
 
         # Tabla y gráficos: pestañas propias; ocultar deja solo las pestañas (al tocarlas se
@@ -1880,8 +1914,8 @@ class MainWindow:
         self._update_start()
         self._load_single(new[0])
         self._sync_listbox()
-        if not settings.get("tour_seen", False):          # primera vez con fotos: recorrido guiado
-            self.root.after(1500, lambda: self._start_tour(True))
+        if not settings.get("tour_work_seen", False):     # primera vez con fotos: recorrido guiado
+            self.root.after(1500, self._start_tour)
 
     def _remove_current_image(self):
         path = self.current_image_path
