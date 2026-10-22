@@ -303,7 +303,7 @@ def classes(ctx, p):
             continue
         img[f"{c}_pct"] = round(100 * total[i] / s, 2)
         img[f"{c}_area_{u}2"] = round(total[i] * f * f, d2)
-    ctx.tables["classes"] = [{"class": names[i], "pct": round(100 * total[i] / s, 2),
+    ctx.tables["classes"] = [{"class": names[i], "background": int(i == 0), "pct": round(100 * total[i] / s, 2),
                               f"area_{u}2": round(total[i] * f * f, d2), "color": (p["colors"] or [""] * 99)[i]}
                              for i in range(len(names)) if i or total[0]]
     # vista: los colores de las clases dentro de cada objeto, sobre la foto atenuada

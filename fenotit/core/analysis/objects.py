@@ -162,8 +162,10 @@ def _legend_spec(key: str, ctx) -> dict | None:
     if key == "classes":
         rows = []
         for r in ctx.tables.get("classes", []):
+            if r.get("background") or r["pct"] < 0.05:
+                continue                                   # el fondo dentro de los objetos no va en la leyenda
             h = (r.get("color") or "#888888").lstrip("#")
-            rows.append((f"{r['class']}  {r['pct']:.1f} %", (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))))
+            rows.append((f"{r['class']}  {r['pct']:.1f} %", (int(h[4:6], 16), int(h[2:4], 16), int(h[0:2], 16))))
         return {"title": t("step.classes"), "rows": rows} if rows else None
     if key == "shape":
         shapes = ctx.tables.get("object_shape", [])

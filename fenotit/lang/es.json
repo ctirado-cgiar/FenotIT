@@ -490,7 +490,7 @@
   "status.folder_loaded": "{n} imágenes — {folder}",
   "status.loading_photo": "Cargando la foto…",
   "status.preparing_view": "Preparando la vista…",
-  "status.preview": "● preview  {px} px  ({pct}%)",
+  "status.preview": "● máscara  {px} px  ({pct} %)",
   "status.ready": "Listo",
   "status.reused": "reutilizado sin recalcular: {items}",
   "status.running": "Ejecutando {name}…",
@@ -628,7 +628,7 @@
   "prefs.every_min": "Cada {n} min",
   "prefs.autosave_help": "Cada tantos minutos, si hay cambios sin guardar, se guarda una copia aparte del proyecto (no se toca tu archivo). Si la app se cierra sin guardar (se traba, se va la luz), al abrirla de nuevo te ofrece recuperar ese trabajo.",
   "recovery.title": "Recuperar trabajo",
-  "recovery.msg": "La última vez la app se cerró sin guardar «{name}» ({n} imágenes, copia del {when}).\n\n¿Recuperarlo?\n\nSí = abrirlo · No = descartar la copia · Cancelar = decidir después",
+  "recovery.msg": "La última vez la app se cerró sin guardar «{name}» ({n} imágenes). Hay una copia del {when}.",
   "undo.corrections": "correcciones",
   "undo.scale": "escala",
   "undo.clear_images": "quitar todas las imágenes",
@@ -703,5 +703,8 @@
   "sam.done": "{n} objetos en {s} s",
   "sam.failed": "No se pudo: {error}",
   "refine.size": "Tamaño",
-  "refine.times": "Veces"
+  "refine.times": "Veces",
+  "recovery.recover": "Recuperar",
+  "recovery.discard": "Descartar copia",
+  "recovery.later": "Más tarde"
 }
