@@ -22,6 +22,30 @@ def roi(ctx, p):
     ctx.mask = mask
 
 
+MORPH_OPS = ("none", "erode", "dilate", "open", "close")
+_CV_OPS = {"erode": cv2.MORPH_ERODE, "dilate": cv2.MORPH_DILATE, "open": cv2.MORPH_OPEN, "close": cv2.MORPH_CLOSE}
+
+
+def morph(mask: np.ndarray, op: str, size: int = 3, iterations: int = 1) -> np.ndarray:
+    """Operación morfológica sobre la máscara con un elemento circular de `size` px."""
+    if op not in _CV_OPS or size < 1 or iterations < 1:
+        return mask
+    size = int(size) | 1                                   # impar: centrado en el píxel
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (size, size))
+    return cv2.morphologyEx(mask, _CV_OPS[op], kernel, iterations=int(iterations))
+
+
+@step("morphology", "processor", requires=("mask",), provides=("mask",), params=[
+    {"key": "op", "type": "choice", "default": "none", "options": list(MORPH_OPS)},
+    {"key": "size", "type": "int", "default": 3, "min": 1, "max": 99},
+    {"key": "iterations", "type": "int", "default": 1, "min": 1, "max": 20},
+])
+def morphology(ctx, p):
+    """Erosión, dilatación, apertura (quita salientes y ruido) o cierre (une grietas y
+    rellena huecos pequeños) de la máscara, antes de separar los objetos."""
+    ctx.mask = morph(ctx.mask, p["op"], int(p["size"]), int(p["iterations"]))
+
+
 @step("clean", "processor", requires=("mask",), provides=("mask",), params=[
     {"key": "open_iterations", "type": "int", "default": 0, "min": 0, "max": 10},
     {"key": "fill_holes", "type": "bool", "default": True},
