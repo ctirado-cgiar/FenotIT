@@ -48,7 +48,15 @@ The user can draw, per photo or for all photos, rectangles or polygons (coordina
 relative to the image size, 0–1). The mask keeps only the union of the analysis areas, minus
 the excluded areas: $B \leftarrow B \land R_{incl} \land \lnot R_{excl}$.
 
-## 2.5 Cleaning
+## 2.5 Morphological operations
+
+Before objects are separated, the user may apply one morphological operation to the mask
+(Soille, 2003) with a circular structuring element $K$ of diameter $d$ px, repeated $n$ times:
+erosion $B \ominus K$, dilation $B \oplus K$, opening $(B \ominus K) \oplus K$ (removes specks and
+thin protrusions) or closing $(B \oplus K) \ominus K$ (fills cracks and small gaps). The
+operation is applied after the analysis areas and before hole filling.
+
+## 2.6 Cleaning
 
 Holes inside objects (e.g. a bright hilum) are filled when their area is smaller than
 0.2 × the median area of the connected components; larger holes are kept, because they are

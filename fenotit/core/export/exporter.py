@@ -148,7 +148,9 @@ def metadata(analysis: str, results: dict[str, Any], project=None, extra: dict |
                  ("objects_excluded_manually", sum(len(v) for v in getattr(project, "excluded", {}).values())),
                  ("objects_highlighted", sum(len(v) for v in getattr(project, "highlighted", {}).values())),
                  ("segmentation", f"{seg.color_space} channel {seg.channel} "
-                                  + ("Otsu" if seg.auto else f"{seg.min_val}-{seg.max_val}")),
+                                  + ("Otsu" if seg.auto else f"{seg.min_val}-{seg.max_val}")
+                                  + (f"; {seg.morph_op} {seg.morph_size}px x{seg.morph_iter}"
+                                     if getattr(seg, "morph_op", "none") != "none" else "")),
                  ("corrections", ", ".join(corr.active()) or "none"),
                  ("max_megapixels", project.max_mpx or "full"),
                  ("preset", "none")]

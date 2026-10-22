@@ -24,6 +24,9 @@ class Segmentation:
     min_val: int = 0
     max_val: int = 255
     auto: bool = False            # umbral automático (Otsu) en el canal elegido
+    morph_op: str = "none"        # none | erode | dilate | open | close
+    morph_size: int = 3           # px (elemento circular)
+    morph_iter: int = 1
 
 
 @dataclass
@@ -202,7 +205,8 @@ class Project:
             current_index=int(d.get("current_index", 0)),
             mode=d.get("mode", "individual"),
             analysis=d.get("analysis"),
-            segmentation=Segmentation(**d.get("segmentation", {})),
+            segmentation=Segmentation(**{k: v for k, v in (d.get("segmentation") or {}).items()
+                                         if k in Segmentation.__dataclass_fields__}),
             scale=Scale(**d.get("scale", {})),
             unit=d.get("unit", "mm"),
             params=d.get("params", {}) or {},

@@ -52,7 +52,11 @@ def object_chain(params: dict) -> list[dict]:
         seg = {"step": "threshold", "params": {"color_space": space, "channel": channel,
                                                "min_val": int(params.get("min_val", 0)),
                                                "max_val": int(params.get("max_val", 255))}}
-    chain = [seg, {"step": "roi"}, {"step": "clean"},
+    morph = [{"step": "morphology", "params": {"op": params["morph_op"],
+                                               "size": int(params.get("morph_size", 3)),
+                                               "iterations": int(params.get("morph_iter", 1))}}] \
+        if params.get("morph_op", "none") != "none" else []
+    chain = [seg, {"step": "roi"}, *morph, {"step": "clean"},
              {"step": "separate"} if params.get("touching") else {"step": "label"},
              {"step": "filter", "params": {"exclude_border": bool(params.get("exclude_border", True)),
                                            "drop_points": [list(map(float, pt)) for pt in params.get("drop_points") or []],

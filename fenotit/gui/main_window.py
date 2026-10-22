@@ -631,7 +631,8 @@ class MainWindow:
         self._store_panel_params()
         self.project.segmentation = Segmentation(
             self.cs_var.get(), int(self.ch_var.get()),
-            int(self.min_slider.get()), int(self.max_slider.get()), bool(self.auto_var.get()))
+            int(self.min_slider.get()), int(self.max_slider.get()), bool(self.auto_var.get()),
+            *self._morph_values())
         return self.project.to_dict()
 
     def _is_dirty(self) -> bool:
@@ -776,6 +777,8 @@ class MainWindow:
         self.ch_var.set(seg.channel)
         self._sync_sliders(seg.min_val, seg.max_val)
         self.auto_var.set(seg.auto)
+        self._set_morph(seg.morph_op, seg.morph_size, seg.morph_iter)
+        self._morph_last = self._morph_values()
         self._on_auto_change()
         self.legend_var.set(project.display.get("legend", True))
         self._paint_pos_grid()
@@ -1254,6 +1257,11 @@ class MainWindow:
             if exc:
                 mask = mask.copy()
                 cv2.fillPoly(mask, [pts for pts, _ in exc], 0)
+            op, size, it = self._morph_values()
+            if op != "none":                           # misma operación que el análisis, a la escala de la vista previa
+                from fenotit.core.pipeline.steps.objects import morph
+                k = img_original.shape[1] / self.scaler_left.original.shape[1]
+                mask = morph(mask, op, max(1, round(size * k)), it)
 
             from fenotit.core.pipeline import overlay as marks
             colors = marks.resolve(self.project.display.get("style"), img_original, mask)
@@ -1608,6 +1616,63 @@ class MainWindow:
         self.max_slider = self.range_slider.end("hi")
         self.histogram = ChannelHistogram(box, on_drag=self._on_hist_drag, bg=bg)
         self.histogram.pack(fill=tk.X)
+        self._build_morph_row(box)
+
+    MORPH_OPS = ("none", "erode", "dilate", "open", "close")
+
+    def _build_morph_row(self, box):
+        """Operación morfológica sobre la máscara (una sola, con tamaño y repeticiones)."""
+        bg, small = COLORS["bg_panel"], FONTS["small"]
+        row = tk.Frame(box, bg=bg)
+        row.pack(fill=tk.X, pady=(6, 0))
+        tk.Label(row, text=t("morph.title"), bg=bg, fg=COLORS["text_muted"], font=small).pack(side=tk.LEFT)
+        HelpIcon(row, t("morph.title"), t("morph.help"), bg=bg).pack(side=tk.LEFT, padx=(4, 6))
+        self._morph_labels = {k: t(f"morph.{k}") for k in self.MORPH_OPS}
+        self.morph_var = tk.StringVar(value=self._morph_labels["none"])
+        cb = ttk.Combobox(row, textvariable=self.morph_var, values=list(self._morph_labels.values()),
+                          state="readonly", width=10, font=small)
+        cb.pack(side=tk.LEFT)
+        cb.bind("<<ComboboxSelected>>", lambda e: self._on_morph_change())
+        self._morph_opts = tk.Frame(box, bg=bg)
+        self.morph_size = tk.IntVar(value=3)
+        self.morph_iter = tk.IntVar(value=1)
+        for label, var, lo, hi in ((t("morph.size"), self.morph_size, 1, 99),
+                                   (t("morph.iter"), self.morph_iter, 1, 20)):
+            tk.Label(self._morph_opts, text=label, bg=bg, fg=COLORS["text_muted"], font=small).pack(side=tk.LEFT)
+            tk.Spinbox(self._morph_opts, from_=lo, to=hi, textvariable=var, width=4, font=small,
+                       command=self._on_morph_change).pack(side=tk.LEFT, padx=(3, 10))
+        for var in (self.morph_size, self.morph_iter):
+            var.trace_add("write", lambda *a: self.root.after_idle(self._on_morph_change))
+
+    def _morph_op(self) -> str:
+        label = self.morph_var.get()
+        return next((k for k, v in self._morph_labels.items() if v == label), "none")
+
+    def _morph_values(self) -> tuple[str, int, int]:
+        def num(var, default):
+            try:
+                return max(1, int(var.get()))
+            except (tk.TclError, ValueError):
+                return default
+        return self._morph_op(), num(self.morph_size, 3), num(self.morph_iter, 1)
+
+    def _set_morph(self, op: str, size: int, it: int):
+        self.morph_var.set(self._morph_labels.get(op, self._morph_labels["none"]))
+        self.morph_size.set(size)
+        self.morph_iter.set(it)
+        self._show_morph_opts()
+
+    def _show_morph_opts(self):
+        if self._morph_op() == "none":
+            self._morph_opts.pack_forget()
+        else:
+            self._morph_opts.pack(fill=tk.X, pady=(3, 0))
+
+    def _on_morph_change(self):
+        self._show_morph_opts()
+        if getattr(self, "_morph_last", None) != self._morph_values():
+            self._morph_last = self._morph_values()
+            self._on_slider_change()
 
     def _on_auto_change(self):
         """Otsu se ve de inmediato y deja Mín/Máx en su rango; moverlos después lo apaga."""
@@ -2143,6 +2208,7 @@ class MainWindow:
             p.update(self.config_panel.get_values())
             p["area_unit"] = getattr(self, "_panel_area_unit", "px")
         p["auto_threshold"] = bool(self.auto_var.get())
+        p["morph_op"], p["morph_size"], p["morph_iter"] = self._morph_values()
         info = self._corr_info.get(self.current_image_path)
         p["work_scale"] = round(info.work_k, 6) if info else 1.0
         return p
@@ -3039,7 +3105,7 @@ class MainWindow:
         import copy
         snap = {f: copy.deepcopy(getattr(self.project, f)) for f in self._UNDO_FIELDS}
         snap["_seg"] = (self.cs_var.get(), int(self.ch_var.get()), int(self.min_slider.get()),
-                        int(self.max_slider.get()), bool(self.auto_var.get()))
+                        int(self.max_slider.get()), bool(self.auto_var.get()), *self._morph_values())
         cp = getattr(self, "config_panel", None)
         snap["_params"] = (self._selected_analysis(), cp.get_values(warn=False) if cp else {})
         return snap
@@ -3122,14 +3188,18 @@ class MainWindow:
             if f != "images":
                 setattr(self.project, f, state[f])
         self.project.images = images
-        cs, ch, lo, hi, auto = state["_seg"]
-        if (cs, ch, lo, hi, auto) != (self.cs_var.get(), int(self.ch_var.get()), int(self.min_slider.get()),
-                                       int(self.max_slider.get()), bool(self.auto_var.get())):
+        cs, ch, lo, hi, auto, *mo = state["_seg"]
+        mo = tuple(mo) if mo else ("none", 3, 1)
+        if (cs, ch, lo, hi, auto, *mo) != (self.cs_var.get(), int(self.ch_var.get()), int(self.min_slider.get()),
+                                            int(self.max_slider.get()), bool(self.auto_var.get()),
+                                            *self._morph_values()):
             self.cs_var.set(cs)
             self._update_channel_names()
             self.ch_var.set(ch)
             self._sync_sliders(lo, hi)
             self.auto_var.set(auto)
+            self._set_morph(*mo)
+            self._morph_last = self._morph_values()
         name, values = state["_params"]
         if self.config_panel is not None and name == self._selected_analysis():
             self.config_panel.set_values(values)
