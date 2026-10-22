@@ -679,5 +679,9 @@
   "cls.failed": "no se pudo clasificar (ver registro)",
   "cls.preparing": "Juntando los ejemplos…",
   "undo.strokes": "trazos",
-  "undo.classes": "clases"
+  "undo.classes": "clases",
+  "param.objects.n_colors_auto.label": "Automático",
+  "param.objects.n_colors_auto.tip": "El número de colores lo decide cada objeto: el menor número con que cada píxel queda a menos de 5 ΔE00 (diferencia apenas visible) de su color, sin separar colores que se ven iguales (a menos de 10 ΔE00) ni colores de menos del 1 % del objeto. «Número de colores» pasa a ser el máximo (hasta 10). Así un objeto parejo da 1-2 colores y uno manchado más; el número queda en la columna n_colors.",
+  "param.image_color.n_colors_auto.label": "Automático",
+  "param.image_color.n_colors_auto.tip": "El número de colores lo decide cada objeto: el menor número con que cada píxel queda a menos de 5 ΔE00 (diferencia apenas visible) de su color, sin separar colores que se ven iguales (a menos de 10 ΔE00) ni colores de menos del 1 % del objeto. «Número de colores» pasa a ser el máximo (hasta 10). Así un objeto parejo da 1-2 colores y uno manchado más; el número queda en la columna n_colors."
 }

@@ -13,7 +13,8 @@ _CACHE = pipeline.ChainCache(size=2)
 
 def build_chain(params: dict) -> list[dict]:
     return [{"step": "whole"}, {"step": "roi"}, {"step": "label", "params": {"single": True}},
-            {"step": "color", "params": {"n_colors": int(params.get("n_colors", 5)), "edge_trim": 0}}]
+            {"step": "color", "params": {"n_colors": int(params.get("n_colors", 5)), "edge_trim": 0,
+                                         "auto": bool(params.get("n_colors_auto", False))}}]
 
 
 def run(image: np.ndarray, params: dict) -> AnalysisResult:
@@ -48,5 +49,6 @@ register(
     segmentation=None,
     params_schema=[
         {"key": "n_colors", "label": "Número de colores", "type": "int", "default": 5, "min": 1, "max": 20},
+        {"key": "n_colors_auto", "label": "Automático", "type": "bool", "default": False},
     ],
 )

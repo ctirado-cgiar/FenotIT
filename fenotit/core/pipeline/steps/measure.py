@@ -141,15 +141,48 @@ def _core(m: np.ndarray, trim: int) -> np.ndarray:
     return inner if inner.sum() >= 20 else m
 
 
+AUTO_ERR, AUTO_SEP, AUTO_SHARE = 5.0, 10.0, 0.01
+
+
+def auto_k(pixels_rgb: np.ndarray, kmax: int = 10, sample: int = 1500) -> int:
+    """Cuántos colores explican el objeto: el menor k cuyo error medio (ΔE00 de cada píxel
+    a su color) es ≤ 5, sin pasar el k en que dos colores quedan a menos de 10 ΔE00 (ya no
+    se distinguen a simple vista) o uno cubre menos del 1 %. Muestra fija (semilla 134)."""
+    from skimage.color import deltaE_ciede2000
+    px = np.asarray(pixels_rgb)
+    if len(px) > sample:
+        px = px[np.random.default_rng(134).choice(len(px), sample, replace=False)]
+    lab = cv2.cvtColor(px.reshape(-1, 1, 3).astype(np.float32) / 255, cv2.COLOR_RGB2LAB).reshape(-1, 3)
+    crit = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.1)
+    best = 1
+    for k in range(1, max(1, kmax) + 1):
+        if k > len(np.unique(px, axis=0)):
+            break
+        cv2.setRNGSeed(134)
+        _, lab_k, cen = cv2.kmeans(lab, k, None, crit, 3, cv2.KMEANS_PP_CENTERS)
+        lab_k = lab_k.ravel()
+        if k > 1:
+            share = np.bincount(lab_k, minlength=k) / len(lab_k)
+            sep = min(deltaE_ciede2000(cen[i], cen[j]) for i in range(k) for j in range(i + 1, k))
+            if sep < AUTO_SEP or share.min() < AUTO_SHARE:
+                break
+        best = k
+        if float(np.mean(deltaE_ciede2000(lab, cen[lab_k]))) <= AUTO_ERR:
+            break
+    return best
+
+
 @step("color", "measurement", requires=("labels",), params=[
     {"key": "n_colors", "type": "int", "default": 3, "min": 1, "max": 20},
+    {"key": "auto", "type": "bool", "default": False},
     {"key": "edge_trim", "type": "int", "default": -1, "min": -1, "max": 50},
     {"key": "mode", "type": "choice", "choices": ["object", "pooled"], "default": "object"},
 ])
 def color(ctx, p):
     """Colores dominantes (KMeans). mode="object": cada objeto con su propia paleta;
     mode="pooled": una paleta común a todos los objetos y el % de cada color en cada
-    objeto (comparables entre objetos). Sin el borde del objeto (edge_trim px; -1 = auto)."""
+    objeto (comparables entre objetos). Sin el borde del objeto (edge_trim px; -1 = auto).
+    auto: el número de colores lo decide cada objeto (auto_k; n_colors = máximo)."""
     rgb_img = cv2.cvtColor(ctx.image, cv2.COLOR_BGR2RGB)
     rows = ctx.object_rows()
     k = int(p["n_colors"])
@@ -171,7 +204,10 @@ def color(ctx, p):
         ctx.images["color"] = view
         return
     all_px = np.concatenate([o[3] for o in objs])
-    shared, shared_lab = _kmeans(all_px, k)
+    auto = bool(p.get("auto"))
+    shared, shared_lab = _kmeans(all_px, auto_k(all_px, min(k, 10)) if auto else k)
+    if auto:
+        ctx.image_row()["n_colors"] = len(shared)
     ctx.tables["image_colors"] = [{"cluster": i, **_color_row(c, frac)}
                                   for i, (c, frac) in enumerate(shared, 1)]
     start = 0
@@ -182,8 +218,10 @@ def color(ctx, p):
             clusters = [(shared[j][0], counts[j] / max(len(px), 1)) for j in range(len(shared))]
             palette = np.array([c[::-1] for c, _ in shared], np.uint8)
         else:
-            clusters, lab = _kmeans(px, k)
+            clusters, lab = _kmeans(px, auto_k(px, min(k, 10)) if auto else k)
             palette = np.array([c[::-1] for c, _ in clusters], np.uint8)
+            if auto:
+                rows[oid]["n_colors"] = len(clusters)
         start += len(px)
         for i, (c, frac) in enumerate(clusters, 1):
             per_obj.append({"object_id": oid, "cluster": i, **_color_row(c, frac)})

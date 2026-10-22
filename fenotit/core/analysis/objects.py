@@ -73,6 +73,7 @@ def build_chain(params: dict) -> list[dict]:
         chain.append({"step": "shape", "params": {"harmonics": int(params.get("harmonics", 20))}})
     if params.get("measure_color"):
         chain.append({"step": "color", "params": {"n_colors": int(params.get("n_colors", 3)),
+                                                  "auto": bool(params.get("n_colors_auto", False)),
                                                   "mode": params.get("color_mode", "object")}})
     seg = segmentation(params)
     if seg.get("method") == "classifier" and params.get("measure_classes", True):
@@ -243,6 +244,8 @@ register(
         {"key": "color_mode", "label": "Colores", "type": "choice", "choices": ["object", "pooled"],
          "default": "object", "group": "measure_color"},
         {"key": "n_colors", "label": "Número de colores", "type": "int", "default": 3, "min": 1, "max": 20,
+         "group": "measure_color"},
+        {"key": "n_colors_auto", "label": "Automático", "type": "bool", "default": False,
          "group": "measure_color"},
         {"key": "measure_classes", "label": "Área por clase", "type": "bool", "default": True,
          "segmentation": "classifier"},
