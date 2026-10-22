@@ -31,7 +31,7 @@ def test_roundtrip():
         assert q.corrections == p.corrections
         assert q.corrections.color.place == p.corrections.color.place
         assert not q.missing_images()
-        assert (q.folder / "calibration").is_dir() and (q.folder / "results").is_dir()
+        assert not (q.folder / "calibration").exists() and not (q.folder / "results").exists()   # sin carpetas vacías
         assert q.file.name == "Ensayo.fenotit" and q.file.exists()
         assert Project.load(q.file).name == "Ensayo"
 
