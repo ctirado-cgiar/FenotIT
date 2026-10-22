@@ -1,6 +1,6 @@
 """Recorrido guiado (como driver.js): oscurece la ventana salvo el elemento del paso, lo
 enmarca en azul y muestra al lado un globo con título, texto y Anterior / Siguiente /
-Cerrar. El elemento resaltado sigue funcionando: el usuario puede probarlo durante el paso.
+Cerrar. Durante el recorrido solo responden Anterior / Siguiente / Terminar (el elemento se ve, no se toca).
 
 El oscurecido son cuatro ventanas semitransparentes alrededor del hueco (Tk no recorta
 ventanas), así que funciona igual en Windows y en Linux con compositor."""
@@ -26,6 +26,7 @@ class Step:
     target: Callable[[], tk.Widget | None] | None = None     # None = globo centrado, sin hueco
     when: Callable[[], bool] | None = None                   # si devuelve False, el paso se salta
     before: Callable[[], None] | None = None                  # preparar la pantalla (abrir un panel…)
+    key: str = ""                                              # para empezar en un paso concreto
 
 
 class Tour:
@@ -36,12 +37,16 @@ class Tour:
         self._shades: list[tk.Toplevel] = []
         self._ring: list[tk.Toplevel] = []
         self._pop: tk.Toplevel | None = None
-        self._bind = None
+        self._binds: list[tuple[str, str]] = []
 
     # ── navegación ────────────────────────────────────────────────────────────
 
-    def start(self):
+    def start(self, at: str | None = None):
+        """at = clave del paso donde empezar (el que corresponde a lo que el usuario ya hizo);
+        Anterior sigue llevando a los pasos de antes."""
         self._build()
+        keys = [s.key for s in self.steps]
+        self.i = keys.index(at) - 1 if at in keys else -1
         self._go(+1)
 
     def _go(self, d: int):
@@ -62,10 +67,13 @@ class Tour:
         self._show()
 
     def close(self):
-        if self._bind:
-            self.root.unbind("<Configure>", self._bind)
-            self._bind = None
-        for w in self._shades + self._ring + ([self._pop] if self._pop else []):
+        for seq, fid in self._binds:
+            try:
+                self.root.unbind(seq, fid)
+            except tk.TclError:
+                pass
+        self._binds = []
+        for w in self._windows() if self._pop else []:
             try:
                 w.destroy()
             except tk.TclError:
@@ -91,6 +99,9 @@ class Tour:
     def _build(self):
         self._shades = [self._overlay("#000000", DIM) for _ in range(4)]
         self._ring = [self._overlay(COLORS["accent"], 1.0) for _ in range(4)]
+        # durante el recorrido solo se usan Anterior / Siguiente / Terminar: el elemento
+        # resaltado se ve pero no recibe clics (un menú abierto quedaría debajo del oscurecido)
+        self._glass = self._overlay("#FFFFFF", 0.01)
         pop = tk.Toplevel(self.root)
         pop.overrideredirect(True)
         pop.transient(self.root)
@@ -123,7 +134,38 @@ class Tour:
                      ("<Left>", lambda e: self._go(-1)), ("<Return>", lambda e: self._go(+1))):
             pop.bind(k, f)
         self._pop = pop
-        self._bind = self.root.bind("<Configure>", lambda e: self._place(), add="+")
+        # la ventana principal no debe tapar el recorrido: al hacer clic en ella (en el hueco o
+        # fuera de la app y volver) se suben de nuevo; al minimizarla se esconden con ella
+        for seq, fn in (("<Configure>", lambda e: e.widget is self.root and self._place()),
+                        ("<FocusIn>", lambda e: self._raise()),
+                        ("<ButtonRelease-1>", lambda e: self._raise()),
+                        ("<Unmap>", lambda e: e.widget is self.root and self._hide(True)),
+                        ("<Map>", lambda e: e.widget is self.root and self._hide(False))):
+            self._binds.append((seq, self.root.bind(seq, fn, add="+")))
+
+    def _windows(self):
+        return self._shades + self._ring + [self._glass] + ([self._pop] if self._pop else [])
+
+    def _raise(self):
+        if self._pop is None or getattr(self, "_raising", False):
+            return
+        self._raising = True
+
+        def go():
+            self._raising = False
+            for w in self._windows():
+                if w.winfo_exists():
+                    w.lift()
+        self.root.after(10, go)
+
+    def _hide(self, hidden: bool):
+        if self._pop is None:
+            return
+        for w in self._windows():
+            w.withdraw() if hidden else w.deiconify()
+        if not hidden:
+            self._raise()
+            self.root.after(30, self._place)
 
     # ── dibujo ────────────────────────────────────────────────────────────────
 
@@ -137,7 +179,7 @@ class Tour:
         last = pos == len(shown)
         self._next.config(text=t("tour.done") if last else t("tour.next"))
         self._prev.config(state=tk.NORMAL if pos > 1 else tk.DISABLED)
-        for w in self._shades + self._ring + [self._pop]:
+        for w in self._windows():
             w.lift()
         self._pop.update_idletasks()
         self._place()
@@ -177,6 +219,7 @@ class Tour:
                 (x0 - RING, y0, RING, y1 - y0), (x1, y0, RING, y1 - y0)] if hole else [(0, 0, 0, 0)] * 4
         for w, (x, y, ww, hh) in zip(self._ring, ring):
             _geom(w, x, y, ww, hh)
+        _geom(self._glass, x0, y0, x1 - x0, y1 - y0) if hole else _geom(self._glass, 0, 0, 0, 0)
         pw, ph = self._pop.winfo_reqwidth(), self._pop.winfo_reqheight()
         if not hole:
             px, py = rx + (rw - pw) // 2, ry + (rh - ph) // 2
