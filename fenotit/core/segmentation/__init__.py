@@ -101,7 +101,10 @@ def chain(seg: dict) -> list[dict]:
                                                  "detail": float(c.get("detail", 1.0))}}]
     elif method == "model":
         m = seg.get("model") or {}
-        steps = [{"step": "model_segment", "params": {k: v for k, v in m.items()}}]
+        steps = [{"step": "model_segment", "params": {"model": m.get("name", "mobilesam"),
+                                                      "mode": m.get("mode", "auto"),
+                                                      "grid": int(m.get("grid", 24)),
+                                                      "points": list(m.get("points") or [])}}]
     elif seg.get("auto"):
         steps = [{"step": "otsu", "params": {"color_space": seg.get("color_space", "BGR"),
                                              "channel": int(seg.get("channel", 0))}}]

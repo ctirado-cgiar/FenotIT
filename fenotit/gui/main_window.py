@@ -715,7 +715,8 @@ class MainWindow:
         return {"method": self._seg_method, "color_space": self.cs_var.get(), "channel": int(self.ch_var.get()),
                 "min_val": int(self.min_slider.get()), "max_val": int(self.max_slider.get()),
                 "auto": bool(self.auto_var.get()), "refine": self.refine_list.get(),
-                "classes": self.class_list.get(), "detail": self._detail()}
+                "classes": self.class_list.get(), "detail": self._detail(),
+                "model": {"name": "mobilesam", "mode": self.model_mode.get(), "grid": self._grid()}}
 
     def _set_seg_state(self, d: dict):
         self.cs_var.set(d.get("color_space", "BGR"))
@@ -726,6 +727,12 @@ class MainWindow:
         self.refine_list.set(d.get("refine") or [])
         self.class_list.set(d.get("classes") or self._default_classes())
         self.detail_var.set(self._detail_names.get(float(d.get("detail", 1.0)), self._detail_names[1.0]))
+        m = d.get("model") or {}
+        self.model_mode.set(m.get("mode", "auto"))
+        self.grid_var.set(self._grid_names.get(int(m.get("grid", 24)), self._grid_names[24]))
+        self._on_model_change(quiet=True)
+        if d.get("method") == "model" and "model" not in self._method_btns:
+            d = dict(d, method="threshold")               # sin el modelo instalado
         self._set_seg_method(d.get("method", "threshold"), quiet=True)
         self.strokes.colors = [c["color"] for c in self.class_list.classes]
         self._update_seg_tab()
@@ -740,6 +747,9 @@ class MainWindow:
         segmentación por ejemplos se agregan al correr (_with_examples)."""
         d = self._seg_state()
         seg = {k: d[k] for k in ("method", "color_space", "channel", "min_val", "max_val", "auto", "refine")}
+        if d["method"] == "model":
+            seg["model"] = dict(d["model"], points=self.project.prompts.get(
+                self.project.key(self.current_image_path), []) if self.current_image_path else [])
         if d["method"] == "classifier":
             seg["classifier"] = {"names": [c["name"] for c in d["classes"]],
                                  "colors": [c["color"] for c in d["classes"]],
@@ -1526,6 +1536,9 @@ class MainWindow:
             if self._seg_method == "classifier":
                 self._classifier_preview(img, inc, exc)
                 return
+            if self._seg_method == "model":
+                self._model_preview(img, inc, exc)
+                return
             if self.auto_var.get():                   # Otsu solo con el área de análisis
                 ctx = pipeline.run(img, [{"step": "otsu", "params": {
                     "color_space": self.cs_var.get(), "channel": int(self.ch_var.get())}}], roi=inc, exclusions=exc)
@@ -1743,8 +1756,9 @@ class MainWindow:
 
         self.areas = AreaEditor(self.canvas_left, self._on_areas_change)
         self.areas.on_done = self._on_roi_tool_done
-        from fenotit.gui.strokes import StrokeEditor
+        from fenotit.gui.strokes import PointEditor, StrokeEditor
         self.strokes = StrokeEditor(self.canvas_left, self._on_strokes_change)
+        self.prompts = PointEditor(self.canvas_left, self._on_prompts_change)
 
         # ZoomController sincroniza ambos canvas
         self.zoom_ctrl = ZoomController(
@@ -1755,7 +1769,7 @@ class MainWindow:
         self.zoom_ctrl.on_pick = self._pick_object
         self.zoom_ctrl.on_hover = self._hover_object
         # Referencia para que ZoomController informe al ROI
-        self.canvas_left._roi_selector_ref = _CanvasTools(self.areas, self.strokes)
+        self.canvas_left._roi_selector_ref = _CanvasTools(self.areas, self.strokes, self.prompts)
         self._build_area_tools()
 
         self._canvas_row = canvas_row
@@ -1908,7 +1922,8 @@ class MainWindow:
         bar.pack(fill=tk.X, padx=8, pady=(2, 4))
         self._seg_method = "threshold"
         self._method_btns = {}
-        for key in ("threshold", "classifier"):
+        from fenotit.core.segmentation import sam
+        for key in ("threshold", "classifier") + (("model",) if sam.available() else ()):
             b = tk.Label(bar, text=t(f"seg.method.{key}"), font=small, cursor="hand2", padx=8, pady=3,
                          highlightthickness=1)
             b.pack(side=tk.LEFT, padx=(0, 4))
@@ -1919,6 +1934,8 @@ class MainWindow:
         self._build_threshold_box(self._thr_box)
         self._cls_box = tk.Frame(rf, bg=bg)
         self._build_classifier_box(self._cls_box)
+        self._model_box = tk.Frame(rf, bg=bg)
+        self._build_model_box(self._model_box)
         self._refine_head = self._section_lbl(rf, t("refine.title"))
         HelpIcon(self._refine_head, t("refine.title").capitalize(), t("refine.help"), bg=bg).pack(side=tk.LEFT)
         from fenotit.gui.segment_widgets import RefineList
@@ -1934,15 +1951,15 @@ class MainWindow:
     def _update_seg_tab(self):
         """Si el análisis elegido no segmenta (Color de imagen), la pestaña lo dice."""
         uses = self._analysis_segments()
-        widgets = (self._seg_head, self._seg_bar, self._thr_box, self._cls_box, self._refine_head,
-                   self.refine_list, self._next_btn)
+        widgets = (self._seg_head, self._seg_bar, self._thr_box, self._cls_box, self._model_box,
+                   self._refine_head, self.refine_list, self._next_btn)
         if uses:
             self._seg_note.pack_forget()
             for w in widgets:
                 w.pack_forget()
             self._seg_head.pack(fill=tk.X)
             self._seg_bar.pack(fill=tk.X, padx=8, pady=(2, 4))
-            box = self._cls_box if self._seg_method == "classifier" else self._thr_box
+            box = {"classifier": self._cls_box, "model": self._model_box}.get(self._seg_method, self._thr_box)
             box.pack(fill=tk.X, padx=8, pady=(2, 4))
             self._refine_head.pack(fill=tk.X)
             self.refine_list.pack(fill=tk.X, padx=8, pady=(2, 6))
@@ -1989,6 +2006,10 @@ class MainWindow:
             and self._analysis_segments() and not (self.areas and self.areas.mode)
         st.active = on
         st.visible = on and bool(self.show_strokes_var.get())
+        pt = self.prompts
+        pt.active = self._seg_method == "model" and self.model_mode.get() == "points" and seg_tab \
+            and bool(self.current_image_path) and self._analysis_segments() and not (self.areas and self.areas.mode)
+        pt.redraw()
         st.colors = [c["color"] for c in self.class_list.classes]
         st.current = self.class_list.current
         st.brush = int(self.brush_var.get())
@@ -2205,6 +2226,139 @@ class MainWindow:
             seg["classifier"].update(samples=path, hash=key)
             self.root.after(0, lambda: then(params))
         threading.Thread(target=work, daemon=True).start()
+
+    # ── Modelo de IA (MobileSAM) ──────────────────────────────────────────────
+
+    def _grid(self) -> int:
+        return next((k for k, v in self._grid_names.items() if v == self.grid_var.get()), 24)
+
+    def _build_model_box(self, box):
+        bg, small = COLORS["bg_panel"], FONTS["small"]
+        head = tk.Frame(box, bg=bg)
+        head.pack(fill=tk.X)
+        tk.Label(head, text="MobileSAM", bg=bg, fg=COLORS["text"], font=("Segoe UI", 9, "bold")).pack(side=tk.LEFT)
+        HelpIcon(head, "MobileSAM", t("sam.help"), bg=bg).pack(side=tk.LEFT, padx=(4, 0))
+        self.model_mode = tk.StringVar(value="auto")
+        for key in ("auto", "points"):
+            tk.Radiobutton(box, text=t(f"sam.mode.{key}"), variable=self.model_mode, value=key, bg=bg,
+                           fg=COLORS["text"], selectcolor=COLORS["bg_card"], activebackground=bg, font=small,
+                           command=self._on_model_change).pack(anchor="w")
+        grow = tk.Frame(box, bg=bg)
+        tk.Label(grow, text=t("sam.grid"), bg=bg, fg=COLORS["text_muted"], font=small).pack(side=tk.LEFT)
+        self._grid_names = {16: t("sam.grid.16"), 24: t("sam.grid.24"), 32: t("sam.grid.32"), 48: t("sam.grid.48")}
+        self.grid_var = tk.StringVar(value=self._grid_names[24])
+        cb = ttk.Combobox(grow, textvariable=self.grid_var, values=list(self._grid_names.values()),
+                          state="readonly", width=16, font=small)
+        cb.pack(side=tk.LEFT, padx=4)
+        cb.bind("<<ComboboxSelected>>", lambda e: self._on_model_change())
+        HelpIcon(grow, t("sam.grid"), t("sam.grid_help"), bg=bg).pack(side=tk.LEFT)
+        self._grid_row = grow
+        arow = tk.Frame(box, bg=bg)
+        self._sam_actions = arow
+        self._sam_try = tk.Button(arow, text=t("sam.try"), command=self._sam_try_now, bg=COLORS["btn_bg"],
+                                  fg=COLORS["accent"], relief="flat", font=small, cursor="hand2", padx=8)
+        self._sam_clear = tk.Label(arow, text=t("sam.clear"), bg=bg, fg=COLORS["accent"], font=small, cursor="hand2")
+        self._sam_clear.bind("<Button-1>", lambda e: self._clear_prompts())
+        self.sam_status = tk.StringVar(value="")
+        self._sam_status_lbl = tk.Label(box, textvariable=self.sam_status, bg=bg, fg=COLORS["text_muted"],
+                                        font=small, justify="left", wraplength=240, anchor="w")
+        self._on_model_change(quiet=True)
+
+    def _on_model_change(self, quiet: bool = False):
+        auto = self.model_mode.get() == "auto"
+        for w in (self._grid_row, self._sam_actions, self._sam_status_lbl, self._sam_try, self._sam_clear):
+            w.pack_forget()
+        if auto:
+            self._grid_row.pack(fill=tk.X, pady=(4, 0))
+        self._sam_actions.pack(fill=tk.X, pady=(6, 0))
+        (self._sam_try if auto else self._sam_clear).pack(side=tk.LEFT)
+        self._sam_status_lbl.pack(fill=tk.X, pady=(4, 0))
+        self.sam_status.set(t("sam.hint_auto") if auto else t("sam.hint_points"))
+        if not quiet:
+            self._settings_changed()
+            self._update_stroke_tool()
+            self._on_slider_change()
+
+    def _on_prompts_change(self, points: list):
+        path = self.current_image_path
+        if not path:
+            return
+        self._remember("undo.prompts")
+        key = self.project.key(path)
+        if points:
+            self.project.prompts[key] = points
+        else:
+            self.project.prompts.pop(key, None)
+        self._on_slider_change()
+
+    def _clear_prompts(self):
+        path = self.current_image_path
+        if path and self.project.prompts.get(self.project.key(path)):
+            self._remember("undo.prompts")
+            self.project.prompts.pop(self.project.key(path), None)
+            self.prompts.set_points([])
+            self._on_slider_change()
+
+    def _sam_try_now(self):
+        self._sam_try_requested = True
+        self._show_preview()
+
+    def _model_preview(self, img, inc, exc):
+        """Con clics: al instante (el codificador corre una vez por foto). Automático: solo
+        al pedirlo con «Probar en esta foto» (tarda decenas de segundos)."""
+        from fenotit.core.segmentation import sam
+        full = self.scaler_left.original
+        auto = self.model_mode.get() == "auto"
+        pts = self.project.prompts.get(self.project.key(self.current_image_path), [])
+        key = (id(full), "auto", self._grid()) if auto else (id(full), "points", json.dumps(pts))
+        cached = getattr(self, "_sam_cache", None)
+        if cached is not None and cached[0] == key:
+            self._render_instances(img, cached[1], inc, exc)
+            return
+        self.zoom_ctrl.redraw_with_overlay(overlay_left=img)
+        self.preview_var.set("")
+        if auto and not getattr(self, "_sam_try_requested", False):
+            return
+        if not auto and not any(p[2] for p in pts):
+            self.sam_status.set(t("sam.hint_points"))
+            return
+        self._sam_try_requested = False
+        self._sam_gen = getattr(self, "_sam_gen", 0) + 1
+        gen, grid = self._sam_gen, self._grid()
+        self.sam_status.set(t("sam.working"))
+        self._sam_try.config(state=tk.DISABLED)
+
+        def work():
+            t0 = time.perf_counter()
+            try:
+                labels = sam.automatic(full, grid=grid) if auto else sam.from_points(full, pts)
+                secs = time.perf_counter() - t0
+                self.root.after(0, lambda: self._on_sam_done(gen, key, labels, secs))
+            except Exception as e:
+                _log.exception("MobileSAM")
+                msg = str(e)
+                self.root.after(0, lambda: (self.sam_status.set(t("sam.failed", error=msg)),
+                                            self._sam_try.config(state=tk.NORMAL)))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_sam_done(self, gen, key, labels, secs):
+        self._sam_try.config(state=tk.NORMAL)
+        if gen != getattr(self, "_sam_gen", 0):
+            return
+        self._sam_cache = (key, labels)
+        self.sam_status.set(t("sam.done", n=int(labels.max()), s=f"{secs:.1f}"))
+        self._show_preview()
+
+    def _render_instances(self, img, labels, inc, exc):
+        """Cada objeto que dio el modelo con su color (los vecinos se distinguen)."""
+        lab = cv2.resize(labels.astype(np.int32), (img.shape[1], img.shape[0]), interpolation=cv2.INTER_NEAREST)
+        mask = self._finish_mask(((lab > 0) * 255).astype(np.uint8), img, inc, exc)
+        rng = np.random.default_rng(7)
+        pal = rng.integers(60, 255, (int(lab.max()) + 1, 3)).astype(np.uint8)
+        colored = img.copy()
+        inside = mask > 0
+        colored[inside] = (0.45 * img[inside] + 0.55 * pal[lab[inside]]).astype(np.uint8)
+        self._show_mask_overlay(img, mask, colored)
 
     def _build_threshold_box(self, box):
         """Espacio de color, canal y rango (o Otsu), con vista previa en vivo."""
@@ -2513,6 +2667,7 @@ class MainWindow:
         self.project.excluded.pop(self.project.key(path), None)
         self.project.highlighted.pop(self.project.key(path), None)
         self.project.strokes.pop(self.project.key(path), None)
+        self.project.prompts.pop(self.project.key(path), None)
         self.project.images = images
         self.project.current_index = min(self.project.current_index, max(len(images) - 1, 0))
         self._update_batch_list()
@@ -2672,6 +2827,7 @@ class MainWindow:
         if self.areas:
             self.areas.set_shapes(self.project.roi_for(path))
         self.strokes.set_strokes(self.project.strokes.get(self.project.key(path)))
+        self.prompts.set_points(self.project.prompts.get(self.project.key(path)))
         self._update_stroke_tool()
         self._update_area_scope()
         self._on_slider_change()          # vista previa de la segmentación en la nueva imagen
@@ -2907,7 +3063,10 @@ class MainWindow:
         for path in paths:
             sc = self.project.scale_for(path)
             aruco = sc.source == "aruco"
-            jobs.append(batch.Job(path, dict(params, mm_per_pixel=None if aruco else sc.mm_per_pixel,
+            seg = params.get("segmentation") or {}
+            if seg.get("method") == "model":
+                seg = dict(seg, model=dict(seg["model"], points=self.project.prompts.get(self.project.key(path), [])))
+            jobs.append(batch.Job(path, dict(params, segmentation=seg, mm_per_pixel=None if aruco else sc.mm_per_pixel,
                                              roi_shapes=self.project.roi_for(path),
                                              drop_points=self.project.excluded_for(path),
                                              mark_points=self.project.marks_for("highlighted", path)),
@@ -3733,7 +3892,7 @@ class MainWindow:
 
     UNDO_MAX = 50
     _UNDO_FIELDS = ("roi", "image_roi", "image_scale", "excluded", "highlighted", "images",
-                    "scale", "unit", "max_mpx", "corrections", "metadata", "strokes")
+                    "scale", "unit", "max_mpx", "corrections", "metadata", "strokes", "prompts")
 
     def _snapshot(self) -> dict:
         """Lo que Ctrl+Z puede devolver: áreas, marcas, fotos de la lista, segmentación

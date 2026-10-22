@@ -87,14 +87,19 @@ class RefineList(tk.Frame):
                              cursor="hand2", padx=2)
                 b.pack(side=tk.RIGHT)
                 b.bind("<Button-1>", lambda e, c=cmd: c())
-            if REFINE_OPS[o["op"]]["size"]:
-                for key, label, hi in (("iter", "×", 20), ("size", "px", 99)):
+            if REFINE_OPS[o["op"]]["size"]:            # segunda línea: tamaño y veces
+                sub = tk.Frame(self._rows, bg=COLORS["bg_card"], highlightthickness=1,
+                               highlightbackground=COLORS["border"])
+                sub.pack(fill=tk.X, pady=(0, 1))
+                for key, label, unit, hi in (("size", t("refine.size"), "px", 99), ("iter", t("refine.times"), "", 20)):
                     var = tk.StringVar(value=str(o.get(key, 3 if key == "size" else 1)))
-                    tk.Label(row, text=label, bg=COLORS["bg_card"], fg=COLORS["text_muted"],
-                             font=small).pack(side=tk.RIGHT)
-                    sb = tk.Spinbox(row, from_=1, to=hi, textvariable=var, width=3, font=small,
-                                    command=lambda o=o, k=key, v=var, h=hi: self._set(o, k, v, h))
-                    sb.pack(side=tk.RIGHT, padx=(2, 0))
+                    tk.Label(sub, text=label, bg=COLORS["bg_card"], fg=COLORS["text_muted"],
+                             font=small).pack(side=tk.LEFT, padx=(14 if key == "size" else 8, 2))
+                    tk.Spinbox(sub, from_=1, to=hi, textvariable=var, width=3, font=small,
+                               command=lambda o=o, k=key, v=var, h=hi: self._set(o, k, v, h)).pack(side=tk.LEFT)
+                    if unit:
+                        tk.Label(sub, text=unit, bg=COLORS["bg_card"], fg=COLORS["text_muted"],
+                                 font=small).pack(side=tk.LEFT, padx=(2, 0))
                     var.trace_add("write", lambda *a, o=o, k=key, v=var, h=hi: self._set(o, k, v, h))
         self._muting = False
 

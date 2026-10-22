@@ -19,6 +19,7 @@ dependencies = [
     "scipy",
     "openpyxl",
     "pyyaml",
+    "onnxruntime",
 ]
 
 [project.scripts]
