@@ -175,8 +175,13 @@ class Project:
         if self.folder is None:
             raise ValueError("El proyecto no tiene carpeta")
         self.folder.mkdir(parents=True, exist_ok=True)
-        for sub in ("calibration", "results"):
-            (self.folder / sub).mkdir(exist_ok=True)
+        for sub in ("calibration", "results"):        # versiones anteriores las creaban vacías
+            d = self.folder / sub
+            try:
+                if d.is_dir() and not any(d.iterdir()):
+                    d.rmdir()
+            except OSError:
+                pass
         self.corrections.save_files(self.folder)
         with open(self.file, "w", encoding="utf-8") as f:
             yaml.safe_dump(self.to_dict(), f, allow_unicode=True, sort_keys=False)
