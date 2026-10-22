@@ -1,0 +1,58 @@
+digraph G {
+  graph [rankdir=TB, fontname="Helvetica", fontsize=11, nodesep=0.45, ranksep=0.55, pad=0.3, splines=spline, newrank=true,
+         label=<<b>Component diagram for the FenotIT desktop application</b><br/><font point-size="10">C4 model, level 3 (components). Arrows read in their direction.</font>>, labelloc=t, labeljust=l];
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=10, color="#3C7FC0", fillcolor="#85BBF0", fontcolor="#000000", margin="0.15,0.08", width=2.4];
+  edge [fontname="Helvetica", fontsize=9, color="#707070", fontcolor="#505050", arrowsize=0.7];
+
+  user [shape=box, style="rounded,filled", fillcolor="#08427B", color="#052E56", fontcolor="#FFFFFF",
+        label=<<b>Plant scientist or breeder</b><br/><font point-size="8">[Person]</font><br/><br/>Photographs samples and obtains<br/>trait tables without programming>];
+
+  subgraph cluster_app {
+    label=<<b>FenotIT desktop application</b><br/><font point-size="9">[Container: Python 3.12, tkinter]</font>>;
+    labeljust=l; style="dashed,rounded"; color="#444444"; fontname="Helvetica"; fontsize=11; margin=16;
+
+    gui [label=<<b>MainWindow</b><br/><font point-size="8">[Component: tkinter]</font><br/><br/>Photo list, input and result views,<br/>analysis panel, inspector, charts>];
+    project [label=<<b>Project</b><br/><font point-size="8">[Component: dataclass, YAML]</font><br/><br/>Photos, areas, scale, corrections<br/>and parameters of one experiment>];
+    batch [label=<<b>BatchRunner</b><br/><font point-size="8">[Component: ProcessPoolExecutor]</font><br/><br/>Analyzes photos in parallel<br/>worker processes; cancellable>];
+    corr [label=<<b>Corrections</b><br/><font point-size="8">[Component: OpenCV]</font><br/><br/>Lens distortion, perspective (ArUco),<br/>color card, scale, working resolution>];
+    engine [label=<<b>Pipeline engine</b><br/><font point-size="8">[Component: Python]</font><br/><br/>Runs a chain of steps on a shared<br/>Context; caches the common prefix>];
+    registry [label=<<b>Step registry</b><br/><font point-size="8">[Component: @step decorator]</font><br/><br/>Segmenters, processors and<br/>measurements found at start-up>];
+    stats [label=<<b>Statistics</b><br/><font point-size="8">[Component: NumPy]</font><br/><br/>Joins results with the user table;<br/>group summaries, mean shapes>];
+    export [label=<<b>Exporter</b><br/><font point-size="8">[Component: csv, openpyxl]</font><br/><br/>One table per level, workbook,<br/>metadata, annotated views>];
+  }
+
+  libs [fillcolor="#999999", color="#6B6B6B", fontcolor="#FFFFFF",
+        label=<<b>Scientific Python stack</b><br/><font point-size="8">[Software system]</font><br/><br/>OpenCV, NumPy, SciPy, scikit-image,<br/>scikit-learn, Matplotlib, Pillow>];
+  fs [fillcolor="#999999", color="#6B6B6B", fontcolor="#FFFFFF",
+      label=<<b>File system</b><br/><font point-size="8">[Storage]</font><br/><br/>Photos, project folder (.fenotit),<br/>exported results>];
+  onnx [style="rounded,dashed", fillcolor="#FFFFFF", color="#6B6B6B", fontcolor="#6B6B6B",
+        label=<<b>Trained models</b><br/><font point-size="8">[Planned: ONNX Runtime]</font><br/><br/>Object detection and<br/>segmentation by example>];
+
+  user -> gui [label="  selects photos, draws areas,\n  sets parameters"];
+  gui -> project [label="  reads and edits"];
+  gui -> engine [label="  analyzes the current photo\n  [background thread]"];
+  gui -> batch [label="  starts batch,\n  receives light results"];
+  batch -> corr [label="  corrects each photo"];
+  batch -> engine [label="  analyzes each photo\n  [worker process]"];
+  engine -> registry [label="  resolves steps and\n  checks requirements"];
+  registry -> libs [label="  image processing\n  and statistics"];
+  registry -> onnx [style=dashed, label="  loads models"];
+  gui -> stats [label="  groups results\n  for charts"];
+  gui -> export [label="  exports on request"];
+  export -> fs [label="  writes CSV, XLSX, PNG"];
+  project -> fs [label="  saves and opens YAML"];
+
+  { rank=same; batch; engine; }
+  { rank=same; stats; export; }
+  onnx -> k1 [style=invis];
+
+  subgraph cluster_key {
+    label=<<b>Key</b>>; labeljust=l; style="rounded"; color="#BBBBBB"; fontsize=9; margin=8;
+    k1 [label="Person", fillcolor="#08427B", color="#052E56", fontcolor="#FFFFFF", width=1.1, fontsize=8];
+    k2 [label="Component", width=1.1, fontsize=8];
+    k3 [label="External system", fillcolor="#999999", color="#6B6B6B", fontcolor="#FFFFFF", width=1.1, fontsize=8];
+    k4 [label="Planned", style="rounded,dashed", fillcolor="#FFFFFF", color="#6B6B6B", fontcolor="#6B6B6B", width=1.1, fontsize=8];
+    { rank=same; k1; k2; k3; k4; }
+    k1 -> k2 -> k3 -> k4 [style=invis];
+  }
+}
