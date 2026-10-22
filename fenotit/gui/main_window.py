@@ -763,19 +763,81 @@ class MainWindow:
             _log.exception("Error abriendo proyecto %s", path)
             messagebox.showerror(t("common.error"), t("project.open_error", error=e), parent=self.root)
             return
-        missing = project.missing_images()
-        if missing:
-            messagebox.showwarning(
-                t("project.missing_title"),
-                t("project.missing_msg", n=len(missing), total=len(project.images)) + "\n"
-                + "\n".join(str(m) for m in missing[:5])
-                + ("\n…" if len(missing) > 5 else ""), parent=self.root)
-            project.images = [p for p in project.images if p.exists()]
-            project.current_index = min(project.current_index, max(len(project.images) - 1, 0))
+        self._relinked = False
+        if project.missing_images() and not self._resolve_missing(project):
+            return
         self._apply_project(project)
+        if self._relinked:                                # rutas nuevas: el proyecto queda por guardar
+            self._saved_state = {}
+            self._update_title()
         if project.file:
             settings.add_recent_project(project.file)
         self._set_status(t("project.opened", path=project.file))
+
+    def _resolve_missing(self, project: Project) -> bool:
+        """Fotos que no están donde las dejó quien guardó el proyecto (otro computador,
+        carpeta movida o compartida). Se buscan por nombre en la carpeta que indique el
+        usuario (y sus subcarpetas); las que no aparezcan se pueden quitar. False = no abrir."""
+        from fenotit.core.project import find_by_name
+        relinked = 0
+        while True:
+            missing = project.missing_images()
+            if not missing:
+                break
+            ans = self._missing_dialog(len(missing), len(project.images), missing[:4], relinked)
+            if ans == "search":
+                folder = filedialog.askdirectory(title=t("missing.pick_folder"), parent=self.root)
+                if folder:
+                    relinked += project.relink(find_by_name(missing, folder))
+                continue
+            if ans == "remove":
+                project.images = [p for p in project.images if p.exists()]
+                project.current_index = min(project.current_index, max(len(project.images) - 1, 0))
+                break
+            return False
+        if relinked:
+            self._relinked = True                       # al abrir queda "con cambios": conviene guardar
+        return True
+
+    def _missing_dialog(self, n: int, total: int, examples: list, relinked: int) -> str | None:
+        """search | remove | None (cancelar)."""
+        win = tk.Toplevel(self.root)
+        win.title(t("missing.title"))
+        win.transient(self.root)
+        win.resizable(False, False)
+        win.configure(bg=COLORS["bg_panel"])
+        box = tk.Frame(win, bg=COLORS["bg_panel"], padx=18, pady=14)
+        box.pack(fill=tk.BOTH)
+        head = t("missing.found", k=relinked) + "  " if relinked else ""
+        tk.Label(box, text=head + t("missing.msg", n=n, total=total), bg=COLORS["bg_panel"], fg=COLORS["text"],
+                 font=FONTS["body"], justify="left", wraplength=420).pack(anchor="w")
+        tk.Label(box, text="\n".join(Path(p).name for p in examples) + ("\n…" if n > len(examples) else ""),
+                 bg=COLORS["bg_panel"], fg=COLORS["text_muted"], font=FONTS["small"], justify="left").pack(
+                     anchor="w", pady=(6, 10))
+        tk.Label(box, text=t("missing.hint"), bg=COLORS["bg_panel"], fg=COLORS["text_muted"], font=FONTS["small"],
+                 justify="left", wraplength=420).pack(anchor="w", pady=(0, 12))
+        res = {"v": None}
+
+        def pick(v):
+            res["v"] = v
+            win.destroy()
+        bar = tk.Frame(box, bg=COLORS["bg_panel"])
+        bar.pack(fill=tk.X)
+        btn = dict(relief="flat", bd=0, cursor="hand2", font=FONTS["body"], padx=12, pady=4)
+        tk.Button(bar, text=t("missing.search"), command=lambda: pick("search"), bg=COLORS["accent"], fg="#FFFFFF",
+                  activebackground=COLORS["accent"], activeforeground="#FFFFFF", **btn).pack(side=tk.LEFT)
+        tk.Button(bar, text=t("missing.remove"), command=lambda: pick("remove"), bg=COLORS["btn_bg"],
+                  fg=COLORS["accent"], **btn).pack(side=tk.LEFT, padx=6)
+        tk.Button(bar, text=t("common.cancel"), command=lambda: pick(None), bg=COLORS["btn_bg"],
+                  fg=COLORS["text"], **btn).pack(side=tk.RIGHT)
+        win.bind("<Escape>", lambda e: pick(None))
+        win.update_idletasks()
+        x = self.root.winfo_rootx() + (self.root.winfo_width() - win.winfo_width()) // 2
+        y = self.root.winfo_rooty() + (self.root.winfo_height() - win.winfo_height()) // 3
+        win.geometry(f"+{max(x, 0)}+{max(y, 0)}")
+        win.grab_set()
+        self.root.wait_window(win)
+        return res["v"]
 
     def _apply_project(self, project: Project):
         self._undo_stack, self._redo_stack, self._settled = [], [], None

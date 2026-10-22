@@ -230,3 +230,47 @@ class Project:
 
     def missing_images(self) -> list[Path]:
         return [p for p in self.images if not p.exists()]
+
+    def relink(self, found: dict) -> int:
+        """Cambia la ruta de las fotos movidas (vieja -> nueva) y de todo lo que se guarda por
+        foto (áreas, escala, marcas). Devuelve cuántas se cambiaron."""
+        old_new = {self.key(a): Path(b) for a, b in found.items()}
+        self.images = [old_new.get(self.key(p), p) for p in self.images]
+        for name in ("image_roi", "image_scale", "excluded", "highlighted"):
+            d = getattr(self, name)
+            setattr(self, name, {(self.key(old_new[k]) if k in old_new else k): v for k, v in d.items()})
+        return len(old_new)
+
+
+def find_by_name(missing: list, folder) -> dict:
+    """Busca en `folder` (y sus subcarpetas) cada foto que falta por su nombre de archivo, sin
+    distinguir mayúsculas. Si hay varias con el mismo nombre, elige la que comparte más
+    carpetas finales con la ruta original (p. ej. .../ensayo1/rep2/foto.jpg)."""
+    import os
+    wanted: dict[str, list[Path]] = {}
+    for p in missing:
+        wanted.setdefault(Path(p).name.lower(), []).append(Path(p))
+    candidates: dict[str, list[Path]] = {}
+    for root, _dirs, files in os.walk(folder):
+        for f in files:
+            k = f.lower()
+            if k in wanted:
+                candidates.setdefault(k, []).append(Path(root) / f)
+
+    def shared_tail(a: Path, b: Path) -> int:
+        n = 0
+        for x, y in zip(reversed(a.parent.parts), reversed(b.parent.parts)):
+            if x.lower() != y.lower():
+                break
+            n += 1
+        return n
+    found = {}
+    for name, olds in wanted.items():
+        cands = list(candidates.get(name, []))
+        for old in olds:
+            if not cands:
+                break
+            best = max(cands, key=lambda c: shared_tail(old, c))
+            found[old] = best
+            cands.remove(best)
+    return found
