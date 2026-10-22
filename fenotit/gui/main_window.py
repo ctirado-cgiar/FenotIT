@@ -30,7 +30,7 @@ from fenotit.core.project import IMAGE_EXTS, PROJECT_EXT, Project, Scale, Segmen
 from fenotit.gui.roi.editor import AreaEditor
 from fenotit.core.analysis.registry import ANALYSES, AnalysisResult
 from fenotit.core import pipeline, units
-from fenotit.core import batch
+from fenotit.core import batch, recovery
 from fenotit.gui.config_panel import ConfigPanel
 from fenotit.gui.zoom_controller import ZoomController
 from fenotit.gui.image_list import ImageList
@@ -111,6 +111,12 @@ def _assets() -> Path:
 
 # ── DropMenu (igual que v1.2) ─────────────────────────────────────────────────
 
+class Sub:
+    """Submenú que se arma al abrirlo (p. ej. Recientes)."""
+    def __init__(self, fn):
+        self.fn = fn
+
+
 class DropMenu(tk.Frame):
     def __init__(self, parent, text, items, colors, arrow_only=False, **kw):
         bg = "#FFFFFF" if arrow_only else colors["bg_topbar"]
@@ -131,84 +137,127 @@ class DropMenu(tk.Frame):
 
     def _toggle(self):
         if self._popup and self._popup.winfo_exists():
-            self._popup.destroy()
-            self._popup = None
+            self._close()
         else:
             self._open()
 
     def _open(self):
+        """Menú desplegable. Un elemento (texto, [elementos]) abre un submenú a la derecha
+        al pasar el mouse (como en QGIS)."""
         self.update_idletasks()
         x = self.winfo_rootx()
         y = self.winfo_rooty() + self.winfo_height()
-        popup = tk.Toplevel(self)
-        popup.wm_overrideredirect(True)
-        popup.configure(bg=self.colors["border"])
-        popup.wm_geometry(f"+{x}+{y}")
-        popup.attributes("-topmost", True)
+        popup = self._panel(self, self.items)
         self._popup = popup
-
-        inner = tk.Frame(popup, bg=self.colors["bg_card"], padx=1, pady=1)
-        inner.pack(padx=1, pady=1)
-
-        for item in self.items:
-            if item is None:
-                tk.Frame(inner, bg=self.colors["border"],
-                         height=1).pack(fill=tk.X, pady=2)
-                continue
-            label, cmd, *rest = item
-            label = label() if callable(label) else label
-            disabled = bool(rest and rest[0] is True)
-            shortcut = next((r for r in rest if isinstance(r, str)), "")
-            fg = self.colors["text_muted"] if disabled else self.colors["text"]
-            row = tk.Frame(inner, bg=self.colors["bg_card"])
-            row.pack(fill=tk.X)
-            lbl = tk.Label(row, text=f"  {label.strip()}   ",
-                           bg=self.colors["bg_card"], fg=fg,
-                           font=FONTS["body"], anchor="w", pady=4, padx=4)
-            lbl.pack(fill=tk.X)
-            if shortcut:
-                tk.Label(row, text=shortcut, bg=self.colors["bg_card"], fg=self.colors["text_muted"],
-                         font=("Segoe UI", 8), padx=8).place(relx=1.0, rely=0.5, anchor="e")
-                lbl.config(text=f"  {label.strip()}" + " " * (len(shortcut) + 10))
-            if disabled:
-                tk.Label(row, text=t("common.wip_badge"),
-                         bg="#FFF3CD", fg="#856404",
-                         font=("Segoe UI", 7),
-                         padx=4).place(relx=1.0, rely=0.5,
-                                       anchor="e", x=-8)
-            if not disabled and cmd:
-                def _bind(w, c=cmd):
-                    def enter(e):
-                        w.config(bg=self.colors["accent_light"])
-                        for ch in w.winfo_children():
-                            try: ch.config(bg=self.colors["accent_light"])
-                            except Exception: _log.debug("ignorado", exc_info=True)
-                    def leave(e):
-                        w.config(bg=self.colors["bg_card"])
-                        for ch in w.winfo_children():
-                            try: ch.config(bg=self.colors["bg_card"])
-                            except Exception: _log.debug("ignorado", exc_info=True)
-                    def click(e):
-                        popup.destroy()
-                        c()
-                    for widget in [w] + list(w.winfo_children()):
-                        widget.bind("<Enter>", enter)
-                        widget.bind("<Leave>", leave)
-                        widget.bind("<Button-1>", click)
-                _bind(row)
-
-        # Que quede dentro de la ventana: el menú de ▾ (junto al borde derecho) se abre
-        # hacia la izquierda, alineado con el botón.
+        self._subs: list[tk.Toplevel] = []
         popup.update_idletasks()
         pw = popup.winfo_reqwidth()
         top = self.winfo_toplevel()
         right = top.winfo_rootx() + top.winfo_width()
-        if self._arrow_only or x + pw > right - 4:
+        if self._arrow_only or x + pw > right - 4:          # el de ▾ junto al borde derecho se abre hacia la izquierda
             x = self.winfo_rootx() + self.winfo_width() - pw
         x = max(top.winfo_rootx() + 4, min(x, right - pw - 4))
         popup.wm_geometry(f"+{x}+{y}")
-        popup.bind("<FocusOut>", lambda e=None: popup.destroy())
+        popup.bind("<FocusOut>", lambda e: self.after(150, self._maybe_close))
         popup.focus_set()
+
+    def _family(self):
+        return [w for w in [self._popup, *getattr(self, "_subs", [])] if w is not None]
+
+    def _maybe_close(self):
+        """Se cierra al perder el foco, salvo que el foco esté en uno de sus submenús."""
+        try:
+            f = self.focus_get()
+        except (KeyError, tk.TclError):
+            f = None
+        fam = self._family()
+        if f is not None and any(str(f).startswith(str(w)) for w in fam):
+            return
+        self._close()
+
+    def _close(self):
+        for w in reversed(self._family()):
+            try:
+                w.destroy()
+            except tk.TclError:
+                pass
+        self._popup, self._subs = None, []
+
+    def _close_subs(self, level: int):
+        """Cierra los submenús desde `level` (0 = todos)."""
+        for w in self._subs[level:]:
+            try:
+                w.destroy()
+            except tk.TclError:
+                pass
+        del self._subs[level:]
+
+    def _panel(self, master, items, level: int = 0) -> tk.Toplevel:
+        c = self.colors
+        popup = tk.Toplevel(master)
+        popup.wm_overrideredirect(True)
+        popup.configure(bg=c["border"])
+        popup.attributes("-topmost", True)
+        inner = tk.Frame(popup, bg=c["bg_card"], padx=1, pady=1)
+        inner.pack(padx=1, pady=1)
+        for item in items:
+            if item is None:
+                tk.Frame(inner, bg=c["border"], height=1).pack(fill=tk.X, pady=2)
+                continue
+            label, cmd, *rest = item
+            label = (label() if callable(label) else label).strip()
+            sub = cmd if isinstance(cmd, (list, tuple, Sub)) else None
+            disabled = bool(rest and rest[0] is True)
+            shortcut = "▸" if sub else next((r for r in rest if isinstance(r, str)), "")
+            row = tk.Frame(inner, bg=c["bg_card"])
+            row.pack(fill=tk.X)
+            lbl = tk.Label(row, text=f"  {label}   ", bg=c["bg_card"],
+                           fg=c["text_muted"] if disabled else c["text"],
+                           font=FONTS["body"], anchor="w", pady=4, padx=4)
+            lbl.pack(fill=tk.X)
+            if shortcut:
+                tk.Label(row, text=shortcut, bg=c["bg_card"], fg=c["text_muted"],
+                         font=("Segoe UI", 8), padx=8).place(relx=1.0, rely=0.5, anchor="e")
+                lbl.config(text=f"  {label}" + " " * (len(shortcut) + 10))
+            if disabled:
+                continue
+            self._bind_row(row, cmd, sub, level)
+        return popup
+
+    def _bind_row(self, row, cmd, sub, level):
+        c = self.colors
+
+        def paint(color):
+            for w in [row] + list(row.winfo_children()):
+                try:
+                    w.config(bg=color)
+                except tk.TclError:
+                    pass
+
+        def enter(e):
+            paint(c["accent_light"])
+            self._close_subs(level)
+            if sub:
+                items = sub.fn() if isinstance(sub, Sub) else sub
+                child = self._panel(self._popup, items or [(t("menu.none"), None, True)], level + 1)
+                child.update_idletasks()
+                x, y = row.winfo_rootx() + row.winfo_width(), row.winfo_rooty() - 2
+                right = self.winfo_toplevel().winfo_rootx() + self.winfo_toplevel().winfo_width()
+                if x + child.winfo_reqwidth() > right:
+                    x = row.winfo_rootx() - child.winfo_reqwidth()
+                child.wm_geometry(f"+{x}+{y}")
+                self._subs.append(child)
+
+        def click(e):
+            if sub:
+                return
+            self._close()
+            cmd()
+
+        for w in [row] + list(row.winfo_children()):
+            w.bind("<Enter>", enter)
+            w.bind("<Leave>", lambda e: paint(c["bg_card"]))
+            w.bind("<Button-1>", click)
 
 
 # ── Panel colapsable ──────────────────────────────────────────────────────────
@@ -336,7 +385,7 @@ class MainWindow:
 
         self.scaler_left   = ImageScaler()
         self.scaler_right  = ImageScaler()
-        self.project = Project(name=t("project.untitled"))
+        self.project = self._blank_project()
         self._corr_info: dict[str, corrections.CorrectionInfo] = {}
         self._saved_state = self.project.to_dict()
         self.current_image_path: str | None = None
@@ -378,6 +427,11 @@ class MainWindow:
         self._update_start()
         self._saved_state = self._collect_state()
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+        self._session = f"{os.getpid()}-{int(time.time())}"
+        self._recovery_file = None
+        self._last_autosave = time.monotonic()
+        self.root.after(20000, self._autosave_tick)
+        self.root.after(900, self._offer_recovery)
         self._update_title()
         if not settings.get("tour_seen", False):            # primera vez que se abre la app
             self.root.after(1800, lambda: not self.project.images and self._start_tour())
@@ -475,12 +529,18 @@ class MainWindow:
         self._update_batch_list()
         _log.warning("%s omitida: %s", Path(path).name, reason)
 
-    def _open_corrections(self):
+    def _open_corrections(self, tab: str = "distortion"):
         CorrectionsDialog(self.root, self.project.corrections, self.batch_paths, self.current_image_path,
                           aruco_scale=self.project.scale.source == "aruco",
-                          on_apply=self._on_corrections_applied)
+                          on_apply=self._on_corrections_applied, tab=tab)
+
+    def _recent_items(self) -> list:
+        cur = str(self.project.file) if self.project.file else None
+        return [(Path(p).stem, lambda p=p: self._open_recent(p)) for p in settings.recent_projects()
+                if p != cur]
 
     def _on_corrections_applied(self, corr, use_aruco_scale: bool):
+        self._remember("undo.corrections")
         self.project.corrections = corr
         if use_aruco_scale:
             self.project.scale = Scale(None, "aruco")
@@ -500,52 +560,44 @@ class MainWindow:
         self.canvas_right.delete("all")
         self._show_results_ui(False)
 
-    def _choose_working_res(self):
-        """Resolución de trabajo: las correcciones usan la foto completa; el análisis, a lo
-        más esta resolución (las fotos más pequeñas no cambian)."""
-        win = tk.Toplevel(self.root)
-        win.title(t("workres.title"))
-        win.configure(bg=COLORS["bg_card"])
-        win.transient(self.root)
-        tk.Frame(win, bg=COLORS["accent"], height=4).pack(fill=tk.X)
-        body = tk.Frame(win, bg=COLORS["bg_card"])
-        body.pack(fill=tk.BOTH, padx=18, pady=12)
-        head = tk.Frame(body, bg=COLORS["bg_card"])
-        head.pack(fill=tk.X)
-        tk.Label(head, text=t("workres.title"), bg=COLORS["bg_card"], fg=COLORS["accent"],
-                 font=("Segoe UI", 12, "bold")).pack(side=tk.LEFT)
-        from fenotit.gui.help import HelpIcon
-        HelpIcon(head, t("workres.title"), t("workres.help"), t("workres.short")).pack(side=tk.LEFT, padx=6)
-        var = tk.StringVar(value=str(self.project.max_mpx or 0))
-        for value, key in (("0", "workres.full"), ("100.0", "workres.100"), ("50.0", "workres.50"),
-                           ("25.0", "workres.25"), ("12.0", "workres.12")):
-            tk.Radiobutton(body, text=t(key), variable=var, value=value, bg=COLORS["bg_card"], fg=COLORS["text"],
-                           selectcolor=COLORS["bg_panel"], activebackground=COLORS["bg_card"],
-                           font=FONTS["body"], anchor="w").pack(fill=tk.X)
-        if var.get() not in ("0", "100.0", "50.0", "25.0", "12.0"):
-            var.set("50.0")
+    def _open_preferences(self):
+        from fenotit.gui import preferences_dialog
+        self._single("preferences", lambda: preferences_dialog.show(self.root, self.project.max_mpx,
+                                                                     self._apply_preferences))
 
-        def ok():
-            v = float(var.get()) or None
-            win.destroy()
-            if v != self.project.max_mpx:
-                self.project.max_mpx = v
-                self._invalidate_results()
-                if self.current_image_path:
-                    self._load_single(self.current_image_path)
-                self._update_corr_indicator()
-        row = tk.Frame(win, bg=COLORS["bg_card"])
-        row.pack(fill=tk.X, padx=16, pady=(0, 12))
-        tk.Button(row, text=t("common.cancel"), command=win.destroy, bg=COLORS["btn_bg"], fg=COLORS["accent"],
-                  relief="flat", font=FONTS["body"], cursor="hand2", padx=10).pack(side=tk.RIGHT, padx=(6, 0))
-        tk.Button(row, text=t("common.ok"), command=ok, bg=COLORS["accent"], fg="#FFFFFF", relief="flat",
-                  font=("Segoe UI", 9, "bold"), cursor="hand2", padx=14).pack(side=tk.RIGHT)
-        win.update_idletasks()
-        win.geometry(f"+{self.root.winfo_rootx() + (self.root.winfo_width() - win.winfo_reqwidth()) // 2}"
-                     f"+{self.root.winfo_rooty() + (self.root.winfo_height() - win.winfo_reqheight()) // 3}")
-        win.grab_set()
+    def _apply_preferences(self, v: dict):
+        for key in ("workers", "show_table_on_run", "autosave_min"):
+            settings.set(key, v[key])
+        settings.set("default_max_mpx", v["max_mpx"] or 0)
+        self._set_working_res(v["max_mpx"])
+        if v["language"] != i18n.current():
+            i18n.set_language(v["language"])
+            self._restart()
+
+    def _set_working_res(self, value: float | None):
+        """Resolución de trabajo: las correcciones usan la foto completa; el análisis, a lo
+        más esta resolución. Se guarda en el proyecto porque cambia los resultados."""
+        if value == self.project.max_mpx:
+            return
+        self._remember("undo.working_res")
+        self.project.max_mpx = value
+        self._invalidate_results()
+        if self.current_image_path:
+            self._load_single(self.current_image_path)
+        self._update_corr_indicator()
+
+    @staticmethod
+    def _default_max_mpx() -> float | None:
+        v = settings.get("default_max_mpx", 50.0)
+        return float(v) if v else None
+
+    def _blank_project(self) -> Project:
+        p = Project(name=t("project.untitled"))
+        p.max_mpx = self._default_max_mpx()
+        return p
 
     def _clear_scale(self):
+        self._remember("undo.scale")
         self.project.apply_scale_to_all(Scale())
         self._set_status(t("status.scale_cleared"))
         self._update_corr_indicator()
@@ -666,6 +718,7 @@ class MainWindow:
             messagebox.showerror(t("common.error"), t("project.save_error", error=e), parent=self.root)
             return False
         self._saved_state = self.project.to_dict()
+        self._drop_recovery()
         self._write_preview()
         settings.add_recent_project(self.project.file)
         self._set_status(t("project.saved", path=self.project.file))
@@ -700,7 +753,7 @@ class MainWindow:
     def _new_project(self):
         if not self._confirm_discard():
             return
-        self._apply_project(Project(name=t("project.untitled")))
+        self._apply_project(self._blank_project())
 
     def _go_home(self):
         """Volver a la pantalla de inicio (proyectos recientes); pregunta si guardar."""
@@ -708,7 +761,7 @@ class MainWindow:
             return
         if not self._confirm_discard():
             return
-        self._apply_project(Project(name=t("project.untitled")))
+        self._apply_project(self._blank_project())
 
     def _open_project(self):
         if not self._confirm_discard():
@@ -773,6 +826,22 @@ class MainWindow:
         if project.file:
             settings.add_recent_project(project.file)
         self._set_status(t("project.opened", path=project.file))
+
+    def _find_missing(self):
+        """Imágenes → Buscar faltantes: lo mismo que al abrir, con el proyecto abierto."""
+        if not self.project.missing_images():
+            messagebox.showinfo(t("missing.title"), t("missing.none"), parent=self.root)
+            return
+        self._relinked = False
+        if not self._resolve_missing(self.project):
+            return
+        self._invalidate_results()
+        self._update_batch_list()
+        paths = self.batch_paths
+        if paths:
+            self._load_single(paths[min(self.project.current_index, len(paths) - 1)])
+        else:
+            self._show_no_image()
 
     def _resolve_missing(self, project: Project) -> bool:
         """Fotos que no están donde las dejó quien guardó el proyecto (otro computador,
@@ -840,6 +909,7 @@ class MainWindow:
         return res["v"]
 
     def _apply_project(self, project: Project):
+        self._drop_recovery()                    # el usuario ya guardó o descartó el anterior
         self._undo_stack, self._redo_stack, self._settled = [], [], None
         self.config_panel = None
         self.project = project
@@ -924,6 +994,7 @@ class MainWindow:
             _log.exception("No se pudo reiniciar")
             messagebox.showinfo(t("lang.title"), t("lang.restart"), parent=self.root)
             return
+        self._drop_recovery()
         self.root.destroy()
 
     def _on_close(self):
@@ -932,7 +1003,48 @@ class MainWindow:
                 return
         elif not messagebox.askyesno(t("close.title"), t("close.msg"), parent=self.root):
             return
+        self._drop_recovery()
         self.root.destroy()
+
+    # ── Autoguardado (copia para recuperar si la app se cierra sin guardar) ─────
+
+    def _autosave_tick(self):
+        """Cada 20 s mira si ya toca: guarda una copia aparte solo si hay cambios sin guardar.
+        Nunca escribe sobre el proyecto del usuario."""
+        try:
+            every = int(settings.get("autosave_min", 3) or 0)
+            if every and time.monotonic() - self._last_autosave >= every * 60:
+                self._last_autosave = time.monotonic()
+                if self.project.images and self._is_dirty():
+                    self._recovery_file = recovery.write(self.project, self._session)
+        except Exception:
+            _log.exception("Autoguardado")
+        self.root.after(20000, self._autosave_tick)
+
+    def _drop_recovery(self):
+        recovery.discard(getattr(self, "_recovery_file", None))
+        self._recovery_file = None
+
+    def _offer_recovery(self):
+        """Al abrir: si quedó trabajo sin guardar de una sesión que se cerró mal, se ofrece."""
+        for item in recovery.pending():
+            when = item["saved"].replace("T", " ")[:16]
+            ans = messagebox.askyesnocancel(
+                t("recovery.title"), t("recovery.msg", name=item["name"], when=when, n=item["n_images"]),
+                parent=self.root)
+            if ans is None:                      # Cancelar: se vuelve a ofrecer la próxima vez
+                continue
+            if ans:
+                try:
+                    project = recovery.load(item)
+                except Exception:
+                    _log.exception("No se pudo recuperar")
+                    continue
+                self._apply_project(project)
+                self._saved_state = {}           # recuperado = sin guardar
+                self._recovery_file = item["file"]
+                return
+            recovery.discard(item["file"])
 
     # ── Setup ─────────────────────────────────────────────────────────────────
 
@@ -1090,19 +1202,15 @@ class MainWindow:
             Tooltip(w, t("menu.home"))
         self._vdiv()
 
-        self._drop(self.topbar, t("menu.file"), [
+        self._drop(self.topbar, t("menu.project"), [
             (t("menu.home"), self._go_home),
             None,
             (t("menu.new_project"), self._new_project, "Ctrl+N"),
             (t("menu.open_project"), self._open_project, "Ctrl+Shift+O"),
+            (t("menu.recent"), Sub(self._recent_items)),
+            None,
             (t("menu.save_project"), self._save_project, "Ctrl+S"),
             (t("menu.save_project_as"), self._save_project_as, "Ctrl+Shift+S"),
-            None,
-            (t("menu.add_images"), self._open_image, "Ctrl+O"),
-            (t("menu.add_folder"), self._open_folder),
-            (t("menu.remove_image"), self._remove_current_image),
-            (t("menu.clear_images"), self._clear_images),
-            (t("menu.metadata"), self._open_metadata, "Ctrl+D"),
             None,
             (t("menu.export"), self._export_results, "Ctrl+E"),
             None,
@@ -1112,14 +1220,27 @@ class MainWindow:
             (lambda: self._undo_label("undo"), self._undo, "Ctrl+Z"),
             (lambda: self._undo_label("redo"), self._redo, "Ctrl+Y"),
         ])
+        self._drop(self.topbar, t("menu.images"), [
+            (t("menu.add_images"), self._open_image, "Ctrl+O"),
+            (t("menu.add_folder"), self._open_folder),
+            None,
+            (t("menu.remove_image"), self._remove_current_image),
+            (t("menu.clear_images"), self._clear_images),
+            (t("menu.find_missing"), self._find_missing),
+            None,
+            (t("menu.metadata"), self._open_metadata, "Ctrl+D"),
+        ])
         self._drop(self.topbar, t("menu.calibration"), [
-            (t("menu.corrections"), self._open_corrections),
+            (t("corr.tab.distortion") + "…", lambda: self._open_corrections("distortion")),
+            (t("corr.tab.perspective") + "…", lambda: self._open_corrections("perspective")),
+            (t("corr.tab.color") + "…", lambda: self._open_corrections("color")),
             None,
-            (t("menu.cal_scale"), self._open_scale_dialog),
-            (t("menu.scale_manual"), self._calibrate_scale),
-            (t("menu.scale_clear"), self._clear_scale),
-            None,
-            (t("menu.working_res"), self._choose_working_res),
+            (t("menu.scale"), [
+                (t("menu.cal_scale"), self._open_scale_dialog),
+                (t("menu.scale_manual"), self._calibrate_scale),
+                None,
+                (t("menu.scale_clear"), self._clear_scale),
+            ]),
         ])
         self._drop(self.topbar, t("menu.areas"), [
             (t("roi.area_rect"), lambda: self._set_roi_mode("include_rect"), "R"),
@@ -1134,26 +1255,33 @@ class MainWindow:
         self._drop(self.topbar, t("menu.analysis"), [
             (_analysis_label(n), lambda n=n: self._open_analysis(n)) for n in ANALYSES])
         self._drop(self.topbar, t("menu.view"), [
+            (t("view.panels"), [
+                (t("view.left_panel"), lambda: self._toggle_panel(self.left_panel)),
+                (t("view.analysis_panel"), lambda: self._toggle_panel(self.right_panel)),
+                (t("view.results_panel"), self._toggle_results_panel, "Ctrl+T"),
+            ]),
+            (t("view.layout"), [
+                (self._sides_label("auto"), lambda: self._set_sides_mode("auto")),
+                (self._sides_label("row"), lambda: self._set_sides_mode("row")),
+                (self._sides_label("column"), lambda: self._set_sides_mode("column")),
+            ]),
+            (t("view.zoom"), [
+                (t("view.zoom_in"), self.do_zoom_in, "Ctrl++"),
+                (t("view.zoom_out"), self.do_zoom_out, "Ctrl+−"),
+                (t("view.zoom_fit"), self.do_zoom_fit, "Ctrl+0"),
+                (t("view.zoom_100"), self.do_zoom_100, "Ctrl+1"),
+            ]),
+            (t("view.tool"), [
+                (t("view.pan"), lambda: self._set_zoom_tool("pan"), "H"),
+                (t("view.zoom_area"), lambda: self._set_zoom_tool("zoom_area"), "Z"),
+                (t("view.inspect"), lambda: self._set_zoom_tool("inspect"), "I"),
+            ]),
+            None,
             (t("view.toggle_legend"), self._toggle_legend, "L"),
-            (t("view.left_panel"), lambda: self._toggle_panel(self.left_panel)),
-            (t("view.analysis_panel"), lambda: self._toggle_panel(self.right_panel)),
-            (t("view.results_panel"), self._toggle_results_panel, "Ctrl+T"),
-            None,
-            (self._sides_label("auto"), lambda: self._set_sides_mode("auto")),
-            (self._sides_label("row"), lambda: self._set_sides_mode("row")),
-            (self._sides_label("column"), lambda: self._set_sides_mode("column")),
-            None,
-            (t("style.title"), self._open_style),
-            None,
-            (t("view.zoom_in"), self.do_zoom_in, "Ctrl++"),
-            (t("view.zoom_out"), self.do_zoom_out, "Ctrl+−"),
-            (t("view.zoom_fit"), self.do_zoom_fit, "Ctrl+0"),
-            (t("view.zoom_100"), self.do_zoom_100, "Ctrl+1"),
-            (t("view.zoom_area"), lambda: self._set_zoom_tool("zoom_area"), "Z"),
-            (t("view.pan"), lambda: self._set_zoom_tool("pan"), "H"),
-            (t("view.inspect"), lambda: self._set_zoom_tool("inspect"), "I"),
-            None,
-            (t("menu.language"), self._choose_language),
+            (t("style.title") + "…", self._open_style),
+        ])
+        self._drop(self.topbar, t("menu.settings"), [
+            (t("prefs.title") + "…", self._open_preferences),
         ])
         self._drop(self.topbar, t("menu.help"), [
             (t("tour.menu"), self._start_tour),
@@ -1263,7 +1391,7 @@ class MainWindow:
                  results, key="layers"),
             Step(t("tour.results.title"), t("tour.results.text"),
                  lambda: next(iter(self._tab_labels.values())).master, results, key="results"),
-            Step(t("tour.export.title"), t("tour.export.text"), lambda: menus.get(t("menu.file")), key="export"),
+            Step(t("tour.export.title"), t("tour.export.text"), lambda: menus.get(t("menu.project")), key="export"),
             Step(t("tour.end.title"), t("tour.end.text"), key="end"),
         ]
         # empieza donde está el usuario: lo siguiente que le toca hacer
@@ -1615,11 +1743,12 @@ class MainWindow:
                                             highlightbackground=COLORS["border"])
         body.pack_propagate(False)
         try:
-            height = int(settings.get("results_height", 220))
+            height = int(settings.get("results_height", 160))
         except (TypeError, ValueError):
-            height = 220
+            height = 160
         body.configure(height=max(self.RESULTS_MIN_H, height))
-        self._results_visible = True          # preferencia del usuario (mostrar u ocultar)
+        # Preferencias → "Abrir la tabla al ejecutar": si no, solo quedan las pestañas a la vista
+        self._results_visible = bool(settings.get("show_table_on_run", True))
         self._bottom_tab = "table"
 
         # ── Tabla ─────────────────────────────────────────────────────────
@@ -2025,6 +2154,7 @@ class MainWindow:
     def _clear_images(self):
         if self.project.images and messagebox.askyesno(
                 t("menu.clear_images"), t("msg.clear_images"), parent=self.root):
+            self._remember("undo.clear_images")
             self.project.images = []
             self.project.current_index = 0
             self.project.image_roi, self.project.image_scale = {}, {}
@@ -2406,7 +2536,7 @@ class MainWindow:
         self._batch_t0 = time.perf_counter()
         after = self.root.after
         self._batch = batch.BatchRunner(
-            name, jobs, self.project.corrections,
+            name, jobs, self.project.corrections, workers=int(settings.get("workers", 0) or 0) or None,
             on_outcome=lambda i, n, o: after(0, lambda: self._on_batch_outcome(name, i, n, o)),
             on_done=lambda cancelled: after(0, lambda: self._on_batch_done(name, total, cancelled))).start()
 
@@ -3216,7 +3346,8 @@ class MainWindow:
     # ── Deshacer / rehacer: áreas y objetos excluidos o destacados ─────────────
 
     UNDO_MAX = 50
-    _UNDO_FIELDS = ("roi", "image_roi", "image_scale", "excluded", "highlighted", "images")
+    _UNDO_FIELDS = ("roi", "image_roi", "image_scale", "excluded", "highlighted", "images",
+                    "scale", "unit", "max_mpx", "corrections", "metadata")
 
     def _snapshot(self) -> dict:
         """Lo que Ctrl+Z puede devolver: áreas, marcas, fotos de la lista, segmentación
@@ -3303,6 +3434,8 @@ class MainWindow:
         for i, p in missing:
             images.insert(min(i, len(images)), p)
         images_changed = bool(missing)
+        changed = {f for f in ("scale", "unit", "image_scale", "max_mpx", "corrections", "metadata")
+                   if getattr(self.project, f) != state[f]}
         for f in self._UNDO_FIELDS:
             if f != "images":
                 setattr(self.project, f, state[f])
@@ -3325,6 +3458,21 @@ class MainWindow:
         if images_changed:                            # foto quitada que vuelve (sin resultados)
             self._update_batch_list()
             self._update_start()
+            self._show_panel(self.left_panel, True)
+        if changed & {"scale", "unit", "image_scale"}:
+            self._update_corr_indicator()
+            self._sync_area_units()
+        if changed & {"max_mpx", "corrections"}:      # cambian la foto que se analiza
+            self._invalidate_results()
+            if self.current_image_path:
+                self._load_single(self.current_image_path)
+            self._update_corr_indicator()
+        if "metadata" in changed:
+            self._meta_cache = None
+            self.image_list._filter()
+            self._show_meta()
+        if images_changed and not self.current_image_path and self.batch_paths:
+            self._select_image(0)
         if path and path in self.batch_paths and path != self.current_image_path:
             self._select_image(self.batch_paths.index(path))       # se ve lo que se deshizo
         elif self.areas and self.current_image_path:
@@ -3693,10 +3841,10 @@ class MainWindow:
 
     def _show_shortcuts(self):
         groups = [
-            (t("menu.file"), [("Ctrl+N", t("menu.new_project")), ("Ctrl+Shift+O", t("menu.open_project")),
+            (t("menu.project"), [("Ctrl+N", t("menu.new_project")), ("Ctrl+Shift+O", t("menu.open_project")),
                               ("Ctrl+S", t("menu.save_project")), ("Ctrl+Shift+S", t("menu.save_project_as")),
-                              ("Ctrl+O", t("menu.add_images")), ("Ctrl+D", t("menu.metadata")),
                               ("Ctrl+E", t("menu.export")), ("Ctrl+Q", t("menu.exit"))]),
+            (t("menu.images"), [("Ctrl+O", t("menu.add_images")), ("Ctrl+D", t("menu.metadata"))]),
             (t("menu.edit"), [("Ctrl+Z", t("edit.undo")), ("Ctrl+Y", t("edit.redo"))]),
             (t("menu.analysis"), [("Ctrl+Enter", t("run.current")), ("Ctrl+Shift+Enter", t("run.all"))]),
             (t("menu.areas"), [("R", t("roi.area_rect")), ("P", t("roi.area_polygon")), ("X", t("roi.exclude_rect")),
@@ -3822,6 +3970,7 @@ class MainWindow:
 
     def _set_scale(self, sc: Scale, scope: str, path: str | None) -> bool:
         if scope == "image" and path:
+            self._remember("undo.scale")
             self.project.set_scale(path, sc)
             return True
         n = self.project.others_with_own_scale(path)
@@ -3834,6 +3983,7 @@ class MainWindow:
             if not messagebox.askyesno(t("scale.apply_all"), t("scale.res_warn", n=len(odd), names=names + more),
                                        parent=self.root):
                 return False
+        self._remember("undo.scale")
         self.project.apply_scale_to_all(sc)
         return True
 
@@ -3997,6 +4147,7 @@ class MainWindow:
             self.root, [Path(p).name for p in self.batch_paths], dict(self.project.metadata), self._set_metadata))
 
     def _set_metadata(self, file: str | None, key_column: str | None):
+        self._remember("undo.metadata")
         self.project.metadata = {"file": file, "key_column": key_column} if file else {}
         self._meta_cache = None
         self.image_list._filter()
@@ -4244,6 +4395,7 @@ class MainWindow:
             after = self.root.after
             self._export_runner = batch.BatchRunner(
                 name, jobs, self.project.corrections, task=task,
+                workers=int(settings.get("workers", 0) or 0) or None,
                 on_outcome=lambda i, n, o: after(0, lambda: outcome(i, n, o)),
                 on_done=lambda c: after(0, lambda: next_analysis(c))).start()
         dlg.progress(0, total, t("export.views_progress", i=0, n=total))

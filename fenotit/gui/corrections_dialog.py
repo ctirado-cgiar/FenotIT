@@ -32,7 +32,8 @@ class CorrectionsDialog(BaseDialog):
     W, H = 760, 660
 
     def __init__(self, parent, corrections: P.Corrections, paths=None, current_path=None,
-                 aruco_scale: bool = False, on_apply=None):
+                 aruco_scale: bool = False, on_apply=None, tab: str = "distortion"):
+        self._tab = tab
         self.c = copy.deepcopy(corrections)
         self._paths = list(paths or [])
         self._raw_path = current_path
@@ -63,6 +64,8 @@ class CorrectionsDialog(BaseDialog):
             f = tk.Frame(nb, bg=COLORS["bg_card"], padx=12, pady=10)
             nb.add(f, text=f"  {t(key)}  ")
             build(f)
+            if key.endswith(self._tab):
+                nb.select(f)
 
     def _entry_row(self, parent, label, var, width=8):
         f = tk.Frame(parent, bg=COLORS["bg_card"])
