@@ -1087,14 +1087,48 @@ class MainWindow:
         recovery.discard(getattr(self, "_recovery_file", None))
         self._recovery_file = None
 
+    def _recovery_dialog(self, name: str, when: str, n: int):
+        """True = recuperar, False = descartar la copia, None = decidir después."""
+        bg = COLORS["bg_card"]
+        win = tk.Toplevel(self.root)
+        win.title(t("recovery.title"))
+        win.transient(self.root)
+        win.resizable(False, False)
+        win.configure(bg=bg)
+        tk.Frame(win, bg=COLORS["accent"], height=4).pack(fill=tk.X)
+        box = tk.Frame(win, bg=bg, padx=20, pady=14)
+        box.pack(fill=tk.BOTH)
+        tk.Label(box, text=t("recovery.title"), bg=bg, fg=COLORS["accent"],
+                 font=("Segoe UI", 12, "bold")).pack(anchor="w")
+        tk.Label(box, text=t("recovery.msg", name=name, when=when, n=n), bg=bg, fg=COLORS["text"],
+                 font=FONTS["body"], justify="left", wraplength=380).pack(anchor="w", pady=(6, 14))
+        res = {"v": None}
+
+        def pick(v):
+            res["v"] = v
+            win.destroy()
+        bar = tk.Frame(box, bg=bg)
+        bar.pack(fill=tk.X)
+        for text, v, accent in ((t("recovery.later"), None, False), (t("recovery.discard"), False, False),
+                                (t("recovery.recover"), True, True)):
+            tk.Button(bar, text=text, command=lambda v=v: pick(v), relief="flat", cursor="hand2", padx=12,
+                      bg=COLORS["accent"] if accent else COLORS["btn_bg"], fg="#FFFFFF" if accent else COLORS["accent"],
+                      font=("Segoe UI", 9, "bold") if accent else FONTS["body"]).pack(side=tk.RIGHT, padx=(6, 0))
+        win.protocol("WM_DELETE_WINDOW", lambda: pick(None))
+        win.update_idletasks()
+        x = self.root.winfo_rootx() + (self.root.winfo_width() - win.winfo_reqwidth()) // 2
+        y = self.root.winfo_rooty() + (self.root.winfo_height() - win.winfo_reqheight()) // 3
+        win.geometry(f"+{max(x, 0)}+{max(y, 0)}")
+        win.grab_set()
+        self.root.wait_window(win)
+        return res["v"]
+
     def _offer_recovery(self):
         """Al abrir: si quedó trabajo sin guardar de una sesión que se cerró mal, se ofrece."""
         for item in recovery.pending():
             when = item["saved"].replace("T", " ")[:16]
-            ans = messagebox.askyesnocancel(
-                t("recovery.title"), t("recovery.msg", name=item["name"], when=when, n=item["n_images"]),
-                parent=self.root)
-            if ans is None:                      # Cancelar: se vuelve a ofrecer la próxima vez
+            ans = self._recovery_dialog(item["name"], when, item["n_images"])
+            if ans is None:                      # Más tarde: se vuelve a ofrecer la próxima vez
                 continue
             if ans:
                 try:
