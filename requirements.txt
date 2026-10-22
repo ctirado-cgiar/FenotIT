@@ -7,3 +7,4 @@ scikit-image==0.26.0
 scipy==1.15.3
 openpyxl==3.1.5
 pyyaml==6.0.3
+onnxruntime==1.31.0

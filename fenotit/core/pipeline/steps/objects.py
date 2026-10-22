@@ -89,11 +89,24 @@ def _fill_small_holes(mask, frac=0.2):
     return out
 
 
+def _instances(ctx) -> bool:
+    inst = ctx.extra.get("instances")
+    if inst is None:
+        return False
+    labels = np.where(ctx.mask > 0, inst, 0).astype(np.int32)
+    from fenotit.core.segmentation.sam import _relabel
+    ctx.labels = _relabel(labels)
+    return True
+
+
 @step("label", "processor", requires=("mask",), provides=("labels",), params=[
     {"key": "single", "type": "bool", "default": False},
 ])
 def label(ctx, p):
-    """Un objeto por región conectada; single = todo lo que quedó en la máscara es un objeto."""
+    """Un objeto por región conectada; single = todo lo que quedó en la máscara es un objeto.
+    Si la segmentación ya separó los objetos (modelo de IA), se usan esos."""
+    if _instances(ctx):
+        return
     if p["single"]:
         ctx.labels = (ctx.mask > 0).astype(np.int32)
         return
@@ -115,12 +128,15 @@ def separate(ctx, p):
     fracción del grosor de la más delgada (evita cortar objetos alargados).
     split_large: corta por las muescas los objetos de área ≥ 1.6 × la mediana
     (p. ej. dos semillas lado a lado, que la distancia ve como un solo objeto).
+    Si la segmentación ya separó los objetos (modelo de IA), se usan esos.
     use_shadows: en objetos claros, las sombras oscuras entre ellos marcan la
     frontera (solo si los píxeles oscuros son minoría dentro de la máscara).
     """
     from skimage.feature import peak_local_max
     from skimage.segmentation import watershed
 
+    if _instances(ctx):
+        return
     binary = (ctx.mask > 0).astype(np.uint8)
     if not binary.any():
         ctx.labels = np.zeros(binary.shape, np.int32)

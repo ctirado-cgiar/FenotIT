@@ -100,3 +100,22 @@ def classify(ctx, p):
     if p["colors"]:
         ctx.images["classes"] = C.colorize(classes, list(p["colors"]))
     ctx.extra["class_colors"] = list(p["colors"])
+
+
+@step("model_segment", "segmenter", provides=("mask",), params=[
+    {"key": "model", "type": "str", "default": "mobilesam"},
+    {"key": "mode", "type": "choice", "choices": ["auto", "points"], "default": "auto"},
+    {"key": "grid", "type": "int", "default": 24, "min": 8, "max": 64},
+    {"key": "points", "type": "list", "default": []},
+])
+def model_segment(ctx, p):
+    """Segmentación con un modelo de IA (MobileSAM). Cada objeto sale ya separado: las
+    etiquetas quedan en ctx.extra["instances"] y el paso de objetos las respeta."""
+    from fenotit.core.segmentation import sam
+    if p["mode"] == "points":
+        labels = sam.from_points(ctx.image, list(p["points"] or []))
+    else:
+        labels = sam.automatic(ctx.image, grid=int(p["grid"]))
+    ctx.extra["instances"] = labels
+    ctx.mask = (labels > 0).astype(np.uint8) * 255
+    ctx.images["mask"] = ctx.mask
