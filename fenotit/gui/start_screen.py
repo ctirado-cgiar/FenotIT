@@ -66,6 +66,7 @@ class StartScreen(tk.Frame):
         self._img["photo_w"] = ImageTk.PhotoImage(icon("photo", 22, "#FFFFFF"))
         self._img["folder_w"] = ImageTk.PhotoImage(icon("folder", 22, "#FFFFFF"))
         self._thumbs: list = []
+        self.targets: dict[str, tk.Widget] = {}       # elementos que señala el recorrido guiado
         self._build_hero()
         self._main = tk.Frame(self, bg=colors["bg"])
         self._main.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -104,8 +105,11 @@ class StartScreen(tk.Frame):
         self._floating = [box]
         box.place(relx=1.0, x=-20, y=16, anchor="ne")
         lang = i18n.available().get(i18n.current(), i18n.current())
-        items = [(f"\U0001F310  {lang}", self._links[0][1]), (t("start.about"), self._links[1][1])]
-        for i, (text, cmd) in enumerate(items):
+        items = [("help", f"?  {t('start.help')}", self._links[2][1] if len(self._links) > 2 else None),
+                 ("language", f"\U0001F310  {lang}", self._links[0][1]),
+                 ("about", t("start.about"), self._links[1][1])]
+        items = [x for x in items if x[2]]
+        for i, (key, text, cmd) in enumerate(items):
             if i:
                 tk.Label(box, text="·", bg=self.c["bg"], fg="#BBBBBB").pack(side=tk.LEFT, padx=4)
             lbl = tk.Label(box, text=text, bg=self.c["bg"], fg=muted, font=("Segoe UI", 9), cursor="hand2")
@@ -113,6 +117,7 @@ class StartScreen(tk.Frame):
             lbl.bind("<Enter>", lambda e, w=lbl: w.config(fg=BLUE))
             lbl.bind("<Leave>", lambda e, w=lbl: w.config(fg=muted))
             lbl.bind("<Button-1>", lambda e, f=cmd: f())
+            self.targets[key] = lbl
         ver = tk.Label(self, text=f"v{__version__}  ·  Alliance of Bioversity International & CIAT",
                        bg=self.c["bg"], fg="#A8A8A8", font=("Segoe UI", 7))
         ver.place(relx=1.0, rely=1.0, x=-20, y=-12, anchor="se")
@@ -146,8 +151,8 @@ class StartScreen(tk.Frame):
                  font=(_SERIF, 14, "italic")).pack(anchor="w", pady=(0, 10))
         row = tk.Frame(body, bg=c["bg"])
         row.pack(anchor="w")
-        self._new_tile(row, on_photos, on_folder)
-        self._tile(row, "project", t("start.open"), t("start.open_hint"), on_open)
+        self.targets["new"] = self._new_tile(row, on_photos, on_folder)
+        self.targets["open"] = self._tile(row, "project", t("start.open"), t("start.open_hint"), on_open)
 
         tk.Label(body, text=t("start.recent"), bg=c["bg"], fg=c["text_muted"],
                  font=(_SERIF, 12, "italic")).pack(anchor="w", pady=(22, 6))
@@ -157,6 +162,7 @@ class StartScreen(tk.Frame):
                      font=("Segoe UI", 9)).pack(anchor="w")
         grid = tk.Frame(body, bg=c["bg"])
         grid.pack(anchor="w")
+        self.targets["recent"] = grid if recent else None
         for i, path in enumerate(recent[:6]):
             self._recent_card(grid, Path(path), on_recent).grid(row=i // 2, column=i % 2, padx=(0, 10), pady=(0, 8),
                                                               sticky="w")
@@ -193,6 +199,7 @@ class StartScreen(tk.Frame):
         self._hover(card, parts)
         for w in [card] + parts:
             w.bind("<Button-1>", lambda e: cmd())
+        return card
 
     def _new_tile(self, parent, on_photos, on_folder):
         """Nuevo proyecto: al tocarlo aparecen "Agregar fotos" y "Agregar carpeta"."""
@@ -220,6 +227,7 @@ class StartScreen(tk.Frame):
         self._hover(card, front)
         for w in [card] + front:
             w.bind("<Button-1>", open_choices)
+        return card
 
     def _recent_card(self, parent, path: Path, cmd):
         c = self.c
