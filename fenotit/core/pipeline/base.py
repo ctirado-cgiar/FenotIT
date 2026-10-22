@@ -32,6 +32,7 @@ class Context:
     detections: list[dict] | None = None             # [{"x", "y", ...}]
     skeleton: np.ndarray | None = None
     groups: np.ndarray | None = None                 # componentes antes de desagrupar
+    classes: np.ndarray | None = None                # uint8: clase de cada píxel (segmentación por ejemplos)
     excluded: set = field(default_factory=set)       # objetos que el usuario excluyó (no se miden)
     highlighted: set = field(default_factory=set)    # objetos destacados (★; se miden igual)
     tables: dict[str, list[dict]] = field(default_factory=dict)

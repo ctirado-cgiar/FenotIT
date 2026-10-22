@@ -147,10 +147,7 @@ def metadata(analysis: str, results: dict[str, Any], project=None, extra: dict |
                  ("images_with_own_areas", len(project.image_roi)),
                  ("objects_excluded_manually", sum(len(v) for v in getattr(project, "excluded", {}).values())),
                  ("objects_highlighted", sum(len(v) for v in getattr(project, "highlighted", {}).values())),
-                 ("segmentation", f"{seg.color_space} channel {seg.channel} "
-                                  + ("Otsu" if seg.auto else f"{seg.min_val}-{seg.max_val}")
-                                  + (f"; {seg.morph_op} {seg.morph_size}px x{seg.morph_iter}"
-                                     if getattr(seg, "morph_op", "none") != "none" else "")),
+                 *segmentation_rows(project),
                  ("corrections", ", ".join(corr.active()) or "none"),
                  ("max_megapixels", project.max_mpx or "full"),
                  ("preset", "none")]
@@ -162,6 +159,30 @@ def metadata(analysis: str, results: dict[str, Any], project=None, extra: dict |
             rows += [(f"param.{k}", v) for k, v in params[0].items()]
     rows += list((extra or {}).items())
     return [{"key": k, "value": _plain(v)} for k, v in rows]
+
+
+def segmentation_rows(project) -> list[tuple[str, Any]]:
+    """La segmentación (paso 1) en palabras: método, ajustes y operaciones de afinado."""
+    seg = project.segmentation
+    method = getattr(seg, "method", "threshold")
+    rows = [("segmentation_method", method)]
+    if method == "classifier":
+        names = [c.get("name", "") for c in seg.classes]
+        obj = [names[i] for i in seg.object_classes()]
+        strokes = getattr(project, "strokes", {}) or {}
+        rows += [("segmentation", "pixel classifier (random forest, examples painted by the user)"),
+                 ("classes", "; ".join(names)), ("object_classes", "; ".join(obj)),
+                 ("examples_images", sum(1 for v in strokes.values() if v)),
+                 ("examples_strokes", sum(len(v) for v in strokes.values())),
+                 ("classifier_detail_mpx", seg.detail)]
+    else:
+        rows.append(("segmentation", f"{seg.color_space} channel {seg.channel} "
+                     + ("Otsu" if seg.auto else f"{seg.min_val}-{seg.max_val}")))
+    refine = getattr(seg, "refine", []) or []
+    rows.append(("refine_mask", "; ".join(
+        o["op"] + (f" {o.get('size', 3)}px x{o.get('iter', 1)}" if o["op"] != "fill_holes" else "")
+        for o in refine) or "none"))
+    return rows
 
 
 def write_tables(folder: Path, tables: dict[str, list[dict]], meta: list[dict], excel: bool = True,

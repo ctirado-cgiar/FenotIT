@@ -71,3 +71,32 @@ def _region(ctx, shape):
     for pts, _color in ctx.exclusions or []:
         cv2.fillPoly(region, [np.asarray(pts, np.int32)], 0)
     return region
+
+
+@step("classify", "segmenter", provides=("mask", "classes"), params=[
+    {"key": "samples", "type": "str", "default": ""},
+    {"key": "hash", "type": "str", "default": ""},
+    {"key": "objects", "type": "list", "default": [1]},
+    {"key": "colors", "type": "list", "default": []},
+    {"key": "detail", "type": "float", "default": 1.0},
+])
+def classify(ctx, p):
+    """Segmentación por ejemplos: cada píxel recibe la clase que el bosque aleatorio
+    aprendió de los trazos; la máscara = las clases marcadas como objeto."""
+    from fenotit.core.segmentation import classifier as C
+    if not p["samples"]:
+        raise ValueError("no examples: paint at least two classes")
+    model = C.load_model(p["samples"], p["hash"])
+    small = C.work_copy(ctx.image, float(p["detail"]))
+    full = _region(ctx, ctx.image.shape)
+    region = None if full is None else cv2.resize(full, (small.shape[1], small.shape[0]),
+                                                  interpolation=cv2.INTER_NEAREST) > 0
+    classes = C.predict(model, C.features(small), ctx.image.shape, region)
+    if full is not None:
+        classes[full == 0] = 0
+    ctx.classes = classes
+    ctx.mask = np.isin(classes, [int(c) for c in p["objects"]]).astype(np.uint8) * 255
+    ctx.images["mask"] = ctx.mask
+    if p["colors"]:
+        ctx.images["classes"] = C.colorize(classes, list(p["colors"]))
+    ctx.extra["class_colors"] = list(p["colors"])

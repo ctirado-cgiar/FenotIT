@@ -46,6 +46,15 @@ def morphology(ctx, p):
     ctx.mask = morph(ctx.mask, p["op"], int(p["size"]), int(p["iterations"]))
 
 
+@step("refine", "processor", requires=("mask",), provides=("mask",), params=[
+    {"key": "ops", "type": "list", "default": []},
+])
+def refine(ctx, p):
+    """Afinar máscara: operaciones morfológicas en el orden que eligió el usuario."""
+    from fenotit.core.segmentation import refine as run_ops
+    ctx.mask = run_ops(ctx.mask, p["ops"])
+
+
 @step("clean", "processor", requires=("mask",), provides=("mask",), params=[
     {"key": "open_iterations", "type": "int", "default": 0, "min": 0, "max": 10},
     {"key": "fill_holes", "type": "bool", "default": True},

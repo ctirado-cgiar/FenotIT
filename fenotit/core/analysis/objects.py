@@ -11,12 +11,12 @@ from fenotit.core.units import ascii_name, display, mean_sd, per_px
 from fenotit.i18n import t
 
 STEP_FOLDERS = {"mask": "mask", "distance": "mask", "count": "count", "morphometry": "morphometry",
-                "shape": "shape", "color": "color"}
+                "shape": "shape", "color": "color", "classes": "classes"}
 # Últimas imágenes en memoria: al cambiar solo una medición no se vuelve a segmentar
 # (cada imagen guardada ocupa ~100-200 MB en fotos de 8 MP; por eso solo 2).
 _CACHE = pipeline.ChainCache(size=2)
 MEASUREMENTS = {"count": "measure_count", "morphometry": "measure_size",
-                "shape": "measure_shape", "color": "measure_color"}
+                "shape": "measure_shape", "color": "measure_color", "classes": "measure_classes"}
 
 
 def _size_filter(params: dict) -> dict:
@@ -42,21 +42,20 @@ def _size_filter(params: dict) -> dict:
     return out
 
 
+def segmentation(params: dict) -> dict:
+    """La segmentación elegida (paso 1). Proyectos y lotes anteriores traen claves sueltas."""
+    from fenotit.core import segmentation as S
+    return params.get("segmentation") or S.from_legacy(params)
+
+
 def object_chain(params: dict) -> list[dict]:
     """Segmentación y objetos (lo común a los análisis que trabajan con objetos)."""
-    space = params.get("color_space", "BGR")
-    channel = int(params.get("channel_idx", 0))
-    if params.get("auto_threshold"):
-        seg = {"step": "otsu", "params": {"color_space": space, "channel": channel}}
-    else:
-        seg = {"step": "threshold", "params": {"color_space": space, "channel": channel,
-                                               "min_val": int(params.get("min_val", 0)),
-                                               "max_val": int(params.get("max_val", 255))}}
-    morph = [{"step": "morphology", "params": {"op": params["morph_op"],
-                                               "size": int(params.get("morph_size", 3)),
-                                               "iterations": int(params.get("morph_iter", 1))}}] \
-        if params.get("morph_op", "none") != "none" else []
-    chain = [seg, {"step": "roi"}, *morph, {"step": "clean"},
+    from fenotit.core import segmentation as S
+    seg = segmentation(params)
+    refine = S.refine_steps(seg)
+    # con "Afinar máscara" el usuario decide si se rellenan huecos (es una operación más)
+    clean = {"step": "clean", "params": {"fill_holes": False}} if refine else {"step": "clean"}
+    chain = [*S.chain(seg), {"step": "roi"}, *refine, clean,
              {"step": "separate"} if params.get("touching") else {"step": "label"},
              {"step": "filter", "params": {"exclude_border": bool(params.get("exclude_border", True)),
                                            "drop_points": [list(map(float, pt)) for pt in params.get("drop_points") or []],
@@ -75,6 +74,11 @@ def build_chain(params: dict) -> list[dict]:
     if params.get("measure_color"):
         chain.append({"step": "color", "params": {"n_colors": int(params.get("n_colors", 3)),
                                                   "mode": params.get("color_mode", "object")}})
+    seg = segmentation(params)
+    if seg.get("method") == "classifier" and params.get("measure_classes", True):
+        c = seg.get("classifier") or {}
+        chain.append({"step": "classes", "params": {"names": list(c.get("names", [])),
+                                                    "colors": list(c.get("colors", []))}})
     chain.append({"step": "count"})
     return chain
 
@@ -87,7 +91,7 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
                      unit=params.get("length_unit", "mm"),
                      roi=roi_mask, exclusions=exclusions)
     res = AnalysisResult()
-    chosen = [v for v, key in MEASUREMENTS.items() if params.get(key, v in ("count", "morphometry"))]
+    chosen = [v for v, key in MEASUREMENTS.items() if params.get(key, v in ("count", "morphometry", "classes"))]
     ctx.image_row().update(_image_info(image, params))
     tables = _view_tables(ctx, params.get("color_mode", "object"))
     names, view_tables, legends, overlays = {}, {}, {}, {}
@@ -154,6 +158,12 @@ def _legend_spec(key: str, ctx) -> dict | None:
         return {"title": t("step.morphometry"), "rows": rows}
     if key == "color":
         return {"title": t("legend.image_colors"), "colors": ctx.tables.get("image_colors", [])}
+    if key == "classes":
+        rows = []
+        for r in ctx.tables.get("classes", []):
+            h = (r.get("color") or "#888888").lstrip("#")
+            rows.append((f"{r['class']}  {r['pct']:.1f} %", (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))))
+        return {"title": t("step.classes"), "rows": rows} if rows else None
     if key == "shape":
         shapes = ctx.tables.get("object_shape", [])
         if not shapes:
@@ -192,6 +202,10 @@ def _view_tables(ctx, color_mode: str = "object") -> dict[str, list[dict]]:
         out["morphometry"] = [{k: r.get(k) for k in cols} for r in measured]
     if ctx.tables.get("object_shape"):
         out["shape"] = ctx.tables["object_shape"]
+    if ctx.tables.get("classes"):
+        cols = [k for k in (objects[0] if objects else {}) if k.endswith("_pct") or "_area_" in k]
+        out["classes"] = [{"object_id": r["object_id"], **{k: r.get(k) for k in cols}} for r in objects
+                          if r.get("status", "ok") != "excluded"]
     if ctx.tables.get("object_colors"):
         # todos juntos: solo los colores comunes (el % de cada objeto va en la exportación)
         out["color"] = (ctx.tables.get("image_colors", []) if color_mode == "pooled"
@@ -230,5 +244,7 @@ register(
          "default": "object", "group": "measure_color"},
         {"key": "n_colors", "label": "Número de colores", "type": "int", "default": 3, "min": 1, "max": 20,
          "group": "measure_color"},
+        {"key": "measure_classes", "label": "Área por clase", "type": "bool", "default": True,
+         "segmentation": "classifier"},
 ],
 )
