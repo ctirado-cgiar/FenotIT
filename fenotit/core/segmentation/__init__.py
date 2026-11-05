@@ -103,8 +103,12 @@ def chain(seg: dict) -> list[dict]:
         m = seg.get("model") or {}
         steps = [{"step": "model_segment", "params": {"model": m.get("name", "mobilesam"),
                                                       "mode": m.get("mode", "auto"),
-                                                      "grid": int(m.get("grid", 24)),
-                                                      "points": list(m.get("points") or [])}}]
+                                                      "grid": int(m.get("grid", 16)),
+                                                      "points": list(m.get("points") or []),
+                                                      "categories": [c["name"] for c in m.get("categories") or []],
+                                                      "colors": [c["color"] for c in m.get("categories") or []],
+                                                      "default": int(m.get("default", 1)),
+                                                      "picks": list(m.get("picks") or [])}}]
     elif seg.get("auto"):
         steps = [{"step": "otsu", "params": {"color_space": seg.get("color_space", "BGR"),
                                              "channel": int(seg.get("channel", 0))}}]

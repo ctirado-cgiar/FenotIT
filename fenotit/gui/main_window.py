@@ -719,7 +719,8 @@ class MainWindow:
                 "min_val": int(self.min_slider.get()), "max_val": int(self.max_slider.get()),
                 "auto": bool(self.auto_var.get()), "refine": self.refine_list.get(),
                 "classes": self.class_list.get(), "detail": self._detail(),
-                "model": {"name": "mobilesam", "mode": self.model_mode.get(), "grid": self._grid()}}
+                "model": {"name": "mobilesam", "mode": self.model_mode.get(), "grid": self._grid(),
+                          "categories": self.category_list.get()}}
 
     def _set_seg_state(self, d: dict):
         self.cs_var.set(d.get("color_space", "BGR"))
@@ -732,7 +733,8 @@ class MainWindow:
         self.detail_var.set(self._detail_names.get(float(d.get("detail", 1.0)), self._detail_names[1.0]))
         m = d.get("model") or {}
         self.model_mode.set(m.get("mode", "auto"))
-        self.grid_var.set(self._grid_names.get(int(m.get("grid", 24)), self._grid_names[24]))
+        self.grid_var.set(self._grid_names.get(int(m.get("grid", 16)), self._grid_names[16]))
+        self.category_list.set(m.get("categories") or self._default_categories())
         self._on_model_change(quiet=True)
         if d.get("method") == "model" and "model" not in self._method_btns:
             d = dict(d, method="threshold")               # sin el modelo instalado
@@ -745,14 +747,21 @@ class MainWindow:
         return [{"name": t("cls.background_name"), "color": "#9E9E9E", "object": False},
                 {"name": t("cls.object_name"), "color": "#2166AC", "object": True}]
 
+    def _model_for(self, model: dict, path) -> dict:
+        """La configuración del modelo con lo propio de la foto: clics y categorías de regiones."""
+        if not path:
+            return dict(model, points=[])
+        reg = self._regions_for(path)
+        return dict(model, points=self.project.prompts.get(self.project.key(path), []),
+                    default=reg["default"], picks=reg["picks"])
+
     def _seg_params(self) -> dict:
         """La segmentación para el análisis (core.segmentation). Los ejemplos de la
         segmentación por ejemplos se agregan al correr (_with_examples)."""
         d = self._seg_state()
         seg = {k: d[k] for k in ("method", "color_space", "channel", "min_val", "max_val", "auto", "refine")}
         if d["method"] == "model":
-            seg["model"] = dict(d["model"], points=self.project.prompts.get(
-                self.project.key(self.current_image_path), []) if self.current_image_path else [])
+            seg["model"] = self._model_for(d["model"], self.current_image_path)
         if d["method"] == "classifier":
             seg["classifier"] = {"names": [c["name"] for c in d["classes"]],
                                  "colors": [c["color"] for c in d["classes"]],
@@ -1792,9 +1801,10 @@ class MainWindow:
 
         self.areas = AreaEditor(self.canvas_left, self._on_areas_change)
         self.areas.on_done = self._on_roi_tool_done
-        from fenotit.gui.strokes import PointEditor, StrokeEditor
+        from fenotit.gui.strokes import PointEditor, RegionPicker, StrokeEditor
         self.strokes = StrokeEditor(self.canvas_left, self._on_strokes_change)
         self.prompts = PointEditor(self.canvas_left, self._on_prompts_change)
+        self.region_picker = RegionPicker(self.canvas_left, self._on_region_click)
 
         # ZoomController sincroniza ambos canvas
         self.zoom_ctrl = ZoomController(
@@ -1805,7 +1815,8 @@ class MainWindow:
         self.zoom_ctrl.on_pick = self._pick_object
         self.zoom_ctrl.on_hover = self._hover_object
         # Referencia para que ZoomController informe al ROI
-        self.canvas_left._roi_selector_ref = _CanvasTools(self.areas, self.strokes, self.prompts)
+        self.canvas_left._roi_selector_ref = _CanvasTools(self.areas, self.strokes, self.prompts,
+                                                                self.region_picker)
         self._build_area_tools()
 
         self._canvas_row = canvas_row
@@ -2046,6 +2057,9 @@ class MainWindow:
         pt.active = self._seg_method == "model" and self.model_mode.get() == "points" and seg_tab \
             and bool(self.current_image_path) and self._analysis_segments() and not (self.areas and self.areas.mode)
         pt.redraw()
+        self.region_picker.active = self._seg_method == "model" and self.model_mode.get() == "auto" \
+            and seg_tab and bool(self.current_image_path) and self._analysis_segments() \
+            and not (self.areas and self.areas.mode)
         st.colors = [c["color"] for c in self.class_list.classes]
         st.current = self.class_list.current
         st.brush = int(self.brush_var.get())
@@ -2266,7 +2280,7 @@ class MainWindow:
     # ── Modelo de IA (MobileSAM) ──────────────────────────────────────────────
 
     def _grid(self) -> int:
-        return next((k for k, v in self._grid_names.items() if v == self.grid_var.get()), 24)
+        return next((k for k, v in self._grid_names.items() if v == self.grid_var.get()), 16)
 
     def _build_model_box(self, box):
         bg, small = COLORS["bg_panel"], FONTS["small"]
@@ -2281,8 +2295,8 @@ class MainWindow:
                            command=self._on_model_change).pack(anchor="w")
         grow = tk.Frame(box, bg=bg)
         tk.Label(grow, text=t("sam.grid"), bg=bg, fg=COLORS["text_muted"], font=small).pack(side=tk.LEFT)
-        self._grid_names = {16: t("sam.grid.16"), 24: t("sam.grid.24"), 32: t("sam.grid.32"), 48: t("sam.grid.48")}
-        self.grid_var = tk.StringVar(value=self._grid_names[24])
+        self._grid_names = {8: t("sam.grid.8"), 16: t("sam.grid.16"), 24: t("sam.grid.24"), 32: t("sam.grid.32")}
+        self.grid_var = tk.StringVar(value=self._grid_names[16])
         cb = ttk.Combobox(grow, textvariable=self.grid_var, values=list(self._grid_names.values()),
                           state="readonly", width=16, font=small)
         cb.pack(side=tk.LEFT, padx=4)
@@ -2295,25 +2309,105 @@ class MainWindow:
                                   fg=COLORS["accent"], relief="flat", font=small, cursor="hand2", padx=8)
         self._sam_clear = tk.Label(arow, text=t("sam.clear"), bg=bg, fg=COLORS["accent"], font=small, cursor="hand2")
         self._sam_clear.bind("<Button-1>", lambda e: self._clear_prompts())
+        # categorías de las regiones (solo Automático)
+        cat = tk.Frame(box, bg=bg)
+        chead = tk.Frame(cat, bg=bg)
+        chead.pack(fill=tk.X, pady=(8, 2))
+        tk.Label(chead, text=t("cat.title"), bg=bg, fg=COLORS["text_muted"], font=small).pack(side=tk.LEFT)
+        HelpIcon(chead, t("cat.title"), t("cat.help"), bg=bg).pack(side=tk.LEFT, padx=(4, 0))
+        from fenotit.gui.segment_widgets import CategoryList
+        self.category_list = CategoryList(cat, self._on_categories_change, lambda i: None)
+        self.category_list.set(self._default_categories())
+        self.category_list.pack(fill=tk.X)
+        links = tk.Frame(cat, bg=bg)
+        links.pack(fill=tk.X, pady=(4, 0))
+        tk.Label(links, text=t("sam.regions_photo"), bg=bg, fg=COLORS["text_muted"], font=small).pack(side=tk.LEFT)
+        for key, fn in (("sam.all", lambda: self._set_all_regions(True)),
+                        ("sam.none", lambda: self._set_all_regions(False))):
+            lb = tk.Label(links, text=t(key), bg=bg, fg=COLORS["accent"], font=small, cursor="hand2")
+            lb.pack(side=tk.LEFT, padx=(6, 0))
+            lb.bind("<Button-1>", lambda e, f=fn: f())
+        self._cat_box = cat
         self.sam_status = tk.StringVar(value="")
         self._sam_status_lbl = tk.Label(box, textvariable=self.sam_status, bg=bg, fg=COLORS["text_muted"],
                                         font=small, justify="left", wraplength=240, anchor="w")
         self._on_model_change(quiet=True)
 
+    @staticmethod
+    def _default_categories() -> list[dict]:
+        return [{"name": t("cat.default"), "color": "#2166AC"}]
+
     def _on_model_change(self, quiet: bool = False):
         auto = self.model_mode.get() == "auto"
-        for w in (self._grid_row, self._sam_actions, self._sam_status_lbl, self._sam_try, self._sam_clear):
+        for w in (self._grid_row, self._sam_actions, self._sam_status_lbl, self._sam_try, self._sam_clear,
+                  self._cat_box):
             w.pack_forget()
         if auto:
             self._grid_row.pack(fill=tk.X, pady=(4, 0))
         self._sam_actions.pack(fill=tk.X, pady=(6, 0))
         (self._sam_try if auto else self._sam_clear).pack(side=tk.LEFT)
         self._sam_status_lbl.pack(fill=tk.X, pady=(4, 0))
+        if auto:
+            self._cat_box.pack(fill=tk.X)
         self.sam_status.set(t("sam.hint_auto") if auto else t("sam.hint_points"))
         if not quiet:
             self._settings_changed()
             self._update_stroke_tool()
             self._on_slider_change()
+
+    # ── Regiones del modelo: categoría por clic ───────────────────────────────
+
+    def _regions_for(self, path) -> dict:
+        return self.project.regions.get(self.project.key(path)) or {"default": 1, "picks": []}
+
+    def _sam_labels(self):
+        """Las regiones detectadas en la foto actual (Automático), o None."""
+        cached = getattr(self, "_sam_cache", None)
+        full = self.scaler_left.original
+        if cached is None or full is None or cached[0] != (id(full), "auto", self._grid()):
+            return None
+        return cached[1]
+
+    def _on_region_click(self, nx: float, ny: float):
+        from fenotit.core.segmentation import sam
+        labels = self._sam_labels()
+        path = self.current_image_path
+        if labels is None or not path:
+            self.sam_status.set(t("sam.pick_first"))
+            return
+        h, w = labels.shape
+        r = int(labels[min(h - 1, int(ny * h)), min(w - 1, int(nx * w))])
+        if not r:
+            return
+        reg = self._regions_for(path)
+        cats = sam.categorize(labels, reg["default"], reg["picks"])
+        cur = self.category_list.current + 1
+        new = 0 if cats[r] == cur else cur                 # otro clic con la misma categoría: sin usar
+        picks = [p for p in reg["picks"]
+                 if labels[min(h - 1, int(p[1] * h)), min(w - 1, int(p[0] * w))] != r]
+        picks.append([round(nx, 5), round(ny, 5), new])
+        self._remember("undo.regions")
+        self.project.regions[self.project.key(path)] = {"default": reg["default"], "picks": picks}
+        self._on_slider_change()
+
+    def _set_all_regions(self, on: bool):
+        path = self.current_image_path
+        if not path:
+            return
+        self._remember("undo.regions")
+        self.project.regions[self.project.key(path)] = {
+            "default": self.category_list.current + 1 if on else 0, "picks": []}
+        self._on_slider_change()
+
+    def _on_categories_change(self, removed: int | None = None):
+        if removed is not None:                          # las regiones de esa categoría quedan sin usar
+            k = removed + 1
+            for reg in self.project.regions.values():
+                fix = lambda c: 0 if c == k else (c - 1 if c > k else c)
+                reg["default"] = fix(reg.get("default", 1))
+                reg["picks"] = [[x, y, fix(c)] for x, y, c in reg.get("picks", [])]
+        self._settings_changed()
+        self._on_slider_change()
 
     def _on_prompts_change(self, points: list):
         path = self.current_image_path
@@ -2386,14 +2480,32 @@ class MainWindow:
         self._show_preview()
 
     def _render_instances(self, img, labels, inc, exc):
-        """Cada objeto que dio el modelo con su color (los vecinos se distinguen)."""
+        """Con clics: cada objeto con su color. Automático: cada región con el color de su
+        categoría y el borde de todas (las sin usar, solo el borde)."""
         lab = cv2.resize(labels.astype(np.int32), (img.shape[1], img.shape[0]), interpolation=cv2.INTER_NEAREST)
-        mask = self._finish_mask(((lab > 0) * 255).astype(np.uint8), img, inc, exc)
-        rng = np.random.default_rng(7)
-        pal = rng.integers(60, 255, (int(lab.max()) + 1, 3)).astype(np.uint8)
-        colored = img.copy()
+        if self.model_mode.get() != "auto":
+            mask = self._finish_mask(((lab > 0) * 255).astype(np.uint8), img, inc, exc)
+            rng = np.random.default_rng(7)
+            pal = rng.integers(60, 255, (int(lab.max()) + 1, 3)).astype(np.uint8)
+            colored = img.copy()
+            inside = mask > 0
+            colored[inside] = (0.45 * img[inside] + 0.55 * pal[lab[inside]]).astype(np.uint8)
+            self._show_mask_overlay(img, mask, colored)
+            return
+        from fenotit.core.segmentation import sam
+        reg = self._regions_for(self.current_image_path)
+        cats = sam.categorize(lab, reg["default"], reg["picks"])
+        cat_img = cats[lab]
+        mask = self._finish_mask(((cat_img > 0) * 255).astype(np.uint8), img, inc, exc)
+        pal = np.zeros((len(self.category_list.cats) + 1, 3), np.uint8)
+        for i, c in enumerate(self.category_list.cats, 1):
+            h = c["color"].lstrip("#")
+            pal[i] = (int(h[4:6], 16), int(h[2:4], 16), int(h[0:2], 16))
+        colored = (img * 0.75).astype(np.uint8)            # sin usar: un poco más oscuras
         inside = mask > 0
-        colored[inside] = (0.45 * img[inside] + 0.55 * pal[lab[inside]]).astype(np.uint8)
+        colored[inside] = (0.5 * img[inside] + 0.5 * pal[np.clip(cat_img[inside], 0, len(pal) - 1)]).astype(np.uint8)
+        edges = cv2.morphologyEx(lab.astype(np.float32), cv2.MORPH_GRADIENT, np.ones((3, 3), np.uint8)) > 0
+        colored[edges] = (255, 255, 255)
         self._show_mask_overlay(img, mask, colored)
 
     def _build_threshold_box(self, box):
@@ -2704,6 +2816,7 @@ class MainWindow:
         self.project.highlighted.pop(self.project.key(path), None)
         self.project.strokes.pop(self.project.key(path), None)
         self.project.prompts.pop(self.project.key(path), None)
+        self.project.regions.pop(self.project.key(path), None)
         self.project.images = images
         self.project.current_index = min(self.project.current_index, max(len(images) - 1, 0))
         self._update_batch_list()
@@ -3101,7 +3214,7 @@ class MainWindow:
             aruco = sc.source == "aruco"
             seg = params.get("segmentation") or {}
             if seg.get("method") == "model":
-                seg = dict(seg, model=dict(seg["model"], points=self.project.prompts.get(self.project.key(path), [])))
+                seg = dict(seg, model=self._model_for(seg["model"], path))
             jobs.append(batch.Job(path, dict(params, segmentation=seg, mm_per_pixel=None if aruco else sc.mm_per_pixel,
                                              roi_shapes=self.project.roi_for(path),
                                              drop_points=self.project.excluded_for(path),
@@ -3952,7 +4065,7 @@ class MainWindow:
 
     UNDO_MAX = 50
     _UNDO_FIELDS = ("roi", "image_roi", "image_scale", "excluded", "highlighted", "images",
-                    "scale", "unit", "max_mpx", "corrections", "metadata", "strokes", "prompts")
+                    "scale", "unit", "max_mpx", "corrections", "metadata", "strokes", "prompts", "regions")
 
     def _snapshot(self) -> dict:
         """Lo que Ctrl+Z puede devolver: áreas, marcas, fotos de la lista, segmentación
