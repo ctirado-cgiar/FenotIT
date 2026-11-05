@@ -13,7 +13,8 @@ from fenotit.core.export import exporter
 from fenotit.core.project import Project
 
 IMAGES = sorted(str(p) for p in (Path(__file__).parent / "images").glob("0[1-3].jpg"))
-PARAMS = {"color_space": "YCrCb", "channel_idx": 1, "min_val": 122, "max_val": 255, "measure_color": True}
+PARAMS = {"color_space": "YCrCb", "channel_idx": 1, "min_val": 122, "max_val": 255, "measure_color": True,
+          "exclude_border": True}
 
 
 def _run(jobs, task=batch.process):
