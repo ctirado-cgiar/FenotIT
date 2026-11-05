@@ -293,22 +293,22 @@ def classes(ctx, p):
         cls = ctx.classes[sl][m > 0]
         n = np.bincount(cls, minlength=len(names))[:len(names)]
         total += n
-        area = max(int(m.sum()), 1)
+        area = max(int(n[1:].sum()), 1)         # % sobre las clases del objeto (sin fondo): suman 100
         for i, c in enumerate(cols):
-            if i == 0 and not n[0]:
-                continue                       # fondo: solo si quedó dentro de un objeto
+            if i == 0:
+                continue                       # el fondo no es una parte del objeto
             rows[oid][f"{c}_pct"] = round(100 * n[i] / area, 2)
             rows[oid][f"{c}_area_{u}2"] = round(n[i] * f * f, d2)
-    s = max(int(total.sum()), 1)
+    s = max(int(total[1:].sum()), 1)
     img = ctx.image_row()
     for i, c in enumerate(cols):
-        if i == 0 and not total[0]:
+        if i == 0:
             continue
         img[f"{c}_pct"] = round(100 * total[i] / s, 2)
         img[f"{c}_area_{u}2"] = round(total[i] * f * f, d2)
-    ctx.tables["classes"] = [{"class": names[i], "background": int(i == 0), "pct": round(100 * total[i] / s, 2),
+    ctx.tables["classes"] = [{"class": names[i], "pct": round(100 * total[i] / s, 2),
                               f"area_{u}2": round(total[i] * f * f, d2), "color": (p["colors"] or [""] * 99)[i]}
-                             for i in range(len(names)) if i or total[0]]
+                             for i in range(1, len(names))]
     # vista: los colores de las clases dentro de cada objeto, sobre la foto atenuada
     from fenotit.core.segmentation.classifier import colorize
     view = (ctx.image * 0.35).astype(np.uint8)

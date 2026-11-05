@@ -58,6 +58,7 @@ def object_chain(params: dict) -> list[dict]:
     chain = [*S.chain(seg), {"step": "roi"}, *refine, clean,
              {"step": "separate"} if params.get("touching") else {"step": "label"},
              {"step": "filter", "params": {"exclude_border": bool(params.get("exclude_border", True)),
+                                           "relative_noise": seg.get("method") in ("classifier", "model"),
                                            "drop_points": [list(map(float, pt)) for pt in params.get("drop_points") or []],
                                            "mark_points": [list(map(float, pt)) for pt in params.get("mark_points") or []],
                                            **_size_filter(params)}}]
@@ -162,7 +163,7 @@ def _legend_spec(key: str, ctx) -> dict | None:
     if key == "classes":
         rows = []
         for r in ctx.tables.get("classes", []):
-            if r.get("background") or r["pct"] < 0.05:
+            if r["pct"] < 0.05:
                 continue                                   # el fondo dentro de los objetos no va en la leyenda
             h = (r.get("color") or "#888888").lstrip("#")
             rows.append((f"{r['class']}  {r['pct']:.1f} %", (int(h[4:6], 16), int(h[2:4], 16), int(h[0:2], 16))))
