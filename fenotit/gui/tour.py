@@ -2,8 +2,7 @@
 enmarca en azul y muestra al lado un globo con título, texto y Anterior / Siguiente /
 Cerrar. Durante el recorrido solo responden Anterior / Siguiente / Terminar (el elemento se ve, no se toca).
 
-El oscurecido son cuatro ventanas semitransparentes alrededor del hueco (Tk no recorta
-ventanas), así que funciona igual en Windows y en Linux con compositor."""
+El oscurecido son cuatro ventanas semitransparentes alrededor del hueco."""
 from __future__ import annotations
 
 import tkinter as tk

@@ -237,8 +237,8 @@ def automatic(img: np.ndarray, grid: int = 16, detail: int = 1, min_iou: float =
     por punto de prueba (lo que se distingue de su entorno + cuadrícula grid×grid); quedan
     las de calidad estimada ≥ min_iou y estables (la máscara casi no cambia al mover el
     umbral), sin repetidas (IoU > max_iou con una mejor). Una región dentro de otra (una
-    lesión en la hoja) se conserva. detail = 2 suma 2×2 recortes con solape: ve detalles
-    más finos (hojas delgadas, objetos pequeños) y tarda unas 5 veces más. Devuelve
+    lesión en la hoja) se conserva. detail = 2 suma 2×2 recortes con solape
+    analizados a mayor resolución. Devuelve
     etiquetas; las regiones pequeñas quedan encima de las grandes y lo que no cubrió
     ninguna propuesta forma regiones propias."""
     H, W = img.shape[:2]

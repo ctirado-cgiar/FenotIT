@@ -77,7 +77,7 @@ class Corrections:
                    ColorCard.from_dict(d.get("color", {})))
 
     def save_files(self, folder: Path) -> None:
-        """Todo va en el YAML del proyecto (antes, una máscara de la tarjeta en calibration/)."""
+        """Todo va en el YAML del proyecto."""
 
 
 @dataclass

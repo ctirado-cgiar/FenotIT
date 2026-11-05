@@ -206,8 +206,7 @@ def matrix(src: np.ndarray, reference: np.ndarray, max_drop: int = 4) -> tuple[n
 
 
 def apply_matrix(image: np.ndarray, A: np.ndarray) -> np.ndarray:
-    """Aplica la corrección a una foto BGR uint8 (por tabla de colores no se puede: es afín
-    en 3 canales, así que se hace por bloques para no duplicar la memoria)."""
+    """Aplica la corrección afín a una foto BGR uint8, por bloques de filas."""
     h, w = image.shape[:2]
     out = np.empty_like(image)
     flat_in, flat_out = image.reshape(-1, 3), out.reshape(-1, 3)

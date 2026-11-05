@@ -139,8 +139,7 @@ def wheel_factor(event) -> float:
 
 
 def render(img_bgr: np.ndarray, state: ZoomState, cw: int, ch: int, post=None, size=None):
-    """Solo la parte visible, ya escalada: (rgb, x, y) o None. Así un zoom de 3200 % en una
-    foto de 8 MP no intenta crear una imagen gigante. `size` = (ancho, alto) de la foto
+    """Solo la parte visible, ya escalada: (rgb, x, y) o None. `size` = (ancho, alto) de la foto
     cuando `img_bgr` es una copia reducida (vista previa de fotos muy grandes)."""
     iw, ih = size or (img_bgr.shape[1], img_bgr.shape[0])
     z = state.zoom
