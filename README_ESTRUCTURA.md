@@ -2,13 +2,14 @@
 
 ## Cómo funciona un análisis
 
-Un análisis es una **cadena de piezas** (`fenotit/core/pipeline/`):
+Un análisis es una **cadena de piezas**. Cada pieza vive en el archivo de su método:
 
-| Tipo | Hace | Piezas actuales |
-|---|---|---|
-| `segmenter` | produce la máscara (o detecciones) | `threshold`, `otsu` |
-| `processor` | transforma máscara u objetos | `roi`, `clean`, `label`, `separate`, `filter` |
-| `measurement` | lee los objetos y agrega tablas e imágenes | `count`, `morphometry`, `shape`, `color` |
+| Tipo | Hace | Piezas | Carpeta |
+|---|---|---|---|
+| `segmenter` | produce la máscara | `threshold`, `otsu`, `whole`, `classify`, `model_segment` | `core/segmentation/` |
+| `processor` | transforma máscara u objetos | `refine` (afinar máscara) | `core/segmentation/` |
+| `processor` | de la máscara a objetos | `roi`, `clean`, `label`, `separate`, `filter` | `core/objects/` |
+| `measurement` | lee los objetos y agrega tablas e imágenes | `count`, `morphometry`, `shape`, `color`, `classes`, `distances` | `core/measurements/` |
 
 Todo pasa por un `Context` (imagen, `mask`, `labels`, `groups`, tablas `objects`/`image`/..., imágenes de vista).
 `pipeline.run(image, chain)` corre la cadena y valida que cada pieza tenga lo que necesita.
@@ -25,7 +26,9 @@ ctx.tables["objects"]      # una fila por objeto
 
 ## Cómo agregar una pieza
 
-Un archivo en `fenotit/core/pipeline/steps/`; se descubre sola:
+Un archivo en `fenotit/core/segmentation/`, `fenotit/core/objects/` o
+`fenotit/core/measurements/` (según el tipo); se descubre sola al iniciar
+(`pipeline.base.STEP_PACKAGES`):
 
 ```python
 from fenotit.core.pipeline.base import step
@@ -63,21 +66,31 @@ Textos en `fenotit/lang/*.json`: `param.<análisis>.<clave>.label` y `.tip`.
 
 ```
 FenotIT/
-├── main.py                       # Lanzador (equivale a `python -m fenotit`)
+├── main.py                        lanzador (equivale a `python -m fenotit`)
 ├── fenotit/
-│   ├── core/                     # Sin tkinter
-│   │   ├── pipeline/             # base, cache, views, steps/
-│   │   ├── analysis/             # registry + objects (análisis de la interfaz)
-│   │   ├── stats/                # análisis posterior
-│   │   ├── corrections/          # distorsión, perspectiva ArUco, tarjeta de color, escala
-│   │   ├── efd.py, metadata.py, colorspaces.py, project.py, image_io.py
-│   │   └── export/exporter.py    # una tabla CSV por nivel + Excel
-│   ├── gui/                      # tkinter
-│   └── lang/                     # en.json, es.json
+│   ├── core/                      sin interfaz: se puede usar desde Python
+│   │   ├── corrections/           distortion.py · aruco.py (perspectiva) · colorcard.py · scale.py
+│   │   │                          pipeline.py (orden y aplicación de las correcciones)
+│   │   ├── segmentation/          threshold.py · classifier.py (por ejemplos) · sam.py (MobileSAM)
+│   │   │                          regions.py (categorías de regiones) · refine_mask.py (afinar máscara)
+│   │   │                          __init__.py (configuración de la segmentación → piezas)
+│   │   ├── objects/               mask.py (área de análisis y limpieza) · label.py · separate.py · filter.py
+│   │   ├── measurements/          morphometry.py · shape.py · color.py · count.py · classes.py · distances.py
+│   │   ├── analysis/              objects.py · distances.py · image_color.py (análisis de la lista)
+│   │   ├── pipeline/              base.py (contexto y registro de piezas) · cache.py · overlay.py · views.py
+│   │   ├── stats/                 análisis posterior (tablas, sin imágenes)
+│   │   ├── export/                CSV, Excel y metadatos
+│   │   └── project.py, batch.py, image_io.py, efd.py, units.py, uncertainty.py …
+│   ├── gui/                       interfaz (tkinter); aspecto en gui/theme.py y gui/icons.py
+│   ├── assets/                    logo e íconos
+│   └── lang/                      en.json, es.json
+├── docs/
+│   ├── methods/                   descripción de cada método (inglés)
+│   └── design/                    guía de diseño de la interfaz
 └── tests/
-    ├── images/                   # 01-10 (sueltas) y 23xxx (pegadas)
-    ├── reference/                # tablas de referencia de las 10 fotos
-    ├── reference.py, test_pipeline.py, test_counts.py, ...
+    ├── images/                    fotos de prueba
+    ├── reference/                 tablas de referencia de las fotos de prueba
+    └── reference.py, test_*.py
 ```
 
 ## Exportación

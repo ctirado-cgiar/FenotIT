@@ -38,12 +38,14 @@ def clean(ctx, p):
 
 
 def _fill_small_holes(mask, frac=0.2):
-    """Rellena huecos menores que frac × el área típica de un objeto. Los huecos
-    grandes suelen ser fondo encerrado por un anillo de objetos que se tocan."""
+    """Rellena los huecos que miden menos de frac × el área típica de un objeto (mediana de
+    las regiones de la máscara que miden al menos el 5 % de la mayor); los huecos más
+    grandes se dejan."""
     n, _, stats, _ = cv2.connectedComponentsWithStats((mask > 0).astype(np.uint8), connectivity=8)
     if n < 2:
         return mask
-    typical = float(np.median(stats[1:, cv2.CC_STAT_AREA]))
+    areas = stats[1:, cv2.CC_STAT_AREA]
+    typical = float(np.median(areas[areas >= 0.05 * areas.max()]))
     inv = (mask == 0).astype(np.uint8)
     k, lab, hs, _ = cv2.connectedComponentsWithStats(inv, connectivity=4)
     h, w = mask.shape
