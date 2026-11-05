@@ -12,7 +12,7 @@ _UNIT_RE = re.compile(r"^(?P<base>.+?)_(?P<unit>px|um|mm|cm|m)(?P<sq>2?)$")
 
 
 def column(col: str, aliases: dict | None = None) -> str:
-    """area_mm2 → Área (mm²); sano_pct → Sano (%); lesion_area_mm2 → Lesión · área (mm²);
+    """area_mm2 → Área (mm²); sano_pct → Sano (%); lesion_area_mm2 → Área Lesión (mm²); n_lesion → N.º Lesión;
     efd_a3 → EFD a3; object_id → Objeto. `aliases`: nombre ASCII de cada clase → su nombre."""
     if col.startswith("efd_"):
         return "EFD " + col[4:]
@@ -29,8 +29,10 @@ def column(col: str, aliases: dict | None = None) -> str:
     if base in aliases:
         return f"{aliases[base]} ({unit})" if unit else aliases[base]
     if base.endswith("_area") and base[:-5] in aliases:
-        name = f"{aliases[base[:-5]]} · {t('col.area').lower()}"
+        name = f"{t('col.area')} {aliases[base[:-5]]}"
         return f"{name} ({unit})" if unit else name
+    if base.startswith("n_") and base[2:] in aliases:
+        return f"{t('col.n')} {aliases[base[2:]]}"
     name = t(f"col.{base}", "")
     if not name:
         name = base.replace("_", " ")

@@ -31,5 +31,18 @@ def test_click_and_objects():
     assert res.stats["n_objects"] == 1
 
 
+def test_categorize():
+    """Todas empiezan en la categoría por defecto; un clic cambia la región de ese punto
+    (la de encima) y el último clic en una región es el que vale."""
+    lab = np.zeros((100, 100), np.int32)
+    lab[10:90, 10:90] = 1                       # hoja
+    lab[40:60, 40:60] = 2                       # lesión encima
+    c = sam.categorize(lab, 1, [[0.5, 0.5, 2]])
+    assert list(c) == [0, 1, 2]
+    c = sam.categorize(lab, 0, [[0.2, 0.2, 1], [0.5, 0.5, 2], [0.45, 0.45, 0]])
+    assert list(c) == [0, 1, 0]
+
+
 if __name__ == "__main__":
+    test_categorize(); print("ok  test_categorize")
     test_click_and_objects(); print("ok  test_click_and_objects")

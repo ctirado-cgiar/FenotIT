@@ -203,3 +203,32 @@ class PointEditor:
             self.points.append([round(nx, 5), round(ny, 5), int(pos)])
             self.redraw()
             self.on_change([list(p) for p in self.points])
+
+
+class RegionPicker:
+    """Clic izquierdo (sin arrastrar) sobre una región del modelo: on_click(x, y) en 0-1."""
+
+    def __init__(self, canvas: tk.Canvas, on_click: Callable[[float, float], None]):
+        self.canvas = canvas
+        self.on_click = on_click
+        self.active = False
+        self._view = (0, 0, 1, 1)
+        self._down = None
+        canvas.bind("<ButtonPress-1>", lambda e: setattr(self, "_down", (e.x, e.y)), add="+")
+        canvas.bind("<ButtonRelease-1>", self._release, add="+")
+
+    def set_image_offset(self, x, y, w, h):
+        self._view = (x, y, max(w, 1), max(h, 1))
+
+    def redraw(self):
+        pass
+
+    def _release(self, e):
+        if not self.active or not self._down:
+            return
+        if (e.x - self._down[0]) ** 2 + (e.y - self._down[1]) ** 2 > 16:
+            return                                              # fue un arrastre
+        x, y, w, h = self._view
+        nx, ny = (e.x - x) / w, (e.y - y) / h
+        if 0 <= nx <= 1 and 0 <= ny <= 1:
+            self.on_click(nx, ny)

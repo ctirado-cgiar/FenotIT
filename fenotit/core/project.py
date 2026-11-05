@@ -30,7 +30,7 @@ class Segmentation:
     refine: list = field(default_factory=lambda: [{"op": "fill_holes"}])   # afinar máscara, en orden
     classes: list = field(default_factory=lambda: [dict(c) for c in DEFAULT_CLASSES])
     detail: float = 1.0           # MP de la copia en que se clasifica (por ejemplos)
-    model: dict = field(default_factory=lambda: {"name": "mobilesam", "mode": "auto", "grid": 24})
+    model: dict = field(default_factory=lambda: {"name": "mobilesam", "mode": "auto", "grid": 16})
 
     @classmethod
     def from_dict(cls, d: dict | None) -> "Segmentation":
@@ -76,6 +76,8 @@ class Project:
     highlighted: dict[str, list] = field(default_factory=dict)   # foto -> objetos destacados ★ ([x, y] 0-1)
     strokes: dict[str, list] = field(default_factory=dict)       # foto -> trazos de ejemplo (segmentación por ejemplos)
     prompts: dict[str, list] = field(default_factory=dict)       # foto -> clics para el modelo de IA ([x, y, objeto?] 0-1)
+    regions: dict[str, dict] = field(default_factory=dict)       # foto -> categorías de las regiones del modelo
+                                                                 # {"default": cat, "picks": [[x, y, cat], ...]}
     corrections: Corrections = field(default_factory=Corrections)
     metadata: dict[str, str] = field(default_factory=dict)   # {"file": ruta, "key_column": col}
     max_mpx: float | None = 50.0                             # resolución de trabajo del análisis (None = completa)
@@ -186,6 +188,7 @@ class Project:
             "highlighted_objects": {self._rel(Path(k)): v for k, v in self.highlighted.items()},
             "strokes": {self._rel(Path(k)): v for k, v in self.strokes.items() if v},
             "prompts": {self._rel(Path(k)): v for k, v in self.prompts.items() if v},
+            "regions": {self._rel(Path(k)): v for k, v in self.regions.items() if v},
             "corrections": self.corrections.to_dict(),
             "ran": self.ran,
             "max_mpx": self.max_mpx,
@@ -246,6 +249,7 @@ class Project:
             highlighted={cls.key(resolve(k)): v for k, v in (d.get("highlighted_objects") or {}).items()},
             strokes={cls.key(resolve(k)): v for k, v in (d.get("strokes") or {}).items()},
             prompts={cls.key(resolve(k)): v for k, v in (d.get("prompts") or {}).items()},
+            regions={cls.key(resolve(k)): v for k, v in (d.get("regions") or {}).items()},
             corrections=Corrections.from_dict(d.get("corrections"), folder),
             ran=list(d.get("ran") or []),
             max_mpx=d.get("max_mpx", 50.0),
@@ -262,7 +266,7 @@ class Project:
         foto (áreas, escala, marcas). Devuelve cuántas se cambiaron."""
         old_new = {self.key(a): Path(b) for a, b in found.items()}
         self.images = [old_new.get(self.key(p), p) for p in self.images]
-        for name in ("image_roi", "image_scale", "excluded", "highlighted", "strokes", "prompts"):
+        for name in ("image_roi", "image_scale", "excluded", "highlighted", "strokes", "prompts", "regions"):
             d = getattr(self, name)
             setattr(self, name, {(self.key(old_new[k]) if k in old_new else k): v for k, v in d.items()})
         return len(old_new)

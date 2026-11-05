@@ -238,3 +238,88 @@ class ClassList(tk.Frame):
     def _object(self, i: int, on: bool):
         self.classes[i]["object"] = bool(on)
         self.on_change()
+
+
+class CategoryList(tk.Frame):
+    """Categorías de las regiones del modelo (p. ej. Planta, Maleza, Suelo). La fila elegida
+    es la que pone un clic sobre una región; el cuadrito de color cambia el color."""
+
+    def __init__(self, parent, on_change: Callable[[], None], on_pick: Callable[[int], None]):
+        bg = COLORS["bg_panel"]
+        super().__init__(parent, bg=bg)
+        self.on_change, self.on_pick = on_change, on_pick
+        self.cats: list[dict] = []
+        self.current = 0
+        self._rows = tk.Frame(self, bg=bg)
+        self._rows.pack(fill=tk.X)
+        add = tk.Label(self, text="+ " + t("cat.add"), bg=bg, fg=COLORS["accent"], font=FONTS["small"],
+                       cursor="hand2")
+        add.pack(anchor="w", pady=(2, 0))
+        add.bind("<Button-1>", lambda e: self._add())
+
+    def get(self) -> list[dict]:
+        return [dict(c) for c in self.cats]
+
+    def set(self, cats: list[dict]):
+        self.cats = [dict(c) for c in cats]
+        self.current = min(self.current, len(self.cats) - 1)
+        self._render()
+
+    def pick(self, i: int):
+        if 0 <= i < len(self.cats):
+            self.current = i
+            self._render()
+            self.on_pick(i)
+
+    def _add(self):
+        used = {c["color"] for c in self.cats}
+        color = next((c for c in CLASS_COLORS[1:] if c not in used), "#444444")
+        self.cats.append({"name": t("cat.new", n=len(self.cats) + 1), "color": color})
+        self.current = len(self.cats) - 1
+        self._render()
+        self.on_change()
+        self.on_pick(self.current)
+
+    def _remove(self, i: int):
+        if len(self.cats) < 2:
+            return
+        del self.cats[i]
+        self.current = min(self.current, len(self.cats) - 1)
+        self._render()
+        self.on_change(removed=i)
+
+    def _color(self, i: int):
+        got = colorchooser.askcolor(self.cats[i]["color"], parent=self, title=self.cats[i]["name"])
+        if got and got[1]:
+            self.cats[i]["color"] = got[1].upper()
+            self._render()
+            self.on_change()
+
+    def _render(self):
+        small = FONTS["small"]
+        for w in self._rows.winfo_children():
+            w.destroy()
+        for i, c in enumerate(self.cats):
+            on = i == self.current
+            bg = COLORS["accent_light"] if on else COLORS["bg_card"]
+            row = tk.Frame(self._rows, bg=bg, highlightthickness=1, cursor="hand2",
+                           highlightbackground=COLORS["accent"] if on else COLORS["border"])
+            row.pack(fill=tk.X, pady=1)
+            sw = tk.Label(row, bg=c["color"], width=2, cursor="hand2")
+            sw.pack(side=tk.LEFT, padx=4, pady=3)
+            sw.bind("<Button-1>", lambda e, i=i: self._color(i))
+            var = tk.StringVar(value=c["name"])
+            ent = tk.Entry(row, textvariable=var, width=12, font=small, relief="flat", bg=bg)
+            ent.pack(side=tk.LEFT, fill=tk.X, expand=True)
+            ent.bind("<FocusIn>", lambda e, i=i: self.current != i and self.after_idle(lambda: self.pick(i)))
+            var.trace_add("write", lambda *a, i=i, v=var: self._rename(i, v.get()))
+            if len(self.cats) > 1:
+                x = tk.Label(row, text="✕", bg=bg, fg=COLORS["text_muted"], font=small, cursor="hand2", padx=3)
+                x.pack(side=tk.RIGHT)
+                x.bind("<Button-1>", lambda e, i=i: self._remove(i))
+            row.bind("<Button-1>", lambda e, i=i: self.pick(i))
+
+    def _rename(self, i: int, name: str):
+        if i < len(self.cats) and name.strip() and self.cats[i]["name"] != name:
+            self.cats[i]["name"] = name
+            self.on_change()

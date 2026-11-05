@@ -58,7 +58,9 @@ def object_chain(params: dict) -> list[dict]:
     chain = [*S.chain(seg), {"step": "roi"}, *refine, clean,
              {"step": "separate"} if params.get("touching") else {"step": "label"},
              {"step": "filter", "params": {"exclude_border": bool(params.get("exclude_border", True)),
-                                           "relative_noise": seg.get("method") in ("classifier", "model"),
+                                           "relative_noise": seg.get("method") == "classifier",
+                                           # regiones del modelo: las elige el usuario, sin quitar ruido
+                                           **({"area_min": 0} if seg.get("method") == "model" else {}),
                                            "drop_points": [list(map(float, pt)) for pt in params.get("drop_points") or []],
                                            "mark_points": [list(map(float, pt)) for pt in params.get("mark_points") or []],
                                            **_size_filter(params)}}]
@@ -81,6 +83,12 @@ def build_chain(params: dict) -> list[dict]:
         c = seg.get("classifier") or {}
         chain.append({"step": "classes", "params": {"names": list(c.get("names", [])),
                                                     "colors": list(c.get("colors", []))}})
+    m = seg.get("model") or {}
+    if seg.get("method") == "model" and m.get("mode", "auto") == "auto" and len(m.get("categories") or []) > 1:
+        cats = m["categories"]
+        chain.append({"step": "classes", "params": {"names": [""] + [c["name"] for c in cats],
+                                                    "colors": ["#000000"] + [c["color"] for c in cats],
+                                                    "whole": True}})
     chain.append({"step": "count"})
     return chain
 
@@ -166,7 +174,8 @@ def _legend_spec(key: str, ctx) -> dict | None:
             if r["pct"] < 0.05:
                 continue                                   # el fondo dentro de los objetos no va en la leyenda
             h = (r.get("color") or "#888888").lstrip("#")
-            rows.append((f"{r['class']}  {r['pct']:.1f} %", (int(h[4:6], 16), int(h[2:4], 16), int(h[0:2], 16))))
+            text = f"{r['class']}  {r['n']}  ({r['pct']:.1f} %)" if "n" in r else f"{r['class']}  {r['pct']:.1f} %"
+            rows.append((text, (int(h[4:6], 16), int(h[2:4], 16), int(h[0:2], 16))))
         return {"title": t("step.classes"), "rows": rows} if rows else None
     if key == "shape":
         shapes = ctx.tables.get("object_shape", [])
@@ -207,7 +216,7 @@ def _view_tables(ctx, color_mode: str = "object") -> dict[str, list[dict]]:
     if ctx.tables.get("object_shape"):
         out["shape"] = ctx.tables["object_shape"]
     if ctx.tables.get("classes"):
-        cols = [k for k in (objects[0] if objects else {}) if k.endswith("_pct") or "_area_" in k]
+        cols = [k for k in (objects[0] if objects else {}) if k == "category" or k.endswith("_pct") or "_area_" in k]
         out["classes"] = [{"object_id": r["object_id"], **{k: r.get(k) for k in cols}} for r in objects
                           if r.get("status", "ok") != "excluded"]
     if ctx.tables.get("object_colors"):
