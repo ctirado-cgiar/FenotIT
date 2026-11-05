@@ -151,6 +151,13 @@ def metadata(analysis: str, results: dict[str, Any], project=None, extra: dict |
                  ("corrections", ", ".join(corr.active()) or "none"),
                  ("max_megapixels", project.max_mpx or "full"),
                  ("preset", "none")]
+    unc = [r.extra["area_uncertainty_pct"] for r in ok if r.extra.get("area_uncertainty_pct")]
+    if unc:
+        # error relativo del área por la discretización en píxeles: sqrt(P/12)/A (docs/methods)
+        rows += [("area_uncertainty_pct_median", round(float(np.median([u[0] for u in unc])), 3)),
+                 ("area_uncertainty_pct_max", round(float(max(u[1] for u in unc)), 3)),
+                 ("area_uncertainty_method", "pixel discretization: sd(A) = sqrt(P/12) px2; "
+                                             "relative to A; scale error not included")]
     if ok:
         params = [_params_of(r) for r in ok]
         if any(p != params[0] for p in params[1:]):
@@ -175,6 +182,17 @@ def segmentation_rows(project) -> list[tuple[str, Any]]:
                  ("examples_images", sum(1 for v in strokes.values() if v)),
                  ("examples_strokes", sum(len(v) for v in strokes.values())),
                  ("classifier_detail_mpx", seg.detail)]
+    elif method == "model":
+        m = getattr(seg, "model", {}) or {}
+        regions = getattr(project, "regions", {}) or {}
+        rows += [("segmentation", "MobileSAM (Zhang et al. 2023), "
+                  + ("automatic regions" if m.get("mode", "auto") == "auto" else "clicks on objects"))]
+        if m.get("mode", "auto") == "auto":
+            rows += [("model_grid", m.get("grid", 16)),
+                     ("region_categories", "; ".join(c.get("name", "") for c in m.get("categories") or [])),
+                     ("images_with_classified_regions", len(regions)),
+                     ("other_images", "regions classified by a random forest trained on the classified ones"
+                      if regions else "all regions used")]
     else:
         rows.append(("segmentation", f"{seg.color_space} channel {seg.channel} "
                      + ("Otsu" if seg.auto else f"{seg.min_val}-{seg.max_val}")))

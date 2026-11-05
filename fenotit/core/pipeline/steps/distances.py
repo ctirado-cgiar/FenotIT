@@ -138,6 +138,10 @@ def distances(ctx, p):
         se = 0.26136 / np.sqrt(len(ids) ** 2 / area)          # error estándar de Clark-Evans
         img.update({f"mean_nearest_{unit}": round(float(np.mean(near)), 4) if near else None,
                     f"sd_nearest_{unit}": round(float(np.std(near, ddof=1)), 4) if len(near) > 1 else None,
+                    f"min_nearest_{unit}": round(float(np.min(near)), 4) if near else None,
+                    f"max_nearest_{unit}": round(float(np.max(near)), 4) if near else None,
+                    f"mean_pair_{unit}": round(float(np.mean([r[f"distance_{unit}"] for r in rows])), 4)
+                    if rows else None,
                     "clark_evans_R": round(float(nn.mean() / expected), 4),
                     "clark_evans_z": round(float((nn.mean() - expected) / se), 3)})
     ctx.image_row().update(img)

@@ -128,6 +128,9 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
     res.extra["overlays"] = overlays          # marcas como datos: se dibujan con el estilo elegido
     from fenotit.core.pipeline.views import object_geometry
     res.extra["geometry"] = object_geometry(ctx.labels)     # elegir, resaltar y recortar un objeto
+    unc = [v for k, v in (ctx.extra.get("area_rel_sd") or {}).items() if k not in ctx.excluded]
+    if unc:                                   # % de error del área por la discretización (metadatos)
+        res.extra["area_uncertainty_pct"] = [float(np.median(unc)) * 100, float(np.max(unc)) * 100]
     res.extra["excluded"] = sorted(ctx.excluded)
     res.extra["highlighted"] = sorted(ctx.highlighted)
     if ctx.highlighted:                                     # ★ en todas las vistas con marcas

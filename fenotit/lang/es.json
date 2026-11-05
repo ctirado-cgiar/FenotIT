@@ -785,5 +785,8 @@
   "undo.regions": "categoría de regiones",
   "col.category": "Categoría",
   "col.n": "N.º",
-  "sam.learned": "Esta foto aún no tiene clics: sus regiones se clasifican con lo que marcaste en otras fotos."
+  "sam.learned": "Esta foto aún no tiene clics: sus regiones se clasifican con lo que marcaste en otras fotos.",
+  "col.min_nearest": "Vecino más cercano, mínimo",
+  "col.max_nearest": "Vecino más cercano, máximo",
+  "col.mean_pair": "Distancia media entre vecinos"
 }

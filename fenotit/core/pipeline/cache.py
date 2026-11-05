@@ -105,8 +105,9 @@ def _measure(prefix: Context, item: dict, mm_per_px, unit="mm") -> dict:
             for r in ctx.tables.get("objects", [])}
     image_row = dict(ctx.tables["image"][0]) if ctx.tables.get("image") else {}
     others = {k: v for k, v in ctx.tables.items() if k not in ("objects", "image")}
+    new = {k: v for k, v in ctx.extra.items() if k != "overlays" and k not in prefix.extra}
     return {"rows": rows, "image": image_row, "tables": others, "images": dict(ctx.images),
-            "overlays": dict(ctx.extra.get("overlays", {}))}
+            "overlays": dict(ctx.extra.get("overlays", {})), "extra": new}
 
 
 def _compose(prefix: Context, deltas: list[dict], mm_per_px, unit="mm") -> Context:
@@ -125,4 +126,5 @@ def _compose(prefix: Context, deltas: list[dict], mm_per_px, unit="mm") -> Conte
         ctx.images.update(d["images"])
         if d.get("overlays"):
             ctx.extra.setdefault("overlays", {}).update(d["overlays"])
+        ctx.extra.update(d.get("extra") or {})
     return ctx
