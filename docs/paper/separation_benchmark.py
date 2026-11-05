@@ -25,7 +25,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from fenotit.core.pipeline.base import Context  # noqa: E402
-from fenotit.core.pipeline.steps import objects as ob  # noqa: E402
+from fenotit.core.objects import separate as ob  # noqa: E402
 
 OUT = Path(__file__).resolve().parent / "out"
 RNG = np.random.default_rng(134)

@@ -59,6 +59,22 @@ class Context:
         k = TO_MM.get(self.unit, 1.0) if self.mm_per_px else 1.0
         return base + max(0, power * round(math.log10(k)))
 
+    def analysis_region(self, shape):
+        """Área de análisis menos zonas excluidas (uint8 0/1) en el tamaño `shape`, o None si
+        no hay áreas."""
+        import cv2
+        if self.roi is None and not self.exclusions:
+            return None
+        if self.roi is not None:
+            roi = self.roi if self.roi.shape[:2] == shape[:2] else cv2.resize(
+                self.roi, (shape[1], shape[0]), interpolation=cv2.INTER_NEAREST)
+            region = (roi > 0).astype(np.uint8)
+        else:
+            region = np.ones(shape[:2], np.uint8)
+        for pts, _color in self.exclusions or []:
+            cv2.fillPoly(region, [np.asarray(pts, np.int32)], 0)
+        return region
+
     def object_rows(self) -> dict[int, dict]:
         """Filas de la tabla 'objects' indexadas por id de objeto (se crean si faltan)."""
         rows = self.extra.setdefault("_object_rows", {})
@@ -124,14 +140,19 @@ def step(key: str, kind: str, params: list[dict] | None = None,
     return deco
 
 
+# paquetes con piezas: cada archivo registra las suyas con @step al importarse
+STEP_PACKAGES = ("fenotit.core.segmentation", "fenotit.core.objects", "fenotit.core.measurements")
+
+
 def discover() -> dict[str, Step]:
-    """Importa todas las piezas de fenotit.core.pipeline.steps."""
-    from fenotit.core.pipeline import steps
-    for mod in pkgutil.iter_modules(steps.__path__):
-        try:
-            importlib.import_module(f"{steps.__name__}.{mod.name}")
-        except Exception:
-            _log.exception("No se pudo cargar la pieza %s", mod.name)
+    """Importa todos los archivos de STEP_PACKAGES y devuelve el registro de piezas."""
+    for name in STEP_PACKAGES:
+        pkg = importlib.import_module(name)
+        for mod in pkgutil.iter_modules(pkg.__path__):
+            try:
+                importlib.import_module(f"{name}.{mod.name}")
+            except Exception:
+                _log.exception("No se pudo cargar %s.%s", name, mod.name)
     return REGISTRY
 
 

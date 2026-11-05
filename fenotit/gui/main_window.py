@@ -3811,7 +3811,7 @@ class MainWindow:
         if not rows:
             return
         from fenotit.gui.labels import column as _col
-        from fenotit.core.pipeline.steps.measure import slug
+        from fenotit.core.measurements.classes import slug
         self._col_alias = {slug(r["class"]): r["class"] for r in
                            ((result.extra.get("tables") or {}).get("classes") or [])}
         column = lambda c: _col(c, self._col_alias)
@@ -3865,7 +3865,7 @@ class MainWindow:
     @staticmethod
     def _class_aliases(result) -> dict:
         """Nombre ASCII de cada clase → su nombre; el fondo, marcado con "\0" (no se resume)."""
-        from fenotit.core.pipeline.steps.measure import slug
+        from fenotit.core.measurements.classes import slug
         out = {}
         for r in (result.extra.get("tables") or {}).get("classes") or []:
             out[slug(r["class"])] = r["class"]

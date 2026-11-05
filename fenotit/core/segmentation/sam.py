@@ -307,3 +307,47 @@ def _relabel(labels: np.ndarray) -> np.ndarray:
     lut = np.zeros(int(labels.max()) + 1, np.int32)
     lut[ids] = np.arange(1, len(ids) + 1)
     return lut[labels]
+
+
+# ── Pieza del pipeline ──────────────────────────────────────────────────────
+
+from fenotit.core.pipeline.base import step  # noqa: E402
+
+
+@step("model_segment", "segmenter", provides=("mask",), params=[
+    {"key": "model", "type": "str", "default": "mobilesam"},
+    {"key": "mode", "type": "choice", "choices": ["auto", "points"], "default": "auto"},
+    {"key": "grid", "type": "int", "default": 16, "min": 8, "max": 64},
+    {"key": "points", "type": "list", "default": []},
+    {"key": "categories", "type": "list", "default": []},
+    {"key": "colors", "type": "list", "default": []},
+    {"key": "default", "type": "int", "default": 1, "min": 0, "max": 99},
+    {"key": "picks", "type": "list", "default": []},
+    {"key": "own", "type": "bool", "default": True},
+    {"key": "learn", "type": "dict", "default": {}},
+])
+def model_segment(ctx, p):
+    """Segmentación con un modelo de IA (MobileSAM). Cada objeto sale ya separado: las
+    etiquetas quedan en ctx.extra["instances"] y el paso de objetos las respeta.
+    Automático: cada región tiene una categoría (default, o la que le dio el usuario con un
+    clic, picks; o, en fotos sin clics, la que aprende `learn` de las otras); las de
+    categoría 0 no se usan. ctx.classes = categoría de cada píxel."""
+    from fenotit.core.segmentation import sam
+    if p["mode"] == "points":
+        labels = sam.from_points(ctx.image, list(p["points"] or []))
+    else:
+        labels = sam.automatic(ctx.image, grid=int(p["grid"]))
+        learn = p.get("learn") or {}
+        if not p.get("own", True) and learn.get("samples"):
+            # foto sin clics: categorías aprendidas de las regiones que el usuario clasificó en otras
+            from fenotit.core.segmentation import regions
+            cats = regions.predict(regions.load(learn["samples"], learn["hash"]), ctx.image, labels)
+        else:
+            cats = sam.categorize(labels, int(p["default"]), list(p["picks"] or []))
+        if p["categories"]:
+            ctx.classes = cats[labels].astype(np.int32)
+            ctx.extra["class_colors"] = ["#000000"] + list(p["colors"])
+        labels = np.where(cats[labels] > 0, labels, 0)
+    ctx.extra["instances"] = labels
+    ctx.mask = (labels > 0).astype(np.uint8) * 255
+    ctx.images["mask"] = ctx.mask
