@@ -10,7 +10,7 @@ from PIL import Image, ImageTk
 from fenotit import APP_NAME
 from fenotit.gui.decor import BLUE, pixel_dissolve
 from fenotit.i18n import t
-from fenotit.gui.theme import COLORS, FONTS
+from fenotit.gui.theme import COLORS, FONTS, font as theme_font
 
 _W = 460
 _TEXT, _MUTED, _SOFT = COLORS["text"], COLORS["text_muted"], COLORS["text_faint"]
@@ -47,7 +47,7 @@ def show(root: tk.Tk, logo: Path, system_info: str):
     body.pack(fill=tk.BOTH, expand=True, padx=28, pady=(0, 18))
 
     def label(text, size=9, color=_TEXT, style="", pady=(0, 0), wrap=_W - 56):
-        font = ("Segoe UI", size, style) if style else ("Segoe UI", size)
+        font = theme_font(size, style)
         tk.Label(body, text=text, bg=COLORS["bg_card"], fg=color, font=font, justify="left", anchor="w",
                  wraplength=wrap).pack(fill=tk.X, pady=pady)
 
