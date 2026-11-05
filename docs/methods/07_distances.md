@@ -33,7 +33,8 @@ third object is flagged (`crosses_object = 1`) and not drawn.
 
 - Per object: `nearest_<u>` (distance to its closest neighbor), `mean_neighbor_<u>` and
   `n_neighbors`.
-- Per photo: mean and SD of the nearest-neighbor distances, and the Clark–Evans index.
+- Per photo: mean, SD, minimum and maximum of the nearest-neighbor distances (one value per
+  object), the mean distance over all neighbor pairs (`mean_pair_<u>`), and the Clark–Evans index.
 
 ## 7.4 Clark–Evans aggregation index
 

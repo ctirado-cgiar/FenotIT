@@ -62,3 +62,29 @@ Holes inside objects (e.g. a bright hilum) are filled when their area is smaller
 0.2 × the median area of the connected components; larger holes are kept, because they are
 usually background enclosed by a ring of touching objects. Holes connected to the image
 border are never filled. An optional morphological opening (3 × 3) removes thin protrusions.
+
+## 2.7 Regions from MobileSAM
+
+In automatic mode, MobileSAM (Zhang et al., 2023), a light version of Segment Anything
+(Kirillov et al., 2023), proposes regions from point prompts. The image is encoded once at
+1024 px on its longest side. Prompts are placed (i) at local maxima of the CIELAB
+difference between each pixel and a strongly smoothed copy of the image (things that stand
+out from their surroundings, such as seeds, leaves or lesions) and (ii) on a regular grid
+(16 × 16 by default) for large or low-contrast regions. Prompts that fall inside an already
+accepted region are skipped. For each prompt the decoder returns three masks; a mask is kept
+when its predicted IoU is ≥ 0.86 and it is stable (the area changes by less than 8 % when the
+logit threshold moves from −1 to +1). Duplicates (mask IoU > 0.7) keep the best-scored mask;
+a region inside another (a lesion on a leaf) is kept. Pixels not covered by any mask form
+regions of their own, one per connected area, after an opening of ~1/512 of the image side
+that removes the thin gaps between neighboring regions. There is no filter by size or
+position: every region is shown to the user.
+
+Each region has a category chosen by the user (for example plant, weed and soil). All
+regions start in one category; a click on a region assigns the selected category, and a
+second click leaves it unused. In images without clicks, each region is classified by a
+random forest (200 trees, balanced class weights) trained on the regions classified by the
+user in other images, with features that do not depend on image resolution: mean and SD of
+CIELAB, mean gradient of L*, log of the area as a fraction of the image, compactness,
+solidity, extent, elongation and contact with the image border. Unused regions are not
+analyzed. With two or more categories, each object reports its category and each image
+reports the number, area and share of objects in each category.
