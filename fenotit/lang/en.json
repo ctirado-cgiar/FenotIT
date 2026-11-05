@@ -645,14 +645,14 @@
   "seg.next": "Next: Analyze →",
   "refine.title": "REFINE MASK",
   "refine.add": "+ Add operation…",
-  "refine.help": "Morphological operations on the mask, in list order (↑ ↓ change the order). Size = diameter of the circular element in px; × = times it is repeated.\n\nErode: thins; removes loose dots and thin bridges.\nDilate: thickens; joins nearby parts.\nOpen: erode then dilate; removes noise without shrinking large objects.\nClose: dilate then erode; closes cracks and small holes.\nOpen by reconstruction: removes what vanishes when eroding and leaves the outline of the rest untouched.\nFill holes: fills holes inside objects (not background enclosed by several).\nSmooth edge: median filter.",
+  "refine.help": "Morphological operations on the mask, in list order (↑ ↓ change the order; they appear on hover).\nSize = diameter of the circular element in pixels. Times = how many times in a row it is applied.\n\nErode: thins; removes loose dots and thin bridges.\nDilate: thickens; joins nearby parts.\nOpen: erode then dilate; removes noise without shrinking large objects.\nClose: dilate then erode; closes cracks and small holes.\nOpening by reconstruction: removes what vanishes when eroding and leaves the outline of the rest untouched.\nFill holes: fills holes inside objects (not background enclosed by several). No size or times.\nMedian smoothing: smooths the edge with a median filter.",
   "refine.erode": "Erode",
   "refine.dilate": "Dilate",
   "refine.open": "Open",
   "refine.close": "Close",
-  "refine.open_rec": "Open by reconstruction",
+  "refine.open_rec": "Opening by reconstruction",
   "refine.fill_holes": "Fill holes",
-  "refine.median": "Smooth edge",
+  "refine.median": "Median smoothing",
   "cls.title": "Classes",
   "cls.help": "Pick a class and paint on the Input with the left button; the right button erases strokes. Paint a few strokes on typical areas of each class and, where it is wrong, add one more stroke: every change learns again.\n\nThe first class is the background. “Object” marks the classes that make up the objects (e.g. healthy and lesion yes; background no). Strokes can be on several photos: the program learns from all of them.",
   "cls.add": "Add class",
@@ -770,5 +770,7 @@
   "menu.lens": "Lens distortion…",
   "menu.perspective": "Perspective (ArUco)…",
   "menu.colorcard": "Color card…",
-  "refine.add_short": "Add operation"
+  "refine.add_short": "Add operation",
+  "refine.op": "Operation",
+  "refine.size_px": "Size (px)"
 }
