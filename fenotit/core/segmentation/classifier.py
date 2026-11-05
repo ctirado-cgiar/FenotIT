@@ -176,3 +176,37 @@ def colorize(class_map: np.ndarray, colors: list[str]) -> np.ndarray:
         h = hexcol.lstrip("#")
         lut[i] = (int(h[4:6], 16), int(h[2:4], 16), int(h[0:2], 16))
     return lut[class_map]
+
+
+# ── Pieza del pipeline ──────────────────────────────────────────────────────
+
+from fenotit.core.pipeline.base import step  # noqa: E402
+
+
+@step("classify", "segmenter", provides=("mask", "classes"), params=[
+    {"key": "samples", "type": "str", "default": ""},
+    {"key": "hash", "type": "str", "default": ""},
+    {"key": "objects", "type": "list", "default": [1]},
+    {"key": "colors", "type": "list", "default": []},
+    {"key": "detail", "type": "float", "default": 1.0},
+])
+def classify(ctx, p):
+    """Segmentación por ejemplos: cada píxel recibe la clase que el bosque aleatorio
+    aprendió de los trazos; la máscara = las clases marcadas como objeto."""
+    from fenotit.core.segmentation import classifier as C
+    if not p["samples"]:
+        raise ValueError("no examples: paint at least two classes")
+    model = C.load_model(p["samples"], p["hash"])
+    small = C.work_copy(ctx.image, float(p["detail"]))
+    full = ctx.analysis_region(ctx.image.shape)
+    region = None if full is None else cv2.resize(full, (small.shape[1], small.shape[0]),
+                                                  interpolation=cv2.INTER_NEAREST) > 0
+    classes = C.predict(model, C.features(small), ctx.image.shape, region)
+    if full is not None:
+        classes[full == 0] = 0
+    ctx.classes = classes
+    ctx.mask = np.isin(classes, [int(c) for c in p["objects"]]).astype(np.uint8) * 255
+    ctx.images["mask"] = ctx.mask
+    if p["colors"]:
+        ctx.images["classes"] = C.colorize(classes, list(p["colors"]))
+    ctx.extra["class_colors"] = list(p["colors"])

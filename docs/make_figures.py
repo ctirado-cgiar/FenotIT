@@ -250,7 +250,7 @@ def fig_distances(img):
     ctx = run(img, [SEG, {"step": "roi"}, {"step": "clean"}, {"step": "label"},
                     {"step": "filter", "params": {"exclude_border": True}},
                     {"step": "distances", "params": {"neighbors": "voronoi"}}])
-    from fenotit.core.pipeline.steps.distances import _centroids, _edge_on_line
+    from fenotit.core.measurements.distances import _centroids, _edge_on_line
     cents = _centroids(ctx.labels)
     ids = sorted(cents)
     pts = np.array([cents[i] for i in ids])
