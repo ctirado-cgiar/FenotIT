@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import messagebox
 
 from fenotit import i18n, log
-from fenotit.gui.splash import SplashScreen
+from fenotit.gui.screens.splash import SplashScreen
 
 _log = log.get("gui")
 

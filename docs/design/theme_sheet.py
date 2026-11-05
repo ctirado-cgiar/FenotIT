@@ -1,4 +1,4 @@
-"""Hoja con los colores y tipos de letra del tema (fenotit/gui/theme.py):
+"""Hoja con los colores y tipos de letra del tema (fenotit/gui/style/theme.py):
 docs/design/theme.png.
 
 Uso:  python docs/design/theme_sheet.py"""
@@ -10,7 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-from fenotit.gui.theme import CHART_COLORS, CLASS_COLORS, COLORS, FONTS  # noqa: E402
+from fenotit.gui.style.theme import CHART_COLORS, CLASS_COLORS, COLORS, FONTS  # noqa: E402
 
 
 def main():

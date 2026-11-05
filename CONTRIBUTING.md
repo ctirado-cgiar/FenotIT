@@ -34,7 +34,7 @@ es un archivo:
 | Corrección de color (tarjeta) | `core/corrections/colorcard.py` | `tests/test_colorcard.py` |
 | Distorsión del lente | `core/corrections/distortion.py` | `tests/test_distortion.py` |
 | Perspectiva (ArUco) | `core/corrections/aruco.py` | `tests/test_corrections.py` |
-| Aspecto de la interfaz | `gui/theme.py`, `gui/icons.py` | ver `docs/design/README.md` |
+| Aspecto de la interfaz | `gui/style/theme.py`, `gui/style/icons.py` | ver `docs/design/README.md` |
 | Textos de la interfaz | `fenotit/lang/es.json`, `en.json` | `tests/test_i18n.py` |
 
 Para agregar un método nuevo (otra segmentación, otra medición), basta un archivo nuevo en
@@ -63,7 +63,7 @@ Si agregas un método, agrega también su prueba en `tests/test_<método>.py`: u
 - Columnas de resultados en inglés, en ASCII y con la unidad en el nombre (`area_mm2`,
   `length_px`).
 - Textos que ve el usuario siempre con `t("clave")` y en `fenotit/lang/es.json` y `en.json`.
-- Colores y letras de la interfaz solo desde `gui/theme.py`.
+- Colores y letras de la interfaz solo desde `gui/style/theme.py`.
 - Encabezados, docstrings y comentarios dicen qué hace el código.
 - Cambios pequeños, uno por envío, con un mensaje corto que diga qué cambia.
 

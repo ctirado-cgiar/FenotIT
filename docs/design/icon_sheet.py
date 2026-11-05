@@ -10,8 +10,8 @@ from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-from fenotit.gui.icons import NAMES, icon  # noqa: E402
-from fenotit.gui.theme import COLORS  # noqa: E402
+from fenotit.gui.style.icons import NAMES, icon  # noqa: E402
+from fenotit.gui.style.theme import COLORS  # noqa: E402
 
 CELL, SIZE, COLS = 150, 48, 6
 
