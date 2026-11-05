@@ -23,7 +23,7 @@ def _magnifier(d: ImageDraw.ImageDraw, s: int, w: int, color, sign: str | None):
 
 
 def _hand(d: ImageDraw.ImageDraw, s: int, w: int, color):
-    """Mano abierta rellena (se lee mejor que un contorno en tamaño chico)."""
+    """Mano abierta rellena."""
     fw, gap = s * 0.13, s * 0.03
     for i, top in enumerate((0.20, 0.08, 0.11, 0.22)):
         x = s * 0.27 + i * (fw + gap)

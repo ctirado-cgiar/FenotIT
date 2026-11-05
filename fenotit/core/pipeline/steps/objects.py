@@ -183,8 +183,7 @@ def separate(ctx, p):
 
 
 def _label_max(values, labels):
-    """Máximo de `values` en cada etiqueta (índice = etiqueta). Mucho más rápido que
-    scipy.ndimage.maximum(index=...), que ordena toda la imagen."""
+    """Máximo de `values` en cada etiqueta (índice = etiqueta)."""
     out = np.zeros(int(labels.max()) + 1, values.dtype)     # mismo tipo: ufunc.at va por la vía rápida
     fg = labels > 0
     np.maximum.at(out, labels[fg], values[fg])
@@ -528,10 +527,8 @@ def _merge_flat_necks(labels, dist, ratio, owner=None):
 def filter_objects(ctx, p):
     """Filtra objetos (tamaños en px) y renumera 1..n por filas, de izquierda a derecha.
     area_min = -1: solo quita ruido (< 0.01 % de la foto y < 5 % del objeto típico; con
-    relative_noise, todo lo que mida < 5 % del objeto típico: manchas sueltas alrededor de
-    una hoja o un fruto grande no cuentan como objetos); así no
-    depende de la resolución (un mínimo fijo en px quita más o menos según el tamaño de la foto).
-    Máximos en 0 = sin límite (un tope fijo en px dejaba fuera objetos grandes en fotos grandes)."""
+    relative_noise, todo lo que mida < 5 % del objeto típico).
+    Máximos en 0 = sin límite."""
     from scipy.ndimage import find_objects
     labels = ctx.labels
     h, w = labels.shape

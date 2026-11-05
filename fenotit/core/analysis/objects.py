@@ -12,8 +12,7 @@ from fenotit.i18n import t
 
 STEP_FOLDERS = {"mask": "mask", "distance": "mask", "count": "count", "morphometry": "morphometry",
                 "shape": "shape", "color": "color", "classes": "classes"}
-# Últimas imágenes en memoria: al cambiar solo una medición no se vuelve a segmentar
-# (cada imagen guardada ocupa ~100-200 MB en fotos de 8 MP; por eso solo 2).
+# Las 2 últimas imágenes quedan en memoria: al cambiar solo una medición no se vuelve a segmentar.
 _CACHE = pipeline.ChainCache(size=2)
 MEASUREMENTS = {"count": "measure_count", "morphometry": "measure_size",
                 "shape": "measure_shape", "color": "measure_color", "classes": "measure_classes"}

@@ -100,8 +100,7 @@ def _lab(rgb):
 def _kmeans(pixels_rgb, k, sample=3000):
     """KMeans (OpenCV, k-means++, 3 intentos, semilla fija) ajustado sobre una muestra
     (máx. `sample` píxeles) y aplicado a todos los píxeles. Devuelve [(color, fracción)]
-    de mayor a menor y la etiqueta (rango) de cada píxel. OpenCV en vez de scikit-learn:
-    mismo algoritmo, ~5× menos tiempo por objeto (importa con cientos de objetos)."""
+    de mayor a menor y la etiqueta (rango) de cada píxel."""
     px = np.asarray(pixels_rgb)
     fit = px
     if len(px) > sample:

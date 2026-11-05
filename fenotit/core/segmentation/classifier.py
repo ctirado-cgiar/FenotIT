@@ -1,24 +1,18 @@
-"""Segmentación por ejemplos (como ilastik): el usuario pinta trazos de cada clase y un
-bosque aleatorio aprende a clasificar cada píxel con rasgos de color y textura a varias
-escalas.
+"""Segmentación por ejemplos: el usuario pinta trazos de cada clase y un bosque aleatorio
+(random forest) clasifica cada píxel con rasgos de color y textura a varias escalas.
 
-Para que responda rápido en un computador común:
-  - se trabaja en una copia de `detail` megapíxeles (1 MP por defecto) y las
-    probabilidades se amplían a la foto con interpolación bilineal;
-  - los rasgos de la foto se calculan una vez y se guardan (cambiar los trazos solo
-    vuelve a entrenar, que tarda décimas de segundo);
-  - 40 árboles de profundidad 12 (más no mejora con pocos trazos y es más lento).
+- La clasificación se hace en una copia de `detail` megapíxeles (1 MP por defecto); las
+  probabilidades se amplían a la foto con interpolación bilineal.
+- Los rasgos de cada foto se calculan una vez y se guardan; al cambiar los trazos solo se
+  vuelve a entrenar.
+- Bosque de 40 árboles de profundidad 12.
+- Dos modelos: uno de contexto (rasgos suavizados con σ = 1, 3 y 7 px) decide en toda la
+  foto; otro con rasgos locales (color del píxel y σ = 1) decide en una franja alrededor
+  de los bordes que encuentra el primero.
 
-Bordes: los rasgos suavizados (σ = 3 y 7 px) dan contexto, pero cerca del borde de un
-objeto mezclan objeto y fondo, valores que no aparecen en los trazos (pintados lejos del
-borde): solo con ellos los objetos salían ~25 % más grandes en una escena de prueba. Por
-eso hay dos modelos: el de contexto decide en general y, en una franja alrededor de los
-bordes que encuentra, decide un segundo modelo con rasgos locales (color del píxel y
-σ = 1). En la escena de prueba el error del área baja de +25 % a ~2 %.
-
-Los ejemplos (rasgos de los píxeles pintados) se guardan en un .npz en la carpeta de
-datos de la app; la cadena del análisis solo lleva su ruta y su huella (hash), así el
-lote en procesos aparte entrena una vez por proceso con exactamente los mismos datos."""
+Los ejemplos (rasgos de los píxeles pintados) se guardan en un .npz en la carpeta de datos
+de la app; la cadena del análisis lleva su ruta y su huella (hash), y cada proceso del
+lote entrena una vez con esos datos."""
 from __future__ import annotations
 
 import hashlib

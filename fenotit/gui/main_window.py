@@ -597,7 +597,7 @@ class MainWindow:
 
     def _set_working_res(self, value: float | None):
         """Resolución de trabajo: las correcciones usan la foto completa; el análisis, a lo
-        más esta resolución. Se guarda en el proyecto porque cambia los resultados."""
+        más esta resolución. Se guarda en el proyecto."""
         if value == self.project.max_mpx:
             return
         self._remember("undo.working_res")
