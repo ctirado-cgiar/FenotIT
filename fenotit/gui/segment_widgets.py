@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import tkinter as tk
 from tkinter import colorchooser, ttk
+from tkinter import font as tkfont
 from typing import Callable
 
 from fenotit.core.segmentation import REFINE_OPS
@@ -22,7 +23,7 @@ def _num(var, default, lo=1, hi=999):
 
 
 class RefineList(tk.Frame):
-    """Operaciones morfológicas en orden, una por renglón: nombre, tamaño (px) y veces;
+    """Operaciones morfológicas en orden, con títulos arriba (Operación, Tamaño (px), Veces);
     ↑ ↓ ✕ aparecen al pasar el mouse. «+ Agregar operación» abre un menú."""
 
     def __init__(self, parent, on_change: Callable[[], None]):
@@ -71,37 +72,62 @@ class RefineList(tk.Frame):
         self._render()
         self.on_change()
 
+    def _widths(self):
+        """Anchos de las columnas de tamaño y veces: lo que ocupe el título o el número."""
+        f = tkfont.Font(font=FONTS["small"])
+        return [max(f.measure(t(k)), f.measure("000") + 18) + 8 for k in ("refine.size_px", "refine.times")]
+
+    def _grid(self, f, widths):
+        f.grid_columnconfigure(0, weight=1)
+        for c, w in enumerate(widths, 1):
+            f.grid_columnconfigure(c, minsize=w)
+
     def _render(self):
         card, small, muted = COLORS["bg_card"], FONTS["small"], COLORS["text_muted"]
         for w in self._rows.winfo_children():
             w.destroy()
         self._muting = True
+        widths = self._widths()
+        wrap = max(80, (self.winfo_width() if self.winfo_width() > 1 else 260) - sum(widths) - 16)        # ↑ ↓ ✕ tapan el final del nombre solo al pasar el mouse
+        if self.ops:                                   # títulos una sola vez, arriba
+            head = tk.Frame(self._rows, bg=COLORS["bg_panel"])
+            head.pack(fill=tk.X, padx=1)
+            self._grid(head, widths)
+            for c, key in enumerate(("refine.op", "refine.size_px", "refine.times")):
+                tk.Label(head, text=t(key), bg=COLORS["bg_panel"], fg=muted, font=small,
+                         anchor="w").grid(row=0, column=c, sticky="w", padx=(6 if c == 0 else 0, 0))
         for i, o in enumerate(self.ops):
             row = tk.Frame(self._rows, bg=card, highlightthickness=1, highlightbackground=COLORS["border"])
             row.pack(fill=tk.X, pady=1)
-            tk.Label(row, text=self._names[o["op"]], bg=card, fg=COLORS["text"], font=small,
-                     anchor="w").pack(side=tk.LEFT, padx=(6, 2), pady=2)
-            tools = tk.Frame(row, bg=card)                 # ↑ ↓ ✕ solo al pasar el mouse
-            for sym, cmd in (("✕", lambda i=i: self._remove(i)), ("↓", lambda i=i: self._move(i, 1)),
-                             ("↑", lambda i=i: self._move(i, -1))):
-                lb = tk.Label(tools, text=sym, bg=card, fg=muted, font=small, cursor="hand2", padx=2)
-                lb.pack(side=tk.RIGHT)
-                lb.bind("<Button-1>", lambda e, c=cmd: c())
-            tools.pack(side=tk.RIGHT, padx=(0, 2))
-            if REFINE_OPS[o["op"]]["size"]:            # de derecha a izquierda: × veces, px tamaño
-                for key, unit, hi in (("iter", "×", 20), ("size", "px", 99)):
+            self._grid(row, widths)
+            cell = tk.Frame(row, bg=card)
+            cell.grid(row=0, column=0, sticky="we")
+            tk.Label(cell, text=self._names[o["op"]], bg=card, fg=COLORS["text"], font=small, anchor="w",
+                     justify="left", wraplength=wrap).pack(side=tk.LEFT, padx=(6, 2), pady=2)
+            if REFINE_OPS[o["op"]]["size"]:
+                for c, key, hi in ((1, "size", 99), (2, "iter", 20)):
                     var = tk.StringVar(value=str(o.get(key, 3 if key == "size" else 1)))
-                    tk.Label(row, text=unit, bg=card, fg=muted, font=small).pack(side=tk.RIGHT, padx=(1, 4))
-                    tk.Spinbox(row, from_=1, to=hi, textvariable=var, width=2, font=small, relief="flat",
+                    tk.Spinbox(row, from_=1, to=hi, textvariable=var, width=3, font=small, relief="flat",
                                bg=COLORS["bg_panel"], buttonbackground=card,
-                               command=lambda o=o, k=key, v=var, h=hi: self._set(o, k, v, h)).pack(side=tk.RIGHT)
+                               command=lambda o=o, k=key, v=var, h=hi: self._set(o, k, v, h)
+                               ).grid(row=0, column=c, sticky="w")
                     var.trace_add("write", lambda *a, o=o, k=key, v=var, h=hi: self._set(o, k, v, h))
+            # ↑ ↓ ✕ aparecen sobre el renglón, a la derecha, solo al pasar el mouse
+            tools = tk.Frame(row, bg=card)
+            for sym, cmd in (("↑", lambda i=i: self._move(i, -1)), ("↓", lambda i=i: self._move(i, 1)),
+                             ("✕", lambda i=i: self._remove(i))):
+                lb = tk.Label(tools, text=sym, bg=card, fg=muted, font=small, cursor="hand2", padx=2)
+                lb.pack(side=tk.LEFT)
+                lb.bind("<Button-1>", lambda e, c=cmd: c())
 
-            def show(on, f=tools):
-                for c in f.winfo_children():
-                    c.config(fg=muted if on else card)
-            show(False)
-            for w in [row] + list(row.winfo_children()):
+            def show(on, f=tools, r=row, c=cell):
+                if on:
+                    f.place(in_=c, relx=1.0, rely=0.5, anchor="e", x=-2)
+                    f.lift()
+                elif not (r.winfo_containing(*r.winfo_pointerxy()) or "").__str__().startswith(str(r)):
+                    f.place_forget()
+            for w in [row, cell, tools] + list(row.winfo_children()) + list(cell.winfo_children()) \
+                    + list(tools.winfo_children()):
                 w.bind("<Enter>", lambda e, s=show: s(True), add="+")
                 w.bind("<Leave>", lambda e, s=show: s(False), add="+")
         self._muting = False
