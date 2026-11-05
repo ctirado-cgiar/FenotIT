@@ -18,6 +18,8 @@ def morphometry(ctx, p):
     rows = ctx.object_rows()
     touching = ctx.touching_ids()
     axes = {}
+    from fenotit.core.uncertainty import area_rel_sd
+    unc = ctx.extra.setdefault("area_rel_sd", {})      # incertidumbre del área por píxeles (metadatos)
     for oid, sl, m in regions(ctx.labels):
         rows[oid]["touching"] = int(oid in touching)
         if oid in ctx.excluded or (p["isolated_only"] and oid in touching):
@@ -29,6 +31,7 @@ def morphometry(ctx, p):
         perim = cv2.arcLength(cv2.approxPolyDP(cnt, 1.0, True), True)  # corrige el escalonado de píxeles
         hull = cv2.convexHull(cnt)
         hull_area, hull_perim = cv2.contourArea(hull), cv2.arcLength(hull, True)
+        unc[oid] = area_rel_sd(area, perim)
         rect = cv2.minAreaRect(cnt)
         (a, b) = rect[1]
         width, length = min(a, b), max(a, b)
