@@ -777,12 +777,13 @@
   "cat.add": "Add category",
   "cat.new": "Category {n}",
   "cat.default": "Object",
-  "cat.help": "Classify the regions found by MobileSAM. Choose a category in the list and click a region on the Input: it takes that category. Another click with the same category leaves it unused (not analyzed).\n\nWhen detected, all regions start in the chosen category. “All” and “None” change every region of the photo.\n\nWith two or more categories, the table gives each object’s category and, per photo, how many objects and how much area there is of each.",
+  "cat.help": "Classify the regions found by MobileSAM. Choose a category in the list and click a region on the Input: it takes that category. Another click with the same category leaves it unused (not analyzed).\n\nWhen detected, all regions start in the chosen category. “All” and “None” change every region of the photo.\n\nWith two or more categories, the table gives each object’s category and, per photo, how many objects and how much area there is of each.\n\nOn photos where you do not click, regions are classified automatically: the program learns from the ones you classified on other photos (color, size and shape). One click on such a photo makes it yours.",
   "sam.regions_photo": "Regions of this photo:",
   "sam.all": "All",
   "sam.none": "None",
   "sam.pick_first": "First “Detect regions” on this photo.",
   "undo.regions": "region categories",
   "col.category": "Category",
-  "col.n": "No."
+  "col.n": "No.",
+  "sam.learned": "This photo has no clicks yet: its regions are classified from what you marked on other photos."
 }

@@ -753,7 +753,8 @@ class MainWindow:
             return dict(model, points=[])
         reg = self._regions_for(path)
         return dict(model, points=self.project.prompts.get(self.project.key(path), []),
-                    default=reg["default"], picks=reg["picks"])
+                    default=reg["default"], picks=reg["picks"],
+                    own=self.project.key(path) in self.project.regions)
 
     def _seg_params(self) -> dict:
         """La segmentación para el análisis (core.segmentation). Los ejemplos de la
@@ -2243,6 +2244,14 @@ class MainWindow:
         las fotos, los guarda (.npz en la carpeta de datos de la app) y deja su ruta en los
         parámetros; luego `then(params)`."""
         seg = params.get("segmentation") or {}
+        if seg.get("method") == "model" and (seg.get("model") or {}).get("mode") == "auto":
+            ex = self._region_examples()
+            if ex is not None:
+                from fenotit.core.segmentation import classifier as C
+                path, key = C.store(*ex, settings.data_dir() / "regions")
+                seg["model"]["learn"] = {"samples": path, "hash": key}
+            then(params)
+            return
         if seg.get("method") != "classifier":
             then(params)
             return
@@ -2380,6 +2389,8 @@ class MainWindow:
         if not r:
             return
         reg = self._regions_for(path)
+        if self.project.key(path) not in self.project.regions:
+            reg = self._learned_entry(labels) or reg         # se parte de lo que se ve
         cats = sam.categorize(labels, reg["default"], reg["picks"])
         cur = self.category_list.current + 1
         new = 0 if cats[r] == cur else cur                 # otro clic con la misma categoría: sin usar
@@ -2388,7 +2399,28 @@ class MainWindow:
         picks.append([round(nx, 5), round(ny, 5), new])
         self._remember("undo.regions")
         self.project.regions[self.project.key(path)] = {"default": reg["default"], "picks": picks}
+        self._store_region_examples(path)
         self._on_slider_change()
+
+    def _learned_entry(self, labels):
+        """La clasificación aprendida de esta foto como clics: la categoría más común es la
+        de partida y cada región distinta lleva un clic en un punto interior."""
+        model = self._region_model()
+        if model is None:
+            return None
+        from fenotit.core.segmentation import regions
+        from fenotit.core.pipeline.views import inside_point
+        from scipy.ndimage import find_objects
+        cats = regions.predict(model, self.scaler_left.original, labels)
+        default = int(np.bincount(cats[1:]).argmax()) if len(cats) > 1 else 1
+        h, w = labels.shape
+        picks = []
+        for i, sl in enumerate(find_objects(labels), 1):
+            if sl is None or cats[i] == default:
+                continue
+            x, y = inside_point((labels[sl] == i).astype(np.uint8))
+            picks.append([round((x + sl[1].start + 0.5) / w, 5), round((y + sl[0].start + 0.5) / h, 5), int(cats[i])])
+        return {"default": default, "picks": picks}
 
     def _set_all_regions(self, on: bool):
         path = self.current_image_path
@@ -2397,7 +2429,56 @@ class MainWindow:
         self._remember("undo.regions")
         self.project.regions[self.project.key(path)] = {
             "default": self.category_list.current + 1 if on else 0, "picks": []}
+        self._store_region_examples(path)
         self._on_slider_change()
+
+    def _region_file(self, key: str):
+        import hashlib
+        return settings.data_dir() / "regions" / (hashlib.blake2b(key.encode(), digest_size=10).hexdigest() + ".npz")
+
+    def _store_region_examples(self, path):
+        """Rasgos y categoría de cada región de esta foto: ejemplos para clasificar las
+        regiones de las fotos donde no se hizo clic."""
+        from fenotit.core.segmentation import regions, sam
+        labels, full = self._sam_labels(), self.scaler_left.original
+        if labels is None:
+            return
+        key = self.project.key(path)
+        reg = self._regions_for(path)
+        X, y = regions.examples(full, labels, sam.categorize(labels, reg["default"], reg["picks"]))
+        if not hasattr(self, "_region_ex"):
+            self._region_ex = {}
+        self._region_ex[key] = (X, y)
+        try:
+            f = self._region_file(key)
+            f.parent.mkdir(parents=True, exist_ok=True)
+            np.savez_compressed(f, X=X, y=y)
+        except OSError:
+            _log.exception("Ejemplos de regiones")
+
+    def _region_examples(self):
+        """Todos los ejemplos de las fotos con regiones clasificadas, o None."""
+        mem = getattr(self, "_region_ex", {})
+        Xs, ys = [], []
+        for p in self.project.images:
+            key = self.project.key(p)
+            if key not in self.project.regions:
+                continue
+            ex = mem.get(key)
+            if ex is None and self._region_file(key).exists():
+                with np.load(self._region_file(key)) as d:
+                    ex = (d["X"], d["y"])
+                mem[key] = ex
+            if ex is not None and len(ex[1]):
+                Xs.append(ex[0]); ys.append(ex[1])
+        if not ys:
+            return None
+        return np.concatenate(Xs), np.concatenate(ys)
+
+    def _region_model(self):
+        from fenotit.core.segmentation import classifier as C, regions
+        ex = self._region_examples()
+        return None if ex is None else regions.train(*ex, C.fingerprint(*ex))
 
     def _on_categories_change(self, removed: int | None = None):
         if removed is not None:                          # las regiones de esa categoría quedan sin usar
@@ -2493,8 +2574,15 @@ class MainWindow:
             self._show_mask_overlay(img, mask, colored)
             return
         from fenotit.core.segmentation import sam
-        reg = self._regions_for(self.current_image_path)
-        cats = sam.categorize(lab, reg["default"], reg["picks"])
+        key = self.project.key(self.current_image_path)
+        model = None if key in self.project.regions else self._region_model()
+        if model is not None:                              # sin clics aquí: lo aprendido de las otras fotos
+            from fenotit.core.segmentation import regions
+            cats = regions.predict(model, self.scaler_left.original, labels)
+            self.sam_status.set(t("sam.learned"))
+        else:
+            reg = self._regions_for(self.current_image_path)
+            cats = sam.categorize(lab, reg["default"], reg["picks"])
         cat_img = cats[lab]
         mask = self._finish_mask(((cat_img > 0) * 255).astype(np.uint8), img, inc, exc)
         pal = np.zeros((len(self.category_list.cats) + 1, 3), np.uint8)

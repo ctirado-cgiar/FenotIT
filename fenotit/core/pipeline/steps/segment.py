@@ -111,18 +111,27 @@ def classify(ctx, p):
     {"key": "colors", "type": "list", "default": []},
     {"key": "default", "type": "int", "default": 1, "min": 0, "max": 99},
     {"key": "picks", "type": "list", "default": []},
+    {"key": "own", "type": "bool", "default": True},
+    {"key": "learn", "type": "dict", "default": {}},
 ])
 def model_segment(ctx, p):
     """Segmentación con un modelo de IA (MobileSAM). Cada objeto sale ya separado: las
     etiquetas quedan en ctx.extra["instances"] y el paso de objetos las respeta.
     Automático: cada región tiene una categoría (default, o la que le dio el usuario con un
-    clic, picks); las de categoría 0 no se usan. ctx.classes = categoría de cada píxel."""
+    clic, picks; o, en fotos sin clics, la que aprende `learn` de las otras); las de
+    categoría 0 no se usan. ctx.classes = categoría de cada píxel."""
     from fenotit.core.segmentation import sam
     if p["mode"] == "points":
         labels = sam.from_points(ctx.image, list(p["points"] or []))
     else:
         labels = sam.automatic(ctx.image, grid=int(p["grid"]))
-        cats = sam.categorize(labels, int(p["default"]), list(p["picks"] or []))
+        learn = p.get("learn") or {}
+        if not p.get("own", True) and learn.get("samples"):
+            # foto sin clics: categorías aprendidas de las regiones que el usuario clasificó en otras
+            from fenotit.core.segmentation import regions
+            cats = regions.predict(regions.load(learn["samples"], learn["hash"]), ctx.image, labels)
+        else:
+            cats = sam.categorize(labels, int(p["default"]), list(p["picks"] or []))
         if p["categories"]:
             ctx.classes = cats[labels].astype(np.int32)
             ctx.extra["class_colors"] = ["#000000"] + list(p["colors"])
