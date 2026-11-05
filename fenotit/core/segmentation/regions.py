@@ -62,15 +62,33 @@ def examples(img: np.ndarray, labels: np.ndarray, cats: np.ndarray):
     return X[ok], y[ok]
 
 
+class _OneCategory:
+    """Modelo para ejemplos de una sola categoría: todas las regiones van a esa."""
+
+    def __init__(self, category: int):
+        self.category = int(category)
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        return np.full(len(X), self.category, np.int32)
+
+
+# modelos entrenados en esta sesión (los 3 últimos), por huella de los ejemplos
 _MODELS: "OrderedDict[str, object]" = OrderedDict()
 
 
-def train(X: np.ndarray, y: np.ndarray, key: str):
+def _cached(key: str):
     if key in _MODELS:
         _MODELS.move_to_end(key)
-        return _MODELS[key]
+    return _MODELS.get(key)
+
+
+def train(X: np.ndarray, y: np.ndarray, key: str):
+    """Bosque aleatorio entrenado con los ejemplos (X, y); `key` = su huella."""
+    model = _cached(key)
+    if model is not None:
+        return model
     if len(np.unique(y)) < 2:
-        model = int(y[0]) if len(y) else 1               # una sola categoría: todas a esa
+        model = _OneCategory(y[0] if len(y) else 1)
     else:
         from sklearn.ensemble import RandomForestClassifier
         model = RandomForestClassifier(200, min_samples_leaf=1, n_jobs=-1, random_state=0,
@@ -82,8 +100,10 @@ def train(X: np.ndarray, y: np.ndarray, key: str):
 
 
 def load(path: str, key: str):
-    if key in _MODELS:
-        return train(None, None, key)
+    """El modelo de los ejemplos guardados en `path` (.npz con X e y)."""
+    model = _cached(key)
+    if model is not None:
+        return model
     with np.load(path) as d:
         return train(d["X"], d["y"], key)
 
@@ -93,9 +113,6 @@ def predict(model, img: np.ndarray, labels: np.ndarray) -> np.ndarray:
     n = int(labels.max())
     cats = np.zeros(n + 1, np.int32)
     if n == 0:
-        return cats
-    if isinstance(model, int):
-        cats[1:] = model
         return cats
     X = features(img, labels)
     ok = ~np.isnan(X).any(1)
