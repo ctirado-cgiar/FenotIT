@@ -248,7 +248,7 @@ class StartScreen(tk.Frame):
                  tk.Label(card, text=t("start.recent_info", n=n, date=when), bg=c["bg_card"], fg=c["text"],
                           font=FONTS["small"], anchor="w"),
                  tk.Label(card, text=t(f"analysis.{analysis}.name", analysis) if analysis else str(path.parent),
-                          bg=c["bg_card"], fg=c["text_muted"], font=("Segoe UI", 8 if analysis else 7), anchor="w")]
+                          bg=c["bg_card"], fg=c["text_muted"], font=FONTS["small"] if analysis else FONTS["tiny"], anchor="w")]
         from fenotit.gui.toolbar import Tooltip
         Tooltip(card, str(path.parent))
         for i, w in enumerate(texts):
