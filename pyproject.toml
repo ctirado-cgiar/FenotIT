@@ -32,4 +32,4 @@ version = { attr = "fenotit.__version__" }
 include = ["fenotit*"]
 
 [tool.setuptools.package-data]
-fenotit = ["assets/*", "lang/*.json"]
+fenotit = ["assets/*", "assets/icons/*", "lang/*.json"]

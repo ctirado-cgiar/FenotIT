@@ -61,9 +61,9 @@ class ChessboardPanel(tk.Frame):
         if self.project_paths:
             self._btn(btns, t("board.scan", n=len(self.project_paths)), self._scan).pack(side=tk.LEFT, padx=(6, 0))
         self._btn(btns, t("board.remove"), self._remove).pack(side=tk.LEFT, padx=(6, 0))
-        self._go = tk.Button(btns, text=t("board.run"), command=self._run, bg=COLORS["accent"], fg="#FFFFFF",
-                             activebackground="#1A5390", activeforeground="#FFFFFF", relief="flat",
-                             font=("Segoe UI", 9, "bold"), cursor="hand2", padx=12)
+        self._go = tk.Button(btns, text=t("board.run"), command=self._run, bg=COLORS["accent"], fg=COLORS["on_accent"],
+                             activebackground=COLORS["accent_dark"], activeforeground=COLORS["on_accent"], relief="flat",
+                             font=FONTS["body_bold"], cursor="hand2", padx=12)
         self._go.pack(side=tk.LEFT, padx=(6, 0))
         if extra:
             text, cmd = extra
@@ -83,8 +83,8 @@ class ChessboardPanel(tk.Frame):
         self.tree.column("#0", width=170, stretch=True)
         self.tree.column("state", width=60, anchor="center", stretch=False)
         self.tree.column("error", width=70, anchor="e", stretch=False)
-        self.tree.tag_configure("bad", foreground="#C0392B")
-        self.tree.tag_configure("warn", foreground="#E67E00")
+        self.tree.tag_configure("bad", foreground=COLORS["error"])
+        self.tree.tag_configure("warn", foreground=COLORS["warning"])
         sb.pack(side=tk.RIGHT, fill=tk.Y)
         self.tree.pack(fill=tk.BOTH, expand=True)
         self.tree.bind("<<TreeviewSelect>>", lambda e: self._show_selected())

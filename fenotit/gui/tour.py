@@ -96,35 +96,35 @@ class Tour:
         return w
 
     def _build(self):
-        self._shades = [self._overlay("#000000", DIM) for _ in range(4)]
+        self._shades = [self._overlay(COLORS["black"], DIM) for _ in range(4)]
         self._ring = [self._overlay(COLORS["accent"], 1.0) for _ in range(4)]
         # durante el recorrido solo se usan Anterior / Siguiente / Terminar: el elemento
         # resaltado se ve pero no recibe clics (un menú abierto quedaría debajo del oscurecido)
-        self._glass = self._overlay("#FFFFFF", 0.01)
+        self._glass = self._overlay(COLORS["white"], 0.01)
         pop = tk.Toplevel(self.root)
         pop.overrideredirect(True)
         pop.transient(self.root)
         pop.configure(bg=COLORS["accent"])
-        body = tk.Frame(pop, bg="#FFFFFF", padx=14, pady=12)
+        body = tk.Frame(pop, bg=COLORS["bg_card"], padx=14, pady=12)
         body.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
-        top = tk.Frame(body, bg="#FFFFFF")
+        top = tk.Frame(body, bg=COLORS["bg_card"])
         top.pack(fill=tk.X)
-        self._title = tk.Label(top, bg="#FFFFFF", fg=COLORS["accent"], font=FONTS["title"],
+        self._title = tk.Label(top, bg=COLORS["bg_card"], fg=COLORS["accent"], font=FONTS["title"],
                                anchor="w", justify="left", wraplength=WIDTH - 60)
         self._title.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        x = tk.Label(top, text="✕", bg="#FFFFFF", fg=COLORS["text_muted"], cursor="hand2", font=FONTS["small"])
+        x = tk.Label(top, text="✕", bg=COLORS["bg_card"], fg=COLORS["text_muted"], cursor="hand2", font=FONTS["small"])
         x.pack(side=tk.RIGHT, anchor="n")
         x.bind("<Button-1>", lambda e: self.close())
-        self._text = tk.Label(body, bg="#FFFFFF", fg=COLORS["text"], font=FONTS["body"], justify="left",
+        self._text = tk.Label(body, bg=COLORS["bg_card"], fg=COLORS["text"], font=FONTS["body"], justify="left",
                               anchor="w", wraplength=WIDTH - 28)
         self._text.pack(fill=tk.X, pady=(6, 10))
-        bar = tk.Frame(body, bg="#FFFFFF")
+        bar = tk.Frame(body, bg=COLORS["bg_card"])
         bar.pack(fill=tk.X)
-        self._count = tk.Label(bar, bg="#FFFFFF", fg=COLORS["text_muted"], font=FONTS["small"])
+        self._count = tk.Label(bar, bg=COLORS["bg_card"], fg=COLORS["text_muted"], font=FONTS["small"])
         self._count.pack(side=tk.LEFT)
         btn = dict(relief="flat", bd=0, cursor="hand2", font=FONTS["small"], padx=10, pady=3)
-        self._next = tk.Button(bar, command=lambda: self._go(+1), bg=COLORS["accent"], fg="#FFFFFF",
-                               activebackground=COLORS["accent"], activeforeground="#FFFFFF", **btn)
+        self._next = tk.Button(bar, command=lambda: self._go(+1), bg=COLORS["accent"], fg=COLORS["on_accent"],
+                               activebackground=COLORS["accent"], activeforeground=COLORS["on_accent"], **btn)
         self._next.pack(side=tk.RIGHT)
         self._prev = tk.Button(bar, text=t("tour.prev"), command=lambda: self._go(-1), bg=COLORS["btn_bg"],
                                fg=COLORS["accent"], activebackground=COLORS["btn_bg"], **btn)

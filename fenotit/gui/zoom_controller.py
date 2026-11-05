@@ -6,6 +6,7 @@ import numpy as np
 from PIL import Image, ImageTk
 
 from fenotit import log
+from fenotit.gui.theme import COLORS
 
 _log = log.get("gui.zoom")
 
@@ -309,8 +310,8 @@ class ZoomController:
             _, x0, y0 = self._rect_start
             for c in (self.cl, self.cr):
                 c.delete("zoomrect")
-                c.create_rectangle(x0, y0, event.x, event.y, outline="#FFFFFF", width=1, tags="zoomrect")
-                c.create_rectangle(x0, y0, event.x, event.y, outline="#1F5FA8", dash=(4, 3), tags="zoomrect")
+                c.create_rectangle(x0, y0, event.x, event.y, outline=COLORS["white"], width=1, tags="zoomrect")
+                c.create_rectangle(x0, y0, event.x, event.y, outline=COLORS["accent_dark"], dash=(4, 3), tags="zoomrect")
             return
         if self._drag is None:
             return
@@ -515,11 +516,11 @@ class ZoomController:
         vx0, vy0 = max(0.0, -ox / z), max(0.0, -oy / z)
         vx1, vy1 = min(iw, (cw - ox) / z), min(ih, (ch - oy) / z)
         tag = "minimap"
-        canvas.create_rectangle(x - 1, y - 1, x + mw + 1, y + mh + 1, outline="#000000", width=1, tags=tag)
-        canvas.create_rectangle(x, y, x + mw, y + mh, outline="#FFFFFF", fill="#FFFFFF", stipple="gray50",
+        canvas.create_rectangle(x - 1, y - 1, x + mw + 1, y + mh + 1, outline=COLORS["black"], width=1, tags=tag)
+        canvas.create_rectangle(x, y, x + mw, y + mh, outline=COLORS["white"], fill=COLORS["white"], stipple="gray50",
                                 width=1, tags=tag)
         rx0, ry0, rx1, ry1 = x + vx0 * k, y + vy0 * k, x + vx1 * k, y + vy1 * k
-        canvas.create_rectangle(rx0, ry0, rx1, ry1, outline="#1F5FA8", fill="#1F5FA8", stipple="gray25",
+        canvas.create_rectangle(rx0, ry0, rx1, ry1, outline=COLORS["accent_dark"], fill=COLORS["accent_dark"], stipple="gray25",
                                 width=2, tags=tag)
         self._mini = (canvas, x, y, mw, mh, k)
 

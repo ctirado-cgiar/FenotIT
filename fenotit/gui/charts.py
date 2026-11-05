@@ -24,19 +24,18 @@ except ImportError:
 from fenotit import log
 from fenotit.core.image_io import natural_key
 from fenotit.gui.help import HelpIcon
-from fenotit.gui.theme import COLORS, FONTS
+from fenotit.gui.theme import CHART_COLORS, COLORS, FONTS
 from fenotit.i18n import t
 
 _log = log.get("gui.charts")
 
-PALETTE = ["#2166AC", "#D73027", "#1A9850", "#8073AC", "#E08214", "#01665E",
-           "#762A83", "#4DAC26", "#F4A582", "#92C5DE", "#A6D96A", "#FDAE61"]
+PALETTE = list(CHART_COLORS)
 
 MPL_STYLE = {
-    "axes.facecolor": "#FAFAFA", "figure.facecolor": "#FFFFFF", "axes.edgecolor": "#CCCCCC",
-    "axes.labelcolor": "#333333", "axes.labelsize": 9, "axes.titlesize": 9,
-    "axes.titleweight": "bold", "axes.grid": True, "grid.color": "#EEEEEE",
-    "grid.linewidth": 0.6, "xtick.color": "#555555", "ytick.color": "#555555",
+    "axes.facecolor": COLORS["bg_chart"], "figure.facecolor": COLORS["white"], "axes.edgecolor": COLORS["border"],
+    "axes.labelcolor": COLORS["text"], "axes.labelsize": 9, "axes.titlesize": 9,
+    "axes.titleweight": "bold", "axes.grid": True, "grid.color": COLORS["grid"],
+    "grid.linewidth": 0.6, "xtick.color": COLORS["text_muted"], "ytick.color": COLORS["text_muted"],
     "xtick.labelsize": 8, "ytick.labelsize": 8, "legend.fontsize": 8, "figure.dpi": 96,
 }
 
@@ -78,7 +77,7 @@ def _values(rows: list[dict], col: str) -> list[float]:
 
 def _style_ax(ax):
     for spine in ax.spines.values():
-        spine.set_edgecolor("#CCCCCC")
+        spine.set_edgecolor(COLORS["border"])
         spine.set_linewidth(0.5)
 
 
@@ -145,7 +144,7 @@ class _Chooser(tk.Frame):
             cb.bind("<<ComboboxSelected>>", lambda e: self._vars_changed())
             self._svars.append(sv)
         from fenotit.gui.toolbar import Tooltip
-        btn = dict(bg=COLORS["btn_bg"], fg=COLORS["accent"], relief="flat", font=("Segoe UI", 10, "bold"),
+        btn = dict(bg=COLORS["btn_bg"], fg=COLORS["accent"], relief="flat", font=FONTS["topbar"],
                    cursor="hand2", padx=6, pady=0, bd=0)
         if n > base:
             b = tk.Button(self.vars_frame, text="−", command=lambda: self._resize(-1), **btn)
@@ -231,7 +230,7 @@ class _Picker:
             except Exception:
                 pass
         _, ax, (x, y), payload = best
-        self._ring = ax.plot([x], [y], "o", mfc="none", mec="#D73027", mew=1.6, ms=11, zorder=5)[0]
+        self._ring = ax.plot([x], [y], "o", mfc="none", mec=COLORS["highlight"], mew=1.6, ms=11, zorder=5)[0]
         canvas.draw_idle()
         on_pick(payload)
 
@@ -254,11 +253,11 @@ def _save(fig, parent):
 def _scatter(fig, xs, ys, x_col, y_col, labels=None):
     ax = fig.add_subplot(1, 1, 1)
     fig._scatter_ax = ax
-    ax.scatter(xs, ys, color=PALETTE[0], alpha=0.75, s=28 if labels else 16, edgecolors="white",
+    ax.scatter(xs, ys, color=PALETTE[0], alpha=0.75, s=28 if labels else 16, edgecolors=COLORS["white"],
                linewidths=0.5, zorder=3)
     if labels and len(xs) <= 30:
         for x, y, lbl in zip(xs, ys, labels):
-            ax.annotate(lbl, (x, y), textcoords="offset points", xytext=(4, 4), fontsize=6, color="#555555")
+            ax.annotate(lbl, (x, y), textcoords="offset points", xytext=(4, 4), fontsize=6, color=COLORS["text_muted"])
     ax.set_xlabel(_label(x_col))
     ax.set_ylabel(_label(y_col))
     r = np.corrcoef(xs, ys)[0, 1] if len(xs) > 2 and np.std(xs) > 0 and np.std(ys) > 0 else None
@@ -272,7 +271,7 @@ def _scatter3d(fig, series, cols, legend_title=None):
     n = 0
     for name, xs, ys, zs, color in series:
         ax.scatter(xs, ys, zs, color=color, s=18 if len(xs) < 300 else 8, alpha=0.8, depthshade=False,
-                   edgecolors="white", linewidths=0.3, label=name)
+                   edgecolors=COLORS["white"], linewidths=0.3, label=name)
         n += len(xs)
     ax.set_xlabel(_label(cols[0]))
     ax.set_ylabel(_label(cols[1]))
@@ -424,7 +423,7 @@ class IntraImageChartPanel(tk.Frame):
                     continue
                 if kind == "box":
                     bp = ax.boxplot(vals, patch_artist=True, widths=0.5,
-                                    medianprops=dict(color="#333333", linewidth=1.5))
+                                    medianprops=dict(color=COLORS["text"], linewidth=1.5))
                     bp["boxes"][0].set_facecolor(color + "66")
                     bp["boxes"][0].set_edgecolor(color)
                     rng = np.random.default_rng(0)
@@ -435,7 +434,7 @@ class IntraImageChartPanel(tk.Frame):
                     picker.add(ax, jx, vals, ids)
                     ax.set_xticks([])
                 else:
-                    ax.hist(vals, bins=min(20, max(5, len(vals) // 3)), color=color, edgecolor="white",
+                    ax.hist(vals, bins=min(20, max(5, len(vals) // 3)), color=color, edgecolor=COLORS["white"],
                             alpha=0.85, linewidth=0.5)
                     ax.set_ylabel(t("chart.frequency"))
                 sd = np.std(vals, ddof=1) if len(vals) > 1 else 0.0
@@ -664,16 +663,16 @@ class BatchChartWindow(tk.Toplevel):
                 if kind == "bars":
                     x = np.arange(len(names))
                     ax.bar(x, [np.mean(v) for v in vals], color=cc, alpha=0.85, width=0.65,
-                           edgecolor="white", linewidth=0.5)
+                           edgecolor=COLORS["white"], linewidth=0.5)
                     if self.show_sd.get() and has_sd:
                         err = [r["_sd"].get(col, 0) for _, rows in cats for r in rows[:1]] if within else \
                             [np.std(v, ddof=1) if len(v) > 1 else 0 for v in vals]
                         ax.errorbar(x, [np.mean(v) for v in vals], yerr=err, fmt="none",
-                                    color="#333333", capsize=2, linewidth=0.8)
+                                    color=COLORS["text"], capsize=2, linewidth=0.8)
                     self._xticks(ax, x, names)
                 elif kind == "box":
                     bp = ax.boxplot(vals, patch_artist=True, widths=0.5, showfliers=False,
-                                    medianprops=dict(color="#333333", linewidth=1.5))
+                                    medianprops=dict(color=COLORS["text"], linewidth=1.5))
                     rng = np.random.default_rng(0)
                     for k, (box, v) in enumerate(zip(bp["boxes"], vals)):
                         box.set_facecolor(cc[k] + "55")
@@ -692,7 +691,7 @@ class BatchChartWindow(tk.Toplevel):
                     bins = np.histogram_bin_edges(allv, bins=min(20, max(5, len(allv) // 2)))
                     for k, (name, v) in enumerate(zip(names, vals)):
                         ax.hist(v, bins=bins, color=cc[k], alpha=0.55 if len(names) > 1 else 0.85,
-                                edgecolor="white", linewidth=0.5, label=name if grouped else None)
+                                edgecolor=COLORS["white"], linewidth=0.5, label=name if grouped else None)
                     ax.set_ylabel(t("chart.frequency"))
                     if grouped:
                         ax.legend(frameon=False, fontsize=7)
@@ -745,7 +744,7 @@ class BatchChartWindow(tk.Toplevel):
             xs_all += xs
             ys_all += ys
             ax.scatter(xs, ys, color=PALETTE[k % len(PALETTE)], alpha=0.75, s=22 if len(xs_all) < 300 else 10,
-                       edgecolors="white", linewidths=0.4, zorder=3, label=g)
+                       edgecolors=COLORS["white"], linewidths=0.4, zorder=3, label=g)
             self._picker.add(ax, xs, ys, [(r["_path"], r["_oid"]) for r in rows])
         ax.set_xlabel(_label(xc))
         ax.set_ylabel(_label(yc))

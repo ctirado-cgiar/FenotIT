@@ -16,13 +16,14 @@ from PIL import Image, ImageOps, ImageTk
 from fenotit import log
 from fenotit.gui.toolbar import IconButton
 from fenotit.i18n import t
+from fenotit.gui.theme import COLORS, FONTS
 
 _log = log.get("gui.images")
 THUMB = 42                       # lado máximo de la miniatura (px): 3 columnas en el panel por defecto
 SEARCH_FROM = 6                  # con menos fotos no hace falta buscador
 MAX_SHARE = 0.45                 # tope por defecto (fracción del panel): debajo van CAPAS e inspector
 MIN_ROWS = 2                     # si otros necesitan espacio, la lista cede hasta dejar ver estas filas
-MARKS = {"board": ("▦", "#7F8C8D"), "done": ("✓", "#2E8B57"), "error": ("⚠", "#E67E00"), "pending": ("…", "#9AA3A7")}
+MARKS = {"board": ("▦", COLORS["text_faint"]), "done": ("✓", COLORS["success"]), "error": ("⚠", COLORS["warning"]), "pending": ("…", COLORS["text_faint"])}
 
 
 def _read_thumb(path: str) -> Image.Image | None:
@@ -107,7 +108,7 @@ class ImageList(tk.Frame):
                                fg=c["text"], font=self.f["small"], insertwidth=1, width=6)
         self._entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(6, 0), ipady=3)
         self._clear = tk.Label(box, text="×", bg=c["bg_card"], fg=c["text_muted"], cursor="hand2",
-                               font=("Segoe UI", 10))
+                               font=FONTS["large"])
         self._clear.bind("<Button-1>", lambda e: (self.query.set(""), self._entry.focus_set()))
         self._placeholder(True)
         self._entry.bind("<FocusIn>", lambda e: self._placeholder(False))
@@ -120,7 +121,7 @@ class ImageList(tk.Frame):
         sb = ttk.Scrollbar(self._body, orient="vertical")
         self._sb = sb
         self.listbox = tk.Listbox(self._body, bg=c["bg_card"], fg=c["text"], font=self.f["small"],
-                                  selectbackground=c["accent"], selectforeground="#FFFFFF", borderwidth=1,
+                                  selectbackground=c["accent"], selectforeground=COLORS["on_accent"], borderwidth=1,
                                   relief="flat", highlightthickness=1, highlightcolor=c["border"],
                                   highlightbackground=c["border"], activestyle="none", exportselection=False)
         self.listbox.bind("<<ListboxSelect>>", self._on_list_select)
@@ -367,14 +368,14 @@ class ImageList(tk.Frame):
                 g.create_image(cx, y0 + 4 + THUMB // 2, image=thumb, tags=(f"img{i}",))
             else:
                 g.create_rectangle(cx - THUMB // 2 + 2, y0 + 8, cx + THUMB // 2 - 2, y0 + THUMB,
-                                   fill="#EEF1F4", width=0, tags=(f"img{i}",))
+                                   fill=COLORS["placeholder"], width=0, tags=(f"img{i}",))
             mark = self.marks.get(p)
             if mark in MARKS:
                 sym, color = MARKS[mark]
                 bx, by = x0 + cw - 10, y0 + 9
-                g.create_oval(bx - 6, by - 6, bx + 6, by + 6, fill=color, outline="#FFFFFF", width=1.5,
+                g.create_oval(bx - 6, by - 6, bx + 6, by + 6, fill=color, outline=COLORS["white"], width=1.5,
                               tags=("badge",))
-                g.create_text(bx, by, text=sym, fill="#FFFFFF", font=("Segoe UI", 6, "bold"), tags=("badge",))
+                g.create_text(bx, by, text=sym, fill=COLORS["white"], font=FONTS["tiny_bold"], tags=("badge",))
         rows = (len(self.visible) + cols - 1) // cols
         g.config(scrollregion=(0, 0, cols * cw, max(rows * ch + 4, 1)))
         self._request_visible()
@@ -396,8 +397,8 @@ class ImageList(tk.Frame):
         if tip is None:
             self._tip = tip = tk.Toplevel(self)
             tip.wm_overrideredirect(True)
-            self._tip_lbl = tk.Label(tip, bg="#FFFFE6", fg="#222222", relief="solid", bd=1,
-                                     font=("Segoe UI", 8), padx=6, pady=2)
+            self._tip_lbl = tk.Label(tip, bg=COLORS["bg_tooltip"], fg=COLORS["text"], relief="solid", bd=1,
+                                     font=FONTS["small"], padx=6, pady=2)
             self._tip_lbl.pack()
         self._tip_lbl.config(text=name)
         tip.wm_geometry(f"+{e.x_root + 12}+{e.y_root + 14}")

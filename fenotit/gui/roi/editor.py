@@ -14,8 +14,9 @@ import cv2
 import numpy as np
 
 from fenotit.core.roi import polygon
+from fenotit.gui.theme import COLORS, FONTS
 
-INCLUDE, EXCLUDE, SELECTED = "#0B2E59", "#E67E00", "#FFD400"
+INCLUDE, EXCLUDE, SELECTED = COLORS["area_include"], COLORS["warning"], COLORS["selection"]
 MODES = ("include_rect", "include_poly", "exclude_rect", "exclude_poly", "select")
 
 
@@ -107,16 +108,16 @@ class AreaEditor:
             flat = [v for p in pts for v in p]
             sel = i in self.selected
             color = SELECTED if sel else (EXCLUDE if s["kind"] == "exclude" else INCLUDE)
-            c.create_polygon(*flat, outline="#FFFFFF", fill="", width=4, tags="area")
+            c.create_polygon(*flat, outline=COLORS["white"], fill="", width=4, tags="area")
             c.create_polygon(*flat, outline=color, width=3 if sel else 2, tags="area",
                              fill=EXCLUDE if s["kind"] == "exclude" else "",
                              stipple="gray25" if s["kind"] == "exclude" else "",
                              dash=(6, 3) if s["kind"] == "exclude" else ())
             # × sobre el vértice de arriba a la derecha (siempre sobre la forma)
             bx, by = max(pts, key=lambda q: q[0] - q[1])
-            c.create_oval(bx - 6, by - 6, bx + 6, by + 6, fill="#FFFFFF", outline="#777777", width=1,
+            c.create_oval(bx - 6, by - 6, bx + 6, by + 6, fill=COLORS["white"], outline=COLORS["text_faint"], width=1,
                           tags=("area", "area_del", "area_del_bg", f"area_del_{i}"))
-            c.create_text(bx, by - 1, text="×", fill="#555555", font=("Segoe UI", 8, "bold"),
+            c.create_text(bx, by - 1, text="×", fill=COLORS["text_muted"], font=FONTS["small_bold"],
                           tags=("area", "area_del", "area_del_x", f"area_del_{i}"))
         if self.mode == "select":
             for i in sorted(self.selected):
@@ -124,9 +125,9 @@ class AreaEditor:
                     continue
                 for kind, k, (x, y) in self._handles(i):
                     if kind == "v":
-                        c.create_rectangle(x - 4, y - 4, x + 4, y + 4, fill="#FFFFFF", outline="#333333", tags="area")
+                        c.create_rectangle(x - 4, y - 4, x + 4, y + 4, fill=COLORS["white"], outline=COLORS["text"], tags="area")
                     else:
-                        c.create_oval(x - 3, y - 3, x + 3, y + 3, fill=SELECTED, outline="#333333", tags="area")
+                        c.create_oval(x - 3, y - 3, x + 3, y + 3, fill=SELECTED, outline=COLORS["text"], tags="area")
         self._draw_temp()
 
     def _handles(self, i: int):
@@ -218,9 +219,9 @@ class AreaEditor:
             for item in c.find_withtag(tg):
                 kind = c.gettags(item)
                 if "area_del_bg" in kind:
-                    c.itemconfig(item, fill="#D32F2F" if on else "#FFFFFF", outline="#D32F2F" if on else "#777777")
+                    c.itemconfig(item, fill=COLORS["delete"] if on else COLORS["white"], outline=COLORS["delete"] if on else COLORS["text_faint"])
                 elif "area_del_x" in kind:
-                    c.itemconfig(item, fill="#FFFFFF" if on else "#555555")
+                    c.itemconfig(item, fill=COLORS["white"] if on else COLORS["text_muted"])
         c.config(cursor="hand2" if on else "")
 
     def _draw_temp(self, cursor=None):
@@ -230,7 +231,7 @@ class AreaEditor:
             color = EXCLUDE if self.mode and self.mode.startswith("exclude") else INCLUDE
             pts = [self._to_canvas(*p) for p in self._points] + ([cursor] if cursor else [])
             for x, y in pts[:len(self._points)]:
-                c.create_oval(x - 4, y - 4, x + 4, y + 4, fill=color, outline="#FFFFFF", tags="area_tmp")
+                c.create_oval(x - 4, y - 4, x + 4, y + 4, fill=color, outline=COLORS["white"], tags="area_tmp")
             if len(pts) >= 2:
                 c.create_line(*[v for p in pts for v in p], fill=color, width=2, dash=(4, 3), tags="area_tmp")
 

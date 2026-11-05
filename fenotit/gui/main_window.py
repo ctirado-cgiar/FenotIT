@@ -34,7 +34,8 @@ from fenotit.core import batch, recovery
 from fenotit.gui.config_panel import ConfigPanel
 from fenotit.gui.zoom_controller import ZoomController
 from fenotit.gui.image_list import ImageList
-from fenotit.gui.toolbar import IconButton, Tooltip, icon
+from fenotit.gui.icons import icon
+from fenotit.gui.toolbar import IconButton, Tooltip
 from fenotit.gui.calibration_dialogs import ScaleDialog
 from fenotit.gui.corrections_dialog import CorrectionsDialog
 from fenotit.core.corrections import pipeline as corrections
@@ -135,7 +136,7 @@ class Sub:
 
 class DropMenu(tk.Frame):
     def __init__(self, parent, text, items, colors, arrow_only=False, **kw):
-        bg = "#FFFFFF" if arrow_only else colors["bg_topbar"]
+        bg = COLORS["bg_card"] if arrow_only else colors["bg_topbar"]
         super().__init__(parent, bg=bg, **kw)
         self.colors = colors
         self.items  = items
@@ -143,11 +144,11 @@ class DropMenu(tk.Frame):
         self._arrow_only = arrow_only
         self.btn = tk.Button(
             self, text="▼" if arrow_only else f"  {text}  ▾",
-            bg=bg, fg=colors["accent"] if arrow_only else "#FFFFFF",
-            font=("Segoe UI", 11) if arrow_only else FONTS["body"], relief="flat", bd=0,
+            bg=bg, fg=colors["accent"] if arrow_only else COLORS["on_accent"],
+            font=FONTS["subtitle"] if arrow_only else FONTS["body"], relief="flat", bd=0,
             **({"padx": 8} if arrow_only else {}),
-            activebackground="#1a5490",
-            activeforeground="#FFFFFF",
+            activebackground=COLORS["accent_dark"],
+            activeforeground=COLORS["on_accent"],
             cursor="hand2", command=self._toggle)
         self.btn.pack()
 
@@ -233,7 +234,7 @@ class DropMenu(tk.Frame):
             lbl.pack(fill=tk.X)
             if shortcut:
                 tk.Label(row, text=shortcut, bg=c["bg_card"], fg=c["text_muted"],
-                         font=("Segoe UI", 8), padx=8).place(relx=1.0, rely=0.5, anchor="e")
+                         font=FONTS["small"], padx=8).place(relx=1.0, rely=0.5, anchor="e")
                 lbl.config(text=f"  {label}" + " " * (len(shortcut) + 10))
             if disabled:
                 continue
@@ -744,8 +745,8 @@ class MainWindow:
 
     @staticmethod
     def _default_classes() -> list[dict]:
-        return [{"name": t("cls.background_name"), "color": "#9E9E9E", "object": False},
-                {"name": t("cls.object_name"), "color": "#2166AC", "object": True}]
+        return [{"name": t("cls.background_name"), "color": COLORS["text_faint"], "object": False},
+                {"name": t("cls.object_name"), "color": COLORS["accent"], "object": True}]
 
     def _model_for(self, model: dict, path) -> dict:
         """La configuración del modelo con lo propio de la foto: clics y categorías de regiones."""
@@ -974,8 +975,8 @@ class MainWindow:
         bar = tk.Frame(box, bg=COLORS["bg_panel"])
         bar.pack(fill=tk.X)
         btn = dict(relief="flat", bd=0, cursor="hand2", font=FONTS["body"], padx=12, pady=4)
-        tk.Button(bar, text=t("missing.search"), command=lambda: pick("search"), bg=COLORS["accent"], fg="#FFFFFF",
-                  activebackground=COLORS["accent"], activeforeground="#FFFFFF", **btn).pack(side=tk.LEFT)
+        tk.Button(bar, text=t("missing.search"), command=lambda: pick("search"), bg=COLORS["accent"], fg=COLORS["on_accent"],
+                  activebackground=COLORS["accent"], activeforeground=COLORS["on_accent"], **btn).pack(side=tk.LEFT)
         tk.Button(bar, text=t("missing.remove"), command=lambda: pick("remove"), bg=COLORS["btn_bg"],
                   fg=COLORS["accent"], **btn).pack(side=tk.LEFT, padx=6)
         tk.Button(bar, text=t("common.cancel"), command=lambda: pick(None), bg=COLORS["btn_bg"],
@@ -1112,7 +1113,7 @@ class MainWindow:
         box = tk.Frame(win, bg=bg, padx=20, pady=14)
         box.pack(fill=tk.BOTH)
         tk.Label(box, text=t("recovery.title"), bg=bg, fg=COLORS["accent"],
-                 font=("Segoe UI", 12, "bold")).pack(anchor="w")
+                 font=FONTS["heading"]).pack(anchor="w")
         tk.Label(box, text=t("recovery.msg", name=name, when=when, n=n), bg=bg, fg=COLORS["text"],
                  font=FONTS["body"], justify="left", wraplength=380).pack(anchor="w", pady=(6, 14))
         res = {"v": None}
@@ -1125,8 +1126,8 @@ class MainWindow:
         for text, v, accent in ((t("recovery.later"), None, False), (t("recovery.discard"), False, False),
                                 (t("recovery.recover"), True, True)):
             tk.Button(bar, text=text, command=lambda v=v: pick(v), relief="flat", cursor="hand2", padx=12,
-                      bg=COLORS["accent"] if accent else COLORS["btn_bg"], fg="#FFFFFF" if accent else COLORS["accent"],
-                      font=("Segoe UI", 9, "bold") if accent else FONTS["body"]).pack(side=tk.RIGHT, padx=(6, 0))
+                      bg=COLORS["accent"] if accent else COLORS["btn_bg"], fg=COLORS["on_accent"] if accent else COLORS["accent"],
+                      font=FONTS["body_bold"] if accent else FONTS["body"]).pack(side=tk.RIGHT, padx=(6, 0))
         win.protocol("WM_DELETE_WINDOW", lambda: pick(None))
         win.update_idletasks()
         x = self.root.winfo_rootx() + (self.root.winfo_width() - win.winfo_reqwidth()) // 2
@@ -1203,7 +1204,7 @@ class MainWindow:
         s.configure("Treeview.Heading",
                     background=COLORS["bg_panel"],
                     foreground=COLORS["accent"],
-                    font=("Segoe UI", 8, "bold"), relief="flat")
+                    font=FONTS["small_bold"], relief="flat")
         s.map("Treeview",
               background=[("selected", COLORS["bg_table_sel"])],
               foreground=[("selected", COLORS["text"])])
@@ -1291,7 +1292,7 @@ class MainWindow:
     def _build_topbar(self):
         size = max(16, int(round(18 * self.root.winfo_fpixels("1i") / 96)))
         home = IconButton(self.topbar, "home", self._go_home, t("menu.home"), bg=COLORS["bg_topbar"],
-                          hover="#3a7cc4", active="#0d3f75", size=size)
+                          hover=COLORS["accent_hover"], active=COLORS["accent_darker"], size=size)
         home.pack(side=tk.LEFT, padx=(8, 0), pady=6)
         brand = []
         try:
@@ -1303,8 +1304,8 @@ class MainWindow:
         except Exception:
             _log.debug("ignorado", exc_info=True)
 
-        brand.append(tk.Label(self.topbar, text=APP_NAME, bg=COLORS["bg_topbar"], fg="#FFFFFF",
-                              font=("Segoe UI", 12, "bold"), cursor="hand2"))
+        brand.append(tk.Label(self.topbar, text=APP_NAME, bg=COLORS["bg_topbar"], fg=COLORS["on_accent"],
+                              font=FONTS["heading"], cursor="hand2"))
         brand[-1].pack(side=tk.LEFT, padx=(0, 8))
         for w in brand:                                    # como en la mayoría de apps: el logo lleva al inicio
             w.bind("<Button-1>", lambda e: self._go_home())
@@ -1401,11 +1402,11 @@ class MainWindow:
 
         # Derecha: tipo de análisis y Ejecutar (con margen para no quedar junto a la X)
         tk.Frame(self.topbar, bg=COLORS["bg_topbar"], width=24).pack(side=tk.RIGHT)
-        run = tk.Frame(self.topbar, bg="#FFFFFF")
+        run = tk.Frame(self.topbar, bg=COLORS["bg_card"])
         run.pack(side=tk.RIGHT, padx=(6, 0), pady=8)
         self._run_frame = run
         tk.Button(run, text=t("topbar.run"), command=lambda: self._run_analysis(False),
-                  bg="#FFFFFF", fg=COLORS["accent"], font=("Segoe UI", 9, "bold"),
+                  bg=COLORS["bg_card"], fg=COLORS["accent"], font=FONTS["body_bold"],
                   relief="flat", bd=0, activebackground=COLORS["accent_light"],
                   activeforeground=COLORS["accent"], padx=10, pady=2,
                   cursor="hand2").pack(side=tk.LEFT)
@@ -1416,7 +1417,7 @@ class MainWindow:
         ], COLORS, arrow_only=True).pack(side=tk.LEFT)
 
         self.analysis_var = tk.StringVar()
-        tk.Frame(self.topbar, bg="#4a8fd4", width=1).pack(side=tk.RIGHT, fill=tk.Y, pady=8, padx=6)
+        tk.Frame(self.topbar, bg=COLORS["topbar_divider"], width=1).pack(side=tk.RIGHT, fill=tk.Y, pady=8, padx=6)
         self._build_zoom_tools()
 
     def _build_zoom_tools(self):
@@ -1424,8 +1425,8 @@ class MainWindow:
         bar = tk.Frame(self.topbar, bg=COLORS["bg_topbar"])
         bar.pack(side=tk.RIGHT)
         size = max(16, int(round(18 * self.root.winfo_fpixels("1i") / 96)))
-        kw = dict(bg=COLORS["bg_topbar"], hover="#3a7cc4", active="#0d3f75", size=size)
-        pct = tk.Label(bar, textvariable=self._zoom_pct_var, bg=COLORS["bg_topbar"], fg="#FFFFFF",
+        kw = dict(bg=COLORS["bg_topbar"], hover=COLORS["accent_hover"], active=COLORS["accent_darker"], size=size)
+        pct = tk.Label(bar, textvariable=self._zoom_pct_var, bg=COLORS["bg_topbar"], fg=COLORS["on_accent"],
                        font=FONTS["small"], width=6, cursor="hand2")
         self._zoom_tools = {}
         for name, cmd, tip in (
@@ -1440,7 +1441,7 @@ class MainWindow:
             if name in ("zoom_area", "pan", "inspect"):
                 self._zoom_tools[name] = b
         pct.pack(side=tk.LEFT, padx=(4, 0))
-        tk.Frame(bar, bg="#4a8fd4", width=1).pack(side=tk.LEFT, fill=tk.Y, pady=8, padx=(6, 4))
+        tk.Frame(bar, bg=COLORS["topbar_divider"], width=1).pack(side=tk.LEFT, fill=tk.Y, pady=8, padx=(6, 4))
         self._style_btn = IconButton(bar, "palette", self._open_style, f"{t('style.title')}", **kw)
         self._style_btn.pack(side=tk.LEFT, padx=1, pady=6)
         self._style_popup = None
@@ -1450,7 +1451,7 @@ class MainWindow:
         self._zoom_tools["pan"].select(True)
 
     def _vdiv(self):
-        tk.Frame(self.topbar, bg="#4a8fd4", width=1).pack(
+        tk.Frame(self.topbar, bg=COLORS["topbar_divider"], width=1).pack(
             side=tk.LEFT, fill=tk.Y, pady=6, padx=4)
 
     # ── Recorrido guiado ──────────────────────────────────────────────────────
@@ -1927,7 +1928,7 @@ class MainWindow:
         tabs.pack(fill=tk.X, padx=(26, 6), pady=(4, 0))          # deja sitio al ícono del panel
         self._rtab_labels = {}
         for key, text in (("seg", t("rtab.segment")), ("analysis", t("rtab.analyze"))):
-            lbl = tk.Label(tabs, text=text, bg=bg, font=("Segoe UI", 9, "bold"), cursor="hand2", padx=10, pady=4)
+            lbl = tk.Label(tabs, text=text, bg=bg, font=FONTS["body_bold"], cursor="hand2", padx=10, pady=4)
             lbl.pack(side=tk.LEFT)
             lbl.bind("<Button-1>", lambda e, k=key: self._select_right_tab(k))
             self._rtab_labels[key] = lbl
@@ -1990,8 +1991,8 @@ class MainWindow:
         self.refine_list = RefineList(rf, self._on_refine_change)
         self.refine_list.pack(fill=tk.X, padx=8, pady=(2, 6))
         self._next_btn = tk.Button(rf, text=t("seg.next"), command=lambda: self._select_right_tab("analysis"),
-                                   bg=COLORS["accent"], fg="#FFFFFF", activebackground=COLORS["accent"],
-                                   activeforeground="#FFFFFF", relief="flat", font=("Segoe UI", 9, "bold"),
+                                   bg=COLORS["accent"], fg=COLORS["on_accent"], activebackground=COLORS["accent"],
+                                   activeforeground=COLORS["on_accent"], relief="flat", font=FONTS["body_bold"],
                                    cursor="hand2", pady=4)
         self._next_btn.pack(fill=tk.X, padx=8, pady=(6, 8))
         self._paint_method_btns()
@@ -2027,7 +2028,7 @@ class MainWindow:
     def _paint_method_btns(self):
         for k, b in self._method_btns.items():
             on = k == self._seg_method
-            b.config(bg=COLORS["accent"] if on else COLORS["bg_card"], fg="#FFFFFF" if on else COLORS["text"],
+            b.config(bg=COLORS["accent"] if on else COLORS["bg_card"], fg=COLORS["on_accent"] if on else COLORS["text"],
                      highlightbackground=COLORS["accent"] if on else COLORS["border"])
 
     def _set_seg_method(self, key: str, quiet: bool = False):
@@ -2295,7 +2296,7 @@ class MainWindow:
         bg, small = COLORS["bg_panel"], FONTS["small"]
         head = tk.Frame(box, bg=bg)
         head.pack(fill=tk.X)
-        tk.Label(head, text="MobileSAM", bg=bg, fg=COLORS["text"], font=("Segoe UI", 9, "bold")).pack(side=tk.LEFT)
+        tk.Label(head, text="MobileSAM", bg=bg, fg=COLORS["text"], font=FONTS["body_bold"]).pack(side=tk.LEFT)
         HelpIcon(head, "MobileSAM", t("sam.help"), bg=bg).pack(side=tk.LEFT, padx=(4, 0))
         self.model_mode = tk.StringVar(value="auto")
         for key in ("auto", "points"):
@@ -2344,7 +2345,7 @@ class MainWindow:
 
     @staticmethod
     def _default_categories() -> list[dict]:
-        return [{"name": t("cat.default"), "color": "#2166AC"}]
+        return [{"name": t("cat.default"), "color": COLORS["accent"]}]
 
     def _on_model_change(self, quiet: bool = False):
         auto = self.model_mode.get() == "auto"
@@ -2745,7 +2746,7 @@ class MainWindow:
         f.pack(fill=tk.X)
         tk.Label(f, text=text, bg=COLORS["bg_panel"],
                  fg=COLORS["accent"],
-                 font=("Segoe UI", 8, "bold"),
+                 font=FONTS["small_bold"],
                  pady=5).pack(side=tk.LEFT, padx=(pad_left, 10))
         tk.Frame(f, bg=COLORS["border"],
                  height=1).pack(fill=tk.X, side=tk.BOTTOM)
@@ -3141,7 +3142,7 @@ class MainWindow:
                             highlightbackground=COLORS["accent"] if on else COLORS["border"])
             card.pack(fill=tk.X, pady=1)
             title = tk.Label(card, text=_analysis_label(name), bg=bg, fg=COLORS["accent"] if on else COLORS["text"],
-                             font=("Segoe UI", 9, "bold"), anchor="w", cursor="hand2")
+                             font=FONTS["body_bold"], anchor="w", cursor="hand2")
             title.pack(fill=tk.X, padx=8, pady=(4, 4 if not on else 0))
             parts = [card, title]
             if on:
@@ -3940,17 +3941,17 @@ class MainWindow:
                 if cents.get(other, (None,))[0] is None or a is None:
                     continue
                 b = self.zoom_ctrl.to_canvas(c, *cents[other])
-                c.create_line(*a, *b, fill="#FFFFFF", width=4, tags="hover")
-                c.create_line(*a, *b, fill="#2166AC", width=2, tags="hover")
+                c.create_line(*a, *b, fill=COLORS["white"], width=4, tags="hover")
+                c.create_line(*a, *b, fill=COLORS["accent"], width=2, tags="hover")
                 v = x.get(dcol)
                 if isinstance(v, (int, float)):
                     tx, ty = (a[0] + 2 * b[0]) / 3, (a[1] + 2 * b[1]) / 3     # cerca del vecino
                     for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
-                        c.create_text(tx + dx, ty + dy, text=ins.fmt(float(v)), fill="#FFFFFF",
-                                      font=("Segoe UI", 9, "bold"), tags="hover")
-                    c.create_text(tx, ty, text=ins.fmt(float(v)), fill="#0B2E59", font=("Segoe UI", 9, "bold"),
+                        c.create_text(tx + dx, ty + dy, text=ins.fmt(float(v)), fill=COLORS["white"],
+                                      font=FONTS["body_bold"], tags="hover")
+                    c.create_text(tx, ty, text=ins.fmt(float(v)), fill=COLORS["area_include"], font=FONTS["body_bold"],
                                   tags="hover")
-            c.create_oval(a[0] - 4, a[1] - 4, a[0] + 4, a[1] + 4, fill="#D73027", outline="#FFFFFF", tags="hover")
+            c.create_oval(a[0] - 4, a[1] - 4, a[0] + 4, a[1] + 4, fill=COLORS["highlight"], outline=COLORS["white"], tags="hover")
 
     def _select_object(self, oid: int, from_table: bool = False):
         geom = self._geometry()
@@ -4450,7 +4451,7 @@ class MainWindow:
             if len(done) > 1:
                 tk.Label(self.history_frame, text=_analysis_label(name), bg=COLORS["bg_panel"],
                          fg=COLORS["accent"] if current else COLORS["text_muted"],
-                         font=("Segoe UI", 8, "italic"), anchor="w", padx=6).pack(fill=tk.X, pady=(4, 0))
+                         font=FONTS["small_italic"], anchor="w", padx=6).pack(fill=tk.X, pady=(4, 0))
             for i, view in enumerate(self._step_names.get(name, {}).get(path, [])):
                 sel = current and i == self.step_idx
                 bg = COLORS["accent_light"] if sel else COLORS["bg_panel"]
@@ -4574,8 +4575,8 @@ class MainWindow:
         tk.Label(scope, textvariable=self._area_scope_var, bg=bg, fg=COLORS["text"],
                  font=FONTS["small"]).pack(side=tk.LEFT, padx=(6, 4))
         self._apply_all_btn = tk.Button(scope, text=t("roi.apply_all_short"), command=self._apply_areas_to_all,
-                                        bg=COLORS["accent"], fg="#FFFFFF", activebackground="#1a5490",
-                                        activeforeground="#FFFFFF", relief="flat", bd=0, font=FONTS["small"],
+                                        bg=COLORS["accent"], fg=COLORS["on_accent"], activebackground=COLORS["accent_dark"],
+                                        activeforeground=COLORS["on_accent"], relief="flat", bd=0, font=FONTS["small"],
                                         cursor="hand2", padx=8, pady=1)      # botón lleno: se ve que es una acción
         self._clear_area_btn = tk.Button(scope, text=t("roi.clear_short"), command=self._clear_roi, bg=bg,
                                          fg=COLORS["text_muted"], relief="flat", bd=0, font=FONTS["small"],
@@ -4680,7 +4681,7 @@ class MainWindow:
                     col = tk.Frame(body, bg=COLORS["bg_card"])
                     col.pack(side=tk.LEFT, anchor="n", padx=(0, 28))
                 tk.Label(col, text=title.upper(), bg=COLORS["bg_card"], fg=COLORS["accent"],
-                         font=("Segoe UI", 8, "bold")).pack(anchor="w", pady=(8, 2))
+                         font=FONTS["small_bold"]).pack(anchor="w", pady=(8, 2))
                 g = tk.Frame(col, bg=COLORS["bg_card"])
                 g.pack(anchor="w", fill=tk.X)
                 g.columnconfigure(0, minsize=150 if i < 3 else 170)
@@ -4820,7 +4821,7 @@ class MainWindow:
         body.pack(padx=18, pady=14)
         cur = self._scale_summary(self.current_image_path)
         if cur:
-            tk.Label(body, text=cur, bg=COLORS["accent_light"], fg=COLORS["accent"], font=("Segoe UI", 9, "bold"),
+            tk.Label(body, text=cur, bg=COLORS["accent_light"], fg=COLORS["accent"], font=FONTS["body_bold"],
                      justify="left", anchor="w", padx=8, pady=5).pack(fill=tk.X, pady=(0, 10))
         tk.Label(body, text=t("scale.manual_prompt"), bg=COLORS["bg_card"], fg=COLORS["text"],
                  font=FONTS["small"], justify="left").pack(anchor="w", pady=(0, 8))
@@ -4848,7 +4849,7 @@ class MainWindow:
         btns.pack(fill=tk.X, pady=(12, 0))
         tk.Button(btns, text=t("common.cancel"), command=win.destroy, relief="flat",
                   bg=COLORS["btn_bg"], fg=COLORS["accent"], font=FONTS["small"]).pack(side=tk.RIGHT, padx=(6, 0))
-        tk.Button(btns, text=t("common.ok"), command=ok, relief="flat", bg=COLORS["accent"], fg="#FFFFFF",
+        tk.Button(btns, text=t("common.ok"), command=ok, relief="flat", bg=COLORS["accent"], fg=COLORS["on_accent"],
                   font=FONTS["small"]).pack(side=tk.RIGHT)
         win.bind("<Return>", ok)
         win.bind("<Escape>", lambda e: win.destroy())
@@ -4894,7 +4895,7 @@ class MainWindow:
         body.pack(fill=tk.BOTH, expand=True, padx=20, pady=16)
         tk.Label(body, text=title,
                  bg=COLORS["bg_card"], fg=COLORS["accent"],
-                 font=("Segoe UI", 12, "bold")).pack(anchor="w")
+                 font=FONTS["heading"]).pack(anchor="w")
         tk.Label(body, text=desc,
                  bg=COLORS["bg_card"], fg=COLORS["text"],
                  font=FONTS["body"], justify="left").pack(
@@ -4921,7 +4922,7 @@ class MainWindow:
         body.pack(fill=tk.BOTH, expand=True, padx=20, pady=16)
         tk.Label(body, text=f"🤖  {t('ai.title')}",
                  bg=COLORS["bg_card"], fg=COLORS["accent"],
-                 font=("Segoe UI", 13, "bold")).pack(anchor="w")
+                 font=FONTS["heading_large"]).pack(anchor="w")
         tk.Label(body, text=t("ai.select_model"),
                  bg=COLORS["bg_card"], fg=COLORS["text"],
                  font=FONTS["body"]).pack(anchor="w", pady=(8, 4))

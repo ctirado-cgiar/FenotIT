@@ -7,6 +7,7 @@ from tkinter import ttk
 
 from fenotit.core.pipeline import overlay
 from fenotit.i18n import t
+from fenotit.gui.theme import COLORS, FONTS
 
 _SWATCHES = ("green", "magenta", "yellow", "cyan", "red", "orange", "blue", "white", "black")
 _D = 14            # diámetro del punto de color
@@ -31,7 +32,7 @@ class StylePopup(tk.Toplevel):
         self._dots: dict[str, tk.Canvas] = {}
         row = 0
         for role in overlay.ROLES:
-            tk.Label(box, text=t(f"style.{role}"), bg=bg, fg=colors["text"], font=("Segoe UI", 8),
+            tk.Label(box, text=t(f"style.{role}"), bg=bg, fg=colors["text"], font=FONTS["small"],
                      anchor="w").grid(row=row, column=0, sticky="w", padx=(0, 8), pady=3)
             names = (() if role == "mask" else ("auto",)) + _SWATCHES
             c = tk.Canvas(box, bg=bg, highlightthickness=0, width=len(names) * (_D + 6), height=_D + 6,
@@ -44,7 +45,7 @@ class StylePopup(tk.Toplevel):
                 row = self._slider(box, row, "style.opacity", 0.1, 0.9, "mask_alpha", "{:.0%}")
             if role == "outline":
                 row = self._slider(box, row, "style.width", 0.5, 4.0, "width", "{:.1f} px")
-        tk.Label(box, text=t("style.hint"), bg=bg, fg=colors["text_muted"], font=("Segoe UI", 7),
+        tk.Label(box, text=t("style.hint"), bg=bg, fg=colors["text_muted"], font=FONTS["tiny"],
                  justify="left", wraplength=240).grid(row=row, column=0, columnspan=2, sticky="w", pady=(6, 0))
         self._paint()
         self.attributes("-topmost", True)
@@ -64,12 +65,12 @@ class StylePopup(tk.Toplevel):
 
     def _slider(self, box, row, key, lo, hi, field, fmt):
         bg = self._c["bg_card"]
-        tk.Label(box, text=t(key), bg=bg, fg=self._c["text_muted"], font=("Segoe UI", 7),
+        tk.Label(box, text=t(key), bg=bg, fg=self._c["text_muted"], font=FONTS["tiny"],
                  anchor="w").grid(row=row, column=0, sticky="w", padx=(10, 8))
         f = tk.Frame(box, bg=bg)
         f.grid(row=row, column=1, sticky="we")
         value = tk.Label(f, text=fmt.format(self._style[field]), bg=bg, fg=self._c["text"],
-                         font=("Segoe UI", 7), width=6, anchor="e")
+                         font=FONTS["tiny"], width=6, anchor="e")
         var = tk.DoubleVar(value=float(self._style[field]))
 
         def changed(_v=None):
@@ -97,7 +98,7 @@ class StylePopup(tk.Toplevel):
                 if sel:
                     c.create_oval(x - 2, y - 2, x + _D + 2, y + _D + 2, outline=self._c["accent"], width=2)
                 if name == "auto":
-                    c.create_oval(x, y, x + _D, y + _D, fill="#FFFFFF", outline="#999999")
-                    c.create_text(x + _D / 2, y + _D / 2, text="A", font=("Segoe UI", 7, "bold"), fill="#555555")
+                    c.create_oval(x, y, x + _D, y + _D, fill=COLORS["white"], outline=COLORS["text_faint"])
+                    c.create_text(x + _D / 2, y + _D / 2, text="A", font=FONTS["tiny_bold"], fill=COLORS["text_muted"])
                 else:
-                    c.create_oval(x, y, x + _D, y + _D, fill=_hex(overlay.PALETTE[name]), outline="#999999")
+                    c.create_oval(x, y, x + _D, y + _D, fill=_hex(overlay.PALETTE[name]), outline=COLORS["text_faint"])

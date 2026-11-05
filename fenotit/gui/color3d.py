@@ -30,7 +30,7 @@ _log = log.get("gui.color3d")
 
 STEPS = 36                     # sectores de las tortas en pasos de 10°
 MANY = 4000                    # aviso de muchos puntos
-EDGE = "#555555"
+EDGE = COLORS["text_muted"]
 NONE = "—"
 
 
@@ -119,7 +119,7 @@ class Color3DWindow(tk.Toplevel):
         self.layer_bar = tk.Frame(self, bg=bg)
         self.layer_bar.pack(fill=tk.X)
         self.per = tk.StringVar(value="")
-        self.warn = tk.Label(self.layer_bar, text="", bg=bg, fg="#B35806", font=FONTS["small"])
+        self.warn = tk.Label(self.layer_bar, text="", bg=bg, fg=COLORS["warning_text"], font=FONTS["small"])
 
         body = tk.Frame(self, bg=COLORS["bg_card"])
         body.pack(fill=tk.BOTH, expand=True)
@@ -250,7 +250,7 @@ class Color3DWindow(tk.Toplevel):
                            edgecolors=EDGE, linewidths=0.3, alpha=0.9, **kw)
         mode = self.labels.get(self.label_var.get())
         if mode:
-            halo = [patheffects.withStroke(linewidth=2.2, foreground="white")]
+            halo = [patheffects.withStroke(linewidth=2.2, foreground=COLORS["white"])]
             top = [p for p in pts if p.level in ("images", "objects")] or pts
             size = {id(p): sz for p, sz in zip(pts, self._sizes)}
             where = {id(p): c for p, c in zip(pts, coords)}
@@ -260,10 +260,10 @@ class Color3DWindow(tk.Toplevel):
                 text = p.label_id if mode == "id" else self._point_name(p)
                 if three:
                     pad = " " * (int(np.sqrt(size[id(p)]) / 3.4) + 1)      # justo al lado del punto
-                    ax.text(*p.xyz, pad + text, fontsize=6, color="#222222", zorder=10, path_effects=halo)
+                    ax.text(*p.xyz, pad + text, fontsize=6, color=COLORS["text"], zorder=10, path_effects=halo)
                 else:
                     ax.annotate(text, where[id(p)], xytext=(np.sqrt(size[id(p)]) / 2 + 2, 0),
-                                textcoords="offset points", va="center", fontsize=6, color="#222222",
+                                textcoords="offset points", va="center", fontsize=6, color=COLORS["text"],
                                 zorder=10, path_effects=halo)
         names = cs.SPACES[space]
         if three:
@@ -279,11 +279,11 @@ class Color3DWindow(tk.Toplevel):
             if space == "Lab":                   # ejes neutros (a* = 0, b* = 0): grises
                 for k, line in ((i, ax.axvline), (j, ax.axhline)):
                     if k > 0:
-                        line(0, color="#999999", lw=0.7, zorder=0)
+                        line(0, color=COLORS["text_faint"], lw=0.7, zorder=0)
                 if (i, j) == (1, 2):
                     ax.set_aspect("equal", adjustable="datalim")   # distancias de color reales
             for spine in ax.spines.values():
-                spine.set_edgecolor("#CCCCCC")
+                spine.set_edgecolor(COLORS["border"])
         n_img = len({p.path for p in pts})
         n_obj = len({(p.path, p.object_id) for p in pts if p.object_id is not None})
         title = f"{space}  ·  " + t("chart.n_images", n=n_img) + (f"  ·  {t('chart.n_objects', n=n_obj)}" if n_obj else "")
@@ -334,7 +334,7 @@ class Color3DWindow(tk.Toplevel):
             m, ms = marks[k]
             n = sum(1 for p in self._pts if p.level == k)
             text = t(f"c3d.level.{k}" + ("_batch" if batch and k in ("image_colors", "images") else ""))
-            handles.append(Line2D([], [], marker=m, ls="", ms=ms, mfc="#BBBBBB", mec=EDGE, mew=0.6,
+            handles.append(Line2D([], [], marker=m, ls="", ms=ms, mfc=COLORS["text_faint"], mec=EDGE, mew=0.6,
                                   label=f"{text} ({n})"))
         if handles:
             fig.legend(handles=handles, loc="upper left", frameon=True, fontsize=8, framealpha=0.85,
@@ -428,7 +428,7 @@ class Color3DWindow(tk.Toplevel):
             except Exception:
                 pass
         at = np.array([p.xyz]) if self.is3d else np.array([p.xyz])[:, list(self._plane())]
-        self._picked = self._ax.scatter(*at.T, s=self._sizes[i] * 2.2 + 60, facecolors="none", edgecolors="#D73027",
+        self._picked = self._ax.scatter(*at.T, s=self._sizes[i] * 2.2 + 60, facecolors="none", edgecolors=COLORS["highlight"],
                                         linewidths=1.6, zorder=11, **({"depthshade": False} if self.is3d else {}))
         self._canvas.draw_idle()
         info = self.info
@@ -439,7 +439,7 @@ class Color3DWindow(tk.Toplevel):
         bg = COLORS["bg_card"]
         head = tk.Frame(info, bg=bg)
         head.pack(fill=tk.X, padx=10, pady=(8, 4))
-        tk.Label(head, text=t("c3d.point"), bg=bg, fg=COLORS["accent"], font=("Segoe UI", 9, "bold")).pack(side=tk.LEFT)
+        tk.Label(head, text=t("c3d.point"), bg=bg, fg=COLORS["accent"], font=FONTS["body_bold"]).pack(side=tk.LEFT)
         x = tk.Label(head, text="✕", bg=bg, fg=COLORS["text_muted"], cursor="hand2", font=FONTS["small"])
         x.pack(side=tk.RIGHT)
         x.bind("<Button-1>", lambda e: info.pack_forget())
@@ -477,6 +477,6 @@ class Color3DWindow(tk.Toplevel):
                 acc += pc
         if self.on_goto:
             tk.Button(info, text=t("c3d.goto"), command=lambda: self.on_goto(p.path, p.object_id),
-                      bg=COLORS["accent"], fg="#FFFFFF", relief="flat", font=FONTS["small"], cursor="hand2",
+                      bg=COLORS["accent"], fg=COLORS["on_accent"], relief="flat", font=FONTS["small"], cursor="hand2",
                       padx=10).pack(pady=10)
         self._picked_point = p

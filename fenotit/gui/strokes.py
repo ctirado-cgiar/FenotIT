@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import tkinter as tk
 from typing import Callable
+from fenotit.gui.theme import COLORS, FONTS
 
 
 class StrokeEditor:
@@ -60,7 +61,7 @@ class StrokeEditor:
     def _draw(self, s: dict):
         pts = [v for p in s["pts"] for v in self._canvas(*p)]
         width = max(1.0, s["w"] * self._view[2])
-        color = self.colors[s["c"]] if s["c"] < len(self.colors) else "#FF00FF"
+        color = self.colors[s["c"]] if s["c"] < len(self.colors) else COLORS["error"]
         if len(pts) == 2:
             x, y = pts
             r = width / 2
@@ -75,9 +76,9 @@ class StrokeEditor:
         if not self.active:
             return
         r = self.brush / 2
-        color = self.colors[self.current] if self.current < len(self.colors) else "#FFFFFF"
+        color = self.colors[self.current] if self.current < len(self.colors) else COLORS["white"]
         c.create_oval(e.x - r, e.y - r, e.x + r, e.y + r, outline=color, width=2, tags="brush")
-        c.create_oval(e.x - r - 1, e.y - r - 1, e.x + r + 1, e.y + r + 1, outline="#FFFFFF", width=1, tags="brush")
+        c.create_oval(e.x - r - 1, e.y - r - 1, e.x + r + 1, e.y + r + 1, outline=COLORS["white"], width=1, tags="brush")
 
     # ── pintar ────────────────────────────────────────────────────────────────
 
@@ -178,9 +179,9 @@ class PointEditor:
         for nx, ny, pos in self.points:
             x, y = self._canvas(nx, ny)
             r = self.R
-            c.create_oval(x - r - 1, y - r - 1, x + r + 1, y + r + 1, fill="#FFFFFF", outline="", tags="prompt")
-            c.create_oval(x - r, y - r, x + r, y + r, fill="#2E9E44" if pos else "#D62728", outline="", tags="prompt")
-            c.create_text(x, y, text="+" if pos else "−", fill="#FFFFFF", font=("Segoe UI", 8, "bold"), tags="prompt")
+            c.create_oval(x - r - 1, y - r - 1, x + r + 1, y + r + 1, fill=COLORS["white"], outline="", tags="prompt")
+            c.create_oval(x - r, y - r, x + r, y + r, fill=COLORS["point_positive"] if pos else COLORS["point_negative"], outline="", tags="prompt")
+            c.create_text(x, y, text="+" if pos else "−", fill=COLORS["white"], font=FONTS["small_bold"], tags="prompt")
 
     def _press(self, e):
         self._down = (e.x, e.y)
