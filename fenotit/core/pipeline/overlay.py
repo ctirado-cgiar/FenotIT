@@ -22,28 +22,7 @@ _AUTO_CANDIDATES = ("green", "magenta", "yellow", "cyan", "red", "orange", "blue
 
 
 def empty() -> dict:
-    return {"outlines": [], "dots": [], "labels": [], "lines": [], "stars": [], "fills": [], "size": 0}
-
-
-FILL_ALPHA = 0.2
-
-
-def fill_color(i: int) -> tuple[int, int, int]:
-    """Color propio de cada objeto (BGR): tonos repartidos con el ángulo áureo, así dos
-    objetos con números seguidos nunca se parecen."""
-    h = int((i * 137.508) % 360) // 2
-    c = cv2.cvtColor(np.uint8([[[h, 200, 255]]]), cv2.COLOR_HSV2BGR)[0, 0]
-    return tuple(int(v) for v in c)
-
-
-def _fills(img, polys):
-    """Relleno tenue (20 %) de cada objeto con su color; una sola mezcla para todos."""
-    if not polys:
-        return
-    layer = img.copy()
-    for pts, i in polys:
-        cv2.fillPoly(layer, [pts], fill_color(i), cv2.LINE_AA)
-    cv2.addWeighted(layer, FILL_ALPHA, img, 1 - FILL_ALPHA, 0, dst=img)
+    return {"outlines": [], "dots": [], "labels": [], "lines": [], "stars": [], "size": 0}
 
 
 STAR = (0, 200, 255)             # BGR, amarillo
@@ -162,7 +141,6 @@ def _draw(img, ov, colors, origin, zoom, screen):
     def tr(pts):
         return np.round((np.asarray(pts, float) - (ox, oy)) * zoom).astype(np.int32)
 
-    _fills(img, [(tr(c).reshape(-1, 1, 2), i) for c, i in ov.get("fills", [])])
     inc = [tr(c).reshape(-1, 1, 2) for c, ok in ov.get("outlines", []) if ok]
     exc = [tr(c).reshape(-1, 1, 2) for c, ok in ov.get("outlines", []) if not ok]
     _lines(img, exc, _EXCLUDED, min(width, 1.0), False)

@@ -261,9 +261,6 @@ def count(ctx, p):
         row["status"] = "excluded" if out else ("highlighted" if oid in ctx.highlighted else "ok")
         if not out:                            # excluido: conserva su número, en gris y sin punto
             ov["dots"].append((x, y))
-            cnts, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE,
-                                       offset=(sl[1].start, sl[0].start))
-            ov["fills"] += [(c.reshape(-1, 2), oid) for c in cnts]   # cada objeto contado con su color
         if p["numbers"]:
             ov["labels"].append((x, y, str(oid), not out))
     add_overlay(ctx, "count", ov)
