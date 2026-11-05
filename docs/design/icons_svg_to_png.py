@@ -33,7 +33,7 @@ def convert(svg: Path, png: Path):
 
 def main():
     sys.path.insert(0, str(ROOT))
-    from fenotit.gui.icons import NAMES
+    from fenotit.gui.style.icons import NAMES
     for svg in sorted(SRC.glob("*.svg")):
         if svg.stem not in NAMES:
             print(f"  {svg.name}: no es un nombre de ícono de la app (ver docs/design/README.md)")

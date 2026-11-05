@@ -5,14 +5,14 @@ tocar el resto del código.
 
 | Qué | Dónde |
 |---|---|
-| Colores, tipos de letra y paletas | `fenotit/gui/theme.py` |
-| Íconos | `fenotit/assets/icons/` (y los dibujados por defecto en `fenotit/gui/icons.py`) |
+| Colores, tipos de letra y paletas | `fenotit/gui/style/theme.py` |
+| Íconos | `fenotit/assets/icons/` (y los dibujados por defecto en `fenotit/gui/style/icons.py`) |
 | Logo | `fenotit/assets/logo.ico` |
-| Mosaico y píxeles decorativos (carga, inicio, Acerca de) | `fenotit/gui/decor.py` (tonos en `theme.py`) |
+| Mosaico y píxeles decorativos (carga, inicio, Acerca de) | `fenotit/gui/style/decor.py` (tonos en `theme.py`) |
 
 ## Colores y letras
 
-`fenotit/gui/theme.py` tiene cuatro grupos:
+`fenotit/gui/style/theme.py` tiene cuatro grupos:
 
 - `COLORS`: cada color de la interfaz con un nombre que dice dónde se usa
   (`bg_panel`, `text_muted`, `accent`, `warning`…). Cambiar un valor cambia todos los

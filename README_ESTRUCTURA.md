@@ -81,7 +81,7 @@ FenotIT/
 │   │   ├── stats/                 análisis posterior (tablas, sin imágenes)
 │   │   ├── export/                CSV, Excel y metadatos
 │   │   └── project.py, batch.py, image_io.py, efd.py, units.py, uncertainty.py …
-│   ├── gui/                       interfaz (tkinter); aspecto en gui/theme.py y gui/icons.py
+│   ├── gui/                       interfaz (tkinter); aspecto en gui/style/theme.py y gui/style/icons.py
 │   ├── assets/                    logo e íconos
 │   └── lang/                      en.json, es.json
 ├── docs/

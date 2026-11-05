@@ -27,22 +27,22 @@ from PIL import Image, ImageTk
 
 from fenotit.core.image_io import ImageScaler, load_image, natural_key
 from fenotit.core.project import IMAGE_EXTS, PROJECT_EXT, Project, Scale, Segmentation
-from fenotit.gui.roi.editor import AreaEditor
+from fenotit.gui.canvas.areas import AreaEditor
 from fenotit.core.analysis.registry import ANALYSES, AnalysisResult
 from fenotit.core import pipeline, units
 from fenotit.core import batch, recovery
-from fenotit.gui.config_panel import ConfigPanel
-from fenotit.gui.zoom_controller import ZoomController
-from fenotit.gui.image_list import ImageList
-from fenotit.gui.icons import icon
-from fenotit.gui.toolbar import IconButton, Tooltip
-from fenotit.gui.calibration_dialogs import ScaleDialog
-from fenotit.gui.corrections_dialog import CorrectionsDialog
+from fenotit.gui.widgets.params import ConfigPanel
+from fenotit.gui.canvas.zoom import ZoomController
+from fenotit.gui.widgets.image_list import ImageList
+from fenotit.gui.style.icons import icon
+from fenotit.gui.widgets.toolbar import IconButton, Tooltip
+from fenotit.gui.dialogs.scale import ScaleDialog
+from fenotit.gui.dialogs.corrections import CorrectionsDialog
 from fenotit.core.corrections import pipeline as corrections
-from fenotit.gui.export_dialog import ExportDialog
-from fenotit.gui.help import HelpIcon
-from fenotit.gui.charts import IntraImageChartPanel, BatchChartWindow
-from fenotit.gui.theme import COLORS, FONTS
+from fenotit.gui.dialogs.export import ExportDialog
+from fenotit.gui.widgets.help import HelpIcon
+from fenotit.gui.charts.panels import IntraImageChartPanel, BatchChartWindow
+from fenotit.gui.style.theme import COLORS, FONTS
 
 from fenotit import APP_NAME, __version__, log, settings
 from fenotit.i18n import t
@@ -313,7 +313,7 @@ def _summary(stats: dict, limit: int = 6, aliases: dict | None = None) -> str:
     hidden = {k for k in aliases if k.startswith("\0")}          # fondo de la segmentación por ejemplos
     items = [(k, v) for k, v in stats.items() if v not in (None, "") and k not in _SUMMARY_SKIP
              and not k.endswith("_per_px") and not any(k.startswith(h[1:] + "_") for h in hidden)]
-    from fenotit.gui.labels import column
+    from fenotit.gui.widgets.labels import column
     text = "  ·  ".join(f"{column(k, aliases)}: {_cell(v)}" for k, v in items[:limit])
     return text + ("  ·  …" if len(items) > limit else "")
 
@@ -583,7 +583,7 @@ class MainWindow:
         self._show_results_ui(False)
 
     def _open_preferences(self):
-        from fenotit.gui import preferences_dialog
+        from fenotit.gui.dialogs import preferences as preferences_dialog
         self._single("preferences", lambda: preferences_dialog.show(self.root, self.project.max_mpx,
                                                                      self._apply_preferences))
 
@@ -1459,7 +1459,7 @@ class MainWindow:
     def _start_tour(self):
         """Un solo recorrido guiado: en la pantalla de inicio explica esa pantalla; con un
         proyecto abierto empieza en lo que le toca hacer al usuario (Anterior lleva a lo de antes)."""
-        from fenotit.gui.tour import Step, Tour
+        from fenotit.gui.screens.tour import Step, Tour
         if getattr(self, "_tour", None):
             return
 
@@ -1688,7 +1688,7 @@ class MainWindow:
         cv.bind_all("<MouseWheel>", lambda e: self._layers_wheel(e, -1 if e.delta > 0 else 1), add="+")
 
         # Inspector del objeto elegido (abajo; aparece al elegir un objeto)
-        from fenotit.gui.inspector import Inspector
+        from fenotit.gui.widgets.inspector import Inspector
         self.inspector = Inspector(lf, self._clear_selection, self._toggle_exclude, self._toggle_highlight)
         self._sel: int | None = None
         self._sel_point = None
@@ -1803,7 +1803,7 @@ class MainWindow:
 
         self.areas = AreaEditor(self.canvas_left, self._on_areas_change)
         self.areas.on_done = self._on_roi_tool_done
-        from fenotit.gui.strokes import PointEditor, RegionPicker, StrokeEditor
+        from fenotit.gui.canvas.tools import PointEditor, RegionPicker, StrokeEditor
         self.strokes = StrokeEditor(self.canvas_left, self._on_strokes_change)
         self.prompts = PointEditor(self.canvas_left, self._on_prompts_change)
         self.region_picker = RegionPicker(self.canvas_left, self._on_region_click)
@@ -1822,7 +1822,7 @@ class MainWindow:
         self._build_area_tools()
 
         self._canvas_row = canvas_row
-        from fenotit.gui.start_screen import StartScreen
+        from fenotit.gui.screens.start import StartScreen
         self._start = StartScreen(cf, COLORS, FONTS, self._open_image, self._open_folder,
                                   self._open_project, self._open_recent,
                                   links=((t("menu.language"), self._choose_language), (t("menu.about"), self._about),
@@ -1987,7 +1987,7 @@ class MainWindow:
         self._build_model_box(self._model_box)
         self._refine_head = self._section_lbl(rf, t("refine.title"))
         HelpIcon(self._refine_head, t("refine.title").capitalize(), t("refine.help"), bg=bg).pack(side=tk.LEFT)
-        from fenotit.gui.segment_widgets import RefineList
+        from fenotit.gui.widgets.segment import RefineList
         self.refine_list = RefineList(rf, self._on_refine_change)
         self.refine_list.pack(fill=tk.X, padx=8, pady=(2, 6))
         self._next_btn = tk.Button(rf, text=t("seg.next"), command=lambda: self._select_right_tab("analysis"),
@@ -2325,7 +2325,7 @@ class MainWindow:
         chead.pack(fill=tk.X, pady=(8, 2))
         tk.Label(chead, text=t("cat.title"), bg=bg, fg=COLORS["text_muted"], font=small).pack(side=tk.LEFT)
         HelpIcon(chead, t("cat.title"), t("cat.help"), bg=bg).pack(side=tk.LEFT, padx=(4, 0))
-        from fenotit.gui.segment_widgets import CategoryList
+        from fenotit.gui.widgets.segment import CategoryList
         self.category_list = CategoryList(cat, self._on_categories_change, lambda i: None)
         self.category_list.set(self._default_categories())
         self.category_list.pack(fill=tk.X)
@@ -2628,7 +2628,7 @@ class MainWindow:
                        activebackground=bg, font=small, padx=0).pack(side=tk.LEFT)
         HelpIcon(arow, t("seg.auto"), t("seg.auto_help"), bg=bg).pack(side=tk.LEFT, padx=(4, 0))
 
-        from fenotit.gui.histogram import ChannelHistogram, RangeSlider
+        from fenotit.gui.widgets.histogram import ChannelHistogram, RangeSlider
         rrow = tk.Frame(box, bg=bg)
         rrow.pack(fill=tk.X, pady=(6, 0))
         tk.Label(rrow, text=t("seg.range"), bg=bg, fg=COLORS["text_muted"], font=small).pack(side=tk.LEFT)
@@ -2642,7 +2642,7 @@ class MainWindow:
 
     def _build_classifier_box(self, box):
         """Por ejemplos: clases (la elegida es la del pincel), pincel, detalle y estado."""
-        from fenotit.gui.segment_widgets import ClassList
+        from fenotit.gui.widgets.segment import ClassList
         bg, small = COLORS["bg_panel"], FONTS["small"]
         head = tk.Frame(box, bg=bg)
         head.pack(fill=tk.X)
@@ -2969,7 +2969,7 @@ class MainWindow:
 
     def _open_style(self):
         """Colores de la máscara, contornos y puntos (se guardan en el proyecto)."""
-        from fenotit.gui.style_popup import StylePopup
+        from fenotit.gui.widgets.style_popup import StylePopup
         if self._style_popup is not None and self._style_popup.winfo_exists():
             self._style_popup.destroy()
             self._style_popup = None
@@ -3810,7 +3810,7 @@ class MainWindow:
         self._table_rows, self._table_cols, self._table_sort = list(rows or []), cols, (None, False)
         if not rows:
             return
-        from fenotit.gui.labels import column as _col
+        from fenotit.gui.widgets.labels import column as _col
         from fenotit.core.measurements.classes import slug
         self._col_alias = {slug(r["class"]): r["class"] for r in
                            ((result.extra.get("tables") or {}).get("classes") or [])}
@@ -3931,7 +3931,7 @@ class MainWindow:
         cents = {o["object_id"]: (o.get("centroid_x_px"), o.get("centroid_y_px")) for o in tables.get("objects", [])}
         pairs = [x for x in tables.get("distances", []) if oid in (x.get("object_a"), x.get("object_b"))]
         dcol = next((k for k in (pairs[0] if pairs else {}) if k.startswith("distance_")), None)
-        from fenotit.gui import inspector as ins
+        from fenotit.gui.widgets import inspector as ins
         for c in (self.canvas_left, self.canvas_right):
             if not c.winfo_ismapped() or cents.get(oid, (None,))[0] is None:
                 continue
@@ -4014,10 +4014,10 @@ class MainWindow:
             self._select_object(self._sel if self._sel in ids else ids[0], from_table=True)
 
     def _show_inspector(self):
-        """Solo lo de la capa que se está viendo (ver gui/inspector.py)."""
+        """Solo lo de la capa que se está viendo (ver gui/widgets/inspector.py)."""
         from fenotit.core.pipeline import overlay
         from fenotit.core.pipeline.views import _color_text
-        from fenotit.gui import inspector as ins
+        from fenotit.gui.widgets import inspector as ins
         r, oid = self.last_result, self._sel
         if r is None or oid is None:
             return
@@ -4335,7 +4335,7 @@ class MainWindow:
             except (TypeError, ValueError):
                 return (1, 0.0, str(v or ""))
         self._table_rows.sort(key=key, reverse=desc)
-        from fenotit.gui.labels import column
+        from fenotit.gui.widgets.labels import column
         for c in self._table_cols:
             alias = getattr(self, "_col_alias", {})
             mark = (" ▼" if desc else " ▲") if c == col else ""
@@ -4947,7 +4947,7 @@ class MainWindow:
     # ── Tabla de datos del usuario (genotipo, repetición…) ────────────────────
 
     def _open_metadata(self):
-        from fenotit.gui.metadata_dialog import MetadataDialog
+        from fenotit.gui.dialogs.metadata import MetadataDialog
         self._single("metadata", lambda: MetadataDialog(
             self.root, [Path(p).name for p in self.batch_paths], dict(self.project.metadata), self._set_metadata))
 
@@ -5081,7 +5081,7 @@ class MainWindow:
                  scale=scale, log=log.log_file())
 
     def _about(self):
-        from fenotit.gui import about_dialog
+        from fenotit.gui.dialogs import about as about_dialog
         self._single("about", lambda: about_dialog.show(self.root, _assets() / "logo.ico", self._system_info()))
 
     # ── Exportación ───────────────────────────────────────────────────────────
@@ -5237,7 +5237,7 @@ class MainWindow:
         return out
 
     def _show_color3d(self, scope: str = "image"):
-        from fenotit.gui.color3d import Color3DWindow
+        from fenotit.gui.charts.color3d import Color3DWindow
         current = self._color_images([self.current_image_path] if self.current_image_path else [])
         batch = self._color_images(self.batch_paths)
         self._replace_window("colors", lambda: Color3DWindow(
@@ -5273,7 +5273,7 @@ class MainWindow:
         """Imagen para el punto elegido: el objeto recortado si la foto está abierta; si
         no, la foto en miniatura."""
         from fenotit.core.pipeline import overlay
-        from fenotit.gui import inspector as ins
+        from fenotit.gui.widgets import inspector as ins
         r = self.last_result
         if path == self.current_image_path and r is not None:
             base = r.extra.get("base_image")
