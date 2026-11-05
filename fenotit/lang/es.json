@@ -769,5 +769,6 @@
   "common.no": "No",
   "menu.lens": "Distorsión del lente…",
   "menu.perspective": "Perspectiva (ArUco)…",
-  "menu.colorcard": "Tarjeta de color…"
+  "menu.colorcard": "Tarjeta de color…",
+  "refine.add_short": "Agregar operación"
 }

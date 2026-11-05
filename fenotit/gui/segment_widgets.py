@@ -22,7 +22,8 @@ def _num(var, default, lo=1, hi=999):
 
 
 class RefineList(tk.Frame):
-    """Operaciones morfológicas en orden: cada fila = operación, tamaño (px), veces, ↑ ↓ ✕."""
+    """Operaciones morfológicas en orden, una por renglón: nombre, tamaño (px) y veces;
+    ↑ ↓ ✕ aparecen al pasar el mouse. «+ Agregar operación» abre un menú."""
 
     def __init__(self, parent, on_change: Callable[[], None]):
         bg = COLORS["bg_panel"]
@@ -32,13 +33,10 @@ class RefineList(tk.Frame):
         self._names = {k: t(f"refine.{k}") for k in REFINE_OPS}
         self._rows = tk.Frame(self, bg=bg)
         self._rows.pack(fill=tk.X)
-        add = tk.Frame(self, bg=bg)
-        add.pack(fill=tk.X, pady=(2, 0))
-        self._add_var = tk.StringVar(value=t("refine.add"))
-        cb = ttk.Combobox(add, textvariable=self._add_var, values=list(self._names.values()),
-                          state="readonly", width=22, font=FONTS["small"])
-        cb.pack(side=tk.LEFT)
-        cb.bind("<<ComboboxSelected>>", lambda e: self._add())
+        self._add_btn = tk.Label(self, text="+ " + t("refine.add_short"), bg=bg, fg=COLORS["accent"],
+                                 font=FONTS["small"], cursor="hand2")
+        self._add_btn.pack(anchor="w", pady=(3, 0))
+        self._add_btn.bind("<Button-1>", lambda e: self._menu())
         self._muting = False
 
     def get(self) -> list[dict]:
@@ -48,14 +46,18 @@ class RefineList(tk.Frame):
         self.ops = [dict(o) for o in ops or [] if o.get("op") in REFINE_OPS]
         self._render()
 
-    def _add(self):
-        name = self._add_var.get()
-        op = next((k for k, v in self._names.items() if v == name), None)
-        self._add_var.set(t("refine.add"))
-        if op:
-            self.ops.append({"op": op} if not REFINE_OPS[op]["size"] else {"op": op, "size": 3, "iter": 1})
-            self._render()
-            self.on_change()
+    def _menu(self):
+        m = tk.Menu(self, tearoff=0, font=FONTS["small"], bg=COLORS["bg_card"], fg=COLORS["text"],
+                    activebackground=COLORS["accent_light"], activeforeground=COLORS["text"], bd=0)
+        for op, name in self._names.items():
+            m.add_command(label=name, command=lambda o=op: self._add(o))
+        b = self._add_btn
+        m.tk_popup(b.winfo_rootx(), b.winfo_rooty() + b.winfo_height())
+
+    def _add(self, op: str):
+        self.ops.append({"op": op} if not REFINE_OPS[op]["size"] else {"op": op, "size": 3, "iter": 1})
+        self._render()
+        self.on_change()
 
     def _move(self, i: int, d: int):
         j = i + d
@@ -70,37 +72,38 @@ class RefineList(tk.Frame):
         self.on_change()
 
     def _render(self):
-        bg, small = COLORS["bg_panel"], FONTS["small"]
+        card, small, muted = COLORS["bg_card"], FONTS["small"], COLORS["text_muted"]
         for w in self._rows.winfo_children():
             w.destroy()
         self._muting = True
         for i, o in enumerate(self.ops):
-            row = tk.Frame(self._rows, bg=COLORS["bg_card"], highlightthickness=1,
-                           highlightbackground=COLORS["border"])
+            row = tk.Frame(self._rows, bg=card, highlightthickness=1, highlightbackground=COLORS["border"])
             row.pack(fill=tk.X, pady=1)
-            tk.Label(row, text=f"{i + 1}. {self._names[o['op']]}", bg=COLORS["bg_card"], fg=COLORS["text"],
-                     font=small, anchor="w").pack(side=tk.LEFT, padx=(4, 2))
-            for sym, cmd, tip in (("✕", lambda i=i: self._remove(i), None),
-                                  ("↓", lambda i=i: self._move(i, 1), None),
-                                  ("↑", lambda i=i: self._move(i, -1), None)):
-                b = tk.Label(row, text=sym, bg=COLORS["bg_card"], fg=COLORS["text_muted"], font=small,
-                             cursor="hand2", padx=2)
-                b.pack(side=tk.RIGHT)
-                b.bind("<Button-1>", lambda e, c=cmd: c())
-            if REFINE_OPS[o["op"]]["size"]:            # segunda línea: tamaño y veces
-                sub = tk.Frame(self._rows, bg=COLORS["bg_card"], highlightthickness=1,
-                               highlightbackground=COLORS["border"])
-                sub.pack(fill=tk.X, pady=(0, 1))
-                for key, label, unit, hi in (("size", t("refine.size"), "px", 99), ("iter", t("refine.times"), "", 20)):
+            tk.Label(row, text=self._names[o["op"]], bg=card, fg=COLORS["text"], font=small,
+                     anchor="w").pack(side=tk.LEFT, padx=(6, 2), pady=2)
+            tools = tk.Frame(row, bg=card)                 # ↑ ↓ ✕ solo al pasar el mouse
+            for sym, cmd in (("✕", lambda i=i: self._remove(i)), ("↓", lambda i=i: self._move(i, 1)),
+                             ("↑", lambda i=i: self._move(i, -1))):
+                lb = tk.Label(tools, text=sym, bg=card, fg=muted, font=small, cursor="hand2", padx=2)
+                lb.pack(side=tk.RIGHT)
+                lb.bind("<Button-1>", lambda e, c=cmd: c())
+            tools.pack(side=tk.RIGHT, padx=(0, 2))
+            if REFINE_OPS[o["op"]]["size"]:            # de derecha a izquierda: × veces, px tamaño
+                for key, unit, hi in (("iter", "×", 20), ("size", "px", 99)):
                     var = tk.StringVar(value=str(o.get(key, 3 if key == "size" else 1)))
-                    tk.Label(sub, text=label, bg=COLORS["bg_card"], fg=COLORS["text_muted"],
-                             font=small).pack(side=tk.LEFT, padx=(14 if key == "size" else 8, 2))
-                    tk.Spinbox(sub, from_=1, to=hi, textvariable=var, width=3, font=small,
-                               command=lambda o=o, k=key, v=var, h=hi: self._set(o, k, v, h)).pack(side=tk.LEFT)
-                    if unit:
-                        tk.Label(sub, text=unit, bg=COLORS["bg_card"], fg=COLORS["text_muted"],
-                                 font=small).pack(side=tk.LEFT, padx=(2, 0))
+                    tk.Label(row, text=unit, bg=card, fg=muted, font=small).pack(side=tk.RIGHT, padx=(1, 4))
+                    tk.Spinbox(row, from_=1, to=hi, textvariable=var, width=2, font=small, relief="flat",
+                               bg=COLORS["bg_panel"], buttonbackground=card,
+                               command=lambda o=o, k=key, v=var, h=hi: self._set(o, k, v, h)).pack(side=tk.RIGHT)
                     var.trace_add("write", lambda *a, o=o, k=key, v=var, h=hi: self._set(o, k, v, h))
+
+            def show(on, f=tools):
+                for c in f.winfo_children():
+                    c.config(fg=muted if on else card)
+            show(False)
+            for w in [row] + list(row.winfo_children()):
+                w.bind("<Enter>", lambda e, s=show: s(True), add="+")
+                w.bind("<Leave>", lambda e, s=show: s(False), add="+")
         self._muting = False
 
     def _set(self, o: dict, key: str, var, hi: int):
