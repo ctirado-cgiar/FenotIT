@@ -777,12 +777,13 @@
   "cat.add": "Agregar categoría",
   "cat.new": "Categoría {n}",
   "cat.default": "Objeto",
-  "cat.help": "Clasifica las regiones que detecta MobileSAM. Elige una categoría en la lista y haz clic sobre una región de la Entrada: toma esa categoría. Otro clic con la misma categoría la deja sin usar (no se analiza).\n\nAl detectarlas, todas las regiones empiezan en la categoría elegida. «Todas» y «Ninguna» cambian todas las de la foto.\n\nCon dos categorías o más, la tabla dice la categoría de cada objeto y, por foto, cuántos objetos y qué área hay de cada una.",
+  "cat.help": "Clasifica las regiones que detecta MobileSAM. Elige una categoría en la lista y haz clic sobre una región de la Entrada: toma esa categoría. Otro clic con la misma categoría la deja sin usar (no se analiza).\n\nAl detectarlas, todas las regiones empiezan en la categoría elegida. «Todas» y «Ninguna» cambian todas las de la foto.\n\nCon dos categorías o más, la tabla dice la categoría de cada objeto y, por foto, cuántos objetos y qué área hay de cada una.\n\nEn las fotos donde no hagas clic, las regiones se clasifican solas: el programa aprende de las que clasificaste en otras fotos (color, tamaño y forma). Con un clic en una de esas fotos, esa foto pasa a ser tuya.",
   "sam.regions_photo": "Regiones de esta foto:",
   "sam.all": "Todas",
   "sam.none": "Ninguna",
   "sam.pick_first": "Primero «Detectar regiones» en esta foto.",
   "undo.regions": "categoría de regiones",
   "col.category": "Categoría",
-  "col.n": "N.º"
+  "col.n": "N.º",
+  "sam.learned": "Esta foto aún no tiene clics: sus regiones se clasifican con lo que marcaste en otras fotos."
 }

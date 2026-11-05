@@ -108,7 +108,9 @@ def chain(seg: dict) -> list[dict]:
                                                       "categories": [c["name"] for c in m.get("categories") or []],
                                                       "colors": [c["color"] for c in m.get("categories") or []],
                                                       "default": int(m.get("default", 1)),
-                                                      "picks": list(m.get("picks") or [])}}]
+                                                      "picks": list(m.get("picks") or []),
+                                                      "own": bool(m.get("own", True)),
+                                                      "learn": dict(m.get("learn") or {})}}]
     elif seg.get("auto"):
         steps = [{"step": "otsu", "params": {"color_space": seg.get("color_space", "BGR"),
                                              "channel": int(seg.get("channel", 0))}}]
