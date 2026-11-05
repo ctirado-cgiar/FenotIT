@@ -1318,6 +1318,8 @@ class MainWindow:
         self._drop(self.topbar, t("menu.edit"), [
             (lambda: self._undo_label("undo"), self._undo, "Ctrl+Z"),
             (lambda: self._undo_label("redo"), self._redo, "Ctrl+Y"),
+            None,
+            (t("prefs.title") + "…", self._open_preferences, "Ctrl+,"),
         ])
         self._drop(self.topbar, t("menu.images"), [
             (t("menu.add_images"), self._open_image, "Ctrl+O"),
@@ -1330,9 +1332,9 @@ class MainWindow:
             (t("menu.metadata"), self._open_metadata, "Ctrl+D"),
         ])
         self._drop(self.topbar, t("menu.calibration"), [
-            (t("corr.tab.distortion") + "…", lambda: self._open_corrections("distortion")),
-            (t("corr.tab.perspective") + "…", lambda: self._open_corrections("perspective")),
-            (t("corr.tab.color") + "…", lambda: self._open_corrections("color")),
+            (t("menu.lens"), lambda: self._open_corrections("distortion")),
+            (t("menu.perspective"), lambda: self._open_corrections("perspective")),
+            (t("menu.colorcard"), lambda: self._open_corrections("color")),
             None,
             (t("menu.scale"), [
                 (t("menu.cal_scale"), self._open_scale_dialog),
@@ -1378,9 +1380,6 @@ class MainWindow:
             None,
             (t("view.toggle_legend"), self._toggle_legend, "L"),
             (t("style.title") + "…", self._open_style),
-        ])
-        self._drop(self.topbar, t("menu.settings"), [
-            (t("prefs.title") + "…", self._open_preferences),
         ])
         self._drop(self.topbar, t("menu.help"), [
             (t("tour.menu"), self._start_tour),
@@ -4508,6 +4507,7 @@ class MainWindow:
         r.bind_all("<Control-o>", lambda e=None: self._open_image())
         r.bind_all("<Control-s>", lambda e=None: self._save_project())
         r.bind_all("<Control-e>", lambda e=None: self._export_results())
+        r.bind_all("<Control-comma>", lambda e=None: self._open_preferences())
         r.bind_all("<Left>", key(self._prev_image))
         r.bind_all("<Right>", key(self._next_image))
 

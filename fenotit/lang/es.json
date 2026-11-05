@@ -604,7 +604,6 @@
   "menu.none": "(ninguno)",
   "menu.find_missing": "Buscar faltantes…",
   "menu.scale": "Escala",
-  "menu.settings": "Configuración",
   "view.panels": "Paneles",
   "view.layout": "Disposición",
   "view.zoom": "Zoom",
@@ -767,5 +766,8 @@
   "col.class": "Clase",
   "col.processing_s": "Tiempo (s)",
   "common.yes": "Sí",
-  "common.no": "No"
+  "common.no": "No",
+  "menu.lens": "Distorsión del lente…",
+  "menu.perspective": "Perspectiva (ArUco)…",
+  "menu.colorcard": "Tarjeta de color…"
 }
