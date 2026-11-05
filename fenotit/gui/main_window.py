@@ -304,13 +304,16 @@ def _duration(seconds: float) -> str:
     return f"{m} min {s:02d} s"
 
 
-def _summary(stats: dict, limit: int = 6) -> str:
+def _summary(stats: dict, limit: int = 6, aliases: dict | None = None) -> str:
     """Resumen de la fila de la imagen para la barra de estado. Sirve para cualquier
     análisis (conteos, distancias, color, modelos…): los valores que el análisis puso, sin
     vacíos ni la resolución, con pocos decimales."""
+    aliases = aliases or {}
+    hidden = {k for k in aliases if k.startswith("\0")}          # fondo de la segmentación por ejemplos
     items = [(k, v) for k, v in stats.items() if v not in (None, "") and k not in _SUMMARY_SKIP
-             and not k.endswith("_per_px")]
-    text = "  ·  ".join(f"{k}: {_cell(v)}" for k, v in items[:limit])
+             and not k.endswith("_per_px") and not any(k.startswith(h[1:] + "_") for h in hidden)]
+    from fenotit.gui.labels import column
+    text = "  ·  ".join(f"{column(k, aliases)}: {_cell(v)}" for k, v in items[:limit])
     return text + ("  ·  …" if len(items) > limit else "")
 
 
@@ -3260,7 +3263,7 @@ class MainWindow:
         self._trim_memory(path)
         self._update_batch_list()
         self._set_status(t("status.done", name=_analysis_label(name),
-                           detail=_summary(result.stats)))
+                           detail=_summary(result.stats, aliases=self._class_aliases(result))))
         if result.extra.get("processing_s") is not None:
             self._set_status(self.status_var.get() + "  ·  " + _duration(result.extra["processing_s"]))
         reused = result.extra.get("reused")
@@ -3606,18 +3609,23 @@ class MainWindow:
         self._table_rows, self._table_cols, self._table_sort = list(rows or []), cols, (None, False)
         if not rows:
             return
+        from fenotit.gui.labels import column as _col
+        from fenotit.core.pipeline.steps.measure import slug
+        self._col_alias = {slug(r["class"]): r["class"] for r in
+                           ((result.extra.get("tables") or {}).get("classes") or [])}
+        column = lambda c: _col(c, self._col_alias)
         font, head = tkfont.nametofont("TkDefaultFont"), tkfont.nametofont("TkHeadingFont")
         self._table_widths = {}
         for col in cols:
             sample = [_cell(r.get(col)) for r in rows[:200]]
-            width = max([head.measure(col + " ▼") + 20] + [font.measure(v) + 14 for v in sample])
+            width = max([head.measure(column(col) + " ▼") + 20] + [font.measure(v) + 14 for v in sample])
             self._table_widths[col] = min(max(width, 60), 260)
-            self.table.heading(col, text=col, anchor="w", command=lambda c=col: self._sort_table(c))
+            self.table.heading(col, text=column(col), anchor="w", command=lambda c=col: self._sort_table(c))
         first = cols[0]                    # ▲ en la primera columna si ya viene ordenada: se ve que se puede ordenar
         vals = [r.get(first) for r in rows]
         if all(isinstance(v, (int, float)) for v in vals) and vals == sorted(vals):
             self._table_sort = (first, False)
-            self.table.heading(first, text=first + " ▲")
+            self.table.heading(first, text=column(first) + " ▲")
         self._fit_table_columns()
         self._fill_table()
 
@@ -3651,11 +3659,30 @@ class MainWindow:
             xsb.pack_forget()
             self.table.xview_moveto(0)
 
+    _YES_NO = ("touching", "crosses_object")
+
+    @staticmethod
+    def _class_aliases(result) -> dict:
+        """Nombre ASCII de cada clase → su nombre; el fondo, marcado con "\0" (no se resume)."""
+        from fenotit.core.pipeline.steps.measure import slug
+        out = {}
+        for r in (result.extra.get("tables") or {}).get("classes") or []:
+            out[slug(r["class"])] = r["class"]
+        return out
+
+    def _shown(self, col: str, v) -> str:
+        """Valor para la pantalla: estados y sí/no traducidos; números con pocos decimales."""
+        if col == "status" and v:
+            return t(f"insp.status.{v}", str(v))
+        if col in self._YES_NO and v in (0, 1, True, False):
+            return t("common.yes") if v else t("common.no")
+        return _cell(v)
+
     def _fill_table(self):
         self.table.delete(*self.table.get_children())
         self._table_items = {}
         for row in self._table_rows:
-            iid = self.table.insert("", "end", values=[_cell(row.get(c)) for c in self._table_cols])
+            iid = self.table.insert("", "end", values=[self._shown(c, row.get(c)) for c in self._table_cols])
             self._table_items[iid] = row
         self._sync_table_selection()
 
@@ -4107,9 +4134,11 @@ class MainWindow:
             except (TypeError, ValueError):
                 return (1, 0.0, str(v or ""))
         self._table_rows.sort(key=key, reverse=desc)
+        from fenotit.gui.labels import column
         for c in self._table_cols:
+            alias = getattr(self, "_col_alias", {})
             mark = (" ▼" if desc else " ▲") if c == col else ""
-            self.table.heading(c, text=c + mark)
+            self.table.heading(c, text=column(c, alias) + mark)
         self._fill_table()
 
     # ── Navegación pasos ──────────────────────────────────────────────────────
