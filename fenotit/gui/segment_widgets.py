@@ -8,11 +8,9 @@ from tkinter import font as tkfont
 from typing import Callable
 
 from fenotit.core.segmentation import REFINE_OPS
-from fenotit.gui.theme import COLORS, FONTS
+from fenotit.gui.theme import CLASS_COLORS, COLORS, FONTS
 from fenotit.i18n import t
 
-# colores para clases nuevas (se reparten en orden)
-CLASS_COLORS = ("#9E9E9E", "#2166AC", "#2E9E44", "#D62728", "#F2B705", "#8E44AD", "#E67E22", "#17BECF")
 
 
 def _num(var, default, lo=1, hi=999):
@@ -175,7 +173,7 @@ class ClassList(tk.Frame):
 
     def _add(self):
         used = {c["color"] for c in self.classes}
-        color = next((c for c in CLASS_COLORS if c not in used), "#444444")
+        color = next((c for c in CLASS_COLORS if c not in used), COLORS["text_muted"])
         self.classes.append({"name": t("cls.new", n=len(self.classes)), "color": color, "object": True})
         self.current = len(self.classes) - 1
         self._render()
@@ -273,7 +271,7 @@ class CategoryList(tk.Frame):
 
     def _add(self):
         used = {c["color"] for c in self.cats}
-        color = next((c for c in CLASS_COLORS[1:] if c not in used), "#444444")
+        color = next((c for c in CLASS_COLORS[1:] if c not in used), COLORS["text_muted"])
         self.cats.append({"name": t("cat.new", n=len(self.cats) + 1), "color": color})
         self.current = len(self.cats) - 1
         self._render()

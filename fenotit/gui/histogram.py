@@ -89,7 +89,7 @@ class ChannelHistogram(tk.Canvas):
             self.create_text(w / 2, HEIGHT / 2, text="—", fill=COLORS["text_muted"], font=FONTS["small"])
         for v in (self.lo, self.hi):                  # las dos líneas del rango (el valor va en el deslizador)
             x = self._x(v)
-            self.create_line(x, 0, x, base + 3, fill="#222222", width=1.5)
+            self.create_line(x, 0, x, base + 3, fill=COLORS["text"], width=1.5)
 
     # ── arrastrar las líneas ──────────────────────────────────────────────────
 
@@ -192,13 +192,13 @@ class RangeSlider(tk.Canvas):
         xs = self._bubble_x(xl, xh, w)
         focus = self.focus_get() is self
         for name, x, bx in (("lo", xl, xs[0]), ("hi", xh, xs[1])):
-            ring = acc if not (focus and name == self.active) else "#0B3C6E"
-            self.create_oval(x - r, y - r, x + r, y + r, fill="white", outline=ring, width=2)
+            ring = acc if not (focus and name == self.active) else COLORS["accent_darker"]
+            self.create_oval(x - r, y - r, x + r, y + r, fill=COLORS["white"], outline=ring, width=2)
             text = str(self.lo if name == "lo" else self.hi)
             bw = 26
             self.create_rectangle(bx - bw / 2, 1, bx + bw / 2, self.BUBBLE, fill=acc, outline=acc)
             self.create_polygon(x - 3, self.BUBBLE, x + 3, self.BUBBLE, x, self.BUBBLE + 3, fill=acc, outline=acc)
-            self.create_text(bx, 1 + self.BUBBLE / 2, text=text, fill="white", font=("Segoe UI", 8, "bold"))
+            self.create_text(bx, 1 + self.BUBBLE / 2, text=text, fill=COLORS["white"], font=FONTS["small_bold"])
 
     @staticmethod
     def _bubble_x(xl: float, xh: float, w: float) -> tuple[float, float]:

@@ -49,12 +49,12 @@ class ExportDialog(tk.Toplevel):
         body = tk.Frame(self, bg=bg)
         body.pack(fill=tk.BOTH, expand=True, padx=22, pady=(14, 8))
         tk.Label(body, text=t("export.title"), bg=bg, fg=COLORS["accent"],
-                 font=("Segoe UI", 13, "bold")).pack(anchor="w")
+                 font=FONTS["heading_large"]).pack(anchor="w")
 
         def section(text, help_key=None):
             row = tk.Frame(body, bg=bg)
             row.pack(fill=tk.X, pady=(14, 4))
-            tk.Label(row, text=text, bg=bg, fg=COLORS["accent"], font=("Segoe UI", 8, "bold")).pack(side=tk.LEFT)
+            tk.Label(row, text=text, bg=bg, fg=COLORS["accent"], font=FONTS["small_bold"]).pack(side=tk.LEFT)
             if help_key:
                 HelpIcon(row, text.capitalize(), t(help_key), bg=bg).pack(side=tk.LEFT, padx=(6, 0))
             tk.Frame(row, bg=COLORS["border"], height=1).pack(side=tk.LEFT, fill=tk.X, expand=True,
@@ -117,9 +117,9 @@ class ExportDialog(tk.Toplevel):
         self._close = tk.Button(btns, text=t("common.close"), command=self._on_close, bg=COLORS["btn_bg"],
                                 fg=COLORS["accent"], relief="flat", font=FONTS["body"], cursor="hand2", padx=12)
         self._close.pack(side=tk.RIGHT, padx=(6, 0))
-        self._go = tk.Button(btns, text=t("export.run"), command=self._start, bg=COLORS["accent"], fg="#FFFFFF",
-                             activebackground="#1A5390", activeforeground="#FFFFFF", relief="flat",
-                             font=("Segoe UI", 9, "bold"), cursor="hand2", padx=14)
+        self._go = tk.Button(btns, text=t("export.run"), command=self._start, bg=COLORS["accent"], fg=COLORS["on_accent"],
+                             activebackground=COLORS["accent_dark"], activeforeground=COLORS["on_accent"], relief="flat",
+                             font=FONTS["body_bold"], cursor="hand2", padx=14)
         self._go.pack(side=tk.RIGHT)
         self._open = tk.Button(btns, text=t("export.open_folder"), bg=bg, fg=COLORS["accent"], relief="flat",
                                font=FONTS["body"], cursor="hand2",

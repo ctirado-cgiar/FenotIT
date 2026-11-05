@@ -37,12 +37,12 @@ def show(root: tk.Misc, max_mpx: float | None, on_ok: Callable[[dict], None]) ->
     body = tk.Frame(win, bg=bg)
     body.pack(fill=tk.BOTH, padx=20, pady=(12, 4))
     tk.Label(body, text=t("prefs.title"), bg=bg, fg=COLORS["accent"],
-             font=("Segoe UI", 12, "bold")).grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 6))
+             font=FONTS["heading"]).grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 6))
     row = [1]
 
     def section(key):
         tk.Label(body, text=t(key).upper(), bg=bg, fg=COLORS["text_muted"],
-                 font=("Segoe UI", 8, "bold")).grid(row=row[0], column=0, columnspan=3, sticky="w", pady=(10, 2))
+                 font=FONTS["small_bold"]).grid(row=row[0], column=0, columnspan=3, sticky="w", pady=(10, 2))
         row[0] += 1
 
     def line(key, widget, help_key=None):
@@ -100,8 +100,8 @@ def show(root: tk.Misc, max_mpx: float | None, on_ok: Callable[[dict], None]) ->
     btns.pack(fill=tk.X, padx=20, pady=(10, 14))
     tk.Button(btns, text=t("common.cancel"), command=win.destroy, bg=COLORS["btn_bg"], fg=COLORS["accent"],
               relief="flat", font=FONTS["body"], cursor="hand2", padx=10).pack(side=tk.RIGHT, padx=(6, 0))
-    tk.Button(btns, text=t("common.ok"), command=ok, bg=COLORS["accent"], fg="#FFFFFF", relief="flat",
-              font=("Segoe UI", 9, "bold"), cursor="hand2", padx=14).pack(side=tk.RIGHT)
+    tk.Button(btns, text=t("common.ok"), command=ok, bg=COLORS["accent"], fg=COLORS["on_accent"], relief="flat",
+              font=FONTS["body_bold"], cursor="hand2", padx=14).pack(side=tk.RIGHT)
     win.bind("<Escape>", lambda e: win.destroy())
     win.update_idletasks()
     win.geometry(f"+{root.winfo_rootx() + (root.winfo_width() - win.winfo_reqwidth()) // 2}"

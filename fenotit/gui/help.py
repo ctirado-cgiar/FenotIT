@@ -29,8 +29,8 @@ class HelpIcon(tk.Canvas):
         self.delete("all")
         c = COLORS["accent"]
         self.create_oval(1, 1, SIZE - 2, SIZE - 2, outline=c, fill=c if hover else self.cget("bg"), width=1)
-        self.create_text(SIZE / 2 - 0.5, SIZE / 2, text="?", fill="#FFFFFF" if hover else c,
-                         font=("Segoe UI", 7, "bold"))
+        self.create_text(SIZE / 2 - 0.5, SIZE / 2, text="?", fill=COLORS["white"] if hover else c,
+                         font=FONTS["tiny_bold"])
 
 
 def first_sentence(text: str, limit: int = 90) -> str:
@@ -55,10 +55,10 @@ def help_popup(widget, title: str, text: str):
     inner = tk.Frame(tw, bg=COLORS["bg_card"], padx=10, pady=8)
     inner.pack(padx=1, pady=1)
     tk.Label(inner, text=title, bg=COLORS["bg_card"], fg=COLORS["accent"],
-             font=("Segoe UI", 9, "bold")).pack(anchor="w")
-    tk.Label(inner, text=text, bg=COLORS["bg_card"], fg=COLORS["text"], font=("Segoe UI", 8),
+             font=FONTS["body_bold"]).pack(anchor="w")
+    tk.Label(inner, text=text, bg=COLORS["bg_card"], fg=COLORS["text"], font=FONTS["small"],
              justify="left", wraplength=300).pack(anchor="w", pady=(3, 0))
-    tk.Button(inner, text=t("common.close"), bg=COLORS["btn_bg"], fg=COLORS["accent"], font=("Segoe UI", 7),
+    tk.Button(inner, text=t("common.close"), bg=COLORS["btn_bg"], fg=COLORS["accent"], font=FONTS["tiny"],
               relief="flat", padx=6, cursor="hand2", command=tw.destroy).pack(anchor="e", pady=(6, 0))
     tw.update_idletasks()
     w, h = tw.winfo_reqwidth(), tw.winfo_reqheight()

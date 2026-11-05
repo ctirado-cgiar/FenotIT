@@ -50,8 +50,8 @@ class CorrectionsDialog(BaseDialog):
                   bg=COLORS["btn_bg"], fg=COLORS["accent"], relief="flat",
                   font=FONTS["body"], cursor="hand2", padx=12).pack(side=tk.RIGHT, padx=2)
         tk.Button(parent, text=t("corr.apply"), command=self._apply,
-                  bg=COLORS["accent"], fg="#FFFFFF", relief="flat",
-                  font=("Segoe UI", 9, "bold"), cursor="hand2", padx=12).pack(side=tk.RIGHT, padx=2)
+                  bg=COLORS["accent"], fg=COLORS["on_accent"], relief="flat",
+                  font=FONTS["body_bold"], cursor="hand2", padx=12).pack(side=tk.RIGHT, padx=2)
 
     def _build_body(self):
         self._muted(self.body, t("corr.intro")).pack(anchor="w", pady=(0, 6))
@@ -224,7 +224,7 @@ class CorrectionsDialog(BaseDialog):
         def radios(title, var, options, cmd=None):
             box = tk.Frame(f, bg=bg)
             box.pack(fill=tk.X, pady=(4, 0))
-            tk.Label(box, text=title, bg=bg, fg=COLORS["text"], font=("Segoe UI", 9, "bold"),
+            tk.Label(box, text=title, bg=bg, fg=COLORS["text"], font=FONTS["body_bold"],
                      width=14, anchor="nw").pack(side=tk.LEFT, anchor="n")
             col_f = tk.Frame(box, bg=bg)
             col_f.pack(side=tk.LEFT, fill=tk.X)

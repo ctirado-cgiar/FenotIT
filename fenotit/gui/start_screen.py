@@ -13,11 +13,11 @@ from PIL import Image, ImageTk
 from fenotit import APP_NAME, __version__, i18n, settings
 from fenotit.core.project import PREVIEW
 from fenotit.gui.decor import BLUE, pixel_dissolve
-from fenotit.gui.toolbar import icon
+from fenotit.gui.icons import icon
 from fenotit.i18n import t
+from fenotit.gui.theme import COLORS, FONTS
 
 _THUMB = (88, 66)
-_SERIF = "Georgia"          # títulos en cursiva; si no existe, Tk usa una parecida
 
 
 def _project_info(path: Path) -> tuple[int, Path | None, str | None]:
@@ -63,8 +63,8 @@ class StartScreen(tk.Frame):
         self._links = links
         self._cb = (on_photos, on_folder, on_open, on_recent)
         self._img = {n: ImageTk.PhotoImage(icon(n, 30, colors["accent"])) for n in ("photo", "folder", "project")}
-        self._img["photo_w"] = ImageTk.PhotoImage(icon("photo", 22, "#FFFFFF"))
-        self._img["folder_w"] = ImageTk.PhotoImage(icon("folder", 22, "#FFFFFF"))
+        self._img["photo_w"] = ImageTk.PhotoImage(icon("photo", 22, COLORS["on_accent"]))
+        self._img["folder_w"] = ImageTk.PhotoImage(icon("folder", 22, COLORS["on_accent"]))
         self._thumbs: list = []
         self.targets: dict[str, tk.Widget] = {}       # elementos que señala el recorrido guiado
         self._build_hero()
@@ -76,31 +76,31 @@ class StartScreen(tk.Frame):
         """Franja blanca con el azul en los textos, una línea arriba y píxeles que se desvanecen."""
         c = self.c
         tk.Frame(self, bg=BLUE, height=4).pack(side=tk.TOP, fill=tk.X)
-        hero = tk.Canvas(self, bg="#FFFFFF", width=300, highlightthickness=0)
+        hero = tk.Canvas(self, bg=COLORS["bg_card"], width=300, highlightthickness=0)
         hero.pack(side=tk.LEFT, fill=tk.Y)
-        tk.Frame(self, bg="#DDE3EA", width=1).pack(side=tk.LEFT, fill=tk.Y)
+        tk.Frame(self, bg=COLORS["divider"], width=1).pack(side=tk.LEFT, fill=tk.Y)
         hero.bind("<Configure>", lambda e: self._decorate(hero, e.width, e.height))
-        inner = tk.Frame(hero, bg="#FFFFFF")
+        inner = tk.Frame(hero, bg=COLORS["bg_card"])
         inner.place(relx=0.5, rely=0.45, anchor="center")
         try:
             from fenotit.gui.main_window import _assets
             logo = Image.open(_assets() / "logo.ico").convert("RGBA").resize((80, 80), Image.LANCZOS)
             self._img["logo"] = ImageTk.PhotoImage(logo)
-            tk.Label(inner, image=self._img["logo"], bg="#FFFFFF").pack(pady=(0, 10))
+            tk.Label(inner, image=self._img["logo"], bg=COLORS["bg_card"]).pack(pady=(0, 10))
         except Exception:
             pass
-        tk.Label(inner, text=APP_NAME, bg="#FFFFFF", fg=BLUE, font=("Segoe UI", 26, "bold")).pack()
-        tk.Label(inner, text=t("start.subtitle"), bg="#FFFFFF", fg="#4A4A4A", font=(_SERIF, 12, "italic"),
+        tk.Label(inner, text=APP_NAME, bg=COLORS["bg_card"], fg=BLUE, font=FONTS["display_large"]).pack()
+        tk.Label(inner, text=t("start.subtitle"), bg=COLORS["bg_card"], fg=COLORS["text_muted"], font=FONTS["motto_large"],
                  wraplength=250, justify="center").pack(pady=(4, 14))
         tk.Frame(inner, bg=BLUE, width=36, height=2).pack(pady=(0, 14))
-        tk.Label(inner, text=t("start.tagline"), bg="#FFFFFF", fg="#7A7A7A", font=("Segoe UI", 8),
+        tk.Label(inner, text=t("start.tagline"), bg=COLORS["bg_card"], fg=COLORS["text_faint"], font=FONTS["small"],
                  wraplength=230, justify="center").pack()
         self._build_links()
 
     def _build_links(self):
         """Idioma (con el idioma actual) y Acerca de, fuera de la franja: arriba a la derecha.
         La versión queda abajo a la derecha, pequeña."""
-        muted = "#7A7A7A"
+        muted = COLORS["text_faint"]
         box = tk.Frame(self, bg=self.c["bg"])
         self._floating = [box]
         box.place(relx=1.0, x=-20, y=16, anchor="ne")
@@ -111,15 +111,15 @@ class StartScreen(tk.Frame):
         items = [x for x in items if x[2]]
         for i, (key, text, cmd) in enumerate(items):
             if i:
-                tk.Label(box, text="·", bg=self.c["bg"], fg="#BBBBBB").pack(side=tk.LEFT, padx=4)
-            lbl = tk.Label(box, text=text, bg=self.c["bg"], fg=muted, font=("Segoe UI", 9), cursor="hand2")
+                tk.Label(box, text="·", bg=self.c["bg"], fg=COLORS["text_faint"]).pack(side=tk.LEFT, padx=4)
+            lbl = tk.Label(box, text=text, bg=self.c["bg"], fg=muted, font=FONTS["body"], cursor="hand2")
             lbl.pack(side=tk.LEFT)
             lbl.bind("<Enter>", lambda e, w=lbl: w.config(fg=BLUE))
             lbl.bind("<Leave>", lambda e, w=lbl: w.config(fg=muted))
             lbl.bind("<Button-1>", lambda e, f=cmd: f())
             self.targets[key] = lbl
         ver = tk.Label(self, text=f"v{__version__}  ·  Alliance of Bioversity International & CIAT",
-                       bg=self.c["bg"], fg="#A8A8A8", font=("Segoe UI", 7))
+                       bg=self.c["bg"], fg=COLORS["text_faint"], font=FONTS["tiny"])
         ver.place(relx=1.0, rely=1.0, x=-20, y=-12, anchor="se")
         self._floating.append(ver)
 
@@ -148,18 +148,18 @@ class StartScreen(tk.Frame):
         body.place(relx=0.5, rely=0.42, anchor="center")
 
         tk.Label(body, text=t("start.begin"), bg=c["bg"], fg=c["text_muted"],
-                 font=(_SERIF, 14, "italic")).pack(anchor="w", pady=(0, 10))
+                 font=FONTS["motto_xl"]).pack(anchor="w", pady=(0, 10))
         row = tk.Frame(body, bg=c["bg"])
         row.pack(anchor="w")
         self.targets["new"] = self._new_tile(row, on_photos, on_folder)
         self.targets["open"] = self._tile(row, "project", t("start.open"), t("start.open_hint"), on_open)
 
         tk.Label(body, text=t("start.recent"), bg=c["bg"], fg=c["text_muted"],
-                 font=(_SERIF, 12, "italic")).pack(anchor="w", pady=(22, 6))
+                 font=FONTS["motto_large"]).pack(anchor="w", pady=(22, 6))
         recent = settings.recent_projects()
         if not recent:
             tk.Label(body, text=t("start.no_recent"), bg=c["bg"], fg=c["text_muted"],
-                     font=("Segoe UI", 9)).pack(anchor="w")
+                     font=FONTS["body"]).pack(anchor="w")
         grid = tk.Frame(body, bg=c["bg"])
         grid.pack(anchor="w")
         self.targets["recent"] = grid if recent else None
@@ -190,8 +190,8 @@ class StartScreen(tk.Frame):
         card = self._card(parent, 210, 120)
         card.pack(side=tk.LEFT, padx=(0, 12))
         parts = [tk.Label(card, image=self._img[ico], bg=c["bg_card"]),
-                 tk.Label(card, text=title, bg=c["bg_card"], fg=c["text"], font=("Segoe UI", 10, "bold")),
-                 tk.Label(card, text=hint, bg=c["bg_card"], fg=c["text_muted"], font=("Segoe UI", 8),
+                 tk.Label(card, text=title, bg=c["bg_card"], fg=c["text"], font=FONTS["topbar"]),
+                 tk.Label(card, text=hint, bg=c["bg_card"], fg=c["text_muted"], font=FONTS["small"],
                           wraplength=190, justify="center")]
         parts[0].pack(pady=(18, 4))
         parts[1].pack()
@@ -207,8 +207,8 @@ class StartScreen(tk.Frame):
         card = self._card(parent, 210, 120)
         card.pack(side=tk.LEFT, padx=(0, 12))
         front = [tk.Label(card, image=self._img["photo"], bg=c["bg_card"]),
-                 tk.Label(card, text=t("start.new"), bg=c["bg_card"], fg=c["text"], font=("Segoe UI", 10, "bold")),
-                 tk.Label(card, text=t("start.new_hint"), bg=c["bg_card"], fg=c["text_muted"], font=("Segoe UI", 8),
+                 tk.Label(card, text=t("start.new"), bg=c["bg_card"], fg=c["text"], font=FONTS["topbar"]),
+                 tk.Label(card, text=t("start.new_hint"), bg=c["bg_card"], fg=c["text_muted"], font=FONTS["small"],
                           wraplength=190, justify="center")]
         front[0].pack(pady=(18, 4))
         front[1].pack()
@@ -216,8 +216,8 @@ class StartScreen(tk.Frame):
         choices = tk.Frame(card, bg=c["bg_card"])
         for ico, text, cmd in (("photo_w", t("start.photos"), on_photos), ("folder_w", t("start.folder"), on_folder)):
             tk.Button(choices, text=f"  {text}", image=self._img[ico], compound="left", command=cmd,
-                      bg=c["accent"], fg="#FFFFFF", activebackground=c["bg_topbar"], activeforeground="#FFFFFF",
-                      relief="flat", bd=0, font=("Segoe UI", 9, "bold"), anchor="w", padx=12, pady=6,
+                      bg=c["accent"], fg=COLORS["on_accent"], activebackground=c["bg_topbar"], activeforeground=COLORS["on_accent"],
+                      relief="flat", bd=0, font=FONTS["body_bold"], anchor="w", padx=12, pady=6,
                       cursor="hand2").pack(fill=tk.X, padx=14, pady=(10, 0))
 
         def open_choices(_e=None):
@@ -235,7 +235,7 @@ class StartScreen(tk.Frame):
         n, first, analysis = _project_info(path)
         thumb = _thumbnail(first)
         self._thumbs.append(thumb)
-        pic = tk.Label(card, bg="#EBEEF2", width=_THUMB[0], height=_THUMB[1])
+        pic = tk.Label(card, bg=COLORS["placeholder"], width=_THUMB[0], height=_THUMB[1])
         if thumb:
             pic.config(image=thumb)
         pic.place(x=7, y=7, width=_THUMB[0], height=_THUMB[1])
@@ -243,10 +243,10 @@ class StartScreen(tk.Frame):
             when = dt.datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d")
         except OSError:
             when = ""
-        texts = [tk.Label(card, text=path.stem, bg=c["bg_card"], fg=c["accent"], font=("Segoe UI", 10, "bold"),
+        texts = [tk.Label(card, text=path.stem, bg=c["bg_card"], fg=c["accent"], font=FONTS["topbar"],
                           anchor="w"),
                  tk.Label(card, text=t("start.recent_info", n=n, date=when), bg=c["bg_card"], fg=c["text"],
-                          font=("Segoe UI", 8), anchor="w"),
+                          font=FONTS["small"], anchor="w"),
                  tk.Label(card, text=t(f"analysis.{analysis}.name", analysis) if analysis else str(path.parent),
                           bg=c["bg_card"], fg=c["text_muted"], font=("Segoe UI", 8 if analysis else 7), anchor="w")]
         from fenotit.gui.toolbar import Tooltip

@@ -5,8 +5,9 @@ from __future__ import annotations
 import random
 import tkinter as tk
 
-BLUE = "#2166AC"
-TINTS = ("#2166AC", "#3B7DC0", "#6A9FD3", "#A9C8E8", "#D6E5F4")
+from fenotit.gui.theme import COLORS, LOGO_EDGES as EDGES, LOGO_TINTS as TINTS
+
+BLUE = COLORS["accent"]
 
 
 def mosaic(canvas: tk.Canvas, x: int, y: int, cell: int, heights: list[int], mirror: bool = False,
@@ -22,8 +23,6 @@ def mosaic(canvas: tk.Canvas, x: int, y: int, cell: int, heights: list[int], mir
             cy = y - (r + 1) * cell if up else y + r * cell
             canvas.create_rectangle(cx, cy, cx + cell - gap, cy + cell - gap, fill=TINTS[k], width=0)
 
-
-EDGES = ("#5A93CC", "#7DA8D8", "#9DBEE3", "#B9D1EC", "#CFE0F2")
 
 
 def pixel_dissolve(canvas: tk.Canvas, w: int, h: int, cell: int, density, seed: int = 5, gap: int = 3):

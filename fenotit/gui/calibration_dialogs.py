@@ -51,7 +51,7 @@ class BaseDialog(tk.Toplevel):
         hdr.pack(fill=tk.X, padx=20, pady=(12, 0))
         tk.Label(hdr, text=title,
                  bg=COLORS["bg_card"], fg=COLORS["accent"],
-                 font=("Segoe UI", 13, "bold")).pack(anchor="w")
+                 font=FONTS["heading_large"]).pack(anchor="w")
 
         tk.Frame(self, bg=COLORS["border"],
                  height=1).pack(fill=tk.X, pady=8)
@@ -158,7 +158,7 @@ class ScaleDialog(BaseDialog):
 
         self._cur_var = tk.StringVar()
         self._cur_lbl = tk.Label(b, textvariable=self._cur_var, bg=COLORS["accent_light"], fg=COLORS["accent"],
-                                 font=("Segoe UI", 9, "bold"), anchor="w", padx=8, pady=4)
+                                 font=FONTS["body_bold"], anchor="w", padx=8, pady=4)
         from fenotit.gui.widgets import ImagePicker
         self._picker = ImagePicker(b, self._paths, self._path, self._pick_image)
         self._picker.pack(anchor="w", pady=2)
@@ -205,7 +205,7 @@ class ScaleDialog(BaseDialog):
 
         tk.Button(step3, text=t("scale.compute"),
                   command=self._compute,
-                  bg=COLORS["accent"], fg="#FFFFFF",
+                  bg=COLORS["accent"], fg=COLORS["on_accent"],
                   relief="flat", font=FONTS["small"],
                   cursor="hand2", padx=8).pack(side=tk.LEFT, padx=8)
 
@@ -213,7 +213,7 @@ class ScaleDialog(BaseDialog):
         self._result_var = tk.StringVar(value="—")
         tk.Label(b, textvariable=self._result_var,
                  bg=COLORS["bg_card"], fg=COLORS["accent"],
-                 font=("Segoe UI", 9, "bold"), anchor="w").pack(fill=tk.X)
+                 font=FONTS["body_bold"], anchor="w").pack(fill=tk.X)
 
     def _build_buttons(self, parent):
         tk.Button(parent, text=t("common.close"), command=self.destroy,
@@ -228,8 +228,8 @@ class ScaleDialog(BaseDialog):
         for key, scope, bold in (("scale.apply_all", "all", False), ("scale.apply_image", "image", True)):
             tk.Button(parent, text=t(key), command=lambda sc=scope: self._apply(sc),
                       bg=COLORS["accent"] if bold else COLORS["btn_bg"],
-                      fg="#FFFFFF" if bold else COLORS["accent"], relief="flat",
-                      font=("Segoe UI", 9, "bold") if bold else FONTS["body"],
+                      fg=COLORS["on_accent"] if bold else COLORS["accent"], relief="flat",
+                      font=FONTS["body_bold"] if bold else FONTS["body"],
                       cursor="hand2", padx=10).pack(side=tk.RIGHT, padx=2)
 
     def _pick_image(self, path: str):
@@ -274,19 +274,19 @@ class ScaleDialog(BaseDialog):
         """Puntos y línea a tamaño fijo de pantalla, con halo (se ven con cualquier zoom)."""
         pts = [c.to_screen(*p) for p in self._points]
         if len(pts) == 2:
-            c.create_line(*pts[0], *pts[1], fill="#FFFFFF", width=5)
-            c.create_line(*pts[0], *pts[1], fill="#0078DC", width=2)
+            c.create_line(*pts[0], *pts[1], fill=COLORS["white"], width=5)
+            c.create_line(*pts[0], *pts[1], fill=COLORS["scale_line"], width=2)
         for i, (x, y) in enumerate(pts):
-            fill = ("#0050DC", "#DCA000")[i]
-            c.create_oval(x - 7, y - 7, x + 7, y + 7, fill=fill, outline="#FFFFFF", width=2)
-            c.create_text(x + 16, y - 10, text=str(i + 1), fill="#000000", font=("Segoe UI", 11, "bold"))
-            c.create_text(x + 15, y - 11, text=str(i + 1), fill="#FFFFFF", font=("Segoe UI", 11, "bold"))
+            fill = (COLORS["scale_point_1"], COLORS["scale_point_2"])[i]
+            c.create_oval(x - 7, y - 7, x + 7, y + 7, fill=fill, outline=COLORS["white"], width=2)
+            c.create_text(x + 16, y - 10, text=str(i + 1), fill=COLORS["black"], font=FONTS["title"])
+            c.create_text(x + 15, y - 11, text=str(i + 1), fill=COLORS["white"], font=FONTS["title"])
         if len(pts) == 2 and self._scale_result:
             mx, my = (pts[0][0] + pts[1][0]) / 2, (pts[0][1] + pts[1][1]) / 2
             label = f"{self._dist_var.get():.1f} {self._unit_var.get()}"
-            tid = c.create_text(mx, my - 14, text=label, fill="#0050A0", font=("Segoe UI", 10, "bold"))
+            tid = c.create_text(mx, my - 14, text=label, fill=COLORS["scale_label"], font=FONTS["topbar"])
             x0, y0, x1, y1 = c.bbox(tid)
-            c.tag_lower(c.create_rectangle(x0 - 4, y0 - 2, x1 + 4, y1 + 2, fill="#FFFFFF", outline=""), tid)
+            c.tag_lower(c.create_rectangle(x0 - 4, y0 - 2, x1 + 4, y1 + 2, fill=COLORS["white"], outline=""), tid)
 
     def _on_click(self, x, y):
         if self._img_full is None:

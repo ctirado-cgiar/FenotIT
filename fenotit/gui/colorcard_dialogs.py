@@ -28,8 +28,8 @@ def _buttons(win, ok, ok_text=None):
     row.pack(fill=tk.X, padx=16, pady=10, side=tk.BOTTOM)
     tk.Button(row, text=t("common.cancel"), command=win.destroy, bg=COLORS["btn_bg"], fg=COLORS["accent"],
               relief="flat", font=FONTS["body"], cursor="hand2", padx=10).pack(side=tk.RIGHT, padx=(6, 0))
-    tk.Button(row, text=ok_text or t("common.ok"), command=ok, bg=COLORS["accent"], fg="#FFFFFF",
-              relief="flat", font=("Segoe UI", 9, "bold"), cursor="hand2", padx=14).pack(side=tk.RIGHT)
+    tk.Button(row, text=ok_text or t("common.ok"), command=ok, bg=COLORS["accent"], fg=COLORS["on_accent"],
+              relief="flat", font=FONTS["body_bold"], cursor="hand2", padx=14).pack(side=tk.RIGHT)
     return row
 
 
@@ -54,7 +54,7 @@ def pick_region(parent, image: np.ndarray, region=None):
             return
         a = c.to_screen(*pts[0])
         b = c.to_screen(*pts[-1])
-        c.create_rectangle(*a, *b, outline="#FFFFFF", width=4)
+        c.create_rectangle(*a, *b, outline=COLORS["white"], width=4)
         c.create_rectangle(*a, *b, outline=COLORS["accent"], width=2)
 
     def click(x, y):
@@ -130,7 +130,7 @@ def edit_values(parent, rows: int, cols: int, values=None):
         msg.set("" if vals else t("card.values_count", got=len(lines), n=n))
         for k, c in enumerate(vals or []):
             r, q = divmod(k, cols)
-            sw.create_rectangle(4 + q * 34, 4 + r * 34, 34 + q * 34, 34 + r * 34, outline="#888888",
+            sw.create_rectangle(4 + q * 34, 4 + r * 34, 34 + q * 34, 34 + r * 34, outline=COLORS["text_faint"],
                                 fill="#%02x%02x%02x" % tuple(int(round(v)) for v in c))
     txt.bind("<KeyRelease>", refresh)
     txt.bind("<<Paste>>", lambda e: win.after(10, refresh))
@@ -173,7 +173,7 @@ def show_detection(parent, crop: np.ndarray | None, before: np.ndarray, after: n
              wraplength=900, anchor="w").pack(fill=tk.X, padx=22, pady=(4, 0))
     r = tk.Frame(win, bg=COLORS["bg_card"])
     r.pack(fill=tk.X, padx=16, pady=10)
-    tk.Button(r, text=t("common.close"), command=win.destroy, bg=COLORS["accent"], fg="#FFFFFF", relief="flat",
-              font=("Segoe UI", 9, "bold"), cursor="hand2", padx=14).pack(side=tk.RIGHT)
+    tk.Button(r, text=t("common.close"), command=win.destroy, bg=COLORS["accent"], fg=COLORS["on_accent"], relief="flat",
+              font=FONTS["body_bold"], cursor="hand2", padx=14).pack(side=tk.RIGHT)
     win.bind("<Escape>", lambda e: win.destroy())
     _center(win, parent)

@@ -12,6 +12,7 @@ from typing import Any
 
 from fenotit import log
 from fenotit.i18n import t
+from fenotit.gui.theme import COLORS, FONTS
 
 _log = log.get("gui.config_panel")
 
@@ -62,7 +63,7 @@ class ConfigPanel(tk.Frame):
                      text=t("config.no_params"),
                      bg=self.colors["bg_panel"],
                      fg=self.colors["text_muted"],
-                     font=("Segoe UI", 8),
+                     font=FONTS["small"],
                      pady=8).pack(fill=tk.X, padx=8)
             return
 
@@ -138,12 +139,12 @@ class ConfigPanel(tk.Frame):
         if typ == "header":
             row.config(pady=0)
             tk.Label(hdr, text=label, bg=self.colors["bg_panel"], fg=self.colors["accent"],
-                     font=("Segoe UI", 8, "bold"), pady=4).pack(side=tk.LEFT)
+                     font=FONTS["small_bold"], pady=4).pack(side=tk.LEFT)
             tk.Frame(row, bg=self.colors["border"], height=1).pack(fill=tk.X)
             return
         if typ == "section":
             lbl = tk.Label(hdr, text=label, bg=self.colors["bg_panel"], fg=self.colors["text"],
-                           font=("Segoe UI", 8), anchor="w", cursor="hand2")
+                           font=FONTS["small"], anchor="w", cursor="hand2")
             lbl.bind("<Button-1>", lambda e=None, k=key: self._toggle_group(k))
         elif typ == "bool":
             var = tk.BooleanVar(value=bool(default))
@@ -152,20 +153,20 @@ class ConfigPanel(tk.Frame):
                                  fg=self.colors["text"],
                                  selectcolor=self.colors["bg_card"],
                                  activebackground=self.colors["bg_panel"],
-                                 font=("Segoe UI", 8), padx=0)
+                                 font=FONTS["small"], padx=0)
         else:
             lbl = tk.Label(hdr, text=label,
                            bg=self.colors["bg_panel"],
                            fg=self.colors["text"],
-                           font=("Segoe UI", 8),
+                           font=FONTS["small"],
                            anchor="w")
         lbl.pack(side=tk.LEFT)
         self._labels[key] = (lbl, item)
         if key in self._children:
             if not hasattr(self, "_tune_icons"):           # cerrado: tenue; abierto: azul sobre fondo claro
                 from PIL import ImageTk
-                from fenotit.gui.toolbar import icon
-                self._tune_icons = {False: ImageTk.PhotoImage(icon("tune", 13, "#7FA6CF")),
+                from fenotit.gui.icons import icon
+                self._tune_icons = {False: ImageTk.PhotoImage(icon("tune", 13, COLORS["accent_faint"])),
                                     True: ImageTk.PhotoImage(icon("tune", 13, self.colors["accent"]))}
             arrow = tk.Label(hdr, image=self._tune_icons[False], bg=self.colors["bg_panel"], cursor="hand2",
                              padx=3, pady=1)
@@ -186,7 +187,7 @@ class ConfigPanel(tk.Frame):
             labels = {c: t(f"param.{self._prefix}.{key}.{c}", c) for c in item["choices"]}
             shown = tk.StringVar(value=labels.get(str(default), str(default)))
             combo = ttk.Combobox(row, textvariable=shown, values=list(labels.values()),
-                                 state="readonly", width=30, font=("Segoe UI", 8))
+                                 state="readonly", width=30, font=FONTS["small"])
             combo.pack(anchor="w", pady=(1, 0))
             combo.bind("<<ComboboxSelected>>", lambda e=None, v=var, sv=shown, lb=labels: v.set(
                 next(k for k, l in lb.items() if l == sv.get())))
@@ -240,7 +241,7 @@ class ConfigPanel(tk.Frame):
             btn_kw = dict(bg=self.colors["bg_panel"],
                           fg=self.colors["accent"],
                           relief="flat",
-                          font=("Segoe UI", 7),
+                          font=FONTS["tiny"],
                           width=2, height=1,
                           cursor="hand2",
                           padx=0, pady=0)

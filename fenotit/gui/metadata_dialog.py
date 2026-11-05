@@ -16,7 +16,7 @@ from fenotit.i18n import t
 _log = log.get("gui.metadata")
 
 PREVIEW_ROWS = 8
-WARN = "#B35806"
+WARN = COLORS["warning_text"]
 
 
 def _short(items: list[str], n: int = 4) -> str:
@@ -43,7 +43,7 @@ class MetadataDialog(tk.Toplevel):
         head = tk.Frame(body, bg=bg)
         head.pack(fill=tk.X)
         tk.Label(head, text=t("meta.title"), bg=bg, fg=COLORS["accent"],
-                 font=("Segoe UI", 13, "bold")).pack(side=tk.LEFT)
+                 font=FONTS["heading_large"]).pack(side=tk.LEFT)
         HelpIcon(head, t("meta.title"), t("meta.help"), bg=bg).pack(side=tk.LEFT, padx=(6, 0))
 
         grid = tk.Frame(body, bg=bg)
@@ -84,7 +84,7 @@ class MetadataDialog(tk.Toplevel):
         btns = tk.Frame(self, bg=bg)
         btns.pack(fill=tk.X, padx=22, pady=10)
         self._apply_btn = tk.Button(btns, text=t("common.apply"), command=self._apply, bg=COLORS["accent"],
-                                    fg="#FFFFFF", relief="flat", font=FONTS["body"], cursor="hand2", padx=12)
+                                    fg=COLORS["on_accent"], relief="flat", font=FONTS["body"], cursor="hand2", padx=12)
         self._apply_btn.pack(side=tk.RIGHT, padx=(6, 0))
         tk.Button(btns, text=t("common.cancel"), command=self.destroy, bg=COLORS["btn_bg"], fg=COLORS["accent"],
                   relief="flat", font=FONTS["body"], cursor="hand2", padx=12).pack(side=tk.RIGHT)
