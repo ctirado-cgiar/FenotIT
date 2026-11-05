@@ -79,7 +79,7 @@ register(
     params_schema=[
         {"key": "hdr_objects", "label": "OBJETOS", "type": "header"},
         {"key": "touching", "label": "Los objetos se tocan", "type": "bool", "default": False},
-        {"key": "exclude_border", "label": "Excluir objetos del borde", "type": "bool", "default": True},
+        {"key": "exclude_border", "label": "Excluir objetos del borde", "type": "bool", "default": False},
         {"key": "hdr_measure", "label": "DISTANCIAS", "type": "header"},
         {"key": "neighbors", "label": "Vecinos", "type": "choice", "choices": ["knn", "voronoi"], "default": "knn"},
         {"key": "k", "label": "Número de vecinos", "type": "int", "default": 5, "min": 1, "max": 50},

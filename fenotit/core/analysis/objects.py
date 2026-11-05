@@ -57,7 +57,7 @@ def object_chain(params: dict) -> list[dict]:
     clean = {"step": "clean", "params": {"fill_holes": False}} if refine else {"step": "clean"}
     chain = [*S.chain(seg), {"step": "roi"}, *refine, clean,
              {"step": "separate"} if params.get("touching") else {"step": "label"},
-             {"step": "filter", "params": {"exclude_border": bool(params.get("exclude_border", True)),
+             {"step": "filter", "params": {"exclude_border": bool(params.get("exclude_border", False)),
                                            "relative_noise": seg.get("method") == "classifier",
                                            # regiones del modelo: las elige el usuario, sin quitar ruido
                                            **({"area_min": 0} if seg.get("method") == "model" else {}),
@@ -237,7 +237,7 @@ register(
     params_schema=[
         {"key": "hdr_objects", "label": "OBJETOS", "type": "header"},
         {"key": "touching", "label": "Los objetos se tocan", "type": "bool", "default": False},
-        {"key": "exclude_border", "label": "Excluir objetos del borde", "type": "bool", "default": True},
+        {"key": "exclude_border", "label": "Excluir objetos del borde", "type": "bool", "default": False},
         {"key": "size_filter", "label": "Filtrar por tamaño", "type": "bool", "default": False},
         {"key": "length_min", "label": "Largo mínimo ({unit})", "type": "float", "default": 0,
          "min": 0, "max": 10_000_000, "step": 1, "unit": "length", "group": "size_filter"},
