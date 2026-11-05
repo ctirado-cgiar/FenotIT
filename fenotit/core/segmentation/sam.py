@@ -128,7 +128,8 @@ def from_points(img: np.ndarray, points: list) -> np.ndarray:
 
 
 def automatic(img: np.ndarray, grid: int = 24, min_iou: float = 0.86, min_stability: float = 0.92,
-              max_overlap: float = 0.7, max_area: float = 0.25, batch: int = 64) -> np.ndarray:
+              max_overlap: float = 0.7, max_area: float = 0.25, batch: int = 64,
+              drop_background: bool = True) -> np.ndarray:
     """Todos los objetos: una propuesta por punto de una cuadrícula grid×grid; se quedan
     las de calidad estimada ≥ min_iou y estables (la máscara casi no cambia al mover el
     umbral), sin las que se repiten (solapan > max_overlap con una mejor) ni las que
@@ -184,7 +185,30 @@ def automatic(img: np.ndarray, grid: int = 24, min_iou: float = 0.86, min_stabil
     order = sorted(kept, key=lambda c: -c[0].sum())   # grandes primero; los chicos encima
     for n, (_, logits) in enumerate(order, 1):
         labels[_upscale(logits, pre, orig)] = n
-    return _relabel(labels)
+    return _relabel(_drop_background(labels) if drop_background else labels)
+
+
+def _drop_background(labels: np.ndarray, ratio: float = 4.0) -> np.ndarray:
+    """Quita las propuestas que son fondo y no objetos: las que tocan el borde de la foto
+    y además miden más de `ratio` veces el objeto típico (bandeja, mesa, tarjeta). El
+    típico es la mediana de las propuestas que no tocan el borde."""
+    n = int(labels.max())
+    if n < 2:
+        return labels
+    area = np.bincount(labels.ravel(), minlength=n + 1)
+    edge = np.zeros(n + 1, bool)
+    for side in (labels[0], labels[-1], labels[:, 0], labels[:, -1]):
+        edge[np.unique(side)] = True
+    inner = [i for i in range(1, n + 1) if area[i] and not edge[i]]
+    if not inner:
+        return labels
+    typical = float(np.median(area[inner]))
+    drop = np.zeros(n + 1, bool)
+    drop[1:] = (area[1:] > ratio * typical) & (edge[1:] | (area[1:] > 20 * typical))
+    drop[0] = False
+    out = labels.copy()
+    out[drop[labels]] = 0
+    return out
 
 
 def _relabel(labels: np.ndarray) -> np.ndarray:
