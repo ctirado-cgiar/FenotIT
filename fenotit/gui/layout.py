@@ -100,9 +100,6 @@ class LayoutMixin:
                                     font=FONTS["small"], padx=10)
         self._corr_label.pack(side=tk.RIGHT)
         self._corr_tip = Tooltip(self._corr_label, t("corr.applied_tip"))
-        ttk.Style(self.root).configure("Thin.Horizontal.TProgressbar", thickness=8, background=COLORS["accent"],
-                                       lightcolor=COLORS["accent"], darkcolor=COLORS["accent"],
-                                       troughcolor=COLORS["bg_panel"], bordercolor=COLORS["border"])
         self._progress_bar = ttk.Progressbar(self.statusbar, length=160, mode="determinate",
                                              style="Thin.Horizontal.TProgressbar")
         self._cancel_link = tk.Label(self.statusbar, text=t("common.cancel"), bg=COLORS["bg_panel"],

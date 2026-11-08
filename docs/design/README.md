@@ -5,30 +5,60 @@ tocar el resto del código.
 
 | Qué | Dónde |
 |---|---|
-| Colores, tipos de letra y paletas | `fenotit/gui/style/theme.py` |
+| Temas: colores, letras, tamaños y paletas | `fenotit/assets/themes/<tema>.toml` |
+| Cómo se leen los temas | `fenotit/gui/style/theme.py` |
+| Estilos de botones, tablas y listas (ttk) | `fenotit/gui/style/ttk_styles.py` |
 | Íconos | `fenotit/assets/icons/` (y los dibujados por defecto en `fenotit/gui/style/icons.py`) |
 | Logo | `fenotit/assets/logo.ico` |
-| Mosaico y píxeles decorativos (carga, inicio, Acerca de) | `fenotit/gui/style/decor.py` (tonos en `theme.py`) |
+| Mosaico y píxeles decorativos (carga, inicio, Acerca de) | `fenotit/gui/style/decor.py` (tonos en el tema) |
 
-## Colores y letras
+## Temas
 
-`fenotit/gui/style/theme.py` tiene cuatro grupos:
+Un tema es un archivo `.toml` en `fenotit/assets/themes/`. `classic.toml` es el tema por
+defecto y tiene todos los valores, cada uno con un comentario que dice dónde se usa.
+`light.toml` es un ejemplo de tema que cambia solo algunos valores.
 
-- `COLORS`: cada color de la interfaz con un nombre que dice dónde se usa
-  (`bg_panel`, `text_muted`, `accent`, `warning`…). Cambiar un valor cambia todos los
-  lugares que lo usan.
-- `FONTS`: tipos de letra por nombre (`small`, `body`, `title`, `display`…). La familia
-  de letra está una sola vez al inicio del bloque (`_SANS`, `_SERIF`, `_MONO`).
-- `CLASS_COLORS` y `CHART_COLORS`: colores que se reparten en orden a las clases nuevas y
-  a las series de los gráficos.
-- `LOGO_TINTS` y `LOGO_EDGES`: tonos del mosaico del logo.
+Secciones de un tema:
 
-`docs/design/theme.png` muestra todos los colores y letras con su nombre. Para
-actualizarla después de un cambio:
+- `[info]`: nombre del tema en español (`name`) e inglés (`name_en`), como aparece en
+  Preferencias.
+- `[colors]`: cada color de la interfaz con un nombre por uso (`bg_panel`, `text_muted`,
+  `accent`, `bg_topbar`, `text_topbar`, `warning`…).
+- `[families]`: familias de letra `sans`, `serif` y `mono`. Con una lista se usa la primera
+  instalada en el equipo: `sans = ["Inter", "Segoe UI"]`.
+- `[fonts]`: tipos de letra por nombre (`small`, `body`, `title`, `display`…), escritos como
+  `"familia tamaño [bold|italic]"`, p. ej. `"sans 9 bold"`.
+- `[sizes]`: alto de las filas de tabla, márgenes de los botones, borde de foco…
+- `[palettes]`: colores que se reparten a las clases y a las series de los gráficos, y tonos
+  del logo.
 
-```
-python docs/design/theme_sheet.py
-```
+### Crear un tema
+
+1. Copiar `classic.toml` (o `light.toml`, si se van a cambiar pocos valores) con otro nombre,
+   p. ej. `fenotit/assets/themes/modern.toml`. Lo que el tema no traiga se toma de
+   `classic.toml`.
+2. Cambiar `[info]` y los valores.
+3. Probarlo sin cambiar las preferencias:
+
+   ```
+   FENOTIT_THEME=modern python main.py          # Linux / macOS
+   set FENOTIT_THEME=modern && python main.py   # Windows (cmd)
+   ```
+
+4. Ver todos sus colores y letras juntos: `python docs/design/theme_sheet.py modern`
+   (crea `docs/design/theme_modern.png`).
+5. Para dejarlo elegido: Editar → Preferencias → Tema.
+
+`tests/test_architecture.py` revisa que cada color, letra y tamaño que usa la interfaz exista
+en `classic.toml` y que `classic.toml` no tenga valores sin uso.
+
+### Qué cambia un tema y qué no
+
+Un tema cambia colores, letras, tamaños de filas y botones y las paletas. La distribución
+(qué panel va dónde) está en `fenotit/gui/layout.py`. La forma de cada control (márgenes
+internos, esquinas, bordes) está en el archivo de esa parte de la ventana
+(`fenotit/gui/window/`, `fenotit/gui/widgets/`); un cambio de forma que se repita en muchos
+lugares conviene agregarlo como un valor nuevo en `[sizes]`.
 
 ## Íconos
 

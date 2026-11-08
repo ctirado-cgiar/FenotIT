@@ -23,11 +23,11 @@ class DropMenu(tk.Frame):
         self._arrow_only = arrow_only
         self.btn = tk.Button(
             self, text="▼" if arrow_only else f"  {text}  ▾",
-            bg=bg, fg=colors["accent"] if arrow_only else COLORS["on_accent"],
-            font=FONTS["subtitle"] if arrow_only else FONTS["body"], relief="flat", bd=0,
+            bg=bg, fg=colors["accent"] if arrow_only else COLORS["text_topbar"],
+            font=FONTS["subtitle"] if arrow_only else FONTS["topbar_menu"], relief="flat", bd=0,
             **({"padx": 8} if arrow_only else {}),
-            activebackground=COLORS["accent_dark"],
-            activeforeground=COLORS["on_accent"],
+            activebackground=COLORS["accent_dark"] if arrow_only else COLORS["topbar_pressed"],
+            activeforeground=COLORS["on_accent"] if arrow_only else COLORS["text_topbar"],
             cursor="hand2", command=self._toggle)
         self.btn.pack()
 

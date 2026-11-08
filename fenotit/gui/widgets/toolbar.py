@@ -76,7 +76,7 @@ class IconButton(tk.Label):
     """Botón de ícono para la barra superior; `selected` lo marca como herramienta activa."""
 
     def __init__(self, parent, name: str, command, tip: str, bg: str, hover: str, active: str,
-                 size: int = 18, color: str = COLORS["on_accent"]):
+                 size: int = 18, color: str = COLORS["text_topbar"]):
         super().__init__(parent, bg=bg, cursor="hand2", padx=4, pady=3)
         self._colors = (bg, hover, active)
         self._photo = ImageTk.PhotoImage(icon(name, size, color))

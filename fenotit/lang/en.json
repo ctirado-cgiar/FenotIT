@@ -788,5 +788,7 @@
   "sam.learned": "This photo has no clicks yet: its regions are classified from what you marked on other photos.",
   "col.min_nearest": "Nearest neighbor, minimum",
   "col.max_nearest": "Nearest neighbor, maximum",
-  "col.mean_pair": "Mean distance between neighbors"
+  "col.mean_pair": "Mean distance between neighbors",
+  "prefs.theme": "Theme",
+  "prefs.theme_help": "Interface look: colors, fonts and sizes. Themes are in fenotit/assets/themes/. The app restarts when you change it."
 }

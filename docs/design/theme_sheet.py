@@ -1,15 +1,18 @@
-"""Hoja con los colores y tipos de letra del tema (fenotit/gui/style/theme.py):
-docs/design/theme.png.
+"""Hoja con los colores y tipos de letra de un tema: docs/design/theme.png (clásico) o
+docs/design/theme_<nombre>.png.
 
-Uso:  python docs/design/theme_sheet.py"""
+Uso:  python docs/design/theme_sheet.py [nombre]"""
 from __future__ import annotations
 
+import os
 import sys
 import tkinter as tk
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+if len(sys.argv) > 1:
+    os.environ["FENOTIT_THEME"] = sys.argv[1]
 from fenotit.gui.style.theme import CHART_COLORS, CLASS_COLORS, COLORS, FONTS  # noqa: E402
 
 
@@ -41,11 +44,11 @@ def main():
         for c in pal:
             tk.Frame(row, bg=c, width=22, height=22).pack(side=tk.LEFT, padx=1)
     root.update()
-    out = Path(__file__).with_name("theme.png")
+    name = os.environ.get("FENOTIT_THEME", "classic")
+    out = Path(__file__).with_name("theme.png" if name == "classic" else f"theme_{name}.png")
     try:
         from PIL import ImageGrab
         x, y = root.winfo_rootx(), root.winfo_rooty()
-        import os
         disp = os.environ.get("DISPLAY") if sys.platform.startswith("linux") else None
         ImageGrab.grab((x, y, x + root.winfo_width(), y + root.winfo_height()), xdisplay=disp).save(out)
         print(out)

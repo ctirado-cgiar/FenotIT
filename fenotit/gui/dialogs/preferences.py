@@ -1,4 +1,4 @@
-"""Preferencias (Configuración → Preferencias…): idioma, resolución de trabajo, procesos en
+"""Preferencias (Editar → Preferencias…): idioma, tema, resolución de trabajo, procesos en
 paralelo, tabla al ejecutar y autoguardado. Se guardan en la configuración del usuario; la
 resolución de trabajo también queda en el proyecto (cambia los resultados)."""
 from __future__ import annotations
@@ -10,6 +10,7 @@ from typing import Callable
 
 from fenotit import i18n, settings
 from fenotit.gui.widgets.help import HelpIcon
+from fenotit.gui.style import theme
 from fenotit.gui.style.theme import COLORS, FONTS
 from fenotit.i18n import t
 
@@ -62,6 +63,10 @@ def show(root: tk.Misc, max_mpx: float | None, on_ok: Callable[[dict], None]) ->
     section("prefs.general")
     lang_var, cb = combo(list(langs.values()), langs.get(i18n.current(), ""))
     line("prefs.language", cb)
+    name_key = "name" if i18n.current() == "es" else "name_en"
+    themes = {k: info.get(name_key) or info.get("name") or k for k, info in theme.available().items()}
+    theme_var, cb = combo(list(themes.values()), themes.get(settings.get("theme") or theme.DEFAULT, ""))
+    line("prefs.theme", cb, "prefs.theme_help")
 
     section("prefs.images")
     res_names = {v: t(k) for v, k in WORK_RES}
@@ -89,6 +94,7 @@ def show(root: tk.Misc, max_mpx: float | None, on_ok: Callable[[dict], None]) ->
         code = next((c for c, n in langs.items() if n == lang_var.get()), i18n.current())
         res = next(v for v, n in res_names.items() if n == res_var.get())
         values = {"language": code,
+                  "theme": next((k for k, n in themes.items() if n == theme_var.get()), theme.DEFAULT),
                   "max_mpx": float(res) or None,
                   "workers": work_names.index(work_var.get()),
                   "show_table_on_run": bool(table_var.get()),

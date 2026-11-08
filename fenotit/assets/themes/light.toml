@@ -1,0 +1,51 @@
+# Tema "Claro" de FenotIT: ejemplo de tema que cambia solo algunos valores.
+# Lo que no está aquí se toma de classic.toml.
+
+[info]
+name = "Claro (ejemplo)"
+name_en = "Light (example)"
+
+[colors]
+bg            = "#FFFFFF"
+bg_panel      = "#F6F8FB"
+bg_card       = "#FFFFFF"
+bg_topbar     = "#FFFFFF"
+topbar_hover  = "#F1F3F4"
+topbar_active = "#D3E3FD"
+topbar_pressed = "#E8F0FE"
+text          = "#1F2328"
+text_muted    = "#59636E"
+text_faint    = "#8C959F"
+text_topbar   = "#1F2328"
+text_accent   = "#0B57D0"
+accent        = "#0B57D0"
+accent_dark   = "#0842A0"
+accent_darker = "#0B57D0"
+accent_faint  = "#A8C7FA"
+accent_light  = "#E8F0FE"
+topbar_divider = "#E1E4E8"
+border        = "#D0D7DE"
+border_focus  = "#0B57D0"
+divider       = "#EAEEF2"
+btn_bg        = "#E8F0FE"
+btn_hover     = "#D3E3FD"
+btn_accent_bg = "#0B57D0"
+bg_table_sel  = "#E8F0FE"
+slider_active = "#0B57D0"
+slider_trough = "#E1E4E8"
+
+[families]
+sans = ["Segoe UI Variable Text", "Segoe UI", "Inter"]
+
+[fonts]
+small      = "sans 9"
+small_bold = "sans 9 bold"
+body       = "sans 10"
+body_bold  = "sans 10 bold"
+topbar_menu = "sans 10"
+
+[sizes]
+row_height   = 26
+button_pad_x = 12
+button_pad_y = 5
+focus_ring   = 0
