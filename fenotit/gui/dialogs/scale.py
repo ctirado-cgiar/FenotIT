@@ -1,12 +1,10 @@
 """Diálogo base y calibración de escala por dos puntos."""
 
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
-import threading
+from tkinter import ttk, messagebox
 import cv2
 import numpy as np
 from pathlib import Path
-from PIL import Image, ImageTk
 
 from fenotit.gui.style.theme import COLORS, FONTS
 from fenotit.gui.canvas.zoom import ZoomableCanvas

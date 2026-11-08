@@ -3,18 +3,9 @@ arma la ventana al iniciar."""
 from __future__ import annotations
 
 import dataclasses
-import os
-import time
 import tkinter as tk
 
 from fenotit import APP_NAME, log, settings
-from fenotit.core import batch
-from fenotit.core.analysis.registry import AnalysisResult
-from fenotit.core.corrections import pipeline as corrections
-from fenotit.core.image_io import ImageScaler
-from fenotit.gui.canvas.areas import AreaEditor
-from fenotit.gui.canvas.zoom import ZoomController
-from fenotit.gui.charts.panels import IntraImageChartPanel
 from fenotit.gui.layout import LayoutMixin
 from fenotit.gui.style import ttk_styles
 from fenotit.gui.style.theme import COLORS
@@ -48,39 +39,43 @@ from fenotit.gui.window.viewer import ViewerMixin
 _log = log.get("gui.main_window")
 
 
-class MainWindow(ProjectMixin, DialogsMixin, CalibrationMixin, HistoryMixin, ImagesMixin, RunMixin, ResultsMixin, LayersMixin, ViewerMixin, BottomMixin, TableMixin, ChartsMixin, InspectorMixin, AreasMixin, KeysMixin, MetadataMixin, ExportMixin, TopbarMixin, AnalyzeMixin, SegmentMixin, ThresholdMixin, ExamplesMixin, ModelMixin, TourMixin, LayoutMixin):
+class MainWindow(
+        ProjectMixin,
+        DialogsMixin,
+        CalibrationMixin,
+        HistoryMixin,
+        ImagesMixin,
+        RunMixin,
+        ResultsMixin,
+        LayersMixin,
+        ViewerMixin,
+        BottomMixin,
+        TableMixin,
+        ChartsMixin,
+        InspectorMixin,
+        AreasMixin,
+        KeysMixin,
+        MetadataMixin,
+        ExportMixin,
+        TopbarMixin,
+        AnalyzeMixin,
+        SegmentMixin,
+        ThresholdMixin,
+        ExamplesMixin,
+        ModelMixin,
+        TourMixin,
+        LayoutMixin,
+):
     def __init__(self, root: tk.Tk):
         self.root = root
         self._setup_window()
 
-        self.scaler_left   = ImageScaler()
-        self.scaler_right  = ImageScaler()
-        self.project = self._blank_project()
-        self._corr_info: dict[str, corrections.CorrectionInfo] = {}
-        self._saved_state = self.project.to_dict()
-        self.current_image_path: str | None = None
-        self.last_result:  AnalysisResult | None = None
-        self.step_names:   list[str] = []
-        self.step_idx:     int = 0
-        # Cache de resultados por imagen — para restaurar al navegar
-        # resultados por análisis y por foto: al cambiar de análisis no se pierden los otros
-        self._results: dict[str, dict[str, AnalysisResult]] = {}
-        self._skipped: set[str] = set()          # fotos omitidas (⚠ en la lista)
-        self._pending: set[str] = set()          # en cola del lote (… en la lista)
-        self._step_names: dict[str, dict[str, list]] = {}
-        self.active_analysis: str | None = None
-        self._after_resize_id  = None
-        self._after_preview_id = None
-        self.zoom_ctrl: ZoomController | None = None
-        self._zoom_pct_var = tk.StringVar(value="100%")
-        self._batch: batch.BatchRunner | None = None
-        self._full_paths: list[str] = []      # fotos con imágenes en memoria (las demás, solo datos)
-        self._rehydrating = None
-        self._rehydrate_job = None
-        self._chart_panel: IntraImageChartPanel | None = None
-        self._photo_left  = None
-        self._photo_right = None
-        self.areas: AreaEditor | None = None
+        self._init_project()
+        self._init_images()
+        self._init_results()
+        self._init_run()
+        self._init_analyze()
+        self._reset_history()
 
         self._build_layout()
         self._build_topbar()
@@ -94,13 +89,9 @@ class MainWindow(ProjectMixin, DialogsMixin, CalibrationMixin, HistoryMixin, Ima
         self._show_panel(self.left_panel, False)
         self._show_panel(self.right_panel, False)
         self._set_seg_state(dataclasses.asdict(self.project.segmentation))
-        self._examples = {}
         self._update_start()
-        self._saved_state = self._collect_state()
+        self._mark_saved()
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
-        self._session = f"{os.getpid()}-{int(time.time())}"
-        self._recovery_file = None
-        self._last_autosave = time.monotonic()
         self.root.after(20000, self._autosave_tick)
         self.root.after(900, self._offer_recovery)
         self._update_title()

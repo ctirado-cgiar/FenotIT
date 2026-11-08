@@ -22,6 +22,22 @@ _log = log.get("gui.window.run")
 
 
 class RunMixin:
+    def _init_run(self):
+        self._skipped: set[str] = set()          # fotos omitidas (⚠ en la lista)
+        self._pending: set[str] = set()          # en cola del lote (… en la lista)
+        self._batch: batch.BatchRunner | None = None
+        self._rerun_queue: list[str] = []
+        self._forget_examples()
+
+    def _forget_examples(self):
+        """Los ejemplos de "Por ejemplos" se vuelven a leer de los trazos."""
+        self._examples = {}
+
+    def _queue_reruns(self, names: list[str]):
+        """Corre los lotes de `names` uno tras otro."""
+        self._rerun_queue = list(names)
+        self._rerun_next()
+
     def _corr_signature(self) -> str:
         return json.dumps([self.project.corrections.to_dict(), self.project.max_mpx], sort_keys=True, default=str)
 

@@ -74,7 +74,6 @@ class StartScreen(tk.Frame):
 
     def _build_hero(self):
         """Franja blanca con el azul en los textos, una línea arriba y píxeles que se desvanecen."""
-        c = self.c
         tk.Frame(self, bg=BLUE, height=4).pack(side=tk.TOP, fill=tk.X)
         hero = tk.Canvas(self, bg=COLORS["bg_card"], width=300, highlightthickness=0)
         hero.pack(side=tk.LEFT, fill=tk.Y)

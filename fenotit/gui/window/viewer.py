@@ -5,14 +5,11 @@ import tkinter as tk
 import tkinter.font as tkfont
 from tkinter import ttk
 
-from PIL import ImageTk
 
 from fenotit import settings
 from fenotit.gui.canvas.areas import AreaEditor
 from fenotit.gui.canvas.tools import CanvasTools
 from fenotit.gui.canvas.zoom import ZoomController
-from fenotit.gui.charts.panels import IntraImageChartPanel
-from fenotit.gui.style.icons import icon
 from fenotit.gui.style.theme import COLORS, FONTS
 from fenotit.gui.widgets.toolbar import IconButton, Tooltip
 from fenotit.i18n import t
@@ -74,23 +71,8 @@ class ViewerMixin:
                 canvas.config(cursor="crosshair")
             else:
                 self.canvas_right = canvas
-        # Gráfico en el lugar de una imagen (botón ↑ en Gráficos; el ojo lo devuelve abajo)
-        self._chart_dock, self._dock_saved = None, None
-        cc = self._chart_col = tk.Frame(canvas_row, bg=COLORS["bg"])
-        head = tk.Frame(cc, bg=COLORS["bg"])
-        head.pack(fill=tk.X)
-        self._chart_title = tk.Label(head, text=t("tab.charts"), bg=COLORS["bg"], fg=COLORS["text_muted"],
-                                     font=FONTS["small"])
-        self._chart_eye = IconButton(head, "eye", self._undock_chart, t("chart.undock"), bg=COLORS["bg"],
-                                     hover=COLORS["btn_hover"], active=COLORS["accent_light"], size=14,
-                                     color=COLORS["text_muted"])
-        self._chart_host = tk.Frame(cc, bg=COLORS["bg_card"], highlightthickness=1, width=100, height=100,
-                                    highlightbackground=COLORS["border"])
-        self._chart_host.pack_propagate(False)        # el gráfico no agranda la ventana
-        self._chart_host.pack(fill=tk.BOTH, expand=True)
-        self._chart_host.bind("<Configure>", lambda e: self._fit_docked_chart(), add="+")
+        self._build_chart_dock(canvas_row)
         self._canvas_row = canvas_row
-        self._results_shown = False
         self._layout_sides()
         canvas_row.bind("<Configure>", self._on_canvas_row_resize, add="+")
 
@@ -122,93 +104,7 @@ class ViewerMixin:
                                          (t("start.help"), self._start_tour)))
         self._build_view_controls()
 
-        # Tabla y gráficos: pestañas propias; ocultar deja solo las pestañas (al tocarlas se
-        # vuelve a abrir). Arriba, una franja para cambiar la altura arrastrando.
-        self.step_label_var = tk.StringVar(value="—")
-        wrap = self._bottom_wrap = tk.Frame(cf, bg=COLORS["bg"])
-        grip = self._bottom_grip = tk.Frame(wrap, bg=COLORS["bg"], height=6, cursor="sb_v_double_arrow")
-        grip.bind("<ButtonPress-1>", self._results_drag_start)
-        grip.bind("<B1-Motion>", self._results_drag)
-        grip.bind("<ButtonRelease-1>", self._results_drag_end)
-        bar = self._bottom_bar = tk.Frame(wrap, bg=COLORS["bg"])
-        self._tab_labels = {}
-        for key, text in (("table", t("tab.table")), ("charts", t("tab.charts"))):
-            lbl = tk.Label(bar, text=text, font=FONTS["small"], padx=14, pady=3, cursor="hand2", bd=0,
-                           highlightthickness=1, highlightbackground=COLORS["border"])
-            lbl.pack(side=tk.LEFT, padx=(0, 2))
-            lbl.bind("<Button-1>", lambda e, k=key: self._select_bottom_tab(k))
-            self._tab_labels[key] = lbl
-        self._panel_bottom_icon = ImageTk.PhotoImage(icon("panel_bottom", 12, COLORS["accent"]))
-        corner = tk.Label(bar, image=self._panel_bottom_icon, bg=COLORS["bg"], cursor="hand2", padx=4, pady=2)
-        corner.pack(side=tk.LEFT, padx=6)
-        corner.bind("<Button-1>", lambda e: self._toggle_results_panel())
-        Tooltip(corner, t("view.toggle_results"))
-        self._meta_var = tk.StringVar(value="")               # valores de la tabla del usuario de esta foto
-        self._meta_label = tk.Label(bar, textvariable=self._meta_var, bg=COLORS["bg"], fg=COLORS["text_muted"],
-                                    font=FONTS["small"], anchor="e")
-        self._meta_label.pack(side=tk.RIGHT, padx=(6, 4))
-        body = self._bottom_body = tk.Frame(wrap, bg=COLORS["bg_card"], highlightthickness=1,
-                                            highlightbackground=COLORS["border"])
-        body.pack_propagate(False)
-        try:
-            height = int(settings.get("results_height", 160))
-        except (TypeError, ValueError):
-            height = 160
-        body.configure(height=max(self.RESULTS_MIN_H, height))
-        # Preferencias → "Abrir la tabla al ejecutar": si no, solo quedan las pestañas a la vista
-        self._results_visible = bool(settings.get("show_table_on_run", True))
-        self._bottom_tab = "table"
-
-        # ── Tabla ─────────────────────────────────────────────────────────
-        tab_table = tk.Frame(body, bg=COLORS["bg_card"])
-        tv_f = tk.Frame(tab_table, bg=COLORS["bg_card"])
-        tv_f.pack(fill=tk.BOTH, expand=True)
-        xsb = ttk.Scrollbar(tv_f, orient="horizontal")
-        ysb = ttk.Scrollbar(tv_f, orient="vertical")
-        self.table = ttk.Treeview(tv_f, show="headings",
-                                   xscrollcommand=xsb.set,
-                                   yscrollcommand=ysb.set, height=4)
-        xsb.config(command=self.table.xview)
-        ysb.config(command=self.table.yview)
-        ysb.pack(side=tk.RIGHT,  fill=tk.Y)
-        self._table_xsb = xsb                   # solo aparece si las columnas no caben
-        self.table.pack(fill=tk.BOTH, expand=True)
-        self.table.bind("<Configure>", self._fit_table_columns, add="+")
-        self.table.bind("<<TreeviewSelect>>", self._on_table_select, add="+")
-
-        # ── Gráficos (hijo de la zona central: puede pasar al lugar de una imagen) ──
-        tab_charts = tk.Frame(body, bg=COLORS["bg_card"])
-        self._tab_frames = {"table": tab_table, "charts": tab_charts}
-        self._chart_panel = IntraImageChartPanel(
-            cf, colors=COLORS, on_pick=lambda oid: self._goto_object(self.current_image_path, oid))
-        self._chart_panel.pack(in_=tab_charts, fill=tk.BOTH, expand=True)
-        if hasattr(self._chart_panel, "bar"):
-            self._dock_icon = ImageTk.PhotoImage(icon("dock_up", 14, COLORS["accent"]))
-            self._dock_btn = tk.Label(self._chart_panel.bar, image=self._dock_icon, bg=COLORS["bg_panel"],
-                                      cursor="hand2", padx=4)
-            self._dock_btn.pack(side=tk.RIGHT, padx=(2, 6))
-            self._dock_btn.bind("<Button-1>", lambda e: self._dock_chart())
-            Tooltip(self._dock_btn, t("chart.dock"))
-            self._full_icon = ImageTk.PhotoImage(icon("expand", 14, COLORS["accent"]))
-            full = tk.Label(self._chart_panel.bar, image=self._full_icon, bg=COLORS["bg_panel"], cursor="hand2", padx=4)
-            full.pack(side=tk.RIGHT, padx=(2, 0))
-            full.bind("<Button-1>", lambda e: self._chart_fullscreen())
-            Tooltip(full, t("chart.fullscreen"))
-            save = self._save_btn = tk.Menubutton(self._chart_panel.bar, text=t("chart.save") + " ▾", bg=COLORS["btn_bg"],
-                                 fg=COLORS["text_muted"], relief="flat", font=FONTS["small"], cursor="hand2", pady=2)
-            menu = tk.Menu(save, tearoff=0)
-            menu.add_command(label=t("chart.save_chart"), command=lambda: self._save_intra_chart(False))
-            menu.add_command(label=t("chart.save_with_image"), command=lambda: self._save_intra_chart(True))
-            save.configure(menu=menu)
-            save.pack(side=tk.RIGHT, padx=2, pady=3)
-            self._compare_btn = tk.Button(self._chart_panel.bar, text=t("chart.whole_batch"), command=self._show_batch_chart,
-                      bg=COLORS["btn_bg"], fg=COLORS["accent"], relief="flat", font=FONTS["small"],
-                      cursor="hand2", pady=2)
-            self._compare_btn.pack(side=tk.RIGHT, padx=2, pady=3)
-            self._colors_btn = tk.Button(self._chart_panel.bar, text=t("c3d.open"),
-                                         command=lambda: self._show_color3d("image"), bg=COLORS["btn_bg"],
-                                         fg=COLORS["accent"], relief="flat", font=FONTS["small"],
-                                         cursor="hand2", pady=2)      # solo en la capa Color
+        self._build_bottom_panel(cf)
 
     def _set_zoom_tool(self, tool: str):
         if self.zoom_ctrl is None:
@@ -228,23 +124,6 @@ class ViewerMixin:
             btn.select(name == tool)
         if tool == "pan":
             self._set_status(t("status.ready"))
-
-    def _open_style(self):
-        """Colores de la máscara, contornos y puntos (se guardan en el proyecto)."""
-        from fenotit.gui.widgets.style_popup import StylePopup
-        if self._style_popup is not None and self._style_popup.winfo_exists():
-            self._style_popup.destroy()
-            self._style_popup = None
-            return
-        self._style_popup = StylePopup(self.root, self._style_btn, self.project.display.get("style"),
-                                       COLORS, self._on_style_change)
-
-    def _close_style_popup(self, event=None):
-        if event is not None and event.widget is self._style_btn:
-            return
-        if self._style_popup is not None and self._style_popup.winfo_exists():
-            self._style_popup.destroy()
-        self._style_popup = None
 
     def _on_style_change(self, style: dict):
         self.project.display = {**self.project.display, "style": style}
@@ -343,6 +222,10 @@ class ViewerMixin:
                 (row.rowconfigure if stacked else row.columnconfigure)(k, weight=1, uniform="side")
             else:
                 w.grid(row=r, column=c, sticky="ew" if stacked else "ns")
+
+    def _set_hidden(self, hidden: dict):
+        """Qué lados (Entrada, Resultado) están ocultos."""
+        self._hidden = dict(hidden)
 
     def _toggle_side(self, side: str):
         other = "result" if side == "input" else "input"

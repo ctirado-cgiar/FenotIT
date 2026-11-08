@@ -30,6 +30,6 @@ with torch.no_grad():
                       output_names=["masks", "iou"], opset_version=17, do_constant_folding=True, dynamo=False,
                       dynamic_axes={"coords": {0: "b", 1: "n"}, "labels": {0: "b", 1: "n"}, "masks": {0: "b"}, "iou": {0: "b"}})
     print("torch masks", Dec(sam)(emb, c, l)[1][0])
-import onnxruntime as ort, numpy as np
+import onnxruntime as ort
 d = ort.InferenceSession("mobilesam_decoder.onnx")
 print("onnx", d.run(None, {"embeddings": emb.numpy(), "coords": c.numpy(), "labels": l.numpy()})[1][0])

@@ -15,6 +15,16 @@ _log = log.get("gui.window.images")
 
 
 class ImagesMixin:
+    def _init_images(self):
+        self.scaler_left = ImageScaler()
+        self.scaler_right = ImageScaler()
+        self.current_image_path: str | None = None
+
+    def _forget_current_image(self):
+        """Ninguna foto abierta."""
+        self.current_image_path = None
+        self.canvas_left.delete("all")
+
     def _image_list_room(self) -> int:
         """Tope de la lista de imágenes: 45 % del espacio, y menos si CAPAS lo necesita."""
         lf = self._panel_of("images").content
@@ -106,7 +116,7 @@ class ImagesMixin:
         self.current_image_path = None
         self.scaler_left = ImageScaler()
         self.scaler_right = ImageScaler()
-        self.last_result, self.step_names = None, []
+        self._clear_result()
         if self.zoom_ctrl:
             self.zoom_ctrl.set_images(None, None)
         self.canvas_left.delete("all")
@@ -182,9 +192,7 @@ class ImagesMixin:
             self._display_result(self.results_cache[path], self.step_names_cache.get(path, []))
         else:
             # Nueva imagen sin resultados previos
-            self.last_result = None
-            self.step_names  = []
-            self.step_idx    = 0
+            self._clear_result()
             self.scaler_right = ImageScaler()
             if self._chart_panel:
                 self._chart_panel.load([])

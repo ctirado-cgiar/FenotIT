@@ -16,10 +16,14 @@ class MetadataMixin:
         self._single("metadata", lambda: MetadataDialog(
             self.root, [Path(p).name for p in self.batch_paths], dict(self.project.metadata), self._set_metadata))
 
+    def _forget_meta(self):
+        """La tabla del usuario se vuelve a leer la próxima vez que se pida."""
+        self._meta_cache = None
+
     def _set_metadata(self, file: str | None, key_column: str | None):
         self._remember("undo.metadata")
         self.project.metadata = {"file": file, "key_column": key_column} if file else {}
-        self._meta_cache = None
+        self._forget_meta()
         self.image_list._filter()
         self._show_meta()
         m = self._meta_match()

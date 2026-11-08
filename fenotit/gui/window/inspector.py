@@ -95,8 +95,12 @@ class InspectorMixin:
             self._sync_table_selection()
         self._show_inspector()
 
-    def _clear_selection(self):
+    def _forget_selection(self):
+        """Ningún objeto elegido (solo el estado, sin redibujar)."""
         self._sel, self._sel_point = None, None
+
+    def _clear_selection(self):
+        self._forget_selection()
         if self.zoom_ctrl:
             self.zoom_ctrl.highlight = None
             self.zoom_ctrl._redraw()

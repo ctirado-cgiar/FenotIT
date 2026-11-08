@@ -182,6 +182,7 @@ class SegmentMixin:
 
     def _build_seg_tab(self, rf):
         """MÉTODO (Umbral / Por ejemplos) → sus ajustes → AFINAR MÁSCARA → Analizar."""
+        self._after_preview_id = None
         bg, small = COLORS["bg_panel"], FONTS["small"]
         self._seg_note = tk.Label(rf, text=t("seg.not_used"), bg=bg, fg=COLORS["text_muted"], font=small,
                                   justify="left", wraplength=240)

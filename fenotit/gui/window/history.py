@@ -5,6 +5,10 @@ from fenotit.i18n import t
 
 
 class HistoryMixin:
+    def _reset_history(self):
+        """Sin nada que deshacer ni rehacer."""
+        self._undo_stack, self._redo_stack, self._settled = [], [], None
+
     UNDO_MAX = 50
 
     _UNDO_FIELDS = ("roi", "image_roi", "image_scale", "excluded", "highlighted", "images",
@@ -124,7 +128,7 @@ class HistoryMixin:
                 self._load_single(self.current_image_path)
             self._update_corr_indicator()
         if "metadata" in changed:
-            self._meta_cache = None
+            self._forget_meta()
             self.image_list._filter()
             self._show_meta()
         if images_changed and not self.current_image_path and self.batch_paths:

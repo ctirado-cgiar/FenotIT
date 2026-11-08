@@ -19,7 +19,6 @@ from fenotit import settings
 from fenotit.gui.style.theme import COLORS, FONTS
 from fenotit.gui.widgets.collapsible import CollapsiblePanel
 from fenotit.gui.widgets.image_list import ImageList
-from fenotit.gui.widgets.params import ConfigPanel
 from fenotit.gui.widgets.toolbar import Tooltip
 from fenotit.i18n import t
 
@@ -163,8 +162,7 @@ class LayoutMixin:
         """Inspector del objeto elegido; aparece al elegir un objeto."""
         from fenotit.gui.widgets.inspector import Inspector
         self.inspector = Inspector(lf, self._clear_selection, self._toggle_exclude, self._toggle_highlight)
-        self._sel: int | None = None
-        self._sel_point = None
+        self._forget_selection()
 
     def _build_steps(self, rf):
         """Dos pasos en pestañas: 1 Segmentar (método, ajustes, afinar máscara) y
@@ -188,7 +186,6 @@ class LayoutMixin:
         self._analysis_cards.pack(fill=tk.X, padx=6, pady=(6, 6))
         self.config_container = tk.Frame(self._an_tab, bg=bg)
         self.config_container.pack(fill=tk.BOTH, expand=True, padx=4)
-        self.config_panel: ConfigPanel | None = None
         self._right_tab = "seg"
         self._select_right_tab("seg")
 
@@ -252,7 +249,7 @@ class LayoutMixin:
     def _limit_panels(self, _event=None):
         """Si al achicar la ventana un panel quedó aplastado, al agrandarla recupera su ancho."""
         pw = self.paned
-        if pw.winfo_width() <= 1 or getattr(self, "_restoring", False):
+        if pw.winfo_width() <= 1 or getattr(self, "_restoring_panel", False):
             return
         visible = self._visible_panes()
         room = self.center_frame.winfo_width() - 400
@@ -260,11 +257,11 @@ class LayoutMixin:
             w_now = panel.winfo_width() if panel in visible else 0
             if (panel.winfo_ismapped() and panel._expanded and CollapsiblePanel.COLLAPSED_W <= w_now
                     < 0.6 * panel.default_width and room > 40):
-                self._restoring = True
+                self._restoring_panel = True
                 target = int(min(panel.default_width, w_now + room))
 
                 def restore(panel=panel, target=target):
-                    self._restoring = False
+                    self._restoring_panel = False
                     vis = self._visible_panes()
                     if panel is self.left_panel:
                         pw.sash_place(0, target, 1)
@@ -274,6 +271,7 @@ class LayoutMixin:
                 return
 
     def _bind_resize(self):
+        self._after_resize_id = None
         self.root.bind("<Configure>", self._on_resize)
 
     def _on_resize(self, event):

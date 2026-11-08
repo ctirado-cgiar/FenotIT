@@ -17,6 +17,15 @@ _log = log.get("gui.window.analyze")
 
 
 class AnalyzeMixin:
+    def _init_analyze(self):
+        self.active_analysis: str | None = None
+        self._reset_analysis()
+
+    def _reset_analysis(self):
+        """Ningún análisis elegido y sin panel de parámetros."""
+        self.config_panel: ConfigPanel | None = None
+        self._analysis_chosen = False
+
     _UNIT_POWER = {"area": 2, "length": 1}
 
     def _unit_labels(self, unit: str) -> dict:

@@ -24,13 +24,11 @@ def layers():
     res = objects.run(img, p)
     dres = distances.run(img, {**p, "neighbors": "knn", "k": 3})
     colors = overlay.resolve(None, auto=res.extra.get("contrast"))
-    labels_mask = None
     out = [("Image", img, None)]
     mask = None
     for k, v in res.step_images.items():
         if res.extra["step_folders"][k] == "mask":
             mask = v[..., 0] > 0
-    rgba = lambda bgr, a: np.dstack([bgr, (a * 255).astype(np.uint8)])
     m = np.zeros_like(img); m[mask] = (60, 200, 255)
     out.append(("Mask", m, mask.astype(float) * 0.75))
     for name, folder, ov_src in (("Morphometry", "morphometry", res), ("Color", "color", res),

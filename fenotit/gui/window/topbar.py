@@ -151,6 +151,7 @@ class TopbarMixin:
 
     def _build_zoom_tools(self):
         """Zoom en la barra superior: acercar, alejar, ajustar, zoom a un área, mano y el %."""
+        self._zoom_pct_var = tk.StringVar(value="100%")
         bar = tk.Frame(self.topbar, bg=COLORS["bg_topbar"])
         bar.pack(side=tk.RIGHT)
         size = max(16, int(round(18 * self.root.winfo_fpixels("1i") / 96)))
@@ -194,5 +195,21 @@ class TopbarMixin:
         names = list(ANALYSES.keys())
         if names:
             self.analysis_var.set(_analysis_label(names[0]))
-            self.active_analysis = names[0]
             self._on_analysis_selected(None, choose=False)
+
+    def _open_style(self):
+        """Colores de la máscara, contornos y puntos (se guardan en el proyecto)."""
+        from fenotit.gui.widgets.style_popup import StylePopup
+        if self._style_popup is not None and self._style_popup.winfo_exists():
+            self._style_popup.destroy()
+            self._style_popup = None
+            return
+        self._style_popup = StylePopup(self.root, self._style_btn, self.project.display.get("style"),
+                                       COLORS, self._on_style_change)
+
+    def _close_style_popup(self, event=None):
+        if event is not None and event.widget is self._style_btn:
+            return
+        if self._style_popup is not None and self._style_popup.winfo_exists():
+            self._style_popup.destroy()
+        self._style_popup = None

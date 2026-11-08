@@ -14,7 +14,7 @@ import cv2
 from fenotit import APP_NAME, log, settings
 from fenotit.core import recovery
 from fenotit.core import units
-from fenotit.core.analysis.registry import ANALYSES, AnalysisResult
+from fenotit.core.analysis.registry import ANALYSES
 from fenotit.core.corrections import pipeline as corrections
 from fenotit.core.image_io import load_image
 from fenotit.core.project import PROJECT_EXT, Project, Segmentation
@@ -27,22 +27,17 @@ _log = log.get("gui.window.project")
 
 
 class ProjectMixin:
-    @property
-    def results_cache(self) -> dict[str, AnalysisResult]:
-        """Resultados del análisis elegido (foto -> resultado)."""
-        return self._results.setdefault(getattr(self, "active_analysis", None) or "", {})
+    def _init_project(self):
+        self.project = self._blank_project()
+        self._corr_info: dict[str, corrections.CorrectionInfo] = {}
+        self._saved_state = self.project.to_dict()
+        self._session = f"{os.getpid()}-{int(time.time())}"
+        self._recovery_file = None
+        self._last_autosave = time.monotonic()
 
-    @property
-    def step_names_cache(self) -> dict[str, list]:
-        return self._step_names.setdefault(getattr(self, "active_analysis", None) or "", {})
-
-    def _clear_all_results(self, path: str | None = None):
-        for store in (self._results, self._step_names):
-            for per in store.values():
-                if path is None:
-                    per.clear()
-                else:
-                    per.pop(path, None)
+    def _mark_saved(self):
+        """El estado actual cuenta como guardado (sin cambios pendientes)."""
+        self._saved_state = self._collect_state()
 
     @property
     def batch_paths(self) -> list[str]:
@@ -126,7 +121,7 @@ class ProjectMixin:
     def _invalidate_results(self):
         self._corr_info.clear()
         self._clear_all_results()
-        self.last_result = None
+        self._clear_result()
         self.canvas_right.delete("all")
         self._show_results_ui(False)
 
@@ -354,18 +349,17 @@ class ProjectMixin:
 
     def _apply_project(self, project: Project):
         self._drop_recovery()                    # el usuario ya guardó o descartó el anterior
-        self._undo_stack, self._redo_stack, self._settled = [], [], None
-        self.config_panel = None
+        self._reset_history()
+        self._reset_analysis()
         self.project = project
         self._set_seg_state(dataclasses.asdict(project.segmentation))
-        self._examples = {}
+        self._forget_examples()
         self._on_auto_change()
         self.legend_var.set(project.display.get("legend", True))
         self._paint_pos_grid()
         self.color_fmt_var.set(project.display.get("color_format", "RGB"))
 
         name = _analysis_name(project.analysis)
-        self._analysis_chosen = False
         if name:
             self.analysis_var.set(_analysis_label(name))
         self._on_analysis_selected(None, choose=bool(name))
@@ -380,11 +374,10 @@ class ProjectMixin:
             self._load_single(str(project.current_image))
             self._sync_listbox()
         else:
-            self.current_image_path = None
-            self.canvas_left.delete("all")
+            self._forget_current_image()
         self._update_corr_indicator()
         self._update_start()
-        self._saved_state = self._collect_state()
+        self._mark_saved()
         if project.images and project.ran:
             self.root.after(500, self._offer_rerun)
 
@@ -395,8 +388,7 @@ class ProjectMixin:
                 t("rerun.title"), t("rerun.msg", analyses=", ".join(_analysis_label(n) for n in names),
                                     n=len(self.batch_paths)), parent=self.root):
             return
-        self._rerun_queue = names
-        self._rerun_next()
+        self._queue_reruns(names)
 
     def _rerun_next(self):
         queue = getattr(self, "_rerun_queue", [])
