@@ -83,7 +83,7 @@ class StartScreen(tk.Frame):
         inner = tk.Frame(hero, bg=COLORS["bg_card"])
         inner.place(relx=0.5, rely=0.45, anchor="center")
         try:
-            from fenotit.gui.main_window import _assets
+            from fenotit.gui.window.common import _assets
             logo = Image.open(_assets() / "logo.ico").convert("RGBA").resize((80, 80), Image.LANCZOS)
             self._img["logo"] = ImageTk.PhotoImage(logo)
             tk.Label(inner, image=self._img["logo"], bg=COLORS["bg_card"]).pack(pady=(0, 10))

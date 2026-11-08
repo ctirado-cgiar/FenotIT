@@ -233,3 +233,19 @@ class RegionPicker:
         nx, ny = (e.x - x) / w, (e.y - y) / h
         if 0 <= nx <= 1 and 0 <= ny <= 1:
             self.on_click(nx, ny)
+
+
+class CanvasTools:
+    """Las herramientas que dibujan sobre la Entrada (áreas y pincel): el zoom no mueve la
+    imagen con el botón izquierdo mientras una está activa, y todas siguen el zoom."""
+
+    def __init__(self, *tools):
+        self.tools = tools
+
+    @property
+    def active(self) -> bool:
+        return any(t.active for t in self.tools)
+
+    def set_image_offset(self, *a):
+        for t in self.tools:
+            t.set_image_offset(*a)
