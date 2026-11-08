@@ -1,9 +1,9 @@
-<title>Mapa de FenotIT</title>
+<title>Dependencias de FenotIT</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* Mapa: carpetas a la izquierda (gui | core), detalle a la derecha; el azul de FenotIT marca lo elegido */
+/* Grafo de paquetes a la izquierda (gui | core), módulo o paquete elegido a la derecha */
 :root {
   --bg: #F6F8FB; --panel: #FFFFFF; --ink: #17212B; --muted: #5B6B7B; --faint: #94A3B3;
   --line: #DCE3EA; --accent: #2166AC; --accent-soft: #E3EEF9; --gui: #2166AC; --core: #1A7F5A; --root: #8A5A00;
@@ -20,293 +20,249 @@
   --line: #2A3643; --accent: #6FA8E0; --accent-soft: #1C2D40; --gui: #6FA8E0; --core: #4FC08F; --root: #E0A84A;
   --code-bg: #1D2732; color-scheme: dark }
 * { box-sizing: border-box }
-body { background: var(--bg); color: var(--ink); font: 14px/1.5 var(--sans); }
-header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between;
-  padding-block: 14px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
-  border-bottom: 1px solid var(--line); background: var(--panel); }
-h1 { font-size: 17px; font-weight: 600; margin: 0; text-wrap: balance }
-h1 small { font-weight: 400; color: var(--muted); font-size: 13px; margin-left: 8px }
-#q { font: inherit; width: min(340px, 100%); padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px;
+body { background: var(--bg); color: var(--ink); font: 14px/1.5 var(--sans) }
+header { display: flex; flex-wrap: wrap; gap: 10px 24px; align-items: baseline; justify-content: space-between;
+  padding-block: 12px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  border-bottom: 1px solid var(--line); background: var(--panel) }
+h1 { font-size: 16px; font-weight: 600; margin: 0 }
+h1 small { font: 400 12.5px var(--mono); color: var(--muted); margin-left: 10px }
+#q { font: 13px var(--mono); width: min(300px, 100%); padding: 6px 10px; border: 1px solid var(--line); border-radius: 5px;
   background: var(--bg); color: var(--ink) }
 #q:focus { outline: 2px solid var(--accent); outline-offset: 1px }
-main { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 16px;
-  padding-block: 16px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+main { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; align-items: start;
+  padding-block: 16px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
 @media (max-width: 900px) { main { grid-template-columns: minmax(0, 1fr) } }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; min-width: 0 }
-#diagram-box { padding: 12px; overflow-x: auto }
-#diagram-box p { margin: 0 0 8px; color: var(--muted); font-size: 12.5px }
+#graph { padding: 10px 12px 12px; overflow-x: auto; position: sticky; top: 12px }
 svg { display: block; width: 100%; min-width: 560px; height: auto }
-.fold rect { fill: var(--panel); stroke: var(--line); stroke-width: 1.2; cursor: pointer }
-.fold text { fill: var(--ink); font: 500 12.5px var(--mono); pointer-events: none }
-.fold text.n { fill: var(--faint); font: 400 11px var(--sans) }
-.fold.gui rect { stroke: color-mix(in srgb, var(--gui) 45%, var(--line)) }
-.fold.core rect { stroke: color-mix(in srgb, var(--core) 45%, var(--line)) }
-.fold.root rect { stroke: color-mix(in srgb, var(--root) 45%, var(--line)) }
-.fold:hover rect, .fold:focus rect { stroke: var(--accent); stroke-width: 2 }
-.fold:focus { outline: none }
-.fold.sel rect { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2 }
-.fold.dim { opacity: .35 }
-.col-title { fill: var(--muted); font: 600 11px var(--sans); letter-spacing: .08em }
-.edge { fill: none; stroke: var(--faint); stroke-width: 1; opacity: .18 }
+.pkg rect { fill: var(--panel); stroke: var(--line); stroke-width: 1.2; cursor: pointer }
+.pkg text { fill: var(--ink); font: 500 12.5px var(--mono); pointer-events: none }
+.pkg text.n { fill: var(--faint); font: 400 11px var(--mono) }
+.pkg.gui rect { stroke: color-mix(in srgb, var(--gui) 45%, var(--line)) }
+.pkg.core rect { stroke: color-mix(in srgb, var(--core) 45%, var(--line)) }
+.pkg.root rect { stroke: color-mix(in srgb, var(--root) 45%, var(--line)) }
+.pkg:hover rect, .pkg:focus rect { stroke: var(--accent); stroke-width: 2 }
+.pkg:focus { outline: none }
+.pkg.sel rect { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2 }
+.pkg.dim { opacity: .3 }
+.col { fill: var(--muted); font: 500 11.5px var(--mono) }
+.edge { fill: none; stroke: var(--faint); stroke-width: 1; opacity: .2 }
 .edge.out { stroke: var(--accent); opacity: .9; stroke-width: 1.6 }
 .edge.in { stroke: var(--core); opacity: .9; stroke-width: 1.6; stroke-dasharray: 4 3 }
-.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--muted); margin-top: 8px }
-.legend i { display: inline-block; width: 22px; height: 0; border-top: 2px solid var(--accent); vertical-align: middle; margin-right: 6px }
+.legend { display: flex; flex-wrap: wrap; gap: 16px; font: 12px var(--mono); color: var(--muted); margin-top: 6px }
+.legend i { display: inline-block; width: 22px; border-top: 2px solid var(--accent); vertical-align: middle; margin-right: 6px }
 .legend i.in { border-top: 2px dashed var(--core) }
-#detail { padding: 16px 18px 20px; display: flex; flex-direction: column; gap: 14px; min-width: 0 }
-.crumbs { font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px }
-.crumbs a { color: var(--accent); text-decoration: none; cursor: pointer }
-h2 { font: 600 16px var(--mono); margin: 0; overflow-wrap: anywhere }
-.doc { color: var(--muted); margin: 0 }
-h3 { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px }
+#detail { padding: 14px 18px 18px; display: flex; flex-direction: column; gap: 14px; min-width: 0 }
+.crumbs { font: 12px var(--mono); color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px }
+.crumbs a, a.mod { color: var(--accent); text-decoration: none; cursor: pointer; font-family: var(--mono) }
+a.mod { font-size: 13px }
+a.mod:hover, a.mod:focus, .crumbs a:hover { text-decoration: underline }
+h2 { font: 600 15px var(--mono); margin: 0; overflow-wrap: anywhere }
+h2 a { color: inherit; text-decoration: none }
+.doc { color: var(--muted); margin: 0; font-size: 13.5px }
+.lbl { font: 500 11.5px var(--mono); color: var(--faint); margin: 0 0 4px }
 section { min-width: 0 }
-ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px }
+.pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px }
+@media (max-width: 520px) { .pair { grid-template-columns: minmax(0, 1fr) } }
+ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px }
 li { min-width: 0; overflow-wrap: anywhere }
-a.mod { font-family: var(--mono); font-size: 13px; color: var(--accent); cursor: pointer; text-decoration: none }
-a.mod:hover, a.mod:focus { text-decoration: underline }
-.names { font-family: var(--mono); font-size: 12px; color: var(--muted) }
-.def { display: flex; flex-direction: column; gap: 6px }
-.def > div { min-width: 0 }
-.def .sub { padding-left: 18px }
-.def code { font-family: var(--mono); font-size: 12.5px; overflow-wrap: anywhere }
-.def .d { display: block; color: var(--muted); font-size: 12.5px }
-.def a { color: inherit; text-decoration: none }
-.def a:hover { color: var(--accent) }
-.kind { font: 500 10px var(--sans); letter-spacing: .06em; color: var(--faint); margin-right: 4px }
-pre { margin: 0; background: var(--code-bg); border-radius: 6px; padding: 9px 11px; font: 12.5px/1.45 var(--mono);
-  overflow-x: auto; position: relative }
-.copy { font: 500 11px var(--sans); border: 1px solid var(--line); background: var(--panel); color: var(--muted);
-  border-radius: 4px; padding: 2px 8px; cursor: pointer; float: right; margin-left: 8px }
+.names { display: block; font: 11.5px var(--mono); color: var(--muted) }
+.defs { display: flex; flex-direction: column; gap: 5px }
+.defs div { min-width: 0 }
+.defs .sub { padding-left: 16px }
+.defs code { font: 12.5px var(--mono); overflow-wrap: anywhere }
+.defs code a { color: inherit; text-decoration: none }
+.defs code a:hover { color: var(--accent) }
+.defs .d { display: block; color: var(--muted); font-size: 12.5px }
+.k { font: 10.5px var(--mono); color: var(--faint); margin-right: 6px }
+pre { margin: 0; background: var(--code-bg); border-radius: 5px; padding: 8px 10px; font: 12.5px/1.45 var(--mono); overflow-x: auto }
+.copy { font: 11px var(--mono); border: 1px solid var(--line); background: var(--panel); color: var(--muted);
+  border-radius: 4px; padding: 1px 7px; cursor: pointer; float: right; margin-left: 8px }
 .copy:hover { color: var(--accent); border-color: var(--accent) }
-.chips { display: flex; flex-wrap: wrap; gap: 6px }
+.chips { display: flex; flex-wrap: wrap; gap: 5px }
 .chip { font: 12px var(--mono); background: var(--code-bg); border-radius: 4px; padding: 1px 7px; color: var(--muted) }
 .chip.step { background: var(--accent-soft); color: var(--accent) }
-.note { font-size: 12.5px; color: var(--muted); border-left: 3px solid var(--line); padding-left: 10px; margin: 0 }
-table.files, table.guide { width: 100%; border-collapse: collapse; font-size: 13px }
-table.files td, table.guide td { padding: 5px 8px 5px 0; border-top: 1px solid var(--line); vertical-align: top }
-table.files td.n { text-align: right; color: var(--faint); font-variant-numeric: tabular-nums; white-space: nowrap }
-table.guide td:first-child { color: var(--ink); width: 42% }
-.empty { color: var(--faint) }
-.group { display: flex; flex-direction: column; gap: 2px; padding: 4px 0 }
-.group > div:first-child { font-size: 12.5px }
+.note { font: 12px var(--mono); color: var(--muted); margin: 0 }
+table { width: 100%; border-collapse: collapse; font-size: 13px }
+td { padding: 5px 8px 5px 0; border-top: 1px solid var(--line); vertical-align: top }
+td.n { text-align: right; color: var(--faint); font: 12px var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap }
+td .doc { font-size: 12.5px }
+.none { color: var(--faint); font: 12px var(--mono) }
 </style>
 
 <header>
-  <h1>Mapa de FenotIT <small id="count"></small></h1>
-  <input id="q" type="search" placeholder="Buscar archivo, función o clase…" aria-label="Buscar en el código">
+  <h1>FenotIT <small id="count"></small></h1>
+  <input id="q" type="search" placeholder="buscar módulo, clase o función" aria-label="Buscar módulo, clase o función">
 </header>
 <main>
-  <div class="card" id="diagram-box">
-    <p>Cada caja es una carpeta. Toca una para ver sus archivos y con qué carpetas se conecta.</p>
-    <svg id="diagram" role="img" aria-label="Carpetas de FenotIT y sus conexiones"></svg>
-    <div class="legend"><span><i></i>usa (importa de)</span><span><i class="in"></i>la usan</span></div>
+  <div class="card" id="graph">
+    <svg id="diagram" role="img" aria-label="Grafo de dependencias entre paquetes de FenotIT"></svg>
+    <div class="legend"><span><i></i>importa</span><span><i class="in"></i>importado por</span></div>
   </div>
   <div class="card" id="detail"></div>
 </main>
 
 <script>
 const DATA = /*DATA*/null;
-const M = DATA.modules, F = DATA.folders;
+const M = DATA.modules, P = DATA.folders;
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
-const short = id => id.replace(/^fenotit\.?/, "") || "fenotit";
-const fileName = id => M[id].path.replace(/^fenotit\//, "");
-const hashOf = (kind, id) => "#" + kind + "-" + id.replace(/\./g, "-").replace(/_/g, "_");
+const rel = id => id.replace(/^fenotit\.?/, "") || "fenotit";
+const modPath = id => M[id].path.replace(/^fenotit\//, "");
+const hashOf = (kind, id) => "#" + kind + "-" + id.replace(/\./g, "-");
 const byHash = {};
-for (const id in M) byHash[hashOf("f", id).slice(1)] = ["f", id];
-for (const id in F) byHash[hashOf("d", id).slice(1)] = ["d", id];
+for (const id in M) byHash[hashOf("m", id).slice(1)] = ["m", id];
+for (const id in P) byHash[hashOf("p", id).slice(1)] = ["p", id];
+$("#count").textContent = `${Object.keys(P).length} paquetes · ${Object.keys(M).length} módulos`;
 
-$("#count").textContent = `${Object.keys(M).length} archivos · ${Object.keys(F).length} carpetas`;
-
-const GUIDE = [
-  ["Un método nuevo de segmentación", "fenotit.core.segmentation", "Crear un archivo en core/segmentation/ con una función decorada con @step. Se carga solo."],
-  ["Una medición nueva", "fenotit.core.measurements", "Crear un archivo en core/measurements/ con @step(…, \"measurement\"). Se carga solo."],
-  ["Un paso sobre objetos (separar, filtrar…)", "fenotit.core.objects", "Archivo en core/objects/ con @step(…, \"processor\")."],
-  ["Un análisis nuevo (tipo de muestra)", "fenotit.core.analysis.registry", "Archivo en core/analysis/ que llame a register(); agregar su nombre a ANALYSIS_MODULES."],
-  ["Una corrección de imagen", "fenotit.core.corrections.pipeline", "El método en core/corrections/<nombre>.py y su uso en pipeline.py."],
-  ["Una parte nueva de la ventana", "fenotit.gui.main_window", "Archivo en gui/window/ con una clase <Nombre>Mixin; agregarla a MainWindow."],
-  ["Mover una sección a otro panel", "fenotit.gui.layout", "Cambiar PANELS en gui/layout.py."],
-  ["Colores, letras y tamaños", "fenotit.gui.style.theme", "Un archivo de tema en fenotit/assets/themes/ (ver docs/design/README.md)."],
-  ["Un texto de la interfaz", "fenotit.i18n", "La clave en fenotit/lang/es.json y en.json; en el código, t(\"clave\")."],
-];
-
-/* ---------- diagrama ---------- */
-const COLS = [
-  {key: "gui", title: "INTERFAZ  ·  fenotit/gui", match: f => f.startsWith("fenotit.gui")},
-  {key: "core", title: "NÚCLEO  ·  fenotit/core (sin interfaz)", match: f => f.startsWith("fenotit.core")},
-];
-const W = 680, BOX_W = 250, BOX_H = 34, GAP = 10, TOP = 96;
-const pos = {};
-const svg = $("#diagram");
-let edgesSvg = "", boxesSvg = "";
-pos["fenotit"] = {x: W / 2 - BOX_W / 2, y: 18, col: "root"};
-let maxY = 0;
-COLS.forEach((c, ci) => {
-  const x = ci === 0 ? 40 : W - 40 - BOX_W;
-  const list = Object.keys(F).filter(c.match).sort((a, b) => (a.split(".").length - b.split(".").length) || a.localeCompare(b));
-  list.forEach((f, i) => { pos[f] = {x, y: TOP + i * (BOX_H + GAP), col: c.key}; maxY = Math.max(maxY, pos[f].y + BOX_H); });
-  boxesSvg += `<text class="col-title" x="${x}" y="${TOP - 12}">${c.title}</text>`;
+/* grafo */
+const COLS = [{key: "gui", title: "fenotit.gui"}, {key: "core", title: "fenotit.core"}];
+const W = 680, BW = 250, BH = 32, GAP = 9, TOP = 92;
+const pos = {}, svg = $("#diagram");
+let edges = "", boxes = "", maxY = 0;
+pos.fenotit = {x: W / 2 - BW / 2, y: 14, col: "root"};
+COLS.forEach((c, i) => {
+  const x = i ? W - 40 - BW : 40;
+  Object.keys(P).filter(p => p.startsWith(c.title)).sort((a, b) => a.split(".").length - b.split(".").length || a.localeCompare(b))
+    .forEach((p, j) => { pos[p] = {x, y: TOP + j * (BH + GAP), col: c.key}; maxY = Math.max(maxY, pos[p].y + BH); });
+  boxes += `<text class="col" x="${x}" y="${TOP - 12}">${c.title}</text>`;
 });
-function edgePath(a, b) {
+function path(a, b) {
   const p = pos[a], q = pos[b];
-  let x1, y1, x2, y2;
   if (p.col === q.col && p.col !== "root") {
-    const side = p.col === "gui" ? p.x : p.x + BOX_W, bend = p.col === "gui" ? -1 : 1;
-    x1 = x2 = side; y1 = p.y + BOX_H / 2; y2 = q.y + BOX_H / 2;
-    const k = 18 + Math.abs(y2 - y1) * .25;
-    return `M${x1},${y1} C${x1 + bend * k},${y1} ${x2 + bend * k},${y2} ${x2},${y2}`;
+    const s = p.col === "gui" ? -1 : 1, x = p.col === "gui" ? p.x : p.x + BW, y1 = p.y + BH / 2, y2 = q.y + BH / 2, k = 18 + Math.abs(y2 - y1) * .25;
+    return `M${x},${y1} C${x + s * k},${y1} ${x + s * k},${y2} ${x},${y2}`;
   }
   if (p.col === "root" || q.col === "root") {
-    const r = p.col === "root" ? p : q, o = p.col === "root" ? q : p;
-    x1 = r.x + BOX_W / 2; y1 = r.y + BOX_H; x2 = o.x + BOX_W / 2; y2 = o.y;
-    const path = `M${x1},${y1} C${x1},${y1 + 40} ${x2},${y2 - 40} ${x2},${y2}`;
-    return path;
+    const r = p.col === "root" ? p : q, o = p.col === "root" ? q : p, x1 = r.x + BW / 2, y1 = r.y + BH, x2 = o.x + BW / 2, y2 = o.y;
+    return `M${x1},${y1} C${x1},${y1 + 40} ${x2},${y2 - 40} ${x2},${y2}`;
   }
-  x1 = p.col === "gui" ? p.x + BOX_W : p.x; x2 = q.col === "gui" ? q.x + BOX_W : q.x;
-  y1 = p.y + BOX_H / 2; y2 = q.y + BOX_H / 2;
-  const mx = (x1 + x2) / 2;
-  return `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`;
+  const x1 = p.col === "gui" ? p.x + BW : p.x, x2 = q.col === "gui" ? q.x + BW : q.x, y1 = p.y + BH / 2, y2 = q.y + BH / 2, m = (x1 + x2) / 2;
+  return `M${x1},${y1} C${m},${y1} ${m},${y2} ${x2},${y2}`;
 }
-DATA.links.forEach((l, i) => {
-  if (pos[l.from] && pos[l.to]) edgesSvg += `<path class="edge" data-from="${l.from}" data-to="${l.to}" d="${edgePath(l.from, l.to)}"><title>${short(l.from)} usa ${short(l.to)} (${l.n})</title></path>`;
-});
-for (const f in pos) {
-  const p = pos[f], n = F[f].files.length;
-  boxesSvg += `<g class="fold ${p.col}" data-f="${f}" tabindex="0" role="button" aria-label="Carpeta ${short(f)}">
-    <title>${esc(F[f].doc || short(f))}</title><rect x="${p.x}" y="${p.y}" width="${BOX_W}" height="${BOX_H}" rx="6"></rect>
-    <text x="${p.x + 12}" y="${p.y + 21}">${f === "fenotit" ? "fenotit/" : short(f).replace(/\./g, "/") + "/"}</text>
-    <text class="n" x="${p.x + BOX_W - 10}" y="${p.y + 21}" text-anchor="end">${n}</text></g>`;
+DATA.links.forEach(l => { if (pos[l.from] && pos[l.to])
+  edges += `<path class="edge" data-from="${l.from}" data-to="${l.to}" d="${path(l.from, l.to)}"><title>${l.from} → ${l.to} (${l.n})</title></path>`; });
+for (const p in pos) {
+  const b = pos[p];
+  boxes += `<g class="pkg ${b.col}" data-p="${p}" tabindex="0" role="button" aria-label="${p}"><title>${esc(P[p].doc || p)}</title>
+    <rect x="${b.x}" y="${b.y}" width="${BW}" height="${BH}" rx="5"></rect>
+    <text x="${b.x + 12}" y="${b.y + 20}">${p === "fenotit" ? "fenotit" : rel(p).replace(/^(gui|core)\.?/, "") || rel(p)}</text>
+    <text class="n" x="${b.x + BW - 10}" y="${b.y + 20}" text-anchor="end">${P[p].files.length}</text></g>`;
 }
-svg.setAttribute("viewBox", `0 0 ${W} ${maxY + 16}`);
-svg.innerHTML = `<g>${edgesSvg}</g><g>${boxesSvg}</g>`;
-svg.querySelectorAll(".fold").forEach(g => {
-  g.addEventListener("click", () => go("d", g.dataset.f));
-  g.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go("d", g.dataset.f); } });
-  g.addEventListener("mouseenter", () => mark(g.dataset.f, true));
-  g.addEventListener("mouseleave", () => mark(current.folder, false));
+svg.setAttribute("viewBox", `0 0 ${W} ${maxY + 14}`);
+svg.innerHTML = `<g>${edges}</g><g>${boxes}</g>`;
+let selected = null;
+svg.querySelectorAll(".pkg").forEach(g => {
+  g.addEventListener("click", () => go("p", g.dataset.p));
+  g.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go("p", g.dataset.p); } });
+  g.addEventListener("mouseenter", () => mark(g.dataset.p));
+  g.addEventListener("mouseleave", () => mark(selected));
 });
-let current = {folder: null};
-function mark(folder, hover) {
-  const linked = new Set([folder]);
+function mark(p) {
+  const near = new Set([p]);
   svg.querySelectorAll(".edge").forEach(e => {
-    const out = e.dataset.from === folder, inn = e.dataset.to === folder;
+    const out = e.dataset.from === p, inn = e.dataset.to === p;
     e.classList.toggle("out", out); e.classList.toggle("in", inn && !out);
-    if (out) linked.add(e.dataset.to); if (inn) linked.add(e.dataset.from);
+    if (out) near.add(e.dataset.to); if (inn) near.add(e.dataset.from);
   });
-  svg.querySelectorAll(".fold").forEach(g => {
-    g.classList.toggle("sel", g.dataset.f === current.folder);
-    g.classList.toggle("dim", !!folder && !linked.has(g.dataset.f));
+  svg.querySelectorAll(".pkg").forEach(g => {
+    g.classList.toggle("sel", g.dataset.p === selected);
+    g.classList.toggle("dim", !!p && !near.has(g.dataset.p));
   });
 }
 
-/* ---------- detalle ---------- */
-const modLink = id => `<a class="mod" data-go="f:${id}" href="${hashOf("f", id)}">${esc(fileName(id))}</a>`;
-const foldLink = id => `<a class="mod" data-go="d:${id}" href="${hashOf("d", id)}">${esc(short(id).replace(/\./g, "/") || "fenotit")}/</a>`;
+/* detalle */
+const modLink = id => `<a class="mod" data-go="m:${id}" href="${hashOf("m", id)}">${esc(modPath(id))}</a>`;
+const pkgLink = id => `<a class="mod" data-go="p:${id}" href="${hashOf("p", id)}">${esc(id)}</a>`;
 const src = (m, line) => `${DATA.repo}${m.path}${line ? "#L" + line : ""}`;
-const copyBtn = text => `<button class="copy" data-copy="${esc(text)}">Copiar</button>`;
+const none = t => `<span class="none">${t}</span>`;
+const list = (obj, empty = "—") => {
+  const keys = Object.keys(obj || {}).sort();
+  return keys.length ? `<ul>${keys.map(k => `<li>${modLink(k)}${obj[k].length ? `<span class="names">${obj[k].map(esc).join(", ")}</span>` : ""}</li>`).join("")}</ul>` : none(empty);
+};
+const block = (label, html) => `<section><p class="lbl">${label}</p>${html}</section>`;
 
-function crumbs(id, isFile) {
-  const parts = (isFile ? M[id].folder : id).split(".");
-  let html = `<a data-go="home:">Inicio</a>`;
-  for (let i = 1; i <= parts.length; i++) {
-    const f = parts.slice(0, i).join(".");
-    if (F[f]) html += ` / ${foldLink(f).replace('class="mod" ', "")}`;
-  }
-  return `<div class="crumbs">${html}</div>`;
+function crumbs(pkg) {
+  const parts = pkg.split(".");
+  return `<div class="crumbs"><a data-go="home:">fenotit</a>${parts.slice(1).map((_, i) => {
+    const p = parts.slice(0, i + 2).join(".");
+    return P[p] ? ` . <a data-go="p:${p}">${parts[i + 1]}</a>` : "";
+  }).join("")}</div>`;
 }
 
 function showHome() {
-  current.folder = null; mark(null, false);
-  $("#detail").innerHTML = `
-    <h2>Por dónde empezar</h2>
-    <p class="doc">Qué archivo tocar o crear para cada cambio. Toca un enlace para ver el archivo, lo que define y con qué se conecta.</p>
-    <section><table class="guide">${GUIDE.map(([what, id, how]) =>
-      `<tr><td>${what}</td><td>${F[id] ? foldLink(id) : modLink(id)}<div class="doc" style="font-size:12.5px">${esc(how)}</div></td></tr>`).join("")}</table></section>
-    <p class="note">Reglas que se revisan solas (tests/test_architecture.py): el núcleo no importa la interfaz; cada variable de la ventana se crea y se cambia en un solo archivo; colores y letras solo desde el tema.</p>`;
+  selected = null; mark(null);
+  const rows = Object.keys(P).sort().map(p => `<tr><td>${pkgLink(p)}<div class="doc">${esc(P[p].doc)}</div></td><td class="n">${P[p].files.length}</td></tr>`);
+  $("#detail").innerHTML = `<h2>fenotit</h2><table>${rows.join("")}</table>`;
 }
 
-function showFolder(f) {
-  current.folder = f; mark(f, false);
-  const files = F[f].files;
-  const uses = DATA.links.filter(l => l.from === f), usedBy = DATA.links.filter(l => l.to === f);
-  $("#detail").innerHTML = `${crumbs(f, false)}
-    <h2>${esc(short(f).replace(/\./g, "/") || "fenotit")}/</h2>
-    ${F[f].doc ? `<p class="doc">${esc(F[f].doc)}</p>` : ""}
-    <section><h3>Archivos</h3><table class="files">${files.map(id =>
-      `<tr><td>${modLink(id)}<div class="doc" style="font-size:12.5px">${esc(M[id].doc)}</div></td><td class="n">${M[id].lines} líneas</td></tr>`).join("")}</table></section>
-    <section><h3>Usa</h3>${uses.length ? `<ul>${uses.map(l => `<li>${foldLink(l.to)} <span class="names">${l.n} import${l.n > 1 ? "s" : ""}</span></li>`).join("")}</ul>` : `<span class="empty">Nada de otras carpetas</span>`}</section>
-    <section><h3>La usan</h3>${usedBy.length ? `<ul>${usedBy.map(l => `<li>${foldLink(l.from)} <span class="names">${l.n} import${l.n > 1 ? "s" : ""}</span></li>`).join("")}</ul>` : `<span class="empty">Ninguna carpeta</span>`}</section>`;
+function showPackage(p) {
+  selected = p; mark(p);
+  const out = DATA.links.filter(l => l.from === p), inn = DATA.links.filter(l => l.to === p);
+  const pk = l => `<li>${pkgLink(l)}</li>`;
+  $("#detail").innerHTML = `${crumbs(p)}<h2>${esc(p)}</h2>${P[p].doc ? `<p class="doc">${esc(P[p].doc)}</p>` : ""}
+    <table>${P[p].files.map(id => `<tr><td>${modLink(id)}<div class="doc">${esc(M[id].doc)}</div></td><td class="n">${M[id].lines}</td></tr>`).join("")}</table>
+    <div class="pair">${block("importa", out.length ? `<ul>${out.map(l => pk(l.to)).join("")}</ul>` : none("—"))}
+    ${block("importado por", inn.length ? `<ul>${inn.map(l => pk(l.from)).join("")}</ul>` : none("—"))}</div>`;
 }
 
 function importLine(id) {
   const names = new Set();
-  Object.values(M[id].used_by).forEach(n => n.forEach(x => names.add(x)));
-  let list = [...names].filter(n => n);
-  if (!list.length) list = M[id].defs.filter(d => !d.name.startsWith("_")).map(d => d.name).slice(0, 4);
-  return list.length ? `from ${id} import ${list.sort().join(", ")}` : `import ${id}`;
+  Object.values(M[id].used_by).forEach(n => n.forEach(x => x && names.add(x)));
+  let use = [...names];
+  if (!use.length) use = M[id].defs.filter(d => !d.name.startsWith("_")).map(d => d.name).slice(0, 4);
+  return use.length ? `from ${id} import ${use.sort().join(", ")}` : `import ${id}`;
 }
 
-function defsHtml(m) {
-  if (!m.defs.length) return `<span class="empty">Sin funciones ni clases</span>`;
-  return `<div class="def">${m.defs.map(d => {
-    let row = `<div><code><span class="kind">${d.kind === "class" ? "CLASE" : "FUNC"}</span><a href="${src(m, d.line)}" target="_blank" rel="noopener">${esc(d.name)}${esc(d.sig)}</a></code>${d.doc ? `<span class="d">${esc(d.doc)}</span>` : ""}</div>`;
-    if (d.methods && /Mixin$/.test(d.name)) {
-      row += d.methods.filter(x => !x.name.startsWith("__")).map(x =>
-        `<div class="sub"><code><a href="${src(m, x.line)}" target="_blank" rel="noopener">.${esc(x.name)}${esc(x.sig)}</a></code>${x.doc ? `<span class="d">${esc(x.doc)}</span>` : ""}</div>`).join("");
-    }
-    return row;
+function defs(m) {
+  if (!m.defs.length) return none("—");
+  return `<div class="defs">${m.defs.map(d => {
+    let h = `<div><code><span class="k">${d.kind === "class" ? "class" : "def"}</span><a href="${src(m, d.line)}" target="_blank" rel="noopener">${esc(d.name)}${esc(d.sig)}</a></code>${d.doc ? `<span class="d">${esc(d.doc)}</span>` : ""}</div>`;
+    if (d.methods && /Mixin$/.test(d.name))
+      h += d.methods.filter(x => !x.name.startsWith("__")).map(x => `<div class="sub"><code><a href="${src(m, x.line)}" target="_blank" rel="noopener">.${esc(x.name)}${esc(x.sig)}</a></code>${x.doc ? `<span class="d">${esc(x.doc)}</span>` : ""}</div>`).join("");
+    return h;
   }).join("")}</div>`;
 }
 
-function groups(obj, empty) {
-  const keys = Object.keys(obj || {}).sort();
-  if (!keys.length) return `<span class="empty">${empty}</span>`;
-  return `<ul>${keys.map(k => `<li class="group"><div>${modLink(k)}</div>${obj[k].length ? `<div class="names">${obj[k].map(esc).join(", ")}</div>` : ""}</li>`).join("")}</ul>`;
-}
-
-function showFile(id) {
+function showModule(id) {
   const m = M[id];
-  current.folder = m.folder; mark(m.folder, false);
-  const isWindow = "calls_out" in m;
-  const loaded = m.steps.length && !Object.keys(m.used_by).length
-    ? `<p class="note">Se carga solo: core/pipeline/base.py busca las piezas @step en las carpetas de STEP_PACKAGES.</p>`
-    : (m.id.startsWith("fenotit.core.analysis.") && !Object.keys(m.used_by).length && m.id !== "fenotit.core.analysis.registry"
-       ? `<p class="note">Se carga desde ANALYSIS_MODULES en core/analysis/registry.py.</p>` : "");
+  selected = m.folder; mark(m.folder);
+  const win = "calls_out" in m, orphan = !Object.keys(m.used_by).length;
+  let note = "";
+  if (m.steps.length && orphan) note = "registrado con @step · se carga desde STEP_PACKAGES (core/pipeline/base.py)";
+  else if (orphan && id.startsWith("fenotit.core.analysis.") && id !== "fenotit.core.analysis.registry") note = "se carga desde ANALYSIS_MODULES (core/analysis/registry.py)";
   const line = importLine(id);
-  $("#detail").innerHTML = `${crumbs(id, true)}
-    <h2><a href="${src(m)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">${esc(m.path)}</a></h2>
+  $("#detail").innerHTML = `${crumbs(m.folder)}
+    <h2><a href="${src(m)}" target="_blank" rel="noopener">${esc(m.path)}</a></h2>
     ${m.doc ? `<p class="doc">${esc(m.doc)}</p>` : ""}
-    ${loaded}
-    <section><h3>Para usarlo en otro archivo</h3><pre>${copyBtn(line)}${esc(line)}</pre></section>
-    ${m.steps.length ? `<section><h3>Piezas que registra (@step)</h3><div class="chips">${m.steps.map(s => `<span class="chip step">${esc(s)}</span>`).join("")}</div></section>` : ""}
-    <section><h3>Importa de FenotIT</h3>${groups(m.imports, "Nada")}</section>
-    <section><h3>Lo usan</h3>${groups(m.used_by, "Ningún archivo lo importa")}</section>
-    ${isWindow ? `
-      <section><h3>Estado que crea y cambia (solo aquí)</h3>${m.state.length ? `<div class="chips">${m.state.map(s => `<span class="chip">self.${esc(s)}</span>`).join("")}</div>` : `<span class="empty">Ninguno</span>`}</section>
-      <section><h3>Llama a otras partes de la ventana</h3>${groups(m.calls_out, "A ninguna")}</section>
-      <section><h3>Lo llaman otras partes</h3>${groups(m.calls_in, "Ninguna")}</section>` : ""}
-    <section><h3>Define</h3>${defsHtml(m)}</section>
-    ${m.libs.length ? `<section><h3>Bibliotecas</h3><div class="chips">${m.libs.map(l => `<span class="chip">${esc(l)}</span>`).join("")}</div></section>` : ""}`;
+    ${note ? `<p class="note">${note}</p>` : ""}
+    <pre><button class="copy" data-copy="${esc(line)}">copiar</button>${esc(line)}</pre>
+    ${m.steps.length ? block("@step", `<div class="chips">${m.steps.map(s => `<span class="chip step">${esc(s)}</span>`).join("")}</div>`) : ""}
+    <div class="pair">${block("importa", list(m.imports))}${block("importado por", list(m.used_by))}</div>
+    ${win ? `${block("estado propio", m.state.length ? `<div class="chips">${m.state.map(s => `<span class="chip">self.${esc(s)}</span>`).join("")}</div>` : none("—"))}
+      <div class="pair">${block("llama a", list(m.calls_out))}${block("llamado desde", list(m.calls_in))}</div>` : ""}
+    ${block("clases y funciones", defs(m))}
+    ${m.libs.length ? block("bibliotecas externas", `<div class="chips">${m.libs.map(l => `<span class="chip">${esc(l)}</span>`).join("")}</div>`) : ""}`;
 }
 
 function showSearch(q) {
   const t = q.toLowerCase(), hits = [];
   for (const id in M) {
     const m = M[id];
-    if (m.path.toLowerCase().includes(t) || m.doc.toLowerCase().includes(t)) hits.push(`<li>${modLink(id)} <span class="names">${esc(m.doc)}</span></li>`);
+    if (m.path.toLowerCase().includes(t)) hits.push(`<li>${modLink(id)}</li>`);
     m.defs.forEach(d => {
-      if (d.name.toLowerCase().includes(t)) hits.push(`<li><code class="names">${esc(d.name)}${esc(d.sig)}</code> en ${modLink(id)}</li>`);
-      (d.methods || []).forEach(x => { if (x.name.toLowerCase().includes(t)) hits.push(`<li><code class="names">${esc(d.name)}.${esc(x.name)}</code> en ${modLink(id)}</li>`); });
+      if (d.name.toLowerCase().includes(t)) hits.push(`<li>${modLink(id)}<span class="names">${esc(d.name)}${esc(d.sig)}</span></li>`);
+      (d.methods || []).forEach(x => { if (x.name.toLowerCase().includes(t)) hits.push(`<li>${modLink(id)}<span class="names">${esc(d.name)}.${esc(x.name)}</span></li>`); });
     });
-    m.steps.forEach(s => { if (s.toLowerCase().includes(t)) hits.push(`<li><span class="chip step">@step ${esc(s)}</span> en ${modLink(id)}</li>`); });
+    m.steps.forEach(s => { if (s.toLowerCase().includes(t)) hits.push(`<li>${modLink(id)}<span class="names">@step("${esc(s)}")</span></li>`); });
   }
-  $("#detail").innerHTML = `<div class="crumbs"><a data-go="home:">Inicio</a></div><h2>«${esc(q)}»</h2>
-    ${hits.length ? `<ul>${hits.slice(0, 200).join("")}</ul>` : `<p class="doc">Sin resultados. Prueba con parte del nombre (p. ej. «otsu», «color», «table»).</p>`}`;
+  $("#detail").innerHTML = `<div class="crumbs"><a data-go="home:">fenotit</a></div><h2>${esc(q)}</h2>
+    ${hits.length ? `<ul>${hits.slice(0, 200).join("")}</ul>` : none("sin resultados")}`;
 }
 
 function render() {
-  const h = location.hash.slice(1), r = byHash[h];
-  if (r && r[0] === "f") showFile(r[1]); else if (r) showFolder(r[1]); else showHome();
+  const r = byHash[location.hash.slice(1)];
+  if (r && r[0] === "m") showModule(r[1]); else if (r) showPackage(r[1]); else showHome();
 }
 function go(kind, id) {
   $("#q").value = "";
@@ -315,13 +271,10 @@ function go(kind, id) {
 }
 document.addEventListener("click", e => {
   const a = e.target.closest("[data-go]");
-  if (a) { e.preventDefault(); const [k, id] = a.dataset.go.split(":"); go(k, id); $("#detail").scrollIntoView({block: "nearest"}); return; }
+  if (a) { e.preventDefault(); const [k, id] = a.dataset.go.split(":"); go(k, id); return; }
   const c = e.target.closest("[data-copy]");
-  if (c) {
-    const text = c.dataset.copy;
-    navigator.clipboard.writeText(text).then(() => { c.textContent = "Copiado"; setTimeout(() => c.textContent = "Copiar", 1200); })
-      .catch(() => { const r = document.createRange(); r.selectNodeContents(c.parentNode); getSelection().removeAllRanges(); getSelection().addRange(r); });
-  }
+  if (c) navigator.clipboard.writeText(c.dataset.copy).then(() => { c.textContent = "copiado"; setTimeout(() => c.textContent = "copiar", 1200); })
+    .catch(() => { const r = document.createRange(); r.selectNodeContents(c.parentNode); getSelection().removeAllRanges(); getSelection().addRange(r); });
 });
 let timer;
 $("#q").addEventListener("input", e => { clearTimeout(timer); const v = e.target.value.trim(); timer = setTimeout(() => v.length > 1 ? showSearch(v) : render(), 150); });

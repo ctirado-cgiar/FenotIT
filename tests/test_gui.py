@@ -1,8 +1,9 @@
-"""Interfaz completa: recorre el flujo de trabajo en la ventana real y falla con cualquier error.
+"""Interfaz completa: recorre el flujo de trabajo en la ventana real y se detiene en el primer error.
 
 Abre la aplicación, agrega fotos, segmenta, analiza una foto y el lote, recorre las capas,
 elige y excluye un objeto, deshace, abre gráficos y ventanas, y exporta. Cualquier
-excepción de la interfaz, de un hilo o del registro (nivel ERROR) hace fallar la prueba.
+excepción de la interfaz, de un hilo o del registro (nivel ERROR) se imprime con su traza y
+la prueba termina con código 1.
 
 En Linux sin pantalla se ejecuta dentro de Xvfb (`xvfb-run`). Uso:
 
@@ -275,7 +276,7 @@ def main(with_sam=False):
     for n in NOTES:
         print("aviso:", n)
     if ERRORS:
-        print("\n".join(["", "FALLÓ:"] + ERRORS))
+        print("\n".join(["", "ERRORES:"] + ERRORS))
         sys.exit(1)
     print("ok  interfaz completa")
 

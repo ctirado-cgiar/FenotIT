@@ -3,10 +3,10 @@
 Gracias por ayudar. Esta guía dice dónde está cada cosa, cómo probar un cambio y cómo
 enviarlo. La arquitectura completa está en [README_ESTRUCTURA.md](README_ESTRUCTURA.md).
 
-**Mapa de conexiones:** abre `docs/map/index.html` en el navegador. Muestra cada carpeta y
-cada archivo, lo que define, lo que importa, quién lo usa y la línea `from … import …` para
-usarlo. En las partes de la ventana muestra también qué estado crea cada una y qué métodos
-de otras partes llama. Se genera del código: después de un cambio, `python docs/map/make_map.py`.
+**Grafo de dependencias:** `docs/map/index.html` (abrir en el navegador). Paquetes, módulos,
+clases y funciones, qué importa cada módulo y quién lo importa; en los mixins de la ventana,
+su estado propio y los métodos de otros mixins que llama. Se genera con
+`python docs/map/make_map.py`.
 
 ## Preparar el entorno
 
@@ -74,7 +74,7 @@ for f in tests/test_*.py; do python "$f"; done  # pruebas de cada parte
 
 `tests/test_gui.py` abre la ventana real y recorre el flujo completo (agregar fotos,
 segmentar, analizar una foto y el lote, capas, inspector, deshacer, gráficos, exportar,
-guardar y abrir el proyecto); falla con cualquier error. `tests/test_architecture.py` revisa
+guardar y abrir el proyecto) y muestra la traza del primer error que aparezca. `tests/test_architecture.py` revisa
 las reglas de abajo.
 
 `tests/reference.py` compara las tablas de las fotos de `tests/images/` con las guardadas en
