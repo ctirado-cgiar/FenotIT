@@ -1,3 +1,4 @@
+"""Arranque de la interfaz: pantalla de carga y ventana principal."""
 import tkinter as tk
 from tkinter import messagebox
 

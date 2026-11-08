@@ -16,7 +16,7 @@ import numpy as np
 from fenotit.core.roi import polygon
 from fenotit.gui.style.theme import COLORS, FONTS
 
-INCLUDE, EXCLUDE, SELECTED = COLORS["area_include"], COLORS["warning"], COLORS["selection"]
+INCLUDE, EXCLUDE, SELECTED = COLORS["area_include"], COLORS["area_exclude"], COLORS["selection"]
 MODES = ("include_rect", "include_poly", "exclude_rect", "exclude_poly", "select")
 
 
