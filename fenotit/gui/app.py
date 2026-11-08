@@ -3,6 +3,7 @@ from tkinter import messagebox
 
 from fenotit import i18n, log
 from fenotit.gui.screens.splash import SplashScreen
+from fenotit.gui.style import ttk_styles
 
 _log = log.get("gui")
 
@@ -21,6 +22,7 @@ def main(project_path: str | None = None):
     root = tk.Tk()
     root.report_callback_exception = lambda *a: _report_error(root, *a)
     root.withdraw()
+    ttk_styles.apply(root)
 
     splash = SplashScreen(root)
     splash.show()

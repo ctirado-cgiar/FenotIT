@@ -6,7 +6,6 @@ import dataclasses
 import os
 import time
 import tkinter as tk
-from tkinter import ttk
 
 from fenotit import APP_NAME, log, settings
 from fenotit.core import batch
@@ -17,7 +16,8 @@ from fenotit.gui.canvas.areas import AreaEditor
 from fenotit.gui.canvas.zoom import ZoomController
 from fenotit.gui.charts.panels import IntraImageChartPanel
 from fenotit.gui.layout import LayoutMixin
-from fenotit.gui.style.theme import COLORS, FONTS
+from fenotit.gui.style import ttk_styles
+from fenotit.gui.style.theme import COLORS
 from fenotit.gui.window.analyze import AnalyzeMixin
 from fenotit.gui.window.areas import AreasMixin
 from fenotit.gui.window.bottom import BottomMixin
@@ -119,41 +119,4 @@ class MainWindow(ProjectMixin, DialogsMixin, CalibrationMixin, HistoryMixin, Ima
         h = min(int(sh * 0.88), 960)
         self.root.geometry(f"{w}x{h}+{(sw-w)//2}+{(sh-h)//2}")
         self.root.minsize(900, 600)
-        self._apply_styles()
-
-    def _apply_styles(self):
-        s = ttk.Style()
-        s.theme_use("clam")
-        s.configure("TFrame",      background=COLORS["bg"])
-        s.configure("TLabel",      background=COLORS["bg"],
-                    foreground=COLORS["text"], font=FONTS["body"])
-        s.configure("TButton",     background=COLORS["btn_bg"],
-                    foreground=COLORS["accent"], font=FONTS["body"],
-                    borderwidth=1, relief="flat", padding=(8, 3))
-        s.map("TButton",
-              background=[("active", COLORS["btn_hover"])],
-              foreground=[("active", COLORS["accent"])])
-        s.configure("TSeparator",  background=COLORS["border"])
-        for name in ("Horizontal.TProgressbar", "Thin.Horizontal.TProgressbar"):   # barras de avance azules
-            s.configure(name, background=COLORS["accent"], troughcolor=COLORS["bg_panel"],
-                        bordercolor=COLORS["border"], lightcolor=COLORS["accent"], darkcolor=COLORS["accent"])
-        s.configure("TScrollbar",  background=COLORS["bg_panel"],
-                    troughcolor=COLORS["bg"], borderwidth=0, arrowsize=12)
-        s.configure("TCombobox",
-                    fieldbackground=COLORS["bg_card"],
-                    background=COLORS["bg_card"],
-                    foreground=COLORS["text"],
-                    selectbackground=COLORS["accent_light"],
-                    selectforeground=COLORS["text"])
-        s.configure("Treeview",
-                    background=COLORS["bg_card"],
-                    fieldbackground=COLORS["bg_card"],
-                    foreground=COLORS["text"],
-                    font=FONTS["small"], rowheight=20)
-        s.configure("Treeview.Heading",
-                    background=COLORS["bg_panel"],
-                    foreground=COLORS["accent"],
-                    font=FONTS["small_bold"], relief="flat")
-        s.map("Treeview",
-              background=[("selected", COLORS["bg_table_sel"])],
-              foreground=[("selected", COLORS["text"])])
+        ttk_styles.apply(self.root)

@@ -21,7 +21,7 @@ class TopbarMixin:
     def _build_topbar(self):
         size = max(16, int(round(18 * self.root.winfo_fpixels("1i") / 96)))
         home = IconButton(self.topbar, "home", self._go_home, t("menu.home"), bg=COLORS["bg_topbar"],
-                          hover=COLORS["accent_hover"], active=COLORS["accent_darker"], size=size)
+                          hover=COLORS["topbar_hover"], active=COLORS["topbar_active"], size=size)
         home.pack(side=tk.LEFT, padx=(8, 0), pady=6)
         brand = []
         try:
@@ -33,7 +33,7 @@ class TopbarMixin:
         except Exception:
             _log.debug("ignorado", exc_info=True)
 
-        brand.append(tk.Label(self.topbar, text=APP_NAME, bg=COLORS["bg_topbar"], fg=COLORS["on_accent"],
+        brand.append(tk.Label(self.topbar, text=APP_NAME, bg=COLORS["bg_topbar"], fg=COLORS["text_topbar"],
                               font=FONTS["heading"], cursor="hand2"))
         brand[-1].pack(side=tk.LEFT, padx=(0, 8))
         for w in brand:                                    # como en la mayoría de apps: el logo lleva al inicio
@@ -154,8 +154,8 @@ class TopbarMixin:
         bar = tk.Frame(self.topbar, bg=COLORS["bg_topbar"])
         bar.pack(side=tk.RIGHT)
         size = max(16, int(round(18 * self.root.winfo_fpixels("1i") / 96)))
-        kw = dict(bg=COLORS["bg_topbar"], hover=COLORS["accent_hover"], active=COLORS["accent_darker"], size=size)
-        pct = tk.Label(bar, textvariable=self._zoom_pct_var, bg=COLORS["bg_topbar"], fg=COLORS["on_accent"],
+        kw = dict(bg=COLORS["bg_topbar"], hover=COLORS["topbar_hover"], active=COLORS["topbar_active"], size=size)
+        pct = tk.Label(bar, textvariable=self._zoom_pct_var, bg=COLORS["bg_topbar"], fg=COLORS["text_topbar"],
                        font=FONTS["small"], width=6, cursor="hand2")
         self._zoom_tools = {}
         for name, cmd, tip in (

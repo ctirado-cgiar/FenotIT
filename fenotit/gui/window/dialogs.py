@@ -30,8 +30,11 @@ class DialogsMixin:
             settings.set(key, v[key])
         settings.set("default_max_mpx", v["max_mpx"] or 0)
         self._set_working_res(v["max_mpx"])
+        restart = v["language"] != i18n.current() or v["theme"] != (settings.get("theme") or "classic")
+        settings.set("theme", v["theme"])
         if v["language"] != i18n.current():
             i18n.set_language(v["language"])
+        if restart:
             self._restart()
 
     def _set_working_res(self, value: float | None):
