@@ -1,3 +1,4 @@
+"""Registro de mensajes en un archivo de la carpeta de datos de la aplicación."""
 import logging
 import sys
 import threading

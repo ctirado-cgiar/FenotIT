@@ -50,7 +50,7 @@ no depende de otras mediciones.
 
 Un análisis de la lista es un **tipo de muestra** (hoy: objetos; después: raíces, conteo con IA).
 Cada uno es un módulo en `fenotit/core/analysis/` que arma su cadena y llama `register(...)`
-con su esquema de parámetros; ver `objects.py`. Se importa en `registry._load_modules()`.
+con su esquema de parámetros; ver `objects.py`. Se carga desde `ANALYSIS_MODULES` en `registry.py`.
 
 Esquema de parámetros del panel: `type` (`int`, `float`, `bool`, `section`), `default`, `min`, `max`,
 `step`, `group` (se muestra con ▸ bajo esa casilla), `requires`, `unit` (`area` → px² o mm²).
@@ -88,22 +88,32 @@ FenotIT/
 │   │   │                          threshold, examples, model, analyze, layers, viewer, bottom,
 │   │   │                          table, charts, inspector, areas, calibration, metadata,
 │   │   │                          export, history, dialogs, keys, topbar, tour, common
-│   │   ├── style/                 theme.py (colores y letras) · icons.py · decor.py
+│   │   ├── style/                 theme.py (lee el tema) · ttk_styles.py · icons.py · decor.py
 │   │   ├── widgets/               piezas reutilizables (ayuda «?», lista de fotos, inspector, menús…)
 │   │   ├── canvas/                sobre la foto: zoom.py · areas.py · tools.py (pincel, clics, regiones)
 │   │   ├── dialogs/               una ventana por archivo
 │   │   ├── screens/               start.py · splash.py · tour.py
 │   │   └── charts/                gráficos y colores 3D
-│   ├── assets/                    logo e íconos
+│   ├── assets/                    logo, íconos y themes/ (temas .toml)
 │   └── lang/                      en.json, es.json
 ├── docs/
 │   ├── methods/                   descripción de cada método (inglés)
-│   └── design/                    guía de diseño de la interfaz
+│   ├── design/                    guía de diseño de la interfaz y de los temas
+│   └── map/                       mapa de conexiones (index.html, se genera con make_map.py)
 └── tests/
     ├── images/                    fotos de prueba
     ├── reference/                 tablas de referencia de las fotos de prueba
-    └── reference.py, test_*.py
+    └── reference.py, test_*.py    (test_gui.py: la ventana completa; test_architecture.py: reglas)
 ```
+
+## La ventana principal
+
+`MainWindow` (`gui/main_window.py`) junta las partes de `gui/window/`: cada archivo es una
+clase `<Área>Mixin` con los métodos de un panel o una función. Cada parte crea su estado en
+`_init_<área>()` (llamado desde `MainWindow.__init__`) o al armar su panel, y es la única que
+lo cambia; las demás lo leen o llaman a un método de esa parte (p. ej. `_clear_result()` de
+`results.py`, `_set_step()` de `layers.py`). El mapa (`docs/map/index.html`) muestra, para
+cada parte, su estado y a qué métodos de otras partes llama.
 
 ## Exportación
 

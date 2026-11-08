@@ -123,22 +123,18 @@ def list_names() -> list[str]:
     return list(ANALYSES.keys())
 
 
-# ── Importar módulos — cada import auto-registra vía register() ───────────────
-# Para agregar uno nuevo: crear el archivo y agregar el import aquí.
+# ── Módulos de análisis: cada uno se registra con register() al importarse ─────
+# Orden = orden en el menú Análisis.
+ANALYSIS_MODULES = ("objects", "distances", "image_color")
+
 
 def _load_modules():
-    try:
-        from . import objects          # noqa: F401  cadena de piezas (etapa 4)
-    except Exception as e:
-        _log.error("objects no disponible: %s", e)
-    try:
-        from . import distances        # noqa: F401  distancias entre objetos vecinos
-    except Exception as e:
-        _log.error("distances no disponible: %s", e)
-    try:
-        from . import image_color      # noqa: F401  color de toda la foto, sin segmentar
-    except Exception as e:
-        _log.error("image_color no disponible: %s", e)
+    import importlib
+    for name in ANALYSIS_MODULES:
+        try:
+            importlib.import_module(f"{__package__}.{name}")
+        except Exception as e:
+            _log.error("%s no disponible: %s", name, e)
 
 
 _load_modules()

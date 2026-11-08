@@ -19,7 +19,6 @@ bg_topbar     = "#2166AC"   # barra superior
 topbar_hover  = "#3A7CC4"   # botón de la barra superior con el mouse encima
 topbar_active = "#0D3F75"   # herramienta activa en la barra superior
 topbar_pressed = "#1A5490"  # menú de la barra superior presionado
-bg_table      = "#FFFFFF"
 bg_table_sel  = "#D6E8F7"   # fila elegida
 bg_chart      = "#FAFAFA"   # área de dibujo de los gráficos
 bg_tooltip    = "#FFFFE6"   # texto al pasar el mouse
@@ -30,7 +29,6 @@ text          = "#1A1A1A"   # texto principal
 text_muted    = "#666666"   # texto secundario, rótulos
 text_faint    = "#999999"   # texto terciario: versión, separadores, notas
 text_topbar   = "#FFFFFF"   # texto sobre la barra superior
-text_accent   = "#2166AC"
 on_accent     = "#FFFFFF"   # texto e íconos sobre fondos de acento
 
 # Acento
@@ -44,15 +42,12 @@ topbar_divider = "#4A8FD4"  # separadores de la barra superior
 
 # Bordes y líneas
 border        = "#CCCCCC"
-border_focus  = "#2166AC"
 divider       = "#E3E8EE"   # líneas finas que separan secciones
 grid          = "#EEEEEE"   # cuadrícula de los gráficos
 
 # Botones
 btn_bg        = "#DDEEFF"
 btn_hover     = "#B8D4EE"
-btn_accent_bg = "#2166AC"
-btn_accent_fg = "#FFFFFF"
 
 # Estados
 warning       = "#E67E00"
@@ -62,7 +57,6 @@ success       = "#006837"
 
 # Deslizadores
 slider_trough = "#DDDDDD"
-slider_active = "#2166AC"
 
 # Marcas sobre la foto
 white          = "#FFFFFF"  # bordes de regiones, halos, puntos medios
@@ -107,8 +101,6 @@ logo          = "sans 15 bold"
 display       = "sans 22 bold"
 display_large = "sans 26 bold"
 display_xl    = "sans 28 bold"
-splash_title  = "sans 32 bold"
-splash_sub    = "sans 10"
 motto         = "serif 11 italic"
 motto_large   = "serif 12 italic"
 motto_xl      = "serif 14 italic"

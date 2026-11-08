@@ -1,1 +1,1 @@
-# ui/__init__.py
+"""Interfaz de escritorio (tkinter)."""

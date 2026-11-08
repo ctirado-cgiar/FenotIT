@@ -1,3 +1,4 @@
+"""Línea de comandos: sin argumentos abre la interfaz; con una ruta .fenotit abre ese proyecto."""
 import argparse
 
 from fenotit import __version__, log
