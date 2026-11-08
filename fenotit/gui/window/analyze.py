@@ -93,7 +93,7 @@ class AnalyzeMixin:
         if name != self._selected_analysis() or not getattr(self, "_analysis_chosen", False):
             self.analysis_var.set(_analysis_label(name))
             self._on_analysis_selected(None)
-        self._show_panel(self.right_panel, True)
+        self._show_panel(self._panel_of("steps"), True)
         self._select_right_tab("analysis")
 
     def _show_panel(self, panel, on: bool):

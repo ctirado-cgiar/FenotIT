@@ -17,7 +17,7 @@ _log = log.get("gui.window.images")
 class ImagesMixin:
     def _image_list_room(self) -> int:
         """Tope de la lista de imágenes: 45 % del espacio, y menos si CAPAS lo necesita."""
-        lf = self.left_panel.content
+        lf = self._panel_of("images").content
         room = lf.winfo_height() - self.image_list.winfo_y()
         return min(int(room * 0.45), room - self._layers_need())
 
@@ -56,9 +56,9 @@ class ImagesMixin:
         self.project.current_index = len(current)
         self._update_batch_list()
         first = not current
-        self._show_panel(self.left_panel, True)
+        self._show_panel(self._panel_of("images"), True)
         if first:                                  # paso 1 a la vista: segmentar
-            self._show_panel(self.right_panel, True)
+            self._show_panel(self._panel_of("steps"), True)
             self._select_right_tab("seg" if not getattr(self, "_analysis_chosen", False) else self._right_tab)
         self._update_start()
         self._load_single(new[0])
@@ -99,7 +99,7 @@ class ImagesMixin:
             self._invalidate_results()
             self._update_batch_list()
             self._show_no_image()
-            self._show_panel(self.left_panel, False)
+            self._show_panel(self._panel_of("images"), False)
 
     def _show_no_image(self):
         """Sin fotos: entrada y resultado vacíos y nada que ejecutar."""

@@ -139,7 +139,7 @@ class InspectorMixin:
         obj = next((x for x in tables.get("objects", []) if x.get("object_id") == oid), {})
         excluded, starred = oid in (r.extra.get("excluded") or []), oid in (r.extra.get("highlighted") or [])
         unit = self.project.unit
-        size = (max(140, min(260, self.left_panel.content.winfo_width() - 24)), 140)    # cabe en el panel
+        size = (max(140, min(260, self._panel_of("inspector").content.winfo_width() - 24)), 140)    # cabe en el panel
         upx = ins.per_unit(r.stats.get("mm_per_px") or None, unit)        # unidad por px de la foto
 
         def col(prefix):
@@ -239,7 +239,8 @@ class InspectorMixin:
                      (t("insp.status"), t(f"insp.status.{status}"))]
         self.inspector.show(oid, crop, rows, excluded, starred)
         if not self.inspector.winfo_ismapped():
-            self.inspector.pack(side=tk.BOTTOM, fill=tk.X, before=self._layers)
+            same = self._layers.master is self.inspector.master        # con CAPAS: debajo de ella
+            self.inspector.pack(side=tk.BOTTOM, fill=tk.X, **({"before": self._layers} if same else {}))
         self.root.update_idletasks()
         self.image_list.refit()
         self.root.after(30, self._keep_layers_visible)

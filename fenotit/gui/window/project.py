@@ -374,8 +374,8 @@ class ProjectMixin:
         self._corr_info.clear()
         self.canvas_right.delete("all")
         self._update_batch_list()
-        self._show_panel(self.left_panel, bool(project.images))
-        self._show_panel(self.right_panel, bool(project.images) and self._analysis_chosen)
+        self._show_panel(self._panel_of("images"), bool(project.images))
+        self._show_panel(self._panel_of("steps"), bool(project.images) and self._analysis_chosen)
         if project.current_image:
             self._load_single(str(project.current_image))
             self._sync_listbox()

@@ -24,7 +24,7 @@ class ExamplesMixin:
         st = getattr(self, "strokes", None)
         if st is None or not hasattr(self, "class_list"):
             return
-        seg_tab = self._right_tab == "seg" and self.right_panel.winfo_ismapped()
+        seg_tab = self._right_tab == "seg" and self._panel_of("steps").winfo_ismapped()
         on = self._seg_method == "classifier" and seg_tab and bool(self.current_image_path) \
             and self._analysis_segments() and not (self.areas and self.areas.mode)
         st.active = on

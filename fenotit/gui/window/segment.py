@@ -178,7 +178,7 @@ class SegmentMixin:
             return False
         if getattr(self, "_analysis_chosen", False):
             return True
-        return self._right_tab == "seg" and self.right_panel.winfo_ismapped()
+        return self._right_tab == "seg" and self._panel_of("steps").winfo_ismapped()
 
     def _build_seg_tab(self, rf):
         """MÉTODO (Umbral / Por ejemplos) → sus ajustes → AFINAR MÁSCARA → Analizar."""

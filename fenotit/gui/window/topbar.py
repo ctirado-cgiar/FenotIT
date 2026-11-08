@@ -98,7 +98,7 @@ class TopbarMixin:
         self._drop(self.topbar, t("menu.view"), [
             (t("view.panels"), [
                 (t("view.left_panel"), lambda: self._toggle_panel(self.left_panel)),
-                (t("view.analysis_panel"), lambda: self._toggle_panel(self.right_panel)),
+                (t("view.analysis_panel"), lambda: self._toggle_panel(self._panel_of("steps"))),
                 (t("view.results_panel"), self._toggle_results_panel, "Ctrl+T"),
             ]),
             (t("view.layout"), [
