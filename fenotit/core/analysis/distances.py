@@ -5,7 +5,6 @@ from __future__ import annotations
 import cv2
 import numpy as np
 
-from fenotit.core import pipeline
 from fenotit.core.analysis import objects     # módulo (no nombres): evita el import circular
 from fenotit.core.analysis.registry import AnalysisResult, register
 from fenotit.core.units import display, mean_sd

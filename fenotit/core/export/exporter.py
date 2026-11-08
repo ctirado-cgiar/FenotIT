@@ -137,7 +137,6 @@ def metadata(analysis: str, results: dict[str, Any], project=None, extra: dict |
         rows += [("processing_s_total", round(sum(secs), 2)),
                  ("processing_s_per_image_mean", round(sum(secs) / len(secs), 3))]
     if project is not None:
-        seg = project.segmentation
         corr = project.corrections
         rows += [("project", str(project.file or "")), ("length_unit", project.unit),
                  ("scale_all_images_mm_per_px", project.scale.mm_per_pixel or ""),

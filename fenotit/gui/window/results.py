@@ -1,6 +1,7 @@
 """Resultados de cada foto: mostrar, guardar en memoria y recalcular la vista de los del lote."""
 from __future__ import annotations
 
+import dataclasses
 import threading
 import tkinter as tk
 from pathlib import Path
@@ -22,6 +23,42 @@ _log = log.get("gui.window.results")
 
 
 class ResultsMixin:
+    def _init_results(self):
+        self.last_result: AnalysisResult | None = None
+        self.step_names: list[str] = []
+        self._results: dict[str, dict[str, AnalysisResult]] = {}   # análisis → foto → resultado
+        self._step_names: dict[str, dict[str, list]] = {}
+        self._full_paths: list[str] = []          # fotos con imágenes en memoria (las demás, solo datos)
+        self._rehydrating = None
+        self._rehydrate_job = None
+
+    @property
+    def results_cache(self) -> dict[str, AnalysisResult]:
+        """Resultados del análisis elegido (foto -> resultado)."""
+        return self._results.setdefault(getattr(self, "active_analysis", None) or "", {})
+
+    @property
+    def step_names_cache(self) -> dict[str, list]:
+        return self._step_names.setdefault(getattr(self, "active_analysis", None) or "", {})
+
+    def _clear_all_results(self, path: str | None = None):
+        for store in (self._results, self._step_names):
+            for per in store.values():
+                if path is None:
+                    per.clear()
+                else:
+                    per.pop(path, None)
+
+    def _clear_result(self):
+        """La foto actual queda sin resultado a la vista."""
+        self.last_result, self.step_names = None, []
+        self._set_step(0)
+
+    def _set_base_image(self, image):
+        """Foto sobre la que se dibujan las marcas del resultado a la vista."""
+        self.last_result = dataclasses.replace(self.last_result,
+                                               extra={**self.last_result.extra, "base_image": image})
+
     def _show_cached_result(self):
         """Al cambiar de análisis: el resultado que ya tenía esta foto con ese análisis."""
         path = getattr(self, "current_image_path", None)
@@ -30,7 +67,7 @@ class ResultsMixin:
         if path in self.results_cache:
             self._display_result(self.results_cache[path], self.step_names_cache.get(path, []))
         else:
-            self.last_result, self.step_names, self.step_idx = None, [], 0
+            self._clear_result()
             self._clear_selection()
             self._show_results_ui(False)
             self.canvas_right.delete("all")

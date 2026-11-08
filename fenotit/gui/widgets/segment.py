@@ -3,7 +3,7 @@ clases de la segmentación por ejemplos."""
 from __future__ import annotations
 
 import tkinter as tk
-from tkinter import colorchooser, ttk
+from tkinter import colorchooser
 from tkinter import font as tkfont
 from typing import Callable
 

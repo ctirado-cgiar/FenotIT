@@ -7,7 +7,6 @@ import os
 import subprocess
 import sys
 import tkinter as tk
-from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from fenotit import log

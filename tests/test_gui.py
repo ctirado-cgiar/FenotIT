@@ -35,7 +35,7 @@ os.environ["APPDATA"] = os.environ["LOCALAPPDATA"]
 sys.path.insert(0, str(ROOT))
 
 import tkinter as tk                                    # noqa: E402
-from tkinter import messagebox                          # noqa: E402
+from tkinter import filedialog, messagebox              # noqa: E402
 
 from fenotit import i18n, settings                      # noqa: E402
 
@@ -222,6 +222,17 @@ def main(with_sam=False):
         for need in ("image.csv", "objects.csv", "metadata.csv"):
             if need not in files:
                 ERRORS.append(f"exportar: falta {need}")
+
+    @flow.step("guardar y volver a abrir el proyecto",
+               wait=lambda: w.current_image_path is not None and w.scaler_left.original is not None)
+    def _():
+        filedialog.asksaveasfilename = lambda **_: str(out / "prueba.fenotit")
+        w._save_project_as()
+        saved = w.project.file
+        if not saved or not Path(saved).exists():
+            ERRORS.append("guardar: no se creó el proyecto")
+            return
+        w.open_project_path(str(saved))
 
     @flow.step("ventanas y diálogos")
     def _():

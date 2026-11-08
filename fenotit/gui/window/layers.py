@@ -1,7 +1,6 @@
 """Lista CAPAS: capas de cada análisis, cambiar de capa y leyenda de la capa."""
 from __future__ import annotations
 
-import dataclasses
 import tkinter as tk
 from pathlib import Path
 
@@ -13,6 +12,10 @@ from fenotit.gui.window.common import _on_base, _analysis_label
 
 
 class LayersMixin:
+    def _set_step(self, idx: int):
+        """Capa a la vista (posición en step_names)."""
+        self.step_idx = idx
+
     def _layers_need(self) -> int:
         """Alto que piden CAPAS (título + filas) y el inspector, si está abierto."""
         rows = self.history_frame.winfo_reqheight() if self.history_frame.winfo_children() else 0
@@ -154,7 +157,7 @@ class LayersMixin:
     def _jump_to_step(self, idx: int):
         if not self.last_result or idx >= len(self.step_names):
             return
-        self.step_idx = idx
+        self._set_step(idx)
         name = self.step_names[idx]
         img = self.last_result.step_images.get(name)
         if img is None:                    # resultado del lote: datos listos, imágenes en camino
@@ -162,8 +165,7 @@ class LayersMixin:
                 # las marcas (contornos, puntos, números) ya vienen en los datos: se dibujan al
                 # instante sobre la entrada; las demás vistas se preparan después, en segundo plano
                 if self.last_result.extra.get("base_image") is None:
-                    self.last_result = dataclasses.replace(
-                        self.last_result, extra={**self.last_result.extra, "base_image": self.scaler_left.original})
+                    self._set_base_image(self.scaler_left.original)
                 self._show_step_img(name, self.scaler_left.original)
             self._schedule_rehydrate(600 if _on_base(self.last_result, name) else 30)
         else:
