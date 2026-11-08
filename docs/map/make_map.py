@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[2]
 PKG = ROOT / "fenotit"
 OUT = Path(__file__).with_name("index.html")
 TEMPLATE = Path(__file__).with_name("template.html")
-REPO = "https://github.com/ctirado-cgiar/fenotit/blob/main/"
+REPO = "https://github.com/ctirado-cgiar/FenotIT/blob/main/"
 WINDOW = ("fenotit.gui.window.", "fenotit.gui.layout", "fenotit.gui.main_window")
 
 
