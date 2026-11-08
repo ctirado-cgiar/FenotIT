@@ -32,7 +32,7 @@ class TourMixin:
         settings.set("tour_work_seen", True)
         menus = getattr(self, "_menus", {})
         has_photo = lambda: bool(self.current_image_path)
-        panel_on = lambda: self.right_panel.winfo_ismapped() and getattr(self, "_analysis_chosen", False)
+        panel_on = lambda: self._panel_of("steps").winfo_ismapped() and getattr(self, "_analysis_chosen", False)
         results = lambda: bool(self.last_result)
         steps = [
             Step(t("tour.welcome.title"), t("tour.welcome.text"), key="welcome"),
@@ -40,10 +40,10 @@ class TourMixin:
             Step(t("tour.image.title"), t("tour.image.text"), lambda: self.canvas_left, has_photo, key="image"),
             Step(t("tour.areas.title"), t("tour.areas.text"), lambda: menus.get(t("menu.areas")), key="areas"),
             Step(t("tour.segment.title"), t("tour.segment.text"), lambda: self._rtab_body, has_photo,
-                 before=lambda: (self._show_panel(self.right_panel, True), self._select_right_tab("seg")),
+                 before=lambda: (self._show_panel(self._panel_of("steps"), True), self._select_right_tab("seg")),
                  key="segment"),
             Step(t("tour.analysis.title"), t("tour.analysis.text"), lambda: self._analysis_cards, has_photo,
-                 before=lambda: (self._show_panel(self.right_panel, True), self._select_right_tab("analysis")),
+                 before=lambda: (self._show_panel(self._panel_of("steps"), True), self._select_right_tab("analysis")),
                  key="analysis"),
             Step(t("tour.params.title"), t("tour.params.text"), lambda: self.config_container, panel_on,
                  before=lambda: self._select_right_tab("analysis"), key="params"),
@@ -62,7 +62,7 @@ class TourMixin:
             at = "layers"
         elif panel_on():
             at = "params"
-        elif self.right_panel.winfo_ismapped():
+        elif self._panel_of("steps").winfo_ismapped():
             at = "segment" if self._right_tab == "seg" else "analysis"
         else:
             at = "areas"

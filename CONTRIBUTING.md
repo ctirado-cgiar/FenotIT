@@ -35,6 +35,8 @@ es un archivo:
 | Distorsión del lente | `core/corrections/distortion.py` | `tests/test_distortion.py` |
 | Perspectiva (ArUco) | `core/corrections/aruco.py` | `tests/test_corrections.py` |
 | Aspecto de la interfaz | `gui/style/theme.py`, `gui/style/icons.py` | ver `docs/design/README.md` |
+| Mover una sección a otro panel | `gui/layout.py` (`PANELS`) | abrir la app y revisar |
+| Una parte de la ventana | `gui/window/<área>.py` (p. ej. `table.py`, `inspector.py`) | abrir la app y revisar |
 | Textos de la interfaz | `fenotit/lang/es.json`, `en.json` | `tests/test_i18n.py` |
 
 Para agregar un método nuevo (otra segmentación, otra medición), basta un archivo nuevo en

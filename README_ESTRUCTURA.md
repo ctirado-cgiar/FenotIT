@@ -81,7 +81,19 @@ FenotIT/
 │   │   ├── stats/                 análisis posterior (tablas, sin imágenes)
 │   │   ├── export/                CSV, Excel y metadatos
 │   │   └── project.py, batch.py, image_io.py, efd.py, units.py, uncertainty.py …
-│   ├── gui/                       interfaz (tkinter); aspecto en gui/style/theme.py y gui/style/icons.py
+│   ├── gui/                       interfaz (tkinter)
+│   │   ├── main_window.py         arma la ventana con las partes de window/
+│   │   ├── layout.py              qué sección va en cada panel lateral (PANELS)
+│   │   ├── window/                la ventana por áreas: project, images, run, results, segment,
+│   │   │                          threshold, examples, model, analyze, layers, viewer, bottom,
+│   │   │                          table, charts, inspector, areas, calibration, metadata,
+│   │   │                          export, history, dialogs, keys, topbar, tour, common
+│   │   ├── style/                 theme.py (colores y letras) · icons.py · decor.py
+│   │   ├── widgets/               piezas reutilizables (ayuda «?», lista de fotos, inspector, menús…)
+│   │   ├── canvas/                sobre la foto: zoom.py · areas.py · tools.py (pincel, clics, regiones)
+│   │   ├── dialogs/               una ventana por archivo
+│   │   ├── screens/               start.py · splash.py · tour.py
+│   │   └── charts/                gráficos y colores 3D
 │   ├── assets/                    logo e íconos
 │   └── lang/                      en.json, es.json
 ├── docs/

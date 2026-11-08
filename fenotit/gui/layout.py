@@ -1,5 +1,15 @@
-"""Distribución de la ventana: paneles izquierdo, central y derecho, sus anchos y el
-cambio de tamaño de la ventana."""
+"""Distribución de la ventana: barra superior, paneles izquierdo, central y derecho,
+barra de estado, anchos de los paneles y cambio de tamaño de la ventana.
+
+PANELS dice qué secciones van en cada panel lateral, de arriba hacia abajo. Para mover
+una sección a otro panel, se cambia de lista; cada sección se arma en el panel que le
+toque con su función `_build_<sección>`.
+
+  images     lista de fotos
+  layers     lista CAPAS
+  inspector  objeto elegido
+  steps      pestañas «1 Segmentar» y «2 Analizar»
+"""
 from __future__ import annotations
 
 import tkinter as tk
@@ -14,7 +24,25 @@ from fenotit.gui.widgets.toolbar import Tooltip
 from fenotit.i18n import t
 
 
+PANELS = {
+    "left": ("images", "layers", "inspector"),
+    "right": ("steps",),
+}
+
+
 class LayoutMixin:
+    def _build_panels(self):
+        """Arma cada sección de PANELS dentro de su panel lateral."""
+        for side, sections in PANELS.items():
+            parent = getattr(self, f"{side}_panel").content
+            for name in sections:
+                getattr(self, f"_build_{name}")(parent)
+
+    def _panel_of(self, section: str) -> CollapsiblePanel:
+        """El panel lateral donde está la sección."""
+        side = next(s for s, names in PANELS.items() if section in names)
+        return getattr(self, f"{side}_panel")
+
     def _build_layout(self):
         self.topbar = tk.Frame(self.root, bg=COLORS["bg_topbar"], height=40)
         self.topbar.pack(fill=tk.X, side=tk.TOP)
@@ -91,10 +119,8 @@ class LayoutMixin:
                                       font=FONTS["small"], anchor="w", padx=10)
         self._status_label.pack(fill=tk.X)
 
-    def _build_left_panel(self):
-        lf = self.left_panel.content
-
-        # Imágenes: lista (agregar suma), contador y navegación
+    def _build_images(self, lf):
+        """Lista de fotos con su botón para agregar y el contador."""
         self._section_lbl(lf, t("left.images"))
         nav = tk.Frame(lf, bg=COLORS["bg_panel"])
         nav.pack(fill=tk.X, padx=8, pady=2)
@@ -116,7 +142,8 @@ class LayoutMixin:
         self.image_list.min_rows = lambda: 1 if self.inspector.winfo_ismapped() else 2   # con el inspector, cede más
         self.image_list.search_text = lambda p: " ".join(str(v) for v in self._meta_row(p).values())
 
-        # Capas del resultado de la imagen actual (con barra solo si no caben)
+    def _build_layers(self, lf):
+        """Lista CAPAS: las capas de los análisis de la foto actual (con barra si no caben)."""
         views = self._layers = tk.Frame(lf, bg=COLORS["bg_panel"])
         views.pack(fill=tk.BOTH, expand=True)
         self._layers_title = self._section_lbl(views, t("left.history"))
@@ -135,16 +162,16 @@ class LayoutMixin:
             cv.bind_all(ev, lambda e, d=d: self._layers_wheel(e, d), add="+")
         cv.bind_all("<MouseWheel>", lambda e: self._layers_wheel(e, -1 if e.delta > 0 else 1), add="+")
 
-        # Inspector del objeto elegido (abajo; aparece al elegir un objeto)
+    def _build_inspector(self, lf):
+        """Inspector del objeto elegido; aparece al elegir un objeto."""
         from fenotit.gui.widgets.inspector import Inspector
         self.inspector = Inspector(lf, self._clear_selection, self._toggle_exclude, self._toggle_highlight)
         self._sel: int | None = None
         self._sel_point = None
 
-    def _build_right_panel(self):
+    def _build_steps(self, rf):
         """Dos pasos en pestañas: 1 Segmentar (método, ajustes, afinar máscara) y
         2 Analizar (tipo de análisis y sus mediciones)."""
-        rf = self.right_panel.content
         bg = COLORS["bg_panel"]
         tabs = tk.Frame(rf, bg=bg)
         tabs.pack(fill=tk.X, padx=(26, 6), pady=(4, 0))          # deja sitio al ícono del panel

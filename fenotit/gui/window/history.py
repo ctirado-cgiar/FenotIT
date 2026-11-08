@@ -114,7 +114,7 @@ class HistoryMixin:
         if images_changed:                            # foto quitada que vuelve (sin resultados)
             self._update_batch_list()
             self._update_start()
-            self._show_panel(self.left_panel, True)
+            self._show_panel(self._panel_of("images"), True)
         if changed & {"scale", "unit", "image_scale"}:
             self._update_corr_indicator()
             self._sync_area_units()

@@ -84,9 +84,8 @@ class MainWindow(ProjectMixin, DialogsMixin, CalibrationMixin, HistoryMixin, Ima
 
         self._build_layout()
         self._build_topbar()
-        self._build_left_panel()
         self._build_center_panel()
-        self._build_right_panel()
+        self._build_panels()
         self._bind_resize()
         self._bind_shortcuts()
         self._populate_analysis_menu()
