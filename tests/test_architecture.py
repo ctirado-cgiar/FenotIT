@@ -1,11 +1,11 @@
-"""Reglas de la estructura del código. Cada prueba dice qué regla se rompió y dónde.
+"""Reglas de la estructura del código; cada prueba lista los módulos y líneas que no las cumplen.
 
 - El núcleo (fenotit/core) no importa la interfaz.
 - Cada variable de la ventana principal se crea y se cambia en un solo archivo.
 - Dos partes de la ventana no definen un método con el mismo nombre.
 - Colores, letras y tamaños de la interfaz salen del tema, y el tema no tiene valores sin uso.
 - Cada archivo empieza con una línea que dice qué hace, y no hay imports sin uso.
-- El mapa de conexiones (docs/map/index.html) está al día.
+- El grafo de dependencias (docs/map/index.html) coincide con el código.
 """
 import ast
 import re
@@ -40,7 +40,7 @@ def test_core_does_not_import_gui():
                 [node.module or ""] if isinstance(node, ast.ImportFrom) else []
             bad += [f"{_rel(p)}:{node.lineno} importa {n}" for n in names
                     if n.startswith(("fenotit.gui", "tkinter"))]
-    assert not bad, "El núcleo no debe importar la interfaz:\n" + "\n".join(bad)
+    assert not bad, "Módulos de fenotit/core que importan la interfaz:\n" + "\n".join(bad)
 
 
 def _window_methods() -> dict[str, list[str]]:
@@ -65,15 +65,15 @@ def test_window_state_has_one_owner():
                     and getattr(node.args[0], "id", "") == "self" and isinstance(node.args[1], ast.Constant):
                 writers[node.args[1].value].add(_rel(p))
     shared = {a: sorted(w) for a, w in writers.items() if len(w) > 1 and a not in methods}
-    assert not shared, ("Cada variable de la ventana se crea y se cambia en un solo archivo; las demás partes "
-                        "llaman a un método de ese archivo:\n"
-                        + "\n".join(f"self.{a}: {', '.join(w)}" for a, w in sorted(shared.items())))
+    assert not shared, ("Variables de la ventana que se cambian en más de un archivo (dejar el cambio en uno "
+                        "y llamar a un método suyo desde los demás):\n"
+                        + "\n".join(f"self.{a} se cambia en {', '.join(w)}" for a, w in sorted(shared.items())))
 
 
 def test_window_methods_are_unique():
     dup = {m: sorted(set(f)) for m, f in _window_methods().items() if len(set(f)) > 1}
-    assert not dup, ("Dos partes de la ventana definen el mismo método (solo se usaría uno):\n"
-                     + "\n".join(f"{m}: {', '.join(f)}" for m, f in sorted(dup.items())))
+    assert not dup, ("Métodos definidos en más de un mixin de la ventana; MainWindow usa solo el primero:\n"
+                     + "\n".join(f"{m} en {', '.join(f)}" for m, f in sorted(dup.items())))
 
 
 def _theme() -> dict:
@@ -98,7 +98,7 @@ def test_gui_uses_only_theme_values():
                     and node.value.id in tables and isinstance(node.slice, ast.Constant):
                 if node.slice.value not in tables[node.value.id]:
                     bad.append(f"{_rel(p)}:{node.lineno} {node.value.id}[{node.slice.value!r}] no está en el tema")
-    assert not bad, "Colores, letras y tamaños solo desde el tema (fenotit/assets/themes/classic.toml):\n" + "\n".join(bad)
+    assert not bad, "Colores, letras o tamaños fuera del tema (fenotit/assets/themes/classic.toml):\n" + "\n".join(bad)
 
 
 def test_theme_has_no_unused_values():
@@ -106,12 +106,12 @@ def test_theme_has_no_unused_values():
     code = "\n".join(p.read_text(encoding="utf-8") for p in _py(GUI))
     unused = [f"[{sec}] {k}" for sec in ("colors", "fonts", "sizes") for k in theme[sec]
               if f'"{k}"' not in code and f"'{k}'" not in code]
-    assert not unused, "Valores del tema que nadie usa (quitarlos de classic.toml):\n" + "\n".join(unused)
+    assert not unused, "Valores de classic.toml que ningún módulo usa:\n" + "\n".join(unused)
 
 
 def test_every_file_says_what_it_does():
     missing = [_rel(p) for p in _py(PKG) if not ast.get_docstring(_tree(p))]
-    assert not missing, "Archivos sin una primera línea que diga qué hacen:\n" + "\n".join(missing)
+    assert not missing, "Módulos sin docstring:\n" + "\n".join(missing)
 
 
 def test_no_unused_imports():
@@ -131,7 +131,7 @@ def test_no_unused_imports():
         used |= {m for m in re.findall(r"[A-Za-z_][A-Za-z0-9_]*", " ".join(
             n.value for n in ast.walk(tree) if isinstance(n, ast.Constant) and isinstance(n.value, str)))}
         bad += [f"{_rel(p)}:{line} {name}" for name, line in imported.items() if name not in used]
-    assert not bad, "Imports sin uso:\n" + "\n".join(bad)
+    assert not bad, "Imports que el módulo no usa:\n" + "\n".join(bad)
 
 
 def test_map_is_up_to_date():
@@ -140,7 +140,7 @@ def test_map_is_up_to_date():
     import make_map
     page = (ROOT / "docs" / "map" / "index.html").read_text(encoding="utf-8")
     expected = json.dumps(make_map.build(), ensure_ascii=False)
-    assert expected in page, "El mapa de conexiones cambió: correr  python docs/map/make_map.py"
+    assert expected in page, "docs/map/index.html no coincide con el código; regenerarlo con  python docs/map/make_map.py"
 
 
 if __name__ == "__main__":
@@ -152,5 +152,5 @@ if __name__ == "__main__":
                 print("ok ", name)
             except AssertionError as e:
                 failed += 1
-                print("FALLA", name, "\n" + str(e) + "\n")
+                print("ERROR", name, "\n" + str(e) + "\n")
     sys.exit(1 if failed else 0)

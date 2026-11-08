@@ -1,9 +1,9 @@
-"""Mapa de conexiones del código: docs/map/index.html.
+"""Grafo de dependencias del código: docs/map/index.html.
 
-Lee los archivos de fenotit/ (sin importarlos) y arma una página navegable con cada carpeta,
-cada archivo, lo que define, lo que importa y quién lo usa. En las partes de la ventana
-(fenotit/gui/window/) muestra además qué estado crea cada parte y qué métodos de otras
-partes llama.
+Lee los módulos de fenotit/ con ast (sin importarlos) y arma una página navegable con cada
+paquete, cada módulo, sus clases y funciones, lo que importa y quién lo importa. En los
+mixins de la ventana (fenotit/gui/window/) agrega el estado propio de cada uno y los métodos
+de otros mixins que llama.
 
 Uso:  python docs/map/make_map.py
 """
