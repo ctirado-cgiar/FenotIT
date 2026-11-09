@@ -106,7 +106,8 @@ def _summary(stats: dict, limit: int = 6, aliases: dict | None = None) -> str:
     aliases = aliases or {}
     hidden = {k for k in aliases if k.startswith("\0")}          # fondo de la segmentación por ejemplos
     items = [(k, v) for k, v in stats.items() if v not in (None, "") and k not in _SUMMARY_SKIP
-             and not k.endswith("_per_px") and not any(k.startswith(h[1:] + "_") for h in hidden)]
+             and not k.endswith("_per_px") and not any(k.startswith(h[1:] + "_") for h in hidden)
+             and not (v == 0 and k.startswith("n_") and k[2:] in aliases)]     # clases sin objetos
     from fenotit.gui.widgets.labels import column
     text = ", ".join(f"{column(k, aliases)}: {_cell(v)}" for k, v in items[:limit])
     return text + (", …" if len(items) > limit else "")

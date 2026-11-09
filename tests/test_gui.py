@@ -295,6 +295,22 @@ def main(with_sam=False):
         w._results.get(objects, {}).pop(w.current_image_path, None)
         w._run_analysis(False)
 
+    @flow.step("ficha del detector (descripción, licencia y clases)")
+    def _():
+        dlg = w._open_model_info(w._model_id)              # ya abierta al agregarlo: la trae al frente
+        root.update()
+        for key, value in (("description", "Semillas y vainas de frijol"), ("owner", "Alliance"),
+                           ("license", "CC BY 4.0"), ("classes", "semilla\nvaina")):
+            dlg._widgets[key].delete("1.0", "end")
+            dlg._widgets[key].insert("1.0", value)
+        dlg._save()
+        m = w._model()
+        if w._det_names != ["semilla", "vaina"] or m["license"] != "CC BY 4.0" or m["owner"] != "Alliance":
+            ERRORS.append(f"ficha del modelo: {m}")
+        w._open_model_info("mobilesam")                     # de la aplicación: solo lectura
+        root.update()
+        _close_windows(root)
+
     @flow.step("volver a MobileSAM")
     def _():
         w._choose_model("mobilesam")

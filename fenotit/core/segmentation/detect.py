@@ -51,14 +51,17 @@ def _dim(v, default: int) -> int:
 
 
 def inspect(path: str) -> dict:
-    """Formato, tamaño de entrada, número de clases y nombres (si el archivo los trae).
+    """Formato, tamaño de entrada, número de clases, nombres y ficha (descripción, autor,
+    licencia, documentación) si el archivo los trae.
     ValueError("format") si las salidas no corresponden a un formato conocido."""
     sess = session(path)
     shape = sess.get_inputs()[0].shape
     size = (_dim(shape[2], 0) or _dim(shape[3], 0)) if len(shape) == 4 else 0
     names = _meta_names(sess)
     outs = [o.shape for o in sess.get_outputs()]
-    info = {"input": int(size or 640), "classes": names}
+    found = sess.get_modelmeta().custom_metadata_map
+    info = {"input": int(size or 640), "classes": names,
+            "meta": {k: found[k] for k in ("description", "author", "license", "docs", "version", "date") if k in found}}
     if len(outs) == 1 and len(outs[0]) == 3:
         a, b = _dim(outs[0][1], 0), _dim(outs[0][2], 0)
         layout = _yolo_layout(a, b, len(names))

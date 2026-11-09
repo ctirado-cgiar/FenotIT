@@ -38,9 +38,11 @@ class ModelMixin:
         HelpIcon(head, t("model.title"), t("model.help"), bg=bg).pack(side=tk.LEFT, padx=(SPACE["sm"], 0))
         self._model_rows = tk.Frame(outer, bg=bg)
         self._model_rows.pack(fill=tk.X, pady=(SPACE["xs"], 0))
-        add = tk.Label(outer, text="+ " + t("model.add"), bg=bg, fg=COLORS["accent"], font=small, cursor="hand2")
+        add = tk.Label(outer, text="+ " + t("model.add"), bg=bg, fg=COLORS["accent"], font=small, cursor="hand2",
+                       disabledforeground=COLORS["text_faint"])
         add.pack(anchor="w", pady=(SPACE["xs"], SPACE["md"]))
-        add.bind("<Button-1>", lambda e: self._add_model())
+        add.bind("<Button-1>", lambda e: str(add.cget("state")) != "disabled" and self._add_model())
+        self._model_add_link = add
         self._thumbs = {}
         box = self._sam_box = tk.Frame(outer, bg=bg)
         self._det_box = tk.Frame(outer, bg=bg)
@@ -128,7 +130,6 @@ class ModelMixin:
             tk.Label(self._model_rows, text=t("model.none"), bg=COLORS["bg_panel"], fg=COLORS["text_muted"],
                      font=small, justify="left", wraplength=240, anchor="w").pack(fill=tk.X)
         from fenotit.core.segmentation import models
-        user = models.user_root()
         for m in self._models:
             on = m["id"] == self._model_id
             bg = COLORS["accent_light"] if on else COLORS["bg_card"]
@@ -145,8 +146,18 @@ class ModelMixin:
             sub = tk.Label(text, text=desc, bg=bg, fg=COLORS["text_muted"], font=small, anchor="w", justify="left",
                            wraplength=150)
             sub.pack(fill=tk.X)
+            missing = models.missing_info(m)
+            card = tk.Label(text, text=t("model.card_missing") if missing else t("model.card"), bg=bg,
+                            fg=COLORS["warning_text"] if missing else COLORS["accent"], font=small, anchor="w",
+                            cursor="hand2")
+            card.pack(fill=tk.X)
+            card.bind("<Button-1>", lambda e, i=m["id"]: self._open_model_info(i))
+            if m.get("description"):
+                from fenotit.gui.widgets.toolbar import Tooltip
+                for w in (pic, name, sub):
+                    Tooltip(w, m["description"])
             widgets = (row, pic, text, name, sub)
-            if str(user) in m["dir"]:
+            if models.is_user(m):
                 x = tk.Label(row, text="✕", bg=bg, fg=COLORS["text_muted"], font=small, cursor="hand2",
                              padx=SPACE["sm"])
                 x.pack(side=tk.RIGHT, anchor="n", pady=SPACE["xs"])
@@ -186,6 +197,24 @@ class ModelMixin:
                                           filetypes=[(t("model.filetype"), "*.onnx *.pt *.pth"), ("*", "*")])
         if not path:
             return
+        from fenotit.core.segmentation import convert
+        if path.lower().endswith((".pt", ".pth")):
+            if not convert.tools():
+                messagebox.showwarning(t("model.add_title"), t("model.err_pt"), parent=self.root)
+                return
+            self.sam_status.set(t("model.converting"))
+            self._model_add_link.config(state=tk.DISABLED)
+
+            def work():
+                try:
+                    m = models.add(path)
+                    self.root.after(0, lambda: self._on_model_added(m))
+                except Exception as e:
+                    _log.exception("Convertir modelo")
+                    msg = t("model.err_format") if str(e) == "format" else t("model.err_convert", error=str(e))
+                    self.root.after(0, lambda: self._on_model_failed(msg))
+            threading.Thread(target=work, daemon=True).start()
+            return
         try:
             m = models.add(path)
         except ValueError as e:
@@ -196,10 +225,46 @@ class ModelMixin:
             _log.exception("Agregar modelo")
             messagebox.showerror(t("model.add_title"), t("model.err_read", error=str(e)), parent=self.root)
             return
+        self._on_model_added(m)
+
+    def _on_model_failed(self, msg: str):
+        from tkinter import messagebox
+        self._model_add_link.config(state=tk.NORMAL)
+        self.sam_status.set("")
+        messagebox.showerror(t("model.add_title"), msg, parent=self.root)
+
+    def _on_model_added(self, m: dict):
+        from fenotit.core.segmentation import models
+        self._model_add_link.config(state=tk.NORMAL)
+        self.sam_status.set("")
         self._models = models.available()
         self._choose_model(m["id"])
         if self._seg_method != "model":
             self._set_seg_method("model")
+        self._open_model_info(m["id"])                    # ficha: para qué sirve, propietario, licencia
+
+    def _open_model_info(self, model_id: str):
+        """Ficha del modelo: editable si lo agregó el usuario; los de la aplicación, solo lectura."""
+        from fenotit.core.segmentation import models
+        from fenotit.gui.dialogs.model_info import ModelInfoDialog
+        m = next((x for x in self._models if x["id"] == model_id), None)
+        if m is None:
+            return None
+
+        def save(values):
+            try:
+                new = models.update(model_id, **values)
+            except (OSError, ValueError) as e:
+                return str(e)
+            self._models = models.available()
+            if model_id == self._model_id and new["output"] == "boxes":
+                use = [i for i, v in enumerate(self._det_use) if v.get()]
+                self._set_classes(new["classes"], use)
+                self._det_cache = None
+                self._on_detector_change()
+            self._render_models()
+            return None
+        return self._single("model_info", lambda: ModelInfoDialog(self.root, m, save if models.is_user(m) else None))
 
     def _remove_model(self, model_id: str):
         from tkinter import messagebox
@@ -235,6 +300,10 @@ class ModelMixin:
         chead.pack(fill=tk.X)
         tk.Label(chead, text=t("det.classes"), bg=bg, fg=COLORS["text_muted"], font=small).pack(side=tk.LEFT)
         HelpIcon(chead, t("det.classes"), t("det.classes_help"), bg=bg).pack(side=tk.LEFT, padx=(SPACE["sm"], 0))
+        for key, on in (("sam.none", False), ("sam.all", True)):
+            lb = tk.Label(chead, text=t(key), bg=bg, fg=COLORS["accent"], font=small, cursor="hand2")
+            lb.pack(side=tk.RIGHT, padx=(SPACE["md"], 0))
+            lb.bind("<Button-1>", lambda e, v=on: self._use_all_classes(v))
         self._det_classes = tk.Frame(box, bg=bg)
         self._det_classes.pack(fill=tk.X, pady=(SPACE["xs"], SPACE["md"]))
         self._det_use: list[tk.BooleanVar] = []
@@ -267,6 +336,11 @@ class ModelMixin:
                            activebackground=bg, font=small, padx=0,
                            command=self._on_detector_change).pack(side=tk.LEFT)
             self._det_use.append(var)
+
+    def _use_all_classes(self, on: bool):
+        for v in self._det_use:
+            v.set(on)
+        self._on_detector_change()
 
     @staticmethod
     def _class_color(i: int) -> str:

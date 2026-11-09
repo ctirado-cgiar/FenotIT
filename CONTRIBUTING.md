@@ -58,7 +58,7 @@ es un archivo:
 | Una parte de la ventana | `gui/window/<nombre>.py` con `class <Nombre>Mixin` | Agregarla a `MainWindow` (`gui/main_window.py`); si crea estado, un `_init_<nombre>()` llamado desde `MainWindow.__init__` |
 | Una sección de un panel lateral | `_build_<sección>(parent)` en `gui/layout.py` | Su nombre en `PANELS` |
 | Un diálogo | `gui/dialogs/<nombre>.py` | Abrirlo desde la parte de la ventana que corresponda |
-| Un modelo de IA | Una carpeta en `models/` con el `.onnx` y su `model.yaml` (ver `core/segmentation/models.py`) | Nada: aparece en Segmentar, Modelo (IA). Los detectores también se agregan desde la ventana con «Agregar modelo» |
+| Un modelo de IA | Una carpeta en `models/` con el `.onnx` y su `model.yaml` con la ficha (para qué sirve, propietario, licencia, fuente, cita; ver `core/segmentation/models.py`) | Nada: aparece en Segmentar, Modelo (IA). Los detectores también se agregan desde la ventana con «Agregar modelo» (.onnx o .pt, que se convierte con `core/segmentation/convert.py`) |
 | Un tema | `fenotit/assets/themes/<nombre>.toml` | Nada: aparece en Preferencias |
 | Un texto | La clave en `fenotit/lang/es.json` y `en.json` | `t("clave")` en el código |
 
