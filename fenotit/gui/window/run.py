@@ -16,6 +16,7 @@ from fenotit.core.analysis.registry import ANALYSES, AnalysisResult
 from fenotit.core.image_io import load_image
 from fenotit.gui.window.common import CV2_CODES, _analysis_label, _duration
 from fenotit.i18n import t
+from fenotit.gui.style.theme import SPACE
 
 
 _log = log.get("gui.window.run")
@@ -288,13 +289,13 @@ class RunMixin:
         key = "status.batch_cancelled" if cancelled else "status.batch_done"
         msg = t(key, name=_analysis_label(name), ok=ok, n=total)
         if n_skipped:
-            msg += "  ·  " + t("status.skipped", n=n_skipped)
+            msg += ". " + t("status.skipped", n=n_skipped)
         if failed:
-            msg += "  ·  " + t("status.failed", n=failed)
+            msg += ". " + t("status.failed", n=failed)
         elapsed = time.perf_counter() - getattr(self, "_batch_t0", time.perf_counter())
         done = ok + failed
         if done:
-            msg += "  ·  " + t("status.batch_time", total=_duration(elapsed), per=_duration(elapsed / done))
+            msg += ". " + t("status.batch_time", total=_duration(elapsed), per=_duration(elapsed / done))
         self._set_status(msg)
         if n_skipped and not cancelled:
             messagebox.showwarning(t("corr.skip_title"), t("corr.skip_summary", n=n_skipped), parent=self.root)
@@ -313,8 +314,8 @@ class RunMixin:
             return
         self._progress_bar.config(maximum=max(n, 1), value=i)
         if not self._progress_bar.winfo_ismapped():
-            self._cancel_link.pack(side=tk.RIGHT, padx=(0, 6), before=self._status_label)
-            self._progress_bar.pack(side=tk.RIGHT, padx=(8, 2), before=self._status_label)
+            self._cancel_link.pack(side=tk.RIGHT, padx=(0, SPACE["md"]), before=self._status_label)
+            self._progress_bar.pack(side=tk.RIGHT, padx=(SPACE["md"], SPACE["xs"]), before=self._status_label)
 
     def _set_status(self, msg: str):
         self.status_var.set(msg)

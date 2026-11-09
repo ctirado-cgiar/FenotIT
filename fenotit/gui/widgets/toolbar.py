@@ -6,7 +6,7 @@ import tkinter as tk
 from PIL import ImageTk
 
 from fenotit.gui.style.icons import icon
-from fenotit.gui.style.theme import COLORS, FONTS
+from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 
 
 class Tooltip:
@@ -30,7 +30,7 @@ class Tooltip:
         self._tip = tw = tk.Toplevel(self.widget)
         tw.wm_overrideredirect(True)
         tk.Label(tw, text=self.text, bg=COLORS["bg_tooltip"], fg=COLORS["text"], relief="solid", bd=1,
-                 font=FONTS["small"], padx=6, pady=2).pack()
+                 font=FONTS["small"], padx=SPACE["md"], pady=SPACE["xs"]).pack()
         tw.update_idletasks()
         x = min(x, tw.winfo_screenwidth() - tw.winfo_reqwidth() - 4)
         tw.wm_geometry(f"+{x}+{y}")
@@ -61,7 +61,7 @@ def zoom_bar(parent, canvas, colors: dict, extra=()):
         IconButton(parent, name, act(fn), tip, **kw).pack(side=tk.LEFT, padx=1)
     pct = tk.Label(parent, text="", bg=colors["bg_card"], fg=colors["text_muted"], font=FONTS["small"],
                    width=6, cursor="hand2")
-    pct.pack(side=tk.LEFT, padx=(4, 8))
+    pct.pack(side=tk.LEFT, padx=(SPACE["sm"], SPACE["md"]))
     pct.bind("<Button-1>", lambda e: act(canvas.actual_size)())
     Tooltip(pct, f"{t('view.zoom_100')}  (Ctrl+1)")
     canvas.on_zoom = lambda p: pct.config(text=f"{p}%")
@@ -77,7 +77,7 @@ class IconButton(tk.Label):
 
     def __init__(self, parent, name: str, command, tip: str, bg: str, hover: str, active: str,
                  size: int = 18, color: str = COLORS["text_topbar"]):
-        super().__init__(parent, bg=bg, cursor="hand2", padx=4, pady=3)
+        super().__init__(parent, bg=bg, cursor="hand2", padx=SPACE["sm"], pady=SPACE["sm"])
         self._colors = (bg, hover, active)
         self._photo = ImageTk.PhotoImage(icon(name, size, color))
         self.config(image=self._photo)

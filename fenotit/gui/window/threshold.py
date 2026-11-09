@@ -8,7 +8,7 @@ from tkinter import ttk
 import cv2
 import numpy as np
 
-from fenotit.gui.style.theme import COLORS, FONTS
+from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 from fenotit.gui.widgets.help import HelpIcon
 from fenotit.gui.window.common import CHANNEL_NAMES
 from fenotit.i18n import t
@@ -31,13 +31,13 @@ class ThresholdMixin:
         bg, small = COLORS["bg_panel"], FONTS["small"]
         self._seg_box = box
         row = tk.Frame(box, bg=bg)
-        row.pack(fill=tk.X, pady=2)
+        row.pack(fill=tk.X, pady=SPACE["xs"])
         tk.Label(row, text=t("controls.space"), bg=bg, fg=COLORS["text_muted"],
                  font=small).pack(side=tk.LEFT)
         self.cs_var = tk.StringVar(value="BGR")
         cs_combo = ttk.Combobox(row, textvariable=self.cs_var, values=list(CHANNEL_NAMES.keys()),
                                 state="readonly", width=7, font=small)
-        cs_combo.pack(side=tk.LEFT, padx=(4, 8))
+        cs_combo.pack(side=tk.LEFT, padx=(SPACE["sm"], SPACE["md"]))
         cs_combo.bind("<<ComboboxSelected>>", self._on_cs_change)
         self.ch_var = tk.IntVar(value=0)
         self._ch_radios = []
@@ -51,17 +51,17 @@ class ThresholdMixin:
 
         self.auto_var = tk.BooleanVar(value=False)
         arow = tk.Frame(box, bg=bg)
-        arow.pack(anchor="w", pady=(2, 0))
+        arow.pack(anchor="w", pady=(SPACE["xs"], 0))
         tk.Checkbutton(arow, text=t("seg.auto"), variable=self.auto_var, command=self._on_auto_change,
                        bg=bg, fg=COLORS["text"], selectcolor=COLORS["bg_card"],
                        activebackground=bg, font=small, padx=0).pack(side=tk.LEFT)
-        HelpIcon(arow, t("seg.auto"), t("seg.auto_help"), bg=bg).pack(side=tk.LEFT, padx=(4, 0))
+        HelpIcon(arow, t("seg.auto"), t("seg.auto_help"), bg=bg).pack(side=tk.LEFT, padx=(SPACE["sm"], 0))
 
         from fenotit.gui.widgets.histogram import ChannelHistogram, RangeSlider
         rrow = tk.Frame(box, bg=bg)
-        rrow.pack(fill=tk.X, pady=(6, 0))
+        rrow.pack(fill=tk.X, pady=(SPACE["md"], 0))
         tk.Label(rrow, text=t("seg.range"), bg=bg, fg=COLORS["text_muted"], font=small).pack(side=tk.LEFT)
-        HelpIcon(rrow, t("seg.range"), t("seg.range_help"), bg=bg).pack(side=tk.LEFT, padx=(4, 0))
+        HelpIcon(rrow, t("seg.range"), t("seg.range_help"), bg=bg).pack(side=tk.LEFT, padx=(SPACE["sm"], 0))
         self.range_slider = RangeSlider(box, on_change=lambda lo, hi: self._on_slider_moved(), bg=bg)
         self.range_slider.pack(fill=tk.X)
         self.min_slider = self.range_slider.end("lo")

@@ -11,7 +11,7 @@ from fenotit import APP_NAME
 from fenotit.gui.style.decor import BLUE, pixel_dissolve
 from fenotit.i18n import t
 from fenotit.gui.style.components import button, divider, section as heading
-from fenotit.gui.style.theme import COLORS, FONTS, font as theme_font
+from fenotit.gui.style.theme import COLORS, FONTS, SPACE, font as theme_font
 
 _W = 460
 _TEXT, _MUTED, _SOFT = COLORS["text"], COLORS["text_muted"], COLORS["text_faint"]
@@ -45,7 +45,7 @@ def show(root: tk.Tk, logo: Path, system_info: str):
     head.create_text(110, 74, text=t("start.subtitle"), anchor="nw", fill=COLORS["text_muted"], font=FONTS["motto"])
 
     body = tk.Frame(win, bg=COLORS["bg_card"])
-    body.pack(fill=tk.BOTH, expand=True, padx=28, pady=(0, 18))
+    body.pack(fill=tk.BOTH, expand=True, padx=SPACE["xxl"], pady=(0, SPACE["xl"]))
 
     def label(text, size=9, color=_TEXT, style="", pady=(0, 0), wrap=_W - 56):
         font = theme_font(size, style)
@@ -53,9 +53,9 @@ def show(root: tk.Tk, logo: Path, system_info: str):
                  wraplength=wrap).pack(fill=tk.X, pady=pady)
 
     def section(title):
-        heading(body, title, bg=COLORS["bg_card"]).pack(fill=tk.X, pady=(16, 4))
+        heading(body, title, bg=COLORS["bg_card"]).pack(fill=tk.X, pady=(SPACE["xl"], SPACE["sm"]))
 
-    label(t("about.description"), 9, _MUTED, pady=(2, 0))
+    label(t("about.description"), 9, _MUTED, pady=(SPACE["xs"], 0))
 
     section(t("about.development"))
     label(AUTHOR, 10, _TEXT, "bold")
@@ -64,15 +64,15 @@ def show(root: tk.Tk, logo: Path, system_info: str):
 
     section(t("about.collaboration"))
     label(t("about.team"), 9, _TEXT, "bold")
-    label("Alliance of Bioversity International & CIAT · Palmira, Colombia", 9, _MUTED)
-    label(t("about.team_note"), 8, _SOFT, "italic", pady=(4, 0))
+    label("Alliance of Bioversity International & CIAT, Palmira, Colombia", 9, _MUTED)
+    label(t("about.team_note"), 8, _SOFT, "italic", pady=(SPACE["sm"], 0))
 
-    divider(body, "divider").pack(fill=tk.X, pady=(18, 8))
-    label("© 2026 Alliance of Bioversity International & CIAT  ·  " + t("about.license"), 8, _SOFT)
-    label(system_info, 7, _SOFT, pady=(4, 0))
+    divider(body, "divider").pack(fill=tk.X, pady=(SPACE["xl"], SPACE["md"]))
+    label("© 2026 Alliance of Bioversity International & CIAT. " + t("about.license"), 8, _SOFT)
+    label(system_info, 7, _SOFT, pady=(SPACE["sm"], 0))
 
     buttons = tk.Frame(body, bg=COLORS["bg_card"])
-    buttons.pack(fill=tk.X, pady=(14, 0))
+    buttons.pack(fill=tk.X, pady=(SPACE["lg"], 0))
 
     def copy(btn):
         win.clipboard_clear()
@@ -82,7 +82,7 @@ def show(root: tk.Tk, logo: Path, system_info: str):
     cp = button(buttons, text=t("about.copy_info"), kind="link", bg=COLORS["bg_card"], fg=_MUTED, padx=0)
     cp.config(command=lambda: copy(cp))
     cp.pack(side=tk.LEFT)
-    button(buttons, text=t("common.close"), command=win.destroy, kind="primary", padx=16, pady=4).pack(side=tk.RIGHT)
+    button(buttons, text=t("common.close"), command=win.destroy, kind="primary", padx=SPACE["xl"], pady=SPACE["sm"]).pack(side=tk.RIGHT)
     win.bind("<Escape>", lambda e: win.destroy())
 
     win.update_idletasks()

@@ -11,7 +11,7 @@ import cv2
 import numpy as np
 
 from fenotit import log, settings
-from fenotit.gui.style.theme import COLORS, FONTS
+from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 from fenotit.gui.widgets.help import HelpIcon
 from fenotit.i18n import t
 
@@ -101,8 +101,8 @@ class ExamplesMixin:
         painted = {s["c"] for v in self.project.strokes.values() for s in v}
         text = t("cls.status", n=n_strokes, photos=n_photos) if n_strokes else t("cls.start")
         if n_strokes and len(painted) < 2:
-            text += "  ·  " + t("cls.need_two")
-        self.cls_status.set(text + (f"  ·  {extra}" if extra else ""))
+            text += ". " + t("cls.need_two")
+        self.cls_status.set(text + (f". {extra}" if extra else ""))
 
     def _classifier_preview(self, img, inc, exc):
         """Aprende de los trazos y clasifica la foto actual en un hilo; mientras, se ve la foto
@@ -180,27 +180,27 @@ class ExamplesMixin:
         head = tk.Frame(box, bg=bg)
         head.pack(fill=tk.X)
         tk.Label(head, text=t("cls.title"), bg=bg, fg=COLORS["text_muted"], font=small).pack(side=tk.LEFT)
-        HelpIcon(head, t("cls.title"), t("cls.help"), bg=bg).pack(side=tk.LEFT, padx=(4, 0))
+        HelpIcon(head, t("cls.title"), t("cls.help"), bg=bg).pack(side=tk.LEFT, padx=(SPACE["sm"], 0))
         self.class_list = ClassList(box, self._on_classes_change, self._on_class_pick)
-        self.class_list.pack(fill=tk.X, pady=(2, 4))
+        self.class_list.pack(fill=tk.X, pady=(SPACE["xs"], SPACE["sm"]))
         brow = tk.Frame(box, bg=bg)
-        brow.pack(fill=tk.X, pady=(2, 0))
+        brow.pack(fill=tk.X, pady=(SPACE["xs"], 0))
         tk.Label(brow, text=t("cls.brush"), bg=bg, fg=COLORS["text_muted"], font=small).pack(side=tk.LEFT)
         self.brush_var = tk.IntVar(value=int(settings.get("brush", 12)))
         ttk.Scale(brow, from_=3, to=60, variable=self.brush_var, orient="horizontal",
-                  command=lambda v: self._on_brush()).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=6)
+                  command=lambda v: self._on_brush()).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=SPACE["md"])
         drow = tk.Frame(box, bg=bg)
-        drow.pack(fill=tk.X, pady=(4, 0))
+        drow.pack(fill=tk.X, pady=(SPACE["sm"], 0))
         tk.Label(drow, text=t("cls.detail"), bg=bg, fg=COLORS["text_muted"], font=small).pack(side=tk.LEFT)
         self._detail_names = {0.5: t("cls.detail.low"), 1.0: t("cls.detail.mid"), 2.0: t("cls.detail.high")}
         self.detail_var = tk.StringVar(value=self._detail_names[1.0])
         cb = ttk.Combobox(drow, textvariable=self.detail_var, values=list(self._detail_names.values()),
                           state="readonly", width=12, font=small)
-        cb.pack(side=tk.LEFT, padx=(4, 4))
+        cb.pack(side=tk.LEFT, padx=(SPACE["sm"], SPACE["sm"]))
         cb.bind("<<ComboboxSelected>>", lambda e: self._on_classes_change())
         HelpIcon(drow, t("cls.detail"), t("cls.detail_help"), bg=bg).pack(side=tk.LEFT)
         arow = tk.Frame(box, bg=bg)
-        arow.pack(fill=tk.X, pady=(6, 0))
+        arow.pack(fill=tk.X, pady=(SPACE["md"], 0))
         clear = tk.Label(arow, text=t("cls.clear_photo"), bg=bg, fg=COLORS["accent"], font=small, cursor="hand2")
         clear.pack(side=tk.LEFT)
         clear.bind("<Button-1>", lambda e: self._clear_strokes())
@@ -210,4 +210,4 @@ class ExamplesMixin:
                        command=self._on_show_strokes).pack(side=tk.RIGHT)
         self.cls_status = tk.StringVar(value="")
         tk.Label(box, textvariable=self.cls_status, bg=bg, fg=COLORS["text_muted"], font=small,
-                 justify="left", wraplength=240, anchor="w").pack(fill=tk.X, pady=(4, 0))
+                 justify="left", wraplength=240, anchor="w").pack(fill=tk.X, pady=(SPACE["sm"], 0))

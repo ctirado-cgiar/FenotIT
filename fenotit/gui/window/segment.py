@@ -10,7 +10,7 @@ from fenotit import log
 from fenotit.core import pipeline
 from fenotit.core.analysis.registry import ANALYSES
 from fenotit.gui.style.components import button, divider, section
-from fenotit.gui.style.theme import COLORS, FONTS
+from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 from fenotit.gui.widgets.help import HelpIcon
 from fenotit.i18n import t
 
@@ -169,7 +169,7 @@ class SegmentMixin:
         pct = round(n_px / (mask.size * k) * 100, 1)
         text = t("status.preview", px=f"{n_px:,}", pct=pct)
         if self._seg_method == "threshold" and self.auto_var.get():
-            text += "  ·  Otsu = " + str(getattr(self, "_otsu_value", ""))
+            text += ", Otsu = " + str(getattr(self, "_otsu_value", ""))
         self.preview_var.set(text)
 
     def _seg_preview_on(self) -> bool:
@@ -191,14 +191,14 @@ class SegmentMixin:
         HelpIcon(head, t("seg.method").capitalize(), t("seg.method_help"), bg=bg).pack(side=tk.LEFT)
         self._seg_head = head
         bar = tk.Frame(rf, bg=bg)
-        bar.pack(fill=tk.X, padx=8, pady=(2, 4))
+        bar.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["xs"], SPACE["sm"]))
         self._seg_method = "threshold"
         self._method_btns = {}
         from fenotit.core.segmentation import sam
         for key in ("threshold", "classifier") + (("model",) if sam.available() else ()):
-            b = tk.Label(bar, text=t(f"seg.method.{key}"), font=small, cursor="hand2", padx=8, pady=3,
+            b = tk.Label(bar, text=t(f"seg.method.{key}"), font=small, cursor="hand2", padx=SPACE["md"], pady=SPACE["sm"],
                          highlightthickness=1)
-            b.pack(side=tk.LEFT, padx=(0, 4))
+            b.pack(side=tk.LEFT, padx=(0, SPACE["sm"]))
             b.bind("<Button-1>", lambda e, k=key: self._set_seg_method(k))
             self._method_btns[key] = b
         self._seg_bar = bar
@@ -212,9 +212,9 @@ class SegmentMixin:
         HelpIcon(self._refine_head, t("refine.title").capitalize(), t("refine.help"), bg=bg).pack(side=tk.LEFT)
         from fenotit.gui.widgets.segment import RefineList
         self.refine_list = RefineList(rf, self._on_refine_change)
-        self.refine_list.pack(fill=tk.X, padx=8, pady=(2, 6))
+        self.refine_list.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["xs"], SPACE["md"]))
         self._next_btn = button(rf, text=t("seg.next"), command=lambda: self._select_right_tab("analysis"), kind="primary")
-        self._next_btn.pack(fill=tk.X, padx=8, pady=(6, 8))
+        self._next_btn.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["md"], SPACE["md"]))
         self._paint_method_btns()
 
     def _update_seg_tab(self):
@@ -227,16 +227,16 @@ class SegmentMixin:
             for w in widgets:
                 w.pack_forget()
             self._seg_head.pack(fill=tk.X)
-            self._seg_bar.pack(fill=tk.X, padx=8, pady=(2, 4))
+            self._seg_bar.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["xs"], SPACE["sm"]))
             box = {"classifier": self._cls_box, "model": self._model_box}.get(self._seg_method, self._thr_box)
-            box.pack(fill=tk.X, padx=8, pady=(2, 4))
+            box.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["xs"], SPACE["sm"]))
             self._refine_head.pack(fill=tk.X)
-            self.refine_list.pack(fill=tk.X, padx=8, pady=(2, 6))
-            self._next_btn.pack(fill=tk.X, padx=8, pady=(6, 8))
+            self.refine_list.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["xs"], SPACE["md"]))
+            self._next_btn.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["md"], SPACE["md"]))
         else:
             for w in widgets:
                 w.pack_forget()
-            self._seg_note.pack(fill=tk.X, padx=10, pady=10)
+            self._seg_note.pack(fill=tk.X, padx=SPACE["lg"], pady=SPACE["lg"])
 
     def _analysis_segments(self) -> bool:
         """El análisis elegido usa la segmentación (o aún no hay análisis elegido)."""
@@ -277,4 +277,4 @@ class SegmentMixin:
         return f
 
     def _divider(self, parent):
-        divider(parent).pack(fill=tk.X, pady=4)
+        divider(parent).pack(fill=tk.X, pady=SPACE["sm"])

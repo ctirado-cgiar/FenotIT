@@ -19,7 +19,7 @@ from fenotit import log
 from fenotit.core.corrections import distortion as D
 from fenotit.core.project import IMAGE_EXTS
 from fenotit.gui.style.components import button
-from fenotit.gui.style.theme import COLORS, FONTS
+from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 from fenotit.i18n import t
 
 _log = log.get("gui.chessboard")
@@ -52,24 +52,24 @@ class ChessboardPanel(tk.Frame):
             if i:
                 tk.Label(row, text="×", bg=bg, fg=COLORS["text_muted"], font=FONTS["body"]).pack(side=tk.LEFT)
             tk.Entry(row, textvariable=var, width=4, bg=COLORS["bg_panel"], fg=COLORS["text"], relief="solid",
-                     bd=1, font=FONTS["mono"], justify="center").pack(side=tk.LEFT, padx=4)
+                     bd=1, font=FONTS["mono"], justify="center").pack(side=tk.LEFT, padx=SPACE["sm"])
         tk.Label(row, text=t("board.corners_hint"), bg=bg, fg=COLORS["text_muted"],
-                 font=FONTS["small"]).pack(side=tk.LEFT, padx=(4, 0))
+                 font=FONTS["small"]).pack(side=tk.LEFT, padx=(SPACE["sm"], 0))
 
         btns = tk.Frame(self, bg=bg)
-        btns.pack(fill=tk.X, pady=(6, 0))
+        btns.pack(fill=tk.X, pady=(SPACE["md"], 0))
         self._btn(btns, t("board.add"), self._add).pack(side=tk.LEFT)
         if self.project_paths:
-            self._btn(btns, t("board.scan", n=len(self.project_paths)), self._scan).pack(side=tk.LEFT, padx=(6, 0))
-        self._btn(btns, t("board.remove"), self._remove).pack(side=tk.LEFT, padx=(6, 0))
+            self._btn(btns, t("board.scan", n=len(self.project_paths)), self._scan).pack(side=tk.LEFT, padx=(SPACE["md"], 0))
+        self._btn(btns, t("board.remove"), self._remove).pack(side=tk.LEFT, padx=(SPACE["md"], 0))
         self._go = button(btns, text=t("board.run"), command=self._run, kind="primary")
-        self._go.pack(side=tk.LEFT, padx=(6, 0))
+        self._go.pack(side=tk.LEFT, padx=(SPACE["md"], 0))
         if extra:
             text, cmd = extra
             self._btn(btns, text, cmd).pack(side=tk.RIGHT)
 
         mid = tk.Frame(self, bg=bg)
-        mid.pack(fill=tk.BOTH, expand=True, pady=(8, 0))
+        mid.pack(fill=tk.BOTH, expand=True, pady=(SPACE["md"], 0))
         left = tk.Frame(mid, bg=bg)
         left.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         sb = ttk.Scrollbar(left, orient="vertical")
@@ -92,16 +92,16 @@ class ChessboardPanel(tk.Frame):
                                font=FONTS["small"])
 
         right = tk.Frame(mid, bg=bg)
-        right.pack(side=tk.LEFT, padx=(10, 0), anchor="n")
+        right.pack(side=tk.LEFT, padx=(SPACE["lg"], 0), anchor="n")
         self.canvas = tk.Canvas(right, width=PREVIEW[0], height=PREVIEW[1], bg=COLORS["bg_panel"],
                                 highlightthickness=1, highlightbackground=COLORS["border"])
         self.canvas.pack()
         self.caption = tk.StringVar(value="")
         tk.Label(right, textvariable=self.caption, bg=bg, fg=COLORS["text_muted"], font=FONTS["small"],
-                 anchor="w").pack(fill=tk.X, pady=(2, 0))
+                 anchor="w").pack(fill=tk.X, pady=(SPACE["xs"], 0))
 
         bottom = tk.Frame(self, bg=bg)
-        bottom.pack(fill=tk.X, pady=(6, 0))
+        bottom.pack(fill=tk.X, pady=(SPACE["md"], 0))
         self.bar = ttk.Progressbar(bottom, mode="determinate", length=160)
         self._cancel_btn = self._btn(bottom, t("common.cancel"), self.cancel)
         self.status = tk.StringVar(value=status)
@@ -204,7 +204,7 @@ class ChessboardPanel(tk.Frame):
         if d is not None and d.preview is not None:
             note = t("board.found") if d.found else t("board.not_found")
             if d.error_px is not None and self._result is not None:
-                note += f" · {d.error_px:.2f} px"
+                note += f", {d.error_px:.2f} px"
             self._show(d.preview, f"{Path(p).name} — {note}")
             return
         try:
@@ -234,7 +234,7 @@ class ChessboardPanel(tk.Frame):
         self._busy = True
         self._cancel.clear()
         self._go.config(state="disabled")
-        self._cancel_btn.pack(side=tk.RIGHT, padx=(6, 0), before=self._status_lbl)
+        self._cancel_btn.pack(side=tk.RIGHT, padx=(SPACE["md"], 0), before=self._status_lbl)
         self.bar.pack(side=tk.RIGHT, before=self._status_lbl)
         self.bar.config(maximum=len(paths), value=0)
         self.status.set(t("board.checking", i=0, n=len(paths)))
@@ -284,7 +284,7 @@ class ChessboardPanel(tk.Frame):
         self._result = None
         self._refresh()
         self._go.config(state="disabled")
-        self._cancel_btn.pack(side=tk.RIGHT, padx=(6, 0), before=self._status_lbl)
+        self._cancel_btn.pack(side=tk.RIGHT, padx=(SPACE["md"], 0), before=self._status_lbl)
         self.bar.pack(side=tk.RIGHT, before=self._status_lbl)
         paths = list(self.paths)
         todo = [p for p in paths if (p, *grid) not in self._dets]
@@ -353,7 +353,7 @@ class ChessboardPanel(tk.Frame):
         if res.success:
             quality = t("board.good") if res.rms_error < 1 else t("board.fair") if res.rms_error < 2 else t("board.poor")
             text = t("board.done", used=res.n_images_used, n=res.n_images_total, rms=f"{res.rms_error:.2f}") \
-                + "  ·  " + quality
+                + ". " + quality
         else:
             text = t("corr.distortion.failed", used=res.n_images_used, total=res.n_images_total)
         if getattr(self, "_scan_note", None):

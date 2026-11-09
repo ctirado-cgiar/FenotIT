@@ -10,7 +10,7 @@ import numpy as np
 from PIL import Image, ImageTk
 
 from fenotit.gui.style.components import button
-from fenotit.gui.style.theme import COLORS, FONTS
+from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 from fenotit.gui.canvas.zoom import ZoomableCanvas
 from fenotit.i18n import t
 
@@ -26,8 +26,8 @@ def _window(parent, title: str) -> tk.Toplevel:
 
 def _buttons(win, ok, ok_text=None):
     row = tk.Frame(win, bg=COLORS["bg_card"])
-    row.pack(fill=tk.X, padx=16, pady=10, side=tk.BOTTOM)
-    button(row, text=t("common.cancel"), command=win.destroy, kind="secondary").pack(side=tk.RIGHT, padx=(6, 0))
+    row.pack(fill=tk.X, padx=SPACE["xl"], pady=SPACE["lg"], side=tk.BOTTOM)
+    button(row, text=t("common.cancel"), command=win.destroy, kind="secondary").pack(side=tk.RIGHT, padx=(SPACE["md"], 0))
     button(row, text=ok_text or t("common.ok"), command=ok, kind="primary").pack(side=tk.RIGHT)
     return row
 
@@ -46,7 +46,7 @@ def pick_region(parent, image: np.ndarray, region=None):
     pts = [] if not region else [(region[0] * w, region[1] * h), (region[2] * w, region[3] * h)]
     out = {}
     tk.Label(win, text=t("card.white_hint"), bg=COLORS["bg_card"], fg=COLORS["text_muted"],
-             font=FONTS["small"], anchor="w").pack(fill=tk.X, padx=16, pady=(8, 4))
+             font=FONTS["small"], anchor="w").pack(fill=tk.X, padx=SPACE["xl"], pady=(SPACE["md"], SPACE["sm"]))
 
     def draw(c):
         if not pts:
@@ -71,7 +71,7 @@ def pick_region(parent, image: np.ndarray, region=None):
             out["r"] = [min(x0, x1) / w, min(y0, y1) / h, max(x0, x1) / w, max(y0, y1) / h]
             win.destroy()
     _buttons(win, ok)
-    canvas.pack(fill=tk.BOTH, expand=True, padx=16)
+    canvas.pack(fill=tk.BOTH, expand=True, padx=SPACE["xl"])
     canvas.set_image(image)
     _center(win, parent)
     win.grab_set()
@@ -109,18 +109,18 @@ def edit_values(parent, rows: int, cols: int, values=None):
     out = {}
     tk.Label(win, text=t("card.values_hint", n=n, rows=rows, cols=cols), bg=COLORS["bg_card"],
              fg=COLORS["text_muted"], font=FONTS["small"], justify="left", wraplength=460,
-             anchor="w").pack(fill=tk.X, padx=16, pady=(8, 4))
+             anchor="w").pack(fill=tk.X, padx=SPACE["xl"], pady=(SPACE["md"], SPACE["sm"]))
     body = tk.Frame(win, bg=COLORS["bg_card"])
-    body.pack(fill=tk.BOTH, expand=True, padx=16)
+    body.pack(fill=tk.BOTH, expand=True, padx=SPACE["xl"])
     txt = tk.Text(body, width=22, height=min(max(n, 6), 24), font=FONTS["mono"], relief="solid", bd=1)
     txt.pack(side=tk.LEFT, fill=tk.Y)
     if values:
         txt.insert("1.0", "\n".join(" ".join(f"{v:g}" for v in c) for c in values))
     sw = tk.Canvas(body, width=cols * 34 + 4, height=rows * 34 + 4, bg=COLORS["bg_card"], highlightthickness=0)
-    sw.pack(side=tk.LEFT, padx=(12, 0), anchor="n")
+    sw.pack(side=tk.LEFT, padx=(SPACE["lg"], 0), anchor="n")
     msg = tk.StringVar()
     tk.Label(win, textvariable=msg, bg=COLORS["bg_card"], fg=COLORS["warning"], font=FONTS["small"],
-             anchor="w").pack(fill=tk.X, padx=16, pady=(6, 0))
+             anchor="w").pack(fill=tk.X, padx=SPACE["xl"], pady=(SPACE["md"], 0))
 
     def refresh(_=None):
         sw.delete("all")
@@ -151,12 +151,12 @@ def show_detection(parent, crop: np.ndarray | None, before: np.ndarray, after: n
     """La tarjeta encontrada (cuadritos numerados) y la foto antes / después."""
     win = _window(parent, t("card.preview_title"))
     row = tk.Frame(win, bg=COLORS["bg_card"])
-    row.pack(padx=16, pady=(10, 4))
+    row.pack(padx=SPACE["xl"], pady=(SPACE["lg"], SPACE["sm"]))
     win._imgs = []
 
     def put(img, caption, side):
         f = tk.Frame(row, bg=COLORS["bg_card"])
-        f.pack(side=tk.LEFT, padx=6, anchor="n")
+        f.pack(side=tk.LEFT, padx=SPACE["md"], anchor="n")
         im = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
         im.thumbnail((side, side))
         ph = ImageTk.PhotoImage(im)
@@ -169,9 +169,9 @@ def show_detection(parent, crop: np.ndarray | None, before: np.ndarray, after: n
     if after is not None:
         put(after, t("card.after"), 300)
     tk.Label(win, text=text, bg=COLORS["bg_card"], fg=COLORS["text"], font=FONTS["body"], justify="left",
-             wraplength=900, anchor="w").pack(fill=tk.X, padx=22, pady=(4, 0))
+             wraplength=900, anchor="w").pack(fill=tk.X, padx=SPACE["xxl"], pady=(SPACE["sm"], 0))
     r = tk.Frame(win, bg=COLORS["bg_card"])
-    r.pack(fill=tk.X, padx=16, pady=10)
+    r.pack(fill=tk.X, padx=SPACE["xl"], pady=SPACE["lg"])
     button(r, text=t("common.close"), command=win.destroy, kind="primary").pack(side=tk.RIGHT)
     win.bind("<Escape>", lambda e: win.destroy())
     _center(win, parent)

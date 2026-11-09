@@ -6,7 +6,7 @@ import tkinter as tk
 from fenotit import log
 from fenotit.core import units
 from fenotit.core.analysis.registry import ANALYSES
-from fenotit.gui.style.theme import COLORS, FONTS
+from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 from fenotit.gui.widgets.params import ConfigPanel
 from fenotit.gui.widgets.toolbar import Tooltip
 from fenotit.gui.window.common import _analysis_key, _analysis_label
@@ -85,13 +85,13 @@ class AnalyzeMixin:
             card.pack(fill=tk.X, pady=1)
             title = tk.Label(card, text=_analysis_label(name), bg=bg, fg=COLORS["accent"] if on else COLORS["text"],
                              font=FONTS["body_bold"], anchor="w", cursor="hand2")
-            title.pack(fill=tk.X, padx=8, pady=(4, 4 if not on else 0))
+            title.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["sm"], SPACE["sm"] if not on else 0))
             parts = [card, title]
             if on:
                 desc = t(f"analysis.{_analysis_key(name)}.desc", ANALYSES[name].description)
                 d = tk.Label(card, text=desc, bg=bg, fg=COLORS["text_muted"], font=FONTS["small"], anchor="w",
                              justify="left", wraplength=230, cursor="hand2")
-                d.pack(fill=tk.X, padx=8, pady=(0, 4))
+                d.pack(fill=tk.X, padx=SPACE["md"], pady=(0, SPACE["sm"]))
                 parts.append(d)
             else:
                 Tooltip(title, t(f"analysis.{_analysis_key(name)}.desc", ANALYSES[name].description))

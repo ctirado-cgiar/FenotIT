@@ -11,7 +11,7 @@ from fenotit import log
 from fenotit.core import metadata
 from fenotit.gui.widgets.help import HelpIcon
 from fenotit.gui.style.components import button, divider
-from fenotit.gui.style.theme import COLORS, FONTS
+from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 from fenotit.i18n import t
 
 _log = log.get("gui.metadata")
@@ -40,34 +40,34 @@ class MetadataDialog(tk.Toplevel):
 
         tk.Frame(self, bg=COLORS["accent"], height=4).pack(fill=tk.X)
         body = tk.Frame(self, bg=bg)
-        body.pack(fill=tk.BOTH, expand=True, padx=22, pady=(14, 8))
+        body.pack(fill=tk.BOTH, expand=True, padx=SPACE["xxl"], pady=(SPACE["lg"], SPACE["md"]))
         head = tk.Frame(body, bg=bg)
         head.pack(fill=tk.X)
         tk.Label(head, text=t("meta.title"), bg=bg, fg=COLORS["accent"],
                  font=FONTS["heading_large"]).pack(side=tk.LEFT)
-        HelpIcon(head, t("meta.title"), t("meta.help"), bg=bg).pack(side=tk.LEFT, padx=(6, 0))
+        HelpIcon(head, t("meta.title"), t("meta.help"), bg=bg).pack(side=tk.LEFT, padx=(SPACE["md"], 0))
 
         grid = tk.Frame(body, bg=bg)
-        grid.pack(fill=tk.X, pady=(12, 0))
+        grid.pack(fill=tk.X, pady=(SPACE["lg"], 0))
         grid.columnconfigure(1, weight=1)
         tk.Label(grid, text=t("meta.file"), bg=bg, fg=COLORS["text"], font=FONTS["body"]).grid(
-            row=0, column=0, sticky="w", padx=(0, 8))
+            row=0, column=0, sticky="w", padx=(0, SPACE["md"]))
         self.file = tk.StringVar(value=current.get("file", ""))
         tk.Entry(grid, textvariable=self.file, state="readonly", readonlybackground=COLORS["bg_panel"],
                  fg=COLORS["text"], relief="solid", bd=1, font=FONTS["small"]).grid(row=0, column=1, sticky="ew", ipady=2)
-        button(grid, text="…", command=self._pick, width=3, kind="secondary").grid(row=0, column=2, padx=(4, 0))
+        button(grid, text="…", command=self._pick, width=3, kind="secondary").grid(row=0, column=2, padx=(SPACE["sm"], 0))
         tk.Label(grid, text=t("meta.key"), bg=bg, fg=COLORS["text"], font=FONTS["body"]).grid(
-            row=1, column=0, sticky="w", padx=(0, 8), pady=(8, 0))
+            row=1, column=0, sticky="w", padx=(0, SPACE["md"]), pady=(SPACE["md"], 0))
         krow = tk.Frame(grid, bg=bg)
-        krow.grid(row=1, column=1, columnspan=2, sticky="w", pady=(8, 0))
+        krow.grid(row=1, column=1, columnspan=2, sticky="w", pady=(SPACE["md"], 0))
         self.key = tk.StringVar(value=current.get("key_column", ""))
         self._key_cb = ttk.Combobox(krow, textvariable=self.key, state="readonly", width=24, font=FONTS["small"])
         self._key_cb.pack(side=tk.LEFT)
         self._key_cb.bind("<<ComboboxSelected>>", lambda e: self._check())
-        HelpIcon(krow, t("meta.key"), t("meta.key_help"), bg=bg).pack(side=tk.LEFT, padx=(6, 0))
+        HelpIcon(krow, t("meta.key"), t("meta.key_help"), bg=bg).pack(side=tk.LEFT, padx=(SPACE["md"], 0))
 
         pf = tk.Frame(body, bg=bg)
-        pf.pack(fill=tk.BOTH, expand=True, pady=(12, 0))
+        pf.pack(fill=tk.BOTH, expand=True, pady=(SPACE["lg"], 0))
         self.tree = ttk.Treeview(pf, show="headings", height=PREVIEW_ROWS, selectmode="none")
         xsb = ttk.Scrollbar(pf, orient="horizontal", command=self.tree.xview)
         self.tree.configure(xscrollcommand=xsb.set)
@@ -75,16 +75,16 @@ class MetadataDialog(tk.Toplevel):
         self.tree.pack(fill=tk.BOTH, expand=True)
 
         self.summary = tk.Label(body, text="", bg=bg, fg=COLORS["text"], font=FONTS["body"], anchor="w")
-        self.summary.pack(fill=tk.X, pady=(10, 0))
+        self.summary.pack(fill=tk.X, pady=(SPACE["lg"], 0))
         self.warn = tk.Label(body, text="", bg=bg, fg=WARN, font=FONTS["small"], anchor="w", justify="left",
                              wraplength=520)
         self.warn.pack(fill=tk.X)
 
         divider(self).pack(fill=tk.X)
         btns = tk.Frame(self, bg=bg)
-        btns.pack(fill=tk.X, padx=22, pady=10)
+        btns.pack(fill=tk.X, padx=SPACE["xxl"], pady=SPACE["lg"])
         self._apply_btn = button(btns, text=t("common.apply"), command=self._apply, kind="primary")
-        self._apply_btn.pack(side=tk.RIGHT, padx=(6, 0))
+        self._apply_btn.pack(side=tk.RIGHT, padx=(SPACE["md"], 0))
         button(btns, text=t("common.cancel"), command=self.destroy, kind="secondary").pack(side=tk.RIGHT)
         if current.get("file"):
             button(btns, text=t("meta.remove"), command=self._remove, kind="quiet").pack(side=tk.LEFT)

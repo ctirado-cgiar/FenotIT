@@ -11,7 +11,7 @@ from fenotit.gui.canvas.areas import AreaEditor
 from fenotit.gui.canvas.tools import CanvasTools
 from fenotit.gui.canvas.zoom import ZoomController
 from fenotit.gui.style.components import button
-from fenotit.gui.style.theme import COLORS, FONTS
+from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 from fenotit.gui.widgets.toolbar import IconButton, Tooltip
 from fenotit.i18n import t
 
@@ -21,7 +21,7 @@ class ViewerMixin:
         cf = self.center_frame
 
         canvas_row = tk.Frame(cf, bg=COLORS["bg"])
-        canvas_row.pack(fill=tk.BOTH, expand=True, padx=6, pady=(4, 2))
+        canvas_row.pack(fill=tk.BOTH, expand=True, padx=SPACE["md"], pady=(SPACE["sm"], SPACE["xs"]))
         canvas_row.rowconfigure(0, weight=1)
         # Cada lado: título + ojo (ocultar) y su imagen. Oculto, queda una franja con el
         # ojo tachado para volver a mostrarlo.
@@ -35,7 +35,7 @@ class ViewerMixin:
             # Entrada en el extremo izquierdo y Resultado en el derecho, cada uno junto a su ojo
             edge = tk.LEFT if side == "input" else tk.RIGHT
             tk.Label(head, text=title, bg=COLORS["bg"], fg=COLORS["text_muted"],
-                     font=FONTS["small"]).pack(side=edge, padx=2)
+                     font=FONTS["small"]).pack(side=edge, padx=SPACE["xs"])
             IconButton(head, "eye", lambda sd=side: self._toggle_side(sd), t("view.hide_side", name=title),
                        bg=COLORS["bg"], hover=COLORS["btn_hover"], active=COLORS["accent_light"],
                        size=14, color=COLORS["text_muted"]).pack(side=edge)
@@ -46,7 +46,7 @@ class ViewerMixin:
             strip = tk.Frame(canvas_row, bg=COLORS["bg_panel"], width=22, cursor="hand2")
             IconButton(strip, "eye_off", lambda sd=side: self._toggle_side(sd), t("view.show_side", name=title),
                        bg=COLORS["bg_panel"], hover=COLORS["btn_hover"], active=COLORS["accent_light"],
-                       size=14, color=COLORS["accent"]).pack(side=tk.TOP, pady=4)
+                       size=14, color=COLORS["accent"]).pack(side=tk.TOP, pady=SPACE["sm"])
             font = tkfont.Font(font=FONTS["small"])
             vt = tk.Canvas(strip, width=20, height=font.measure(title) + 8, bg=COLORS["bg_panel"],
                            highlightthickness=0, cursor="hand2")
@@ -59,7 +59,7 @@ class ViewerMixin:
             hstrip = tk.Frame(canvas_row, bg=COLORS["bg_panel"], height=22, cursor="hand2")
             IconButton(hstrip, "eye_off", lambda sd=side: self._toggle_side(sd), t("view.show_side", name=title),
                        bg=COLORS["bg_panel"], hover=COLORS["btn_hover"], active=COLORS["accent_light"],
-                       size=14, color=COLORS["accent"]).pack(side=tk.LEFT, padx=4)
+                       size=14, color=COLORS["accent"]).pack(side=tk.LEFT, padx=SPACE["sm"])
             hl = tk.Label(hstrip, text=title, bg=COLORS["bg_panel"], fg=COLORS["text_muted"], font=FONTS["small"],
                           cursor="hand2")
             hl.pack(side=tk.LEFT)
@@ -219,7 +219,7 @@ class ViewerMixin:
                 w, full = self._cols[side], True
             r, c = (k, 0) if stacked else (0, k)
             if full:
-                w.grid(row=r, column=c, sticky="nsew", padx=2, pady=(0, 2) if stacked else 0)
+                w.grid(row=r, column=c, sticky="nsew", padx=SPACE["xs"], pady=(0, 2) if stacked else 0)
                 (row.rowconfigure if stacked else row.columnconfigure)(k, weight=1, uniform="side")
             else:
                 w.grid(row=r, column=c, sticky="ew" if stacked else "ns")
@@ -241,20 +241,20 @@ class ViewerMixin:
         from fenotit.core.pipeline.views import COLOR_FORMATS
         bg = COLORS["bg_card"]
         box = tk.Frame(self.canvas_right, bg=bg, highlightthickness=1,
-                       highlightbackground=COLORS["border"], padx=2)
+                       highlightbackground=COLORS["border"], padx=SPACE["xs"])
         self._view_ctrl = box
         self.legend_var = tk.BooleanVar(value=True)
         tk.Checkbutton(box, text=t("view.legend"), variable=self.legend_var,
                        command=self._on_display_change, bg=bg, fg=COLORS["text"],
                        selectcolor=bg, activebackground=bg, font=FONTS["small"]).pack(side=tk.LEFT)
-        size_kw = dict(kind="link", size="small", bg=bg, padx=3, pady=0)
+        size_kw = dict(kind="link", size="small", bg=bg, padx=SPACE["sm"], pady=0)
         a_minus = button(box, text="A−", command=lambda: self._legend_size(0.8), **size_kw)
         a_plus = button(box, text="A+", command=lambda: self._legend_size(1.25), **size_kw)
         a_minus.pack(side=tk.LEFT)
         a_plus.pack(side=tk.LEFT)
         # posición de la leyenda: cuadrícula 3×3 (el centro no se usa)
         self._pos_grid = tk.Canvas(box, width=25, height=19, bg=bg, highlightthickness=0, cursor="hand2")
-        self._pos_grid.pack(side=tk.LEFT, padx=(4, 2), pady=1)
+        self._pos_grid.pack(side=tk.LEFT, padx=(SPACE["sm"], SPACE["xs"]), pady=1)
         self._pos_grid.bind("<Button-1>", self._pick_legend_pos)
         Tooltip(self._pos_grid, t("view.legend_pos"))
         self._paint_pos_grid()
@@ -292,7 +292,7 @@ class ViewerMixin:
         if btn is not None:                  # "Colores…" solo en la capa Color
             kind = ((self.last_result.extra.get("step_folders") or {}).get(name) if self.last_result else None)
             if kind == "color" and not btn.winfo_ismapped():
-                btn.pack(side=tk.RIGHT, padx=2, pady=3, after=self._compare_btn)
+                btn.pack(side=tk.RIGHT, padx=SPACE["xs"], pady=SPACE["sm"], after=self._compare_btn)
             elif kind != "color":
                 btn.pack_forget()
         spec = (self.last_result.extra.get("legends") or {}).get(name) if self.last_result else None
@@ -300,7 +300,7 @@ class ViewerMixin:
             self._view_ctrl.place_forget()
             return
         if spec.get("colors") is not None:
-            self._fmt_combo.pack(side=tk.LEFT, padx=(2, 1), pady=1)
+            self._fmt_combo.pack(side=tk.LEFT, padx=(SPACE["xs"], 1), pady=1)
         else:
             self._fmt_combo.pack_forget()
         self._view_ctrl.place(relx=1.0, rely=1.0, anchor="se", x=-6, y=-6)

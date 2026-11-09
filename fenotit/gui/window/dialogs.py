@@ -12,7 +12,7 @@ from tkinter import messagebox
 from fenotit import __version__, log, settings
 from fenotit import i18n
 from fenotit.gui.style.components import button
-from fenotit.gui.style.theme import COLORS, FONTS
+from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 from fenotit.gui.window.common import _assets
 from fenotit.i18n import t
 
@@ -97,14 +97,14 @@ class DialogsMixin:
             win.resizable(False, False)
             tk.Frame(win, bg=COLORS["accent"], height=4).pack(fill=tk.X)
             body = tk.Frame(win, bg=COLORS["bg_card"])
-            body.pack(padx=20, pady=(10, 14))
+            body.pack(padx=SPACE["xxl"], pady=(SPACE["lg"], SPACE["lg"]))
             col = None
             for i, (title, rows) in enumerate(groups):
                 if i in (0, 3):                       # dos columnas
                     col = tk.Frame(body, bg=COLORS["bg_card"])
-                    col.pack(side=tk.LEFT, anchor="n", padx=(0, 28))
+                    col.pack(side=tk.LEFT, anchor="n", padx=(0, SPACE["xxl"]))
                 tk.Label(col, text=title.upper(), bg=COLORS["bg_card"], fg=COLORS["accent"],
-                         font=FONTS["small_bold"]).pack(anchor="w", pady=(8, 2))
+                         font=FONTS["small_bold"]).pack(anchor="w", pady=(SPACE["md"], SPACE["xs"]))
                 g = tk.Frame(col, bg=COLORS["bg_card"])
                 g.pack(anchor="w", fill=tk.X)
                 g.columnconfigure(0, minsize=150 if i < 3 else 170)
@@ -112,9 +112,9 @@ class DialogsMixin:
                     v = re.sub(r"^[^\w(]+", "", v).rstrip("…").strip()          # sin íconos ni "…"
                     v = v[:1].upper() + v[1:]
                     tk.Label(g, text=k, bg=COLORS["bg_panel"], fg=COLORS["text"], font=FONTS["small"],
-                             padx=5).grid(row=r, column=0, sticky="w", pady=1)
+                             padx=SPACE["sm"]).grid(row=r, column=0, sticky="w", pady=1)
                     tk.Label(g, text=v, bg=COLORS["bg_card"], fg=COLORS["text"], font=FONTS["small"]).grid(
-                        row=r, column=1, sticky="w", padx=(8, 0))
+                        row=r, column=1, sticky="w", padx=(SPACE["md"], 0))
             win.bind("<Escape>", lambda e: win.destroy())
             return win
         self._single("shortcuts", build)
@@ -145,7 +145,7 @@ class DialogsMixin:
         win.transient(self.root)
         tk.Frame(win, bg=COLORS["accent"], height=4).pack(fill=tk.X)
         body = tk.Frame(win, bg=COLORS["bg_card"])
-        body.pack(fill=tk.BOTH, expand=True, padx=20, pady=16)
+        body.pack(fill=tk.BOTH, expand=True, padx=SPACE["xxl"], pady=SPACE["xl"])
         var = tk.StringVar(value=i18n.current())
         for code, name in langs.items():
             tk.Radiobutton(body, text=name, variable=var, value=code,
@@ -162,7 +162,7 @@ class DialogsMixin:
             i18n.set_language(code)
             self._restart()
 
-        button(body, text="OK", command=apply, kind="secondary").pack(anchor="e", pady=(12, 0))
+        button(body, text="OK", command=apply, kind="secondary").pack(anchor="e", pady=(SPACE["lg"], 0))
         win.update_idletasks()
         sw, sh = win.winfo_screenwidth(), win.winfo_screenheight()
         w, h = max(win.winfo_reqwidth(), 260), win.winfo_reqheight()

@@ -14,7 +14,7 @@ from fenotit.core.stats import colors as cs
 from fenotit.gui.charts.panels import MPL_OK, MPL_STYLE, _message, _save
 from fenotit.gui.widgets.help import HelpIcon
 from fenotit.gui.style.components import button
-from fenotit.gui.style.theme import COLORS, FONTS
+from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 from fenotit.i18n import t
 
 if MPL_OK:
@@ -84,7 +84,7 @@ class Color3DWindow(tk.Toplevel):
         def combo(parent, var, values, width):
             cb = ttk.Combobox(parent, textvariable=var, state="readonly", values=values, width=width,
                               font=FONTS["small"])
-            cb.pack(side=tk.LEFT, pady=4)
+            cb.pack(side=tk.LEFT, pady=SPACE["sm"])
             cb.bind("<<ComboboxSelected>>", lambda e: self._redraw())
             return cb
 
@@ -110,10 +110,10 @@ class Color3DWindow(tk.Toplevel):
         self.legend = tk.BooleanVar(value=True)
         tk.Checkbutton(top, text=t("c3d.legend"), variable=self.legend, command=self._redraw, bg=bg,
                        fg=COLORS["text"], selectcolor=COLORS["bg_card"], activebackground=bg,
-                       font=FONTS["small"]).pack(side=tk.LEFT, padx=(14, 0))
-        HelpIcon(top, t("c3d.title"), t("c3d.help"), bg=bg).pack(side=tk.LEFT, padx=(8, 0))
-        button(top, text=t("chart.save"), command=lambda: _save(self._fig, self), kind="secondary", size="small").pack(side=tk.RIGHT, padx=8)
-        button(top, text=t("c3d.reset"), command=self._reset_view, kind="quiet", size="small").pack(side=tk.RIGHT, padx=2)
+                       font=FONTS["small"]).pack(side=tk.LEFT, padx=(SPACE["lg"], 0))
+        HelpIcon(top, t("c3d.title"), t("c3d.help"), bg=bg).pack(side=tk.LEFT, padx=(SPACE["md"], 0))
+        button(top, text=t("chart.save"), command=lambda: _save(self._fig, self), kind="secondary", size="small").pack(side=tk.RIGHT, padx=SPACE["md"])
+        button(top, text=t("c3d.reset"), command=self._reset_view, kind="quiet", size="small").pack(side=tk.RIGHT, padx=SPACE["xs"])
 
         self.layer_bar = tk.Frame(self, bg=bg)
         self.layer_bar.pack(fill=tk.X)
@@ -138,11 +138,11 @@ class Color3DWindow(tk.Toplevel):
         if not lab:
             self.dims.set("3d")
         bg = COLORS["bg_panel"]
-        for key, text in (("3d", "3D"), ("1,2", "a*·b*")) if lab else ():
+        for key, text in (("3d", "3D"), ("1,2", "a*b*")) if lab else ():
             tk.Radiobutton(self.dims_bar, text=text, variable=self.dims, value=key, command=self._redraw, bg=bg,
                            fg=COLORS["text"], selectcolor=COLORS["bg_card"], activebackground=bg,
                            font=FONTS["small"]).pack(side=tk.LEFT)
-        self._dims_label.pack(side=tk.LEFT, padx=(14, 2), before=self.dims_bar) if lab else self._dims_label.pack_forget()
+        self._dims_label.pack(side=tk.LEFT, padx=(SPACE["lg"], SPACE["xs"]), before=self.dims_bar) if lab else self._dims_label.pack_forget()
 
     def _space_changed(self):
         self._build_dims()
@@ -178,7 +178,7 @@ class Color3DWindow(tk.Toplevel):
                 w.destroy()
         bg = COLORS["bg_panel"]
         tk.Label(self.layer_bar, text=t("c3d.per") + ":", bg=bg, fg=COLORS["text_muted"],
-                 font=FONTS["small"]).pack(side=tk.LEFT, padx=(10, 2))
+                 font=FONTS["small"]).pack(side=tk.LEFT, padx=(SPACE["lg"], SPACE["xs"]))
         opts = self._per_levels()
         batch = self.scope.get() == "batch"
         self.per.set("photo" if batch else ("object" if "object" in opts else "color"))
@@ -186,7 +186,7 @@ class Color3DWindow(tk.Toplevel):
             tk.Radiobutton(self.layer_bar, text=t(f"c3d.per.{k}"), variable=self.per, value=k,
                            command=self._redraw, bg=bg, fg=COLORS["text"], selectcolor=COLORS["bg_card"],
                            activebackground=bg, font=FONTS["small"]).pack(side=tk.LEFT)
-        self.warn.pack(side=tk.LEFT, padx=12)
+        self.warn.pack(side=tk.LEFT, padx=SPACE["lg"])
         self._redraw()
 
     # ── dibujo ────────────────────────────────────────────────────────────────
@@ -285,7 +285,7 @@ class Color3DWindow(tk.Toplevel):
                 spine.set_edgecolor(COLORS["border"])
         n_img = len({p.path for p in pts})
         n_obj = len({(p.path, p.object_id) for p in pts if p.object_id is not None})
-        title = f"{space}  ·  " + t("chart.n_images", n=n_img) + (f"  ·  {t('chart.n_objects', n=n_obj)}" if n_obj else "")
+        title = f"{space}, " + t("chart.n_images", n=n_img) + (f", {t('chart.n_objects', n=n_obj)}" if n_obj else "")
         ax.set_title(title, fontsize=9)
         if self.legend.get():
             self._legend(fig, levels)
@@ -437,7 +437,7 @@ class Color3DWindow(tk.Toplevel):
             info.pack(side=tk.LEFT, fill=tk.Y, before=self._frame)
         bg = COLORS["bg_card"]
         head = tk.Frame(info, bg=bg)
-        head.pack(fill=tk.X, padx=10, pady=(8, 4))
+        head.pack(fill=tk.X, padx=SPACE["lg"], pady=(SPACE["md"], SPACE["sm"]))
         tk.Label(head, text=t("c3d.point"), bg=bg, fg=COLORS["accent"], font=FONTS["body_bold"]).pack(side=tk.LEFT)
         x = tk.Label(head, text="✕", bg=bg, fg=COLORS["text_muted"], cursor="hand2", font=FONTS["small"])
         x.pack(side=tk.RIGHT)
@@ -447,8 +447,8 @@ class Color3DWindow(tk.Toplevel):
             im = Image.fromarray(img[:, :, ::-1])
             im.thumbnail((206, 170))
             self._thumb_img = ImageTk.PhotoImage(im)
-            tk.Label(info, image=self._thumb_img, bg=bg).pack(padx=10, pady=(0, 6))
-        rows = [(t("c3d.photo"), f"{p.image_id} · {p.name}")]
+            tk.Label(info, image=self._thumb_img, bg=bg).pack(padx=SPACE["lg"], pady=(0, SPACE["md"]))
+        rows = [(t("c3d.photo"), f"{p.name} (ID {p.image_id})")]
         if p.object_id is not None:
             rows.append((t("c3d.object"), str(p.object_id)))
         if p.level in ("object_colors", "image_colors"):
@@ -457,23 +457,23 @@ class Color3DWindow(tk.Toplevel):
         rgb = tuple(int(round(v * 255)) for v in p.rgb)
         rows.append(("HEX", "#%02x%02x%02x" % rgb))
         grid = tk.Frame(info, bg=bg)
-        grid.pack(fill=tk.X, padx=10)
+        grid.pack(fill=tk.X, padx=SPACE["lg"])
         for r, (k, v) in enumerate(rows):
             tk.Label(grid, text=k, bg=bg, fg=COLORS["text_muted"], font=FONTS["small"], anchor="w").grid(
                 row=r, column=0, sticky="w")
             tk.Label(grid, text=v, bg=bg, fg=COLORS["text"], font=FONTS["small"], anchor="e",
-                     wraplength=150, justify="right").grid(row=r, column=1, sticky="e", padx=(8, 0))
+                     wraplength=150, justify="right").grid(row=r, column=1, sticky="e", padx=(SPACE["md"], 0))
         grid.columnconfigure(1, weight=1)
         sw = tk.Frame(info, bg="#%02x%02x%02x" % rgb, height=14)
-        sw.pack(fill=tk.X, padx=10, pady=(6, 0))
+        sw.pack(fill=tk.X, padx=SPACE["lg"], pady=(SPACE["md"], 0))
         if p.sectors:
             bar = tk.Frame(info, bg=bg, height=10)
-            bar.pack(fill=tk.X, padx=10, pady=(2, 0))
+            bar.pack(fill=tk.X, padx=SPACE["lg"], pady=(SPACE["xs"], 0))
             total, acc = sum(pc for _, pc in p.sectors) or 1, 0.0
             for rgb_s, pc in sorted(p.sectors, key=lambda s: -s[1]):
                 tk.Frame(bar, bg="#%02x%02x%02x" % tuple(int(round(v * 255)) for v in rgb_s)).place(
                     relx=acc / total, rely=0, relwidth=pc / total, relheight=1)
                 acc += pc
         if self.on_goto:
-            button(info, text=t("c3d.goto"), command=lambda: self.on_goto(p.path, p.object_id), kind="primary", size="small").pack(pady=10)
+            button(info, text=t("c3d.goto"), command=lambda: self.on_goto(p.path, p.object_id), kind="primary", size="small").pack(pady=SPACE["lg"])
         self._picked_point = p

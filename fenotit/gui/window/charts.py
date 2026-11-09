@@ -7,7 +7,7 @@ from tkinter import messagebox
 
 from fenotit.gui.charts.panels import IntraImageChartPanel, BatchChartWindow
 from fenotit.gui.style.components import button
-from fenotit.gui.style.theme import COLORS
+from fenotit.gui.style.theme import COLORS, SPACE
 from fenotit.i18n import t
 
 
@@ -72,7 +72,7 @@ class ChartsMixin:
             panel = IntraImageChartPanel(win, colors=COLORS,
                                          on_pick=lambda oid: self._goto_object(self.current_image_path, oid))
             if hasattr(panel, "bar"):
-                button(panel.bar, text=t("chart.save"), command=lambda: panel.save_figure(), kind="secondary", size="small").pack(side=tk.RIGHT, padx=8, pady=3)
+                button(panel.bar, text=t("chart.save"), command=lambda: panel.save_figure(), kind="secondary", size="small").pack(side=tk.RIGHT, padx=SPACE["md"], pady=SPACE["sm"])
                 panel.chooser.chosen = {k: list(v) for k, v in src.chooser.chosen.items()}
                 panel.chooser.count = dict(src.chooser.count)
                 panel.chooser.kind.set(src.chooser.kind.get())

@@ -25,7 +25,7 @@ from fenotit import log
 from fenotit.core.image_io import natural_key
 from fenotit.gui.widgets.help import HelpIcon
 from fenotit.gui.style.components import button, divider
-from fenotit.gui.style.theme import CHART_COLORS, COLORS, FONTS
+from fenotit.gui.style.theme import CHART_COLORS, COLORS, FONTS, SPACE
 from fenotit.i18n import t
 
 _log = log.get("gui.charts")
@@ -104,12 +104,12 @@ class _Chooser(tk.Frame):
         for k in kinds:
             tk.Radiobutton(self, text=t(f"chart.{k}"), variable=self.kind, value=k, command=self._kind_changed,
                            bg=bg, fg=COLORS["text"], selectcolor=COLORS["bg_card"], activebackground=bg,
-                           font=FONTS["small"]).pack(side=tk.LEFT, padx=2)
-        divider(self, vertical=True).pack(side=tk.LEFT, fill=tk.Y, pady=4, padx=6)
+                           font=FONTS["small"]).pack(side=tk.LEFT, padx=SPACE["xs"])
+        divider(self, vertical=True).pack(side=tk.LEFT, fill=tk.Y, pady=SPACE["sm"], padx=SPACE["md"])
         self.vars_frame = tk.Frame(owner or self, bg=bg)      # con owner puede bajar a otra fila
         self.vars_frame.pack(in_=self, side=tk.LEFT)
         self.extra = tk.Frame(self, bg=bg)          # opciones solo de algunos tipos
-        self.extra.pack(side=tk.LEFT, padx=(6, 0))
+        self.extra.pack(side=tk.LEFT, padx=(SPACE["md"], 0))
         self._svars: list[tk.StringVar] = []
 
     def set_columns(self, cols: list[str]):
@@ -137,22 +137,22 @@ class _Chooser(tk.Frame):
         for i in range(n):
             name = names[i] if names else f"V{i + 1}"
             tk.Label(self.vars_frame, text=f"{name}:", bg=self.bg, fg=COLORS["text_muted"],
-                     font=FONTS["small"]).pack(side=tk.LEFT, padx=(4, 1))
+                     font=FONTS["small"]).pack(side=tk.LEFT, padx=(SPACE["sm"], 1))
             sv = tk.StringVar(value=current[i] if i < len(current) else NONE)
             cb = ttk.Combobox(self.vars_frame, textvariable=sv, state="readonly", width=14, font=FONTS["small"],
                               values=self.cols)
-            cb.pack(side=tk.LEFT, padx=2, pady=3)
+            cb.pack(side=tk.LEFT, padx=SPACE["xs"], pady=SPACE["sm"])
             cb.bind("<<ComboboxSelected>>", lambda e: self._vars_changed())
             self._svars.append(sv)
         from fenotit.gui.widgets.toolbar import Tooltip
-        btn = dict(kind="secondary", size="small", font=FONTS["topbar"], padx=6, pady=0)
+        btn = dict(kind="secondary", size="small", font=FONTS["topbar"], padx=SPACE["md"], pady=0)
         if n > base:
             b = button(self.vars_frame, text="−", command=lambda: self._resize(-1), **btn)
-            b.pack(side=tk.LEFT, padx=(2, 0))
+            b.pack(side=tk.LEFT, padx=(SPACE["xs"], 0))
             Tooltip(b, t("chart.remove_var"))
         if n < min(most, len(self.cols)):
             b = button(self.vars_frame, text="+", command=lambda: self._resize(1), **btn)
-            b.pack(side=tk.LEFT, padx=(2, 0))
+            b.pack(side=tk.LEFT, padx=(SPACE["xs"], 0))
             Tooltip(b, t("chart.add_z") if kind == "scatter" else t("chart.add_var"))
 
     def _resize(self, d: int):
@@ -187,7 +187,7 @@ def _message(frame, text):
     for w in frame.winfo_children():
         w.destroy()
     tk.Label(frame, text=text, bg=COLORS["bg_card"], fg=COLORS["text_muted"], font=FONTS["small"],
-             justify="center").pack(pady=20)
+             justify="center").pack(pady=SPACE["xxl"])
 
 
 class _Picker:
@@ -316,13 +316,13 @@ class IntraImageChartPanel(tk.Frame):
         self._fig = None
         if not MPL_OK:
             tk.Label(self, text=t("chart.no_mpl"), bg=COLORS["bg_card"], fg=COLORS["text_muted"],
-                     font=FONTS["small"]).pack(pady=8)
+                     font=FONTS["small"]).pack(pady=SPACE["md"])
             return
         bg = COLORS["bg_panel"]
         self.bar = tk.Frame(self, bg=bg)
         self.bar.pack(fill=tk.X)
         self.chooser = _Chooser(self.bar, ("box", "hist", "scatter"), self._refresh, bg, owner=self)
-        self.chooser.pack(side=tk.LEFT, padx=4)
+        self.chooser.pack(side=tk.LEFT, padx=SPACE["sm"])
         self.bar2 = tk.Frame(self, bg=bg)               # las variables bajan aquí si no caben
         for w in (self.bar, self.chooser.vars_frame):
             w.bind("<Configure>", lambda e: self.after_idle(self._fit_bar), add="+")
@@ -339,7 +339,7 @@ class IntraImageChartPanel(tk.Frame):
         need = self.bar.winfo_reqwidth() + (vf.winfo_reqwidth() + 10 if below else 0)
         if not below and need > width > 1:
             vf.pack_forget()
-            vf.pack(in_=self.bar2, side=tk.LEFT, padx=8, pady=(0, 3))
+            vf.pack(in_=self.bar2, side=tk.LEFT, padx=SPACE["md"], pady=(0, SPACE["sm"]))
             self.bar2.pack(fill=tk.X, after=self.bar)
             vf.lift()
         elif below and need <= width:
@@ -560,25 +560,25 @@ class BatchChartWindow(tk.Toplevel):
         self.units = {"images": "images", "objects": "objects"}
         self.unit = tk.StringVar(value="images")
         tk.Label(top, text=t("chart.unit") + ":", bg=bg, fg=COLORS["text_muted"],
-                 font=FONTS["small"]).pack(side=tk.LEFT, padx=(10, 2))
+                 font=FONTS["small"]).pack(side=tk.LEFT, padx=(SPACE["lg"], SPACE["xs"]))
         for key in ("images", "objects"):
             tk.Radiobutton(top, text=t(f"chart.unit_{key}"), variable=self.unit, value=key,
                            command=self._unit_changed, bg=bg, fg=COLORS["text"], selectcolor=COLORS["bg_card"],
-                           activebackground=bg, font=FONTS["small"]).pack(side=tk.LEFT, pady=4)
-        HelpIcon(top, t("chart.unit"), t("chart.unit_help"), bg=bg).pack(side=tk.LEFT, padx=(4, 0))
+                           activebackground=bg, font=FONTS["small"]).pack(side=tk.LEFT, pady=SPACE["sm"])
+        HelpIcon(top, t("chart.unit"), t("chart.unit_help"), bg=bg).pack(side=tk.LEFT, padx=(SPACE["sm"], 0))
         self.group = tk.StringVar(value=NONE)
         if groups:
             tk.Label(top, text=t("chart.group_by") + ":", bg=bg, fg=COLORS["text_muted"],
-                     font=FONTS["small"]).pack(side=tk.LEFT, padx=(14, 2))
+                     font=FONTS["small"]).pack(side=tk.LEFT, padx=(SPACE["lg"], SPACE["xs"]))
             gb = ttk.Combobox(top, textvariable=self.group, state="readonly", width=14, font=FONTS["small"],
                               values=[NONE] + list(groups))
-            gb.pack(side=tk.LEFT, pady=4)
+            gb.pack(side=tk.LEFT, pady=SPACE["sm"])
             gb.bind("<<ComboboxSelected>>", lambda e: self._refresh())
-        button(top, text=t("chart.save"), command=lambda: _save(self._fig, self), kind="secondary", size="small").pack(side=tk.RIGHT, padx=8)
+        button(top, text=t("chart.save"), command=lambda: _save(self._fig, self), kind="secondary", size="small").pack(side=tk.RIGHT, padx=SPACE["md"])
         bar = tk.Frame(self, bg=bg)
         bar.pack(fill=tk.X)
         self.chooser = _Chooser(bar, ("bars", "box", "hist", "scatter"), self._refresh, bg)
-        self.chooser.pack(side=tk.LEFT, padx=8, pady=(0, 4))
+        self.chooser.pack(side=tk.LEFT, padx=SPACE["md"], pady=(0, SPACE["sm"]))
         self.show_sd = tk.BooleanVar(value=False)
         self._sd_check = tk.Checkbutton(self.chooser.extra, text=t("chart.show_sd"), variable=self.show_sd,
                                         command=self._refresh, bg=bg, fg=COLORS["text"],

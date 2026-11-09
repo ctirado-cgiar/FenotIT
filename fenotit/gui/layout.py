@@ -17,7 +17,7 @@ from tkinter import ttk
 
 from fenotit import settings
 from fenotit.gui.style.components import button, divider
-from fenotit.gui.style.theme import COLORS, FONTS, SIZES
+from fenotit.gui.style.theme import COLORS, FONTS, SIZES, SPACE
 from fenotit.gui.widgets.collapsible import CollapsiblePanel
 from fenotit.gui.widgets.image_list import ImageList
 from fenotit.gui.widgets.toolbar import Tooltip
@@ -96,34 +96,34 @@ class LayoutMixin:
         self.corr_var = tk.StringVar(value="")
         self._corr_label = tk.Label(self.statusbar, textvariable=self.corr_var,
                                     bg=COLORS["bg_panel"], fg=COLORS["accent"],
-                                    font=FONTS["small"], padx=10)
+                                    font=FONTS["small"], padx=SPACE["lg"])
         self._corr_label.pack(side=tk.RIGHT)
         self._corr_tip = Tooltip(self._corr_label, t("corr.applied_tip"))
         self._progress_bar = ttk.Progressbar(self.statusbar, length=160, mode="determinate",
                                              style="Thin.Horizontal.TProgressbar")
         self._cancel_link = tk.Label(self.statusbar, text=t("common.cancel"), bg=COLORS["bg_panel"],
-                                     fg=COLORS["accent"], font=FONTS["small"], cursor="hand2", padx=4)
+                                     fg=COLORS["accent"], font=FONTS["small"], cursor="hand2", padx=SPACE["sm"])
         self._cancel_link.bind("<Button-1>", lambda e: self._cancel_batch())
         self.preview_var = tk.StringVar(value="")
         tk.Label(self.statusbar, textvariable=self.preview_var, bg=COLORS["bg_panel"],
-                 fg=COLORS["accent2"], font=FONTS["small"], padx=8).pack(side=tk.RIGHT)
+                 fg=COLORS["accent2"], font=FONTS["small"], padx=SPACE["md"]).pack(side=tk.RIGHT)
         self.image_info_var = tk.StringVar(value="")
         tk.Label(self.statusbar, textvariable=self.image_info_var, bg=COLORS["bg_panel"],
-                 fg=COLORS["text"], font=FONTS["small"], padx=8).pack(side=tk.RIGHT)
+                 fg=COLORS["text"], font=FONTS["small"], padx=SPACE["md"]).pack(side=tk.RIGHT)
         self._status_label = tk.Label(self.statusbar, textvariable=self.status_var,
                                       bg=COLORS["bg_panel"], fg=COLORS["text_muted"],
-                                      font=FONTS["small"], anchor="w", padx=10)
+                                      font=FONTS["small"], anchor="w", padx=SPACE["lg"])
         self._status_label.pack(fill=tk.X)
 
     def _build_images(self, lf):
         """Lista de fotos con su botón para agregar y el contador."""
         self._section_lbl(lf, t("left.images"))
         nav = tk.Frame(lf, bg=COLORS["bg_panel"])
-        nav.pack(fill=tk.X, padx=8, pady=2)
+        nav.pack(fill=tk.X, padx=SPACE["md"], pady=SPACE["xs"])
         button(nav, text="＋", command=self._open_image, width=2, kind="secondary", size="small").pack(side=tk.LEFT)
         self.batch_label = tk.Label(nav, text="—", bg=COLORS["bg_panel"],     # anterior/siguiente: ← → o clic
                                     fg=COLORS["text_muted"], font=FONTS["small"])
-        self.batch_label.pack(side=tk.RIGHT, padx=4)
+        self.batch_label.pack(side=tk.RIGHT, padx=SPACE["sm"])
 
         # Lista (buscador, lista o cuadrícula): alto según las fotos. Si CAPAS (y, después,
         # el inspector) necesita espacio, la lista cede, hasta dejar ver un par de fotos
@@ -142,7 +142,7 @@ class LayoutMixin:
         views.pack(fill=tk.BOTH, expand=True)
         self._layers_title = self._section_lbl(views, t("left.history"))
         box = tk.Frame(views, bg=COLORS["bg_panel"])
-        box.pack(fill=tk.BOTH, expand=True, padx=6, pady=(0, 6))
+        box.pack(fill=tk.BOTH, expand=True, padx=SPACE["md"], pady=(0, SPACE["md"]))
         self._layers_sb = ttk.Scrollbar(box, orient="vertical")
         cv = self._layers_canvas = tk.Canvas(box, bg=COLORS["bg_panel"], highlightthickness=0, bd=0,
                                              yscrollcommand=self._layers_sb.set)
@@ -167,10 +167,10 @@ class LayoutMixin:
         2 Analizar (tipo de análisis y sus mediciones)."""
         bg = COLORS["bg_panel"]
         tabs = tk.Frame(rf, bg=bg)
-        tabs.pack(fill=tk.X, padx=(26, 6), pady=(4, 0))          # deja sitio al ícono del panel
+        tabs.pack(fill=tk.X, padx=(SPACE["xxl"], SPACE["md"]), pady=(SPACE["sm"], 0))          # deja sitio al ícono del panel
         self._rtab_labels = {}
         for key, text in (("seg", t("rtab.segment")), ("analysis", t("rtab.analyze"))):
-            lbl = tk.Label(tabs, text=text, bg=bg, font=FONTS["body_bold"], cursor="hand2", padx=10, pady=4)
+            lbl = tk.Label(tabs, text=text, bg=bg, font=FONTS["body_bold"], cursor="hand2", padx=SPACE["lg"], pady=SPACE["sm"])
             lbl.pack(side=tk.LEFT)
             lbl.bind("<Button-1>", lambda e, k=key: self._select_right_tab(k))
             self._rtab_labels[key] = lbl
@@ -181,9 +181,9 @@ class LayoutMixin:
         self._an_tab = tk.Frame(self._rtab_body, bg=bg)
         self._build_seg_tab(self._seg_tab)
         self._analysis_cards = tk.Frame(self._an_tab, bg=bg)
-        self._analysis_cards.pack(fill=tk.X, padx=6, pady=(6, 6))
+        self._analysis_cards.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["md"], SPACE["md"]))
         self.config_container = tk.Frame(self._an_tab, bg=bg)
-        self.config_container.pack(fill=tk.BOTH, expand=True, padx=4)
+        self.config_container.pack(fill=tk.BOTH, expand=True, padx=SPACE["sm"])
         self._right_tab = "seg"
         self._select_right_tab("seg")
 

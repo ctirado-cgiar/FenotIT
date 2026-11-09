@@ -13,7 +13,7 @@ from typing import Any
 from fenotit import log
 from fenotit.i18n import t
 from fenotit.gui.style.components import button, divider
-from fenotit.gui.style.theme import COLORS, FONTS
+from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 
 _log = log.get("gui.config_panel")
 
@@ -73,7 +73,7 @@ class ConfigPanel(tk.Frame):
                      bg=self.colors["bg_panel"],
                      fg=self.colors["text_muted"],
                      font=FONTS["small"],
-                     pady=8).pack(fill=tk.X, padx=8)
+                     pady=SPACE["md"]).pack(fill=tk.X, padx=SPACE["md"])
             return
 
         self._schema = schema
@@ -118,7 +118,7 @@ class ConfigPanel(tk.Frame):
                 continue
             if parent in self._vars and not self._vars[parent].get():
                 continue
-            self._rows[item["key"]].pack(fill=tk.X, padx=(24, 8) if group else 8, pady=2)
+            self._rows[item["key"]].pack(fill=tk.X, padx=(SPACE["xxl"], SPACE["md"]) if group else SPACE["md"], pady=SPACE["xs"])
 
     def set_units(self, units: dict):
         """Cambia las unidades en las etiquetas (p. ej. {"area": "mm²"})."""
@@ -148,7 +148,7 @@ class ConfigPanel(tk.Frame):
         if typ == "header":
             row.config(pady=0)
             tk.Label(hdr, text=label, bg=self.colors["bg_panel"], fg=self.colors["section_text"],
-                     font=FONTS["section"], pady=4).pack(side=tk.LEFT)
+                     font=FONTS["section"], pady=SPACE["sm"]).pack(side=tk.LEFT)
             divider(row).pack(fill=tk.X)
             return
         if typ == "section":
@@ -178,15 +178,15 @@ class ConfigPanel(tk.Frame):
                 self._tune_icons = {False: ImageTk.PhotoImage(icon("tune", 13, COLORS["accent_faint"])),
                                     True: ImageTk.PhotoImage(icon("tune", 13, self.colors["accent"]))}
             arrow = tk.Label(hdr, image=self._tune_icons[False], bg=self.colors["bg_panel"], cursor="hand2",
-                             padx=3, pady=1)
-            arrow.pack(side=tk.LEFT, padx=(4, 0))
+                             padx=SPACE["sm"], pady=1)
+            arrow.pack(side=tk.LEFT, padx=(SPACE["sm"], 0))
             arrow.bind("<Button-1>", lambda e=None, k=key: self._toggle_group(k))
             from fenotit.gui.widgets.toolbar import Tooltip
             Tooltip(arrow, t("panel.options"))
             self._arrows[key] = arrow
         if tooltip:
             from fenotit.gui.widgets.help import HelpIcon
-            HelpIcon(hdr, label, tooltip, bg=self.colors["bg_panel"]).pack(side=tk.LEFT, padx=(4, 0))
+            HelpIcon(hdr, label, tooltip, bg=self.colors["bg_panel"]).pack(side=tk.LEFT, padx=(SPACE["sm"], 0))
 
         if typ in ("bool", "section"):
             pass
@@ -219,7 +219,7 @@ class ConfigPanel(tk.Frame):
 
             # Botones ▲▼ compactos
             btn_frame = tk.Frame(ctrl_row, bg=self.colors["bg_panel"])
-            btn_frame.pack(side=tk.LEFT, padx=2)
+            btn_frame.pack(side=tk.LEFT, padx=SPACE["xs"])
 
             step = item.get("step", 0.1 if typ == "float" else 1)
 

@@ -83,4 +83,4 @@ class MetadataMixin:
         if not hasattr(self, "_meta_var"):
             return
         row = self._meta_row(getattr(self, "current_image_path", None))
-        self._meta_var.set("  ·  ".join(f"{k}: {v}" for k, v in row.items() if v != ""))
+        self._meta_var.set(", ".join(f"{k}: {v}" for k, v in row.items() if v != ""))

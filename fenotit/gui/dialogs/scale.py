@@ -7,7 +7,7 @@ import numpy as np
 from pathlib import Path
 
 from fenotit.gui.style.components import button, divider
-from fenotit.gui.style.theme import COLORS, FONTS
+from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 from fenotit.gui.canvas.zoom import ZoomableCanvas
 
 from fenotit import log
@@ -47,29 +47,29 @@ class BaseDialog(tk.Toplevel):
 
         # Header
         hdr = tk.Frame(self, bg=COLORS["bg_card"])
-        hdr.pack(fill=tk.X, padx=20, pady=(12, 0))
+        hdr.pack(fill=tk.X, padx=SPACE["xxl"], pady=(SPACE["lg"], 0))
         tk.Label(hdr, text=title,
                  bg=COLORS["bg_card"], fg=COLORS["accent"],
                  font=FONTS["heading_large"]).pack(anchor="w")
 
-        divider(self).pack(fill=tk.X, pady=8)
+        divider(self).pack(fill=tk.X, pady=SPACE["md"])
 
         # Cuerpo (lo rellena cada subclase)
         self.body = tk.Frame(self, bg=COLORS["bg_card"])
-        self.body.pack(fill=tk.BOTH, expand=True, padx=20, pady=0)
+        self.body.pack(fill=tk.BOTH, expand=True, padx=SPACE["xxl"], pady=0)
 
         # Barra de progreso + log
         self._build_progress()
 
         # Botones de acción
         btn_row = tk.Frame(self, bg=COLORS["bg_card"])
-        btn_row.pack(fill=tk.X, padx=20, pady=(8, 12))
+        btn_row.pack(fill=tk.X, padx=SPACE["xxl"], pady=(SPACE["md"], SPACE["lg"]))
         divider(self).pack(fill=tk.X, before=btn_row)
         self._build_buttons(btn_row)
 
     def _build_progress(self):
         self._prog_frame = tk.Frame(self, bg=COLORS["bg_card"])
-        self._prog_frame.pack(fill=tk.X, padx=20)
+        self._prog_frame.pack(fill=tk.X, padx=SPACE["xxl"])
 
         self._prog_var  = tk.DoubleVar(value=0)
         self._prog_bar  = ttk.Progressbar(
@@ -104,14 +104,14 @@ class BaseDialog(tk.Toplevel):
 
     def _entry_row(self, parent, label, var, width=8):
         f = tk.Frame(parent, bg=COLORS["bg_card"])
-        f.pack(fill=tk.X, pady=2)
+        f.pack(fill=tk.X, pady=SPACE["xs"])
         tk.Label(f, text=label, bg=COLORS["bg_card"],
                  fg=COLORS["text"], font=FONTS["body"],
                  width=22, anchor="w").pack(side=tk.LEFT)
         tk.Entry(f, textvariable=var, width=width,
                  bg=COLORS["bg_panel"], fg=COLORS["text"],
                  relief="solid", bd=1,
-                 font=FONTS["mono"]).pack(side=tk.LEFT, padx=4)
+                 font=FONTS["mono"]).pack(side=tk.LEFT, padx=SPACE["sm"])
         return f
 
 
@@ -148,24 +148,24 @@ class ScaleDialog(BaseDialog):
 
         self._lbl(b,
             t("scale.help"),
-            justify="left", wraplength=500).pack(anchor="w", pady=(0, 6))
+            justify="left", wraplength=500).pack(anchor="w", pady=(0, SPACE["md"]))
 
         self._cur_var = tk.StringVar()
         self._cur_lbl = tk.Label(b, textvariable=self._cur_var, bg=COLORS["accent_light"], fg=COLORS["accent"],
-                                 font=FONTS["body_bold"], anchor="w", padx=8, pady=4)
+                                 font=FONTS["body_bold"], anchor="w", padx=SPACE["md"], pady=SPACE["sm"])
         from fenotit.gui.widgets.basic import ImagePicker
         self._picker = ImagePicker(b, self._paths, self._path, self._pick_image)
-        self._picker.pack(anchor="w", pady=2)
+        self._picker.pack(anchor="w", pady=SPACE["xs"])
 
         bar = tk.Frame(b, bg=COLORS["bg_card"])
-        bar.pack(fill=tk.X, pady=2)
+        bar.pack(fill=tk.X, pady=SPACE["xs"])
         self._canvas = ZoomableCanvas(b, bg=COLORS["bg_card"], highlightthickness=1,
                                       highlightbackground=COLORS["border"], cursor="crosshair",
                                       on_click=self._on_click, on_overlay=self._draw_points)
         from fenotit.gui.widgets.toolbar import zoom_bar
         zoom_bar(bar, self._canvas, COLORS)
-        button(bar, text=f"✕ {t('scale.clear')}", command=self._clear_points, kind="secondary", size="small").pack(side=tk.LEFT, padx=4)
-        self._canvas.pack(fill=tk.BOTH, expand=True, pady=4)
+        button(bar, text=f"✕ {t('scale.clear')}", command=self._clear_points, kind="secondary", size="small").pack(side=tk.LEFT, padx=SPACE["sm"])
+        self._canvas.pack(fill=tk.BOTH, expand=True, pady=SPACE["sm"])
 
         self._pts_label = tk.Label(
             b, text=t("scale.step2"),
@@ -175,7 +175,7 @@ class ScaleDialog(BaseDialog):
 
         # Paso 3: distancia real + unidad (DESPUÉS de marcar puntos)
         step3 = tk.Frame(b, bg=COLORS["bg_card"])
-        step3.pack(fill=tk.X, pady=(6,2))
+        step3.pack(fill=tk.X, pady=(SPACE["md"], SPACE["xs"]))
         tk.Label(step3,
                  text=t("scale.step3"),
                  bg=COLORS["bg_card"], fg=COLORS["text"],
@@ -184,18 +184,18 @@ class ScaleDialog(BaseDialog):
         tk.Entry(step3, textvariable=self._dist_var, width=8,
                  bg=COLORS["bg_panel"], fg=COLORS["text"],
                  relief="solid", bd=1,
-                 font=FONTS["mono"]).pack(side=tk.LEFT, padx=4)
+                 font=FONTS["mono"]).pack(side=tk.LEFT, padx=SPACE["sm"])
 
         tk.Label(step3, text=t("scale.unit"),
                  bg=COLORS["bg_card"], fg=COLORS["text"],
-                 font=FONTS["body"]).pack(side=tk.LEFT, padx=(12, 2))
+                 font=FONTS["body"]).pack(side=tk.LEFT, padx=(SPACE["lg"], SPACE["xs"]))
         self._unit_var = tk.StringVar(value=self._default_unit)
         from fenotit.core.corrections.scale import UNITS
         ttk.Combobox(step3, textvariable=self._unit_var,
                      values=UNITS, state="readonly", width=4,
                      font=FONTS["body"]).pack(side=tk.LEFT)
 
-        button(step3, text=t("scale.compute"), command=self._compute, kind="primary", size="small").pack(side=tk.LEFT, padx=8)
+        button(step3, text=t("scale.compute"), command=self._compute, kind="primary", size="small").pack(side=tk.LEFT, padx=SPACE["md"])
 
         # Resultado
         self._result_var = tk.StringVar(value="—")
@@ -204,10 +204,10 @@ class ScaleDialog(BaseDialog):
                  font=FONTS["body_bold"], anchor="w").pack(fill=tk.X)
 
     def _build_buttons(self, parent):
-        button(parent, text=t("common.close"), command=self.destroy, kind="secondary").pack(side=tk.RIGHT, padx=2)
-        button(parent, text=t("scale.clear_points"), command=self._clear_points, kind="quiet").pack(side=tk.RIGHT, padx=2)
+        button(parent, text=t("common.close"), command=self.destroy, kind="secondary").pack(side=tk.RIGHT, padx=SPACE["xs"])
+        button(parent, text=t("scale.clear_points"), command=self._clear_points, kind="quiet").pack(side=tk.RIGHT, padx=SPACE["xs"])
         for key, scope, bold in (("scale.apply_all", "all", False), ("scale.apply_image", "image", True)):
-            button(parent, text=t(key), command=lambda sc=scope: self._apply(sc), kind="primary" if bold else "secondary").pack(side=tk.RIGHT, padx=2)
+            button(parent, text=t(key), command=lambda sc=scope: self._apply(sc), kind="primary" if bold else "secondary").pack(side=tk.RIGHT, padx=SPACE["xs"])
 
     def _pick_image(self, path: str):
         try:
@@ -230,7 +230,7 @@ class ScaleDialog(BaseDialog):
         text = self._current(self._path) if self._current else None
         self._cur_var.set(text or "")
         if text:
-            self._cur_lbl.pack(fill=tk.X, pady=(0, 6), before=self._picker)
+            self._cur_lbl.pack(fill=tk.X, pady=(0, SPACE["md"]), before=self._picker)
         else:
             self._cur_lbl.pack_forget()
 
