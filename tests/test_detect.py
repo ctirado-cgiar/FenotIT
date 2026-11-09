@@ -43,9 +43,41 @@ def test_formats(name, fmt):
     assert got == sorted(OBJECTS)                           # sin la repetida (NMS) ni la poco segura
 
 
-def test_pt_is_rejected():
+def test_pt_without_tools(monkeypatch):
+    from fenotit.core.segmentation import convert
+    monkeypatch.setattr(convert, "tools", lambda: [])
     with pytest.raises(ValueError, match="pt"):
         models.add(str(MODELS / "weights.pt"))
+
+
+def test_pt_is_converted(monkeypatch, tmp_path):
+    import shutil
+    from fenotit.core.segmentation import convert
+    monkeypatch.setattr(convert, "tools", lambda: ["ultralytics"])
+
+    def fake(pt, out_dir, timeout=0):
+        dst = Path(out_dir) / "model.onnx"
+        shutil.copy(MODELS / "yolov5_test.onnx", dst)
+        return {"onnx": str(dst), "classes": ["seed", "pod"], "input": 640, "tool": "ultralytics"}
+    monkeypatch.setattr(convert, "to_onnx", fake)
+    pt = tmp_path / "plagas.pt"
+    pt.write_bytes(b"")
+    m = models.add(str(pt))
+    assert m["name"] == "plagas" and m["classes"] == ["seed", "pod"] and m["format"] == "yolo"
+
+
+def test_manual_class_names(tmp_path):
+    import shutil
+    src = tmp_path / "sin_nombres.onnx"
+    shutil.copy(MODELS / "yolov5_test.onnx", src)           # sin metadatos ni data.yaml al lado
+    m = models.add(str(src))
+    assert models.generic_names(m) and m["classes"] == ["class_1", "class_2"]
+    m = models.update(m["id"], classes=["semilla", "vaina"])
+    assert m["classes"] == ["semilla", "vaina"] and not models.generic_names(m)
+    with pytest.raises(ValueError):
+        models.update(m["id"], classes=["solo una"])
+    m2 = models.add(str(src), classes=["a", "b"])
+    assert m2["classes"] == ["a", "b"]
 
 
 def test_objects_with_boxes():
@@ -95,3 +127,25 @@ def test_boxes_to_masks():
     for area, ellipse in zip(sorted(r["area_px2"] for r in rows), ellipses):
         assert abs(area - ellipse) / ellipse < 0.05          # contorno de la elipse, no la caja
     assert res.extra["tables"].get("object_shape")
+
+
+def test_model_card():
+    from fenotit.core.export.exporter import model_rows
+    m = _added("yolov8_test")
+    assert (m["description"], m["owner"], m["license"]) == ("Test detector for seeds and pods", "FenotIT tests",
+                                                            "CC0-1.0")       # leídos del ONNX
+    assert m["added"] and m["file"].endswith("yolov8_test.onnx") and models.is_user(m)
+    assert not models.missing_info(m)
+    m = models.update(m["id"], citation="FenotIT 2026", license="CC BY 4.0")
+    rows = dict(model_rows(m["id"]))
+    assert rows["model_license"] == "CC BY 4.0" and rows["model_citation"] == "FenotIT 2026"
+    assert rows["model_classes"] == "seed; pod"
+    sam = models.get("mobilesam")
+    if sam:
+        assert sam["license"] == "Apache-2.0" and not models.is_user(sam) and not models.missing_info(sam)
+
+
+def test_card_missing_without_metadata():
+    m = _added("yolov5_test")
+    assert set(models.missing_info(m)) == {"description", "owner", "license"}
+

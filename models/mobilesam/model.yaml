@@ -2,5 +2,8 @@ name: MobileSAM
 output: masks
 format: sam
 files: [mobilesam_encoder.onnx, mobilesam_decoder.onnx]
+description: Recorta objetos de cualquier tipo sin entrenamiento previo (Segment Anything ligero). Sirve para separar semillas, hojas, frutos o lesiones cuando el umbral no basta.
+owner: Kyung Hee University (Zhang et al.), a partir de Segment Anything de Meta AI
 license: Apache-2.0
 source: https://github.com/ChaoningZhang/MobileSAM
+citation: "Zhang, C., Han, D., Qiao, Y., Kim, J.U., Bae, S.-H., Lee, S., Hong, C.S., 2023. Faster Segment Anything: towards lightweight SAM for mobile applications. arXiv:2306.14289."

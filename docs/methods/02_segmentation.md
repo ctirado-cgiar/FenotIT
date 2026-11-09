@@ -112,7 +112,10 @@ candidate: box center, width and height in input pixels and one score per class)
 (the same with an objectness score that multiplies the class scores) and RF-DETR/DETR (box
 center, width and height as fractions of the image and one logit per class, passed through a
 sigmoid). The class names are read from the model metadata or from the `data.yaml` file that
-Roboflow and Ultralytics export with the weights.
+Roboflow and Ultralytics export with the weights; otherwise the user types them, one per
+class in training order. PyTorch weights (`.pt`) are converted to ONNX (opset 17, fixed
+input size taken from the training settings) with the tool that produced them, Ultralytics
+or RF-DETR, when it is installed; the conversion runs in a separate process.
 
 For YOLO models the image is resized without distortion to the model input (640 px by
 default) and padded with gray (*letterbox*); for DETR models it is resized to the input and

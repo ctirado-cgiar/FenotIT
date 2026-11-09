@@ -64,7 +64,10 @@ def main():
         v8[0, 4 + c, i] = s
         v5[0, i, :5] = (cx, cy, bw, bh, 1.0)
         v5[0, i, 5 + c] = s
-    _graph("yolov8_test", [("output0", v8)], {"names": "{0: 'seed', 1: 'pod'}", "task": "detect"})
+    _graph("yolov8_test", [("output0", v8)], {"names": "{0: 'seed', 1: 'pod'}", "task": "detect",
+                                              "description": "Test detector for seeds and pods",
+                                              "author": "FenotIT tests", "license": "CC0-1.0",
+                                              "docs": "https://github.com/ctirado-cgiar/FenotIT"})
     _graph("yolov5_test", [("output0", v5)])
     dets = np.zeros((1, n, 4))
     logits = np.full((1, n, 3), -10.0)

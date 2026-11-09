@@ -167,6 +167,19 @@ def metadata(analysis: str, results: dict[str, Any], project=None, extra: dict |
     return [{"key": k, "value": _plain(v)} for k, v in rows]
 
 
+def model_rows(model_id: str) -> list[tuple[str, Any]]:
+    """La ficha del modelo de IA (nombre, para qué sirve, propietario, licencia, fuente, cita)."""
+    from fenotit.core.segmentation import models
+    m = models.get(model_id) if model_id else None
+    if m is None:
+        return [("model", model_id or "")]
+    rows = [("model", m["name"]), ("model_output", m["output"]), ("model_format", m["format"])]
+    rows += [(f"model_{k}", m[k]) for k in models.INFO if m.get(k)]
+    if m["output"] == "boxes":
+        rows.append(("model_classes", "; ".join(m["classes"])))
+    return rows
+
+
 def segmentation_rows(project) -> list[tuple[str, Any]]:
     """La segmentación (paso 1) en palabras: método, ajustes y operaciones de afinado."""
     seg = project.segmentation
@@ -181,10 +194,19 @@ def segmentation_rows(project) -> list[tuple[str, Any]]:
                  ("examples_images", sum(1 for v in strokes.values() if v)),
                  ("examples_strokes", sum(len(v) for v in strokes.values())),
                  ("classifier_detail_mpx", seg.detail)]
+    elif method == "model" and (getattr(seg, "model", {}) or {}).get("output") == "boxes":
+        m = seg.model
+        names = list(m.get("classes") or [])
+        use = [int(c) for c in m.get("use") or []] or list(range(len(names)))
+        rows += [("segmentation", "object detector (boxes)" + (", boxes to masks with MobileSAM (Zhang et al. 2023)"
+                                                               if m.get("to_masks") else "")),
+                 *model_rows(m.get("name", "")),
+                 ("detector_min_confidence", m.get("conf", 0.25)),
+                 ("detector_classes_used", "; ".join(names[i] for i in use if i < len(names)))]
     elif method == "model":
         m = getattr(seg, "model", {}) or {}
         regions = getattr(project, "regions", {}) or {}
-        rows += [("segmentation", "MobileSAM (Zhang et al. 2023), "
+        rows += [*model_rows(m.get("name", "mobilesam")), ("segmentation", "MobileSAM (Zhang et al. 2023), "
                   + ("automatic regions" if m.get("mode", "auto") == "auto" else "clicks on objects"))]
         if m.get("mode", "auto") == "auto":
             rows += [("model_grid", m.get("grid", 16)),
