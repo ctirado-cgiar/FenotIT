@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 
 from fenotit.core.analysis.registry import ANALYSES
-from fenotit.gui.style.theme import COLORS
+from fenotit.gui.style.theme import COLORS, SPACE
 from fenotit.i18n import t
 
 
@@ -76,7 +76,7 @@ def _assets() -> Path:
 def _peek_tab(host, image, command, side: str):
     """Pestañita que se asoma en el borde cuando un panel está oculto (como la de una
     carpeta): clic = mostrar el panel. side = left | right | bottom."""
-    tab = tk.Label(host, image=image, bg=COLORS["bg_panel"], cursor="hand2", padx=3, pady=4,
+    tab = tk.Label(host, image=image, bg=COLORS["bg_panel"], cursor="hand2", padx=SPACE["sm"], pady=SPACE["sm"],
                    highlightthickness=1, highlightbackground=COLORS["border"])
     tab.bind("<Button-1>", lambda e: command())
     tab.bind("<Enter>", lambda e: tab.config(bg=COLORS["accent_light"]))
@@ -92,7 +92,7 @@ _SUMMARY_SKIP = ("image_width_px", "image_height_px")
 
 
 def _duration(seconds: float) -> str:
-    """12.3 s · 2 min 05 s"""
+    """12.3 s, 2 min 05 s"""
     if seconds < 60:
         return f"{seconds:.1f} s" if seconds < 10 else f"{seconds:.0f} s"
     m, s = divmod(int(round(seconds)), 60)
@@ -108,5 +108,5 @@ def _summary(stats: dict, limit: int = 6, aliases: dict | None = None) -> str:
     items = [(k, v) for k, v in stats.items() if v not in (None, "") and k not in _SUMMARY_SKIP
              and not k.endswith("_per_px") and not any(k.startswith(h[1:] + "_") for h in hidden)]
     from fenotit.gui.widgets.labels import column
-    text = "  ·  ".join(f"{column(k, aliases)}: {_cell(v)}" for k, v in items[:limit])
-    return text + ("  ·  …" if len(items) > limit else "")
+    text = ", ".join(f"{column(k, aliases)}: {_cell(v)}" for k, v in items[:limit])
+    return text + (", …" if len(items) > limit else "")

@@ -5,6 +5,7 @@ dos canales del espacio de fondo, como silueta tenue."""
 from __future__ import annotations
 
 import tkinter as tk
+import tkinter.font as tkfont
 
 import numpy as np
 
@@ -189,21 +190,21 @@ class RangeSlider(tk.Canvas):
         self.create_line(PAD, y, w - PAD, y, fill=COLORS["slider_trough"], width=4, capstyle="round")
         xl, xh = self._x(self.lo), self._x(self.hi)
         self.create_line(xl, y, xh, y, fill=self.track, width=4, capstyle="round")
-        xs = self._bubble_x(xl, xh, w)
+        bw = tkfont.Font(font=FONTS["small_bold"]).measure("255") + 8
+        xs = self._bubble_x(xl, xh, w, bw / 2)
         focus = self.focus_get() is self
         for name, x, bx in (("lo", xl, xs[0]), ("hi", xh, xs[1])):
             ring = acc if not (focus and name == self.active) else COLORS["accent_darker"]
             self.create_oval(x - r, y - r, x + r, y + r, fill=COLORS["white"], outline=ring, width=2)
             text = str(self.lo if name == "lo" else self.hi)
-            bw = 26
             self.create_rectangle(bx - bw / 2, 1, bx + bw / 2, self.BUBBLE, fill=acc, outline=acc)
             self.create_polygon(x - 3, self.BUBBLE, x + 3, self.BUBBLE, x, self.BUBBLE + 3, fill=acc, outline=acc)
             self.create_text(bx, 1 + self.BUBBLE / 2, text=text, fill=COLORS["white"], font=FONTS["small_bold"])
 
     @staticmethod
-    def _bubble_x(xl: float, xh: float, w: float) -> tuple[float, float]:
+    def _bubble_x(xl: float, xh: float, w: float, half: float) -> tuple[float, float]:
         """Centros de las burbujas: dentro del canvas y sin encimarse cuando las manijas se juntan."""
-        half, gap = 13, 2
+        gap = 2
         bl, bh = xl, xh
         if bh - bl < 2 * half + gap:
             mid = (bl + bh) / 2

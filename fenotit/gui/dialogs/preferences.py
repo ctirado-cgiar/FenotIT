@@ -12,7 +12,7 @@ from fenotit import i18n, settings
 from fenotit.gui.widgets.help import HelpIcon
 from fenotit.gui.style import theme
 from fenotit.gui.style.components import button, section as heading
-from fenotit.gui.style.theme import COLORS, FONTS
+from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 from fenotit.i18n import t
 
 WORK_RES = (("0", "workres.full"), ("100.0", "workres.100"), ("50.0", "workres.50"),
@@ -37,21 +37,21 @@ def show(root: tk.Misc, max_mpx: float | None, on_ok: Callable[[dict], None]) ->
     win.transient(root)
     tk.Frame(win, bg=COLORS["accent"], height=4).pack(fill=tk.X)
     body = tk.Frame(win, bg=bg)
-    body.pack(fill=tk.BOTH, padx=20, pady=(12, 4))
+    body.pack(fill=tk.BOTH, padx=SPACE["xxl"], pady=(SPACE["lg"], SPACE["sm"]))
     tk.Label(body, text=t("prefs.title"), bg=bg, fg=COLORS["accent"],
-             font=FONTS["heading"]).grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 6))
+             font=FONTS["heading"]).grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, SPACE["md"]))
     row = [1]
 
     def section(key):
-        heading(body, t(key).upper(), bg=bg).grid(row=row[0], column=0, columnspan=3, sticky="ew", pady=(10, 2))
+        heading(body, t(key).upper(), bg=bg).grid(row=row[0], column=0, columnspan=3, sticky="ew", pady=(SPACE["lg"], SPACE["xs"]))
         row[0] += 1
 
     def line(key, widget, help_key=None):
         tk.Label(body, text=t(key), bg=bg, fg=COLORS["text"], font=FONTS["body"]).grid(
-            row=row[0], column=0, sticky="w", padx=(0, 12), pady=2)
-        widget.grid(row=row[0], column=1, sticky="w", pady=2)
+            row=row[0], column=0, sticky="w", padx=(0, SPACE["lg"]), pady=SPACE["xs"])
+        widget.grid(row=row[0], column=1, sticky="w", pady=SPACE["xs"])
         if help_key:
-            HelpIcon(body, t(key), t(help_key), bg=bg).grid(row=row[0], column=2, sticky="w", padx=6)
+            HelpIcon(body, t(key), t(help_key), bg=bg).grid(row=row[0], column=2, sticky="w", padx=SPACE["md"])
         row[0] += 1
 
     def combo(values, current, width=26):
@@ -103,8 +103,8 @@ def show(root: tk.Misc, max_mpx: float | None, on_ok: Callable[[dict], None]) ->
         on_ok(values)
 
     btns = tk.Frame(win, bg=bg)
-    btns.pack(fill=tk.X, padx=20, pady=(10, 14))
-    button(btns, text=t("common.cancel"), command=win.destroy, kind="secondary").pack(side=tk.RIGHT, padx=(6, 0))
+    btns.pack(fill=tk.X, padx=SPACE["xxl"], pady=(SPACE["lg"], SPACE["lg"]))
+    button(btns, text=t("common.cancel"), command=win.destroy, kind="secondary").pack(side=tk.RIGHT, padx=(SPACE["md"], 0))
     button(btns, text=t("common.ok"), command=ok, kind="primary").pack(side=tk.RIGHT)
     win.bind("<Escape>", lambda e: win.destroy())
     win.update_idletasks()

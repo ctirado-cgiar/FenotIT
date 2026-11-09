@@ -16,7 +16,7 @@ from PIL import Image, ImageOps, ImageTk
 from fenotit import log
 from fenotit.gui.widgets.toolbar import IconButton
 from fenotit.i18n import t
-from fenotit.gui.style.theme import COLORS, FONTS
+from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 
 _log = log.get("gui.images")
 THUMB = 42                       # lado máximo de la miniatura (px): 3 columnas en el panel por defecto
@@ -95,18 +95,18 @@ class ImageList(tk.Frame):
     def _build(self):
         c = self.c
         top = self._top = tk.Frame(self, bg=c["bg_panel"])
-        top.pack(fill=tk.X, padx=6, pady=(2, 4))
+        top.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["xs"], SPACE["sm"]))
         kw = dict(bg=c["bg_panel"], hover=c["btn_hover"], active=c["accent_light"], size=14, color=c["accent"])
         self._btn = {m: IconButton(top, m, lambda m=m: self.set_mode(m), t(f"images.view_{m}"), **kw)
                      for m in ("grid", "list")}
         for b in self._btn.values():                   # primero los botones: el buscador toma lo que sobra
-            b.pack(side=tk.RIGHT, padx=(2, 0))
+            b.pack(side=tk.RIGHT, padx=(SPACE["xs"], 0))
         box = self._box = tk.Frame(top, bg=c["bg_card"], highlightthickness=1, highlightbackground=c["border"],
                        highlightcolor=c["accent"])
         self.query = tk.StringVar()
         self._entry = tk.Entry(box, textvariable=self.query, bd=0, relief="flat", bg=c["bg_card"],
                                fg=c["text"], font=self.f["small"], insertwidth=1, width=6)
-        self._entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(6, 0), ipady=3)
+        self._entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(SPACE["md"], 0), ipady=3)
         self._clear = tk.Label(box, text="×", bg=c["bg_card"], fg=c["text_muted"], cursor="hand2",
                                font=FONTS["large"])
         self._clear.bind("<Button-1>", lambda e: (self.query.set(""), self._entry.focus_set()))
@@ -117,7 +117,7 @@ class ImageList(tk.Frame):
         self.query.trace_add("write", lambda *_: self._filter())
 
         self._body = tk.Frame(self, bg=c["bg_panel"])
-        self._body.pack(fill=tk.BOTH, expand=True, padx=6, pady=(0, 4))
+        self._body.pack(fill=tk.BOTH, expand=True, padx=SPACE["md"], pady=(0, SPACE["sm"]))
         sb = ttk.Scrollbar(self._body, orient="vertical")
         self._sb = sb
         self.listbox = tk.Listbox(self._body, bg=c["bg_card"], fg=c["text"], font=self.f["small"],
@@ -301,7 +301,7 @@ class ImageList(tk.Frame):
         extra = self.search_text or (lambda p: "")
         self.visible = [i for i, p in enumerate(self.paths)
                         if all(s in f"{Path(p).name} {extra(p)}".lower() for s in terms)]
-        self._clear.pack(side=tk.RIGHT, padx=(0, 4)) if q else self._clear.pack_forget()
+        self._clear.pack(side=tk.RIGHT, padx=(0, SPACE["sm"])) if q else self._clear.pack_forget()
         if self.mode == "list":
             self._fill_list()
         else:
@@ -398,7 +398,7 @@ class ImageList(tk.Frame):
             self._tip = tip = tk.Toplevel(self)
             tip.wm_overrideredirect(True)
             self._tip_lbl = tk.Label(tip, bg=COLORS["bg_tooltip"], fg=COLORS["text"], relief="solid", bd=1,
-                                     font=FONTS["small"], padx=6, pady=2)
+                                     font=FONTS["small"], padx=SPACE["md"], pady=SPACE["xs"])
             self._tip_lbl.pack()
         self._tip_lbl.config(text=name)
         tip.wm_geometry(f"+{e.x_root + 12}+{e.y_root + 14}")

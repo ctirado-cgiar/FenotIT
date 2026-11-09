@@ -8,7 +8,7 @@ from PIL import Image, ImageTk
 from fenotit import APP_NAME, log
 from fenotit.core.analysis.registry import ANALYSES
 from fenotit.gui.style.components import button, divider
-from fenotit.gui.style.theme import COLORS, FONTS
+from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 from fenotit.gui.widgets.dropmenu import DropMenu, Sub
 from fenotit.gui.widgets.toolbar import IconButton, Tooltip
 from fenotit.gui.window.common import _analysis_label, _assets
@@ -23,20 +23,20 @@ class TopbarMixin:
         size = max(16, int(round(18 * self.root.winfo_fpixels("1i") / 96)))
         home = IconButton(self.topbar, "home", self._go_home, t("menu.home"), bg=COLORS["bg_topbar"],
                           hover=COLORS["topbar_hover"], active=COLORS["topbar_active"], size=size)
-        home.pack(side=tk.LEFT, padx=(8, 0), pady=6)
+        home.pack(side=tk.LEFT, padx=(SPACE["md"], 0), pady=SPACE["md"])
         brand = []
         try:
             ico  = _assets() / "logo.ico"
             img  = Image.open(str(ico)).resize((26, 26), Image.LANCZOS)
             self._topbar_logo = ImageTk.PhotoImage(img)
             brand.append(tk.Label(self.topbar, image=self._topbar_logo, bg=COLORS["bg_topbar"], cursor="hand2"))
-            brand[-1].pack(side=tk.LEFT, padx=(6, 2), pady=6)
+            brand[-1].pack(side=tk.LEFT, padx=(SPACE["md"], SPACE["xs"]), pady=SPACE["md"])
         except Exception:
             _log.debug("ignorado", exc_info=True)
 
         brand.append(tk.Label(self.topbar, text=APP_NAME, bg=COLORS["bg_topbar"], fg=COLORS["text_topbar"],
                               font=FONTS["heading"], cursor="hand2"))
-        brand[-1].pack(side=tk.LEFT, padx=(0, 8))
+        brand[-1].pack(side=tk.LEFT, padx=(0, SPACE["md"]))
         for w in brand:                                    # como en la mayoría de apps: el logo lleva al inicio
             w.bind("<Button-1>", lambda e: self._go_home())
             Tooltip(w, t("menu.home"))
@@ -133,18 +133,18 @@ class TopbarMixin:
         # Derecha: tipo de análisis y Ejecutar (con margen para no quedar junto a la X)
         tk.Frame(self.topbar, bg=COLORS["bg_topbar"], width=24).pack(side=tk.RIGHT)
         run = tk.Frame(self.topbar, bg=COLORS["bg_card"])
-        run.pack(side=tk.RIGHT, padx=(6, 0), pady=8)
+        run.pack(side=tk.RIGHT, padx=(SPACE["md"], 0), pady=SPACE["md"])
         self._run_frame = run
         button(run, text=t("topbar.run"), command=lambda: self._run_analysis(False), kind="run",
-               pady=2).pack(side=tk.LEFT)
-        divider(run, vertical=True).pack(side=tk.LEFT, fill=tk.Y, pady=3)
+               pady=SPACE["xs"]).pack(side=tk.LEFT)
+        divider(run, vertical=True).pack(side=tk.LEFT, fill=tk.Y, pady=SPACE["sm"])
         DropMenu(run, "", [
             (t("run.current"), lambda: self._run_analysis(False), "Ctrl+Enter"),
             (t("run.all"), lambda: self._run_analysis(True), "Ctrl+Shift+Enter"),
         ], COLORS, arrow_only=True).pack(side=tk.LEFT)
 
         self.analysis_var = tk.StringVar()
-        tk.Frame(self.topbar, bg=COLORS["topbar_divider"], width=1).pack(side=tk.RIGHT, fill=tk.Y, pady=8, padx=6)
+        tk.Frame(self.topbar, bg=COLORS["topbar_divider"], width=1).pack(side=tk.RIGHT, fill=tk.Y, pady=SPACE["md"], padx=SPACE["md"])
         self._build_zoom_tools()
 
     def _build_zoom_tools(self):
@@ -165,13 +165,13 @@ class TopbarMixin:
                 ("pan", lambda: self._set_zoom_tool("pan"), f"{t('view.pan')}  (H)"),
                 ("inspect", lambda: self._set_zoom_tool("inspect"), f"{t('view.inspect')}  (I)")):
             b = IconButton(bar, name, cmd, tip, **kw)
-            b.pack(side=tk.LEFT, padx=1, pady=6)
+            b.pack(side=tk.LEFT, padx=1, pady=SPACE["md"])
             if name in ("zoom_area", "pan", "inspect"):
                 self._zoom_tools[name] = b
-        pct.pack(side=tk.LEFT, padx=(4, 0))
-        tk.Frame(bar, bg=COLORS["topbar_divider"], width=1).pack(side=tk.LEFT, fill=tk.Y, pady=8, padx=(6, 4))
+        pct.pack(side=tk.LEFT, padx=(SPACE["sm"], 0))
+        tk.Frame(bar, bg=COLORS["topbar_divider"], width=1).pack(side=tk.LEFT, fill=tk.Y, pady=SPACE["md"], padx=(SPACE["md"], SPACE["sm"]))
         self._style_btn = IconButton(bar, "palette", self._open_style, f"{t('style.title')}", **kw)
-        self._style_btn.pack(side=tk.LEFT, padx=1, pady=6)
+        self._style_btn.pack(side=tk.LEFT, padx=1, pady=SPACE["md"])
         self._style_popup = None
         self.root.bind("<ButtonPress-1>", self._close_style_popup, add="+")
         pct.bind("<Button-1>", lambda e: self.do_zoom_100())
@@ -180,7 +180,7 @@ class TopbarMixin:
 
     def _vdiv(self):
         tk.Frame(self.topbar, bg=COLORS["topbar_divider"], width=1).pack(
-            side=tk.LEFT, fill=tk.Y, pady=6, padx=4)
+            side=tk.LEFT, fill=tk.Y, pady=SPACE["md"], padx=SPACE["sm"])
 
     def _drop(self, parent, text, items):
         m = DropMenu(parent, text, items, COLORS)

@@ -118,7 +118,7 @@ class ExportMixin:
                 self._export_runner = None
                 text = t("export.cancelled") if cancelled else t("export.done", folder=root)
                 if state["errors"]:
-                    text += "  ·  " + t("status.failed", n=state["errors"])
+                    text += ". " + t("status.failed", n=state["errors"])
                 dlg.finished(text, ok=not cancelled, folder=str(root))
                 return
             name, jobs = queue.pop(0)

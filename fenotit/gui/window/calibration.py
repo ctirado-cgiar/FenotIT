@@ -12,7 +12,7 @@ from fenotit.core.project import Scale
 from fenotit.gui.dialogs.corrections import CorrectionsDialog
 from fenotit.gui.dialogs.scale import ScaleDialog
 from fenotit.gui.style.components import button
-from fenotit.gui.style.theme import COLORS, FONTS
+from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 from fenotit.i18n import t
 
 
@@ -61,7 +61,7 @@ class CalibrationMixin:
         if self.project.scale_for(self.current_image_path).source != "none":
             u = self.project.unit
             parts.append(f"{units.per_px(mm, u):.6g} {u}/px" if mm else t("corr.short.scale_pending"))
-        self.corr_var.set("  ·  ".join(parts))
+        self.corr_var.set(", ".join(parts))
         self._corr_label.config(fg=COLORS["warning"] if missing else COLORS["accent"])
         why = [t(f"corr.not_applied.{n}") for n in missing]
         self._corr_tip.text = "\n".join(why) if why else t("corr.applied_tip")
@@ -135,13 +135,13 @@ class CalibrationMixin:
         win.resizable(False, False)
         win.transient(self.root)
         body = tk.Frame(win, bg=COLORS["bg_card"])
-        body.pack(padx=18, pady=14)
+        body.pack(padx=SPACE["xl"], pady=SPACE["lg"])
         cur = self._scale_summary(self.current_image_path)
         if cur:
             tk.Label(body, text=cur, bg=COLORS["accent_light"], fg=COLORS["accent"], font=FONTS["body_bold"],
-                     justify="left", anchor="w", padx=8, pady=5).pack(fill=tk.X, pady=(0, 10))
+                     justify="left", anchor="w", padx=SPACE["md"], pady=SPACE["sm"]).pack(fill=tk.X, pady=(0, SPACE["lg"]))
         tk.Label(body, text=t("scale.manual_prompt"), bg=COLORS["bg_card"], fg=COLORS["text"],
-                 font=FONTS["small"], justify="left").pack(anchor="w", pady=(0, 8))
+                 font=FONTS["small"], justify="left").pack(anchor="w", pady=(0, SPACE["md"]))
         row = tk.Frame(body, bg=COLORS["bg_card"])
         row.pack(anchor="w")
         value = tk.StringVar()
@@ -149,7 +149,7 @@ class CalibrationMixin:
         entry.pack(side=tk.LEFT)
         unit = tk.StringVar(value=self.project.unit)
         ttk.Combobox(row, textvariable=unit, values=units.UNITS, state="readonly", width=4,
-                     font=FONTS["body"]).pack(side=tk.LEFT, padx=(6, 2))
+                     font=FONTS["body"]).pack(side=tk.LEFT, padx=(SPACE["md"], SPACE["xs"]))
         tk.Label(row, text="/ px", bg=COLORS["bg_card"], fg=COLORS["text"], font=FONTS["body"]).pack(side=tk.LEFT)
         out: list = []
 
@@ -163,8 +163,8 @@ class CalibrationMixin:
                 out.append((v, unit.get()))
                 win.destroy()
         btns = tk.Frame(body, bg=COLORS["bg_card"])
-        btns.pack(fill=tk.X, pady=(12, 0))
-        button(btns, text=t("common.cancel"), command=win.destroy, kind="secondary", size="small").pack(side=tk.RIGHT, padx=(6, 0))
+        btns.pack(fill=tk.X, pady=(SPACE["lg"], 0))
+        button(btns, text=t("common.cancel"), command=win.destroy, kind="secondary", size="small").pack(side=tk.RIGHT, padx=(SPACE["md"], 0))
         button(btns, text=t("common.ok"), command=ok, kind="primary", size="small").pack(side=tk.RIGHT)
         win.bind("<Return>", ok)
         win.bind("<Escape>", lambda e: win.destroy())

@@ -19,7 +19,7 @@ from fenotit.core.corrections import pipeline as corrections
 from fenotit.core.image_io import load_image
 from fenotit.core.project import PROJECT_EXT, Project, Segmentation
 from fenotit.gui.style.components import button
-from fenotit.gui.style.theme import COLORS, FONTS
+from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 from fenotit.gui.window.common import _analysis_key, _on_base, _analysis_label, _analysis_name
 from fenotit.i18n import t
 
@@ -315,16 +315,16 @@ class ProjectMixin:
         win.transient(self.root)
         win.resizable(False, False)
         win.configure(bg=COLORS["bg_panel"])
-        box = tk.Frame(win, bg=COLORS["bg_panel"], padx=18, pady=14)
+        box = tk.Frame(win, bg=COLORS["bg_panel"], padx=SPACE["xl"], pady=SPACE["lg"])
         box.pack(fill=tk.BOTH)
         head = t("missing.found", k=relinked) + "  " if relinked else ""
         tk.Label(box, text=head + t("missing.msg", n=n, total=total), bg=COLORS["bg_panel"], fg=COLORS["text"],
                  font=FONTS["body"], justify="left", wraplength=420).pack(anchor="w")
         tk.Label(box, text="\n".join(Path(p).name for p in examples) + ("\n…" if n > len(examples) else ""),
                  bg=COLORS["bg_panel"], fg=COLORS["text_muted"], font=FONTS["small"], justify="left").pack(
-                     anchor="w", pady=(6, 10))
+                     anchor="w", pady=(SPACE["md"], SPACE["lg"]))
         tk.Label(box, text=t("missing.hint"), bg=COLORS["bg_panel"], fg=COLORS["text_muted"], font=FONTS["small"],
-                 justify="left", wraplength=420).pack(anchor="w", pady=(0, 12))
+                 justify="left", wraplength=420).pack(anchor="w", pady=(0, SPACE["lg"]))
         res = {"v": None}
 
         def pick(v):
@@ -332,9 +332,9 @@ class ProjectMixin:
             win.destroy()
         bar = tk.Frame(box, bg=COLORS["bg_panel"])
         bar.pack(fill=tk.X)
-        button(bar, text=t("missing.search"), command=lambda: pick("search"), kind="primary", pady=4).pack(side=tk.LEFT)
-        button(bar, text=t("missing.remove"), command=lambda: pick("remove"), kind="secondary", pady=4).pack(side=tk.LEFT, padx=6)
-        button(bar, text=t("common.cancel"), command=lambda: pick(None), kind="quiet", pady=4).pack(side=tk.RIGHT)
+        button(bar, text=t("missing.search"), command=lambda: pick("search"), kind="primary", pady=SPACE["sm"]).pack(side=tk.LEFT)
+        button(bar, text=t("missing.remove"), command=lambda: pick("remove"), kind="secondary", pady=SPACE["sm"]).pack(side=tk.LEFT, padx=SPACE["md"])
+        button(bar, text=t("common.cancel"), command=lambda: pick(None), kind="quiet", pady=SPACE["sm"]).pack(side=tk.RIGHT)
         win.bind("<Escape>", lambda e: pick(None))
         win.update_idletasks()
         x = self.root.winfo_rootx() + (self.root.winfo_width() - win.winfo_width()) // 2
@@ -459,12 +459,12 @@ class ProjectMixin:
         win.resizable(False, False)
         win.configure(bg=bg)
         tk.Frame(win, bg=COLORS["accent"], height=4).pack(fill=tk.X)
-        box = tk.Frame(win, bg=bg, padx=20, pady=14)
+        box = tk.Frame(win, bg=bg, padx=SPACE["xxl"], pady=SPACE["lg"])
         box.pack(fill=tk.BOTH)
         tk.Label(box, text=t("recovery.title"), bg=bg, fg=COLORS["accent"],
                  font=FONTS["heading"]).pack(anchor="w")
         tk.Label(box, text=t("recovery.msg", name=name, when=when, n=n), bg=bg, fg=COLORS["text"],
-                 font=FONTS["body"], justify="left", wraplength=380).pack(anchor="w", pady=(6, 14))
+                 font=FONTS["body"], justify="left", wraplength=380).pack(anchor="w", pady=(SPACE["md"], SPACE["lg"]))
         res = {"v": None}
 
         def pick(v):
@@ -474,7 +474,7 @@ class ProjectMixin:
         bar.pack(fill=tk.X)
         for text, v, accent in ((t("recovery.later"), None, False), (t("recovery.discard"), False, False),
                                 (t("recovery.recover"), True, True)):
-            button(bar, text=text, command=lambda v=v: pick(v), kind="primary" if accent else "secondary").pack(side=tk.RIGHT, padx=(6, 0))
+            button(bar, text=text, command=lambda v=v: pick(v), kind="primary" if accent else "secondary").pack(side=tk.RIGHT, padx=(SPACE["md"], 0))
         win.protocol("WM_DELETE_WINDOW", lambda: pick(None))
         win.update_idletasks()
         x = self.root.winfo_rootx() + (self.root.winfo_width() - win.winfo_reqwidth()) // 2

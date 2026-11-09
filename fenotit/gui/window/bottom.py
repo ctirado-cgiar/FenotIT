@@ -11,7 +11,7 @@ from fenotit import settings
 from fenotit.gui.charts.panels import IntraImageChartPanel
 from fenotit.gui.style.icons import icon
 from fenotit.gui.style.components import button
-from fenotit.gui.style.theme import COLORS, FONTS
+from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 from fenotit.gui.widgets.toolbar import IconButton, Tooltip
 from fenotit.i18n import t
 
@@ -29,20 +29,20 @@ class BottomMixin:
         bar = self._bottom_bar = tk.Frame(wrap, bg=COLORS["bg"])
         self._tab_labels = {}
         for key, text in (("table", t("tab.table")), ("charts", t("tab.charts"))):
-            lbl = tk.Label(bar, text=text, font=FONTS["small"], padx=14, pady=3, cursor="hand2", bd=0,
+            lbl = tk.Label(bar, text=text, font=FONTS["small"], padx=SPACE["lg"], pady=SPACE["sm"], cursor="hand2", bd=0,
                            highlightthickness=1, highlightbackground=COLORS["border"])
-            lbl.pack(side=tk.LEFT, padx=(0, 2))
+            lbl.pack(side=tk.LEFT, padx=(0, SPACE["xs"]))
             lbl.bind("<Button-1>", lambda e, k=key: self._select_bottom_tab(k))
             self._tab_labels[key] = lbl
         self._panel_bottom_icon = ImageTk.PhotoImage(icon("panel_bottom", 12, COLORS["accent"]))
-        corner = tk.Label(bar, image=self._panel_bottom_icon, bg=COLORS["bg"], cursor="hand2", padx=4, pady=2)
-        corner.pack(side=tk.LEFT, padx=6)
+        corner = tk.Label(bar, image=self._panel_bottom_icon, bg=COLORS["bg"], cursor="hand2", padx=SPACE["sm"], pady=SPACE["xs"])
+        corner.pack(side=tk.LEFT, padx=SPACE["md"])
         corner.bind("<Button-1>", lambda e: self._toggle_results_panel())
         Tooltip(corner, t("view.toggle_results"))
         self._meta_var = tk.StringVar(value="")               # valores de la tabla del usuario de esta foto
         self._meta_label = tk.Label(bar, textvariable=self._meta_var, bg=COLORS["bg"], fg=COLORS["text_muted"],
                                     font=FONTS["small"], anchor="e")
-        self._meta_label.pack(side=tk.RIGHT, padx=(6, 4))
+        self._meta_label.pack(side=tk.RIGHT, padx=(SPACE["md"], SPACE["sm"]))
         body = self._bottom_body = tk.Frame(wrap, bg=COLORS["bg_card"], highlightthickness=1,
                                             highlightbackground=COLORS["border"])
         body.pack_propagate(False)
@@ -81,24 +81,24 @@ class BottomMixin:
         if hasattr(self._chart_panel, "bar"):
             self._dock_icon = ImageTk.PhotoImage(icon("dock_up", 14, COLORS["accent"]))
             self._dock_btn = tk.Label(self._chart_panel.bar, image=self._dock_icon, bg=COLORS["bg_panel"],
-                                      cursor="hand2", padx=4)
-            self._dock_btn.pack(side=tk.RIGHT, padx=(2, 6))
+                                      cursor="hand2", padx=SPACE["sm"])
+            self._dock_btn.pack(side=tk.RIGHT, padx=(SPACE["xs"], SPACE["md"]))
             self._dock_btn.bind("<Button-1>", lambda e: self._dock_chart())
             Tooltip(self._dock_btn, t("chart.dock"))
             self._full_icon = ImageTk.PhotoImage(icon("expand", 14, COLORS["accent"]))
-            full = tk.Label(self._chart_panel.bar, image=self._full_icon, bg=COLORS["bg_panel"], cursor="hand2", padx=4)
-            full.pack(side=tk.RIGHT, padx=(2, 0))
+            full = tk.Label(self._chart_panel.bar, image=self._full_icon, bg=COLORS["bg_panel"], cursor="hand2", padx=SPACE["sm"])
+            full.pack(side=tk.RIGHT, padx=(SPACE["xs"], 0))
             full.bind("<Button-1>", lambda e: self._chart_fullscreen())
             Tooltip(full, t("chart.fullscreen"))
             save = self._save_btn = tk.Menubutton(self._chart_panel.bar, text=t("chart.save") + " ▾", bg=COLORS["btn_bg"],
-                                 fg=COLORS["text_muted"], relief="flat", font=FONTS["small"], cursor="hand2", pady=2)
+                                 fg=COLORS["text_muted"], relief="flat", font=FONTS["small"], cursor="hand2", pady=SPACE["xs"])
             menu = tk.Menu(save, tearoff=0)
             menu.add_command(label=t("chart.save_chart"), command=lambda: self._save_intra_chart(False))
             menu.add_command(label=t("chart.save_with_image"), command=lambda: self._save_intra_chart(True))
             save.configure(menu=menu)
-            save.pack(side=tk.RIGHT, padx=2, pady=3)
+            save.pack(side=tk.RIGHT, padx=SPACE["xs"], pady=SPACE["sm"])
             self._compare_btn = button(self._chart_panel.bar, text=t("chart.whole_batch"), command=self._show_batch_chart, kind="secondary", size="small")
-            self._compare_btn.pack(side=tk.RIGHT, padx=2, pady=3)
+            self._compare_btn.pack(side=tk.RIGHT, padx=SPACE["xs"], pady=SPACE["sm"])
             self._colors_btn = button(self._chart_panel.bar, text=t("c3d.open"), command=lambda: self._show_color3d("image"), kind="secondary", size="small")      # solo en la capa Color
 
     def _build_chart_dock(self, canvas_row):
@@ -169,7 +169,7 @@ class BottomMixin:
         if not self._results_shown:
             wrap.pack_forget()
             return
-        wrap.pack(fill=tk.X, expand=False, padx=6, pady=(0, 2), after=self._canvas_row)
+        wrap.pack(fill=tk.X, expand=False, padx=SPACE["md"], pady=(0, SPACE["xs"]), after=self._canvas_row)
         if self._results_visible:
             self._bottom_grip.pack(fill=tk.X)
             self._bottom_bar.pack(fill=tk.X)
@@ -182,7 +182,7 @@ class BottomMixin:
             if self._bottom_tab == "charts":
                 self._chart_panel.show()
         else:
-            self._bottom_bar.pack(fill=tk.X, pady=(2, 0))
+            self._bottom_bar.pack(fill=tk.X, pady=(SPACE["xs"], 0))
         self._paint_tabs()
 
     def _show_results_ui(self, on: bool):
@@ -208,7 +208,7 @@ class BottomMixin:
         edge = tk.LEFT if slot == "input" else tk.RIGHT
         self._chart_title.pack_forget()
         self._chart_eye.pack_forget()
-        self._chart_title.pack(side=edge, padx=2)
+        self._chart_title.pack(side=edge, padx=SPACE["xs"])
         self._chart_eye.pack(side=edge)
         self._chart_panel.pack_forget()
         self._chart_panel.lift()
@@ -248,7 +248,7 @@ class BottomMixin:
         self._chart_panel.pack_forget()
         self._chart_panel.pack(in_=self._tab_frames["charts"], fill=tk.BOTH, expand=True)
         self._chart_panel.lift()
-        self._dock_btn.pack(side=tk.RIGHT, padx=(2, 6), before=self._save_btn)
+        self._dock_btn.pack(side=tk.RIGHT, padx=(SPACE["xs"], SPACE["md"]), before=self._save_btn)
         self._results_visible, self._bottom_tab = True, "charts"
         self._layout_sides()
         self._layout_results()

@@ -9,6 +9,7 @@ from fenotit.gui.style.icons import icon
 from fenotit.gui.widgets.toolbar import Tooltip
 from fenotit.gui.window.common import _peek_tab
 from fenotit.i18n import t
+from fenotit.gui.style.theme import SPACE
 
 
 class CollapsiblePanel(tk.Frame):
@@ -34,7 +35,7 @@ class CollapsiblePanel(tk.Frame):
 
         self.content = tk.Frame(self, bg=colors["bg_panel"])
         self.content.pack(fill=tk.BOTH, expand=True)
-        self._corner = tk.Label(self, image=self._icon, bg=colors["bg_panel"], cursor="hand2", padx=2, pady=2)
+        self._corner = tk.Label(self, image=self._icon, bg=colors["bg_panel"], cursor="hand2", padx=SPACE["xs"], pady=SPACE["xs"])
         self._corner_place = (dict(relx=1.0, x=-4, y=5, anchor="ne") if side == "left"
                               else dict(x=4, y=5, anchor="nw"))
         self._corner.place(**self._corner_place)

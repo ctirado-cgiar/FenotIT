@@ -8,7 +8,7 @@ from tkinter import font as tkfont
 from typing import Callable
 
 from fenotit.core.segmentation import REFINE_OPS
-from fenotit.gui.style.theme import CLASS_COLORS, COLORS, FONTS
+from fenotit.gui.style.theme import CLASS_COLORS, COLORS, FONTS, SPACE
 from fenotit.i18n import t
 
 
@@ -34,7 +34,7 @@ class RefineList(tk.Frame):
         self._rows.pack(fill=tk.X)
         self._add_btn = tk.Label(self, text="+ " + t("refine.add_short"), bg=bg, fg=COLORS["accent"],
                                  font=FONTS["small"], cursor="hand2")
-        self._add_btn.pack(anchor="w", pady=(3, 0))
+        self._add_btn.pack(anchor="w", pady=(SPACE["sm"], 0))
         self._add_btn.bind("<Button-1>", lambda e: self._menu())
         self._muting = False
         self._width = 0
@@ -102,7 +102,7 @@ class RefineList(tk.Frame):
             self._grid(head, widths)
             for c, key in enumerate(("refine.op", "refine.size_px", "refine.times")):
                 tk.Label(head, text=t(key), bg=COLORS["bg_panel"], fg=muted, font=small,
-                         anchor="w").grid(row=0, column=c, sticky="w", padx=(6 if c == 0 else 0, 0))
+                         anchor="w").grid(row=0, column=c, sticky="w", padx=(SPACE["md"] if c == 0 else 0, 0))
         for i, o in enumerate(self.ops):
             row = tk.Frame(self._rows, bg=card, highlightthickness=1, highlightbackground=COLORS["border"])
             row.pack(fill=tk.X, pady=1)
@@ -110,7 +110,7 @@ class RefineList(tk.Frame):
             cell = tk.Frame(row, bg=card)
             cell.grid(row=0, column=0, sticky="we")
             tk.Label(cell, text=self._names[o["op"]], bg=card, fg=COLORS["text"], font=small, anchor="w",
-                     justify="left", wraplength=wrap).pack(side=tk.LEFT, padx=(6, 2), pady=2)
+                     justify="left", wraplength=wrap).pack(side=tk.LEFT, padx=(SPACE["md"], SPACE["xs"]), pady=SPACE["xs"])
             if REFINE_OPS[o["op"]]["size"]:
                 for c, key, hi in ((1, "size", 99), (2, "iter", 20)):
                     var = tk.StringVar(value=str(o.get(key, 3 if key == "size" else 1)))
@@ -123,7 +123,7 @@ class RefineList(tk.Frame):
             tools = tk.Frame(row, bg=card)
             for sym, cmd in (("↑", lambda i=i: self._move(i, -1)), ("↓", lambda i=i: self._move(i, 1)),
                              ("✕", lambda i=i: self._remove(i))):
-                lb = tk.Label(tools, text=sym, bg=card, fg=muted, font=small, cursor="hand2", padx=2)
+                lb = tk.Label(tools, text=sym, bg=card, fg=muted, font=small, cursor="hand2", padx=SPACE["xs"])
                 lb.pack(side=tk.LEFT)
                 lb.bind("<Button-1>", lambda e, c=cmd: c())
 
@@ -163,7 +163,7 @@ class ClassList(tk.Frame):
         self._rows.pack(fill=tk.X)
         add = tk.Label(self, text="+ " + t("cls.add"), bg=bg, fg=COLORS["accent"], font=FONTS["small"],
                        cursor="hand2")
-        add.pack(anchor="w", pady=(2, 0))
+        add.pack(anchor="w", pady=(SPACE["xs"], 0))
         add.bind("<Button-1>", lambda e: self._add())
 
     def get(self) -> list[dict]:
@@ -215,7 +215,7 @@ class ClassList(tk.Frame):
                            highlightbackground=COLORS["accent"] if on else COLORS["border"], cursor="hand2")
             row.pack(fill=tk.X, pady=1)
             sw = tk.Label(row, bg=c["color"], width=2, cursor="hand2")
-            sw.pack(side=tk.LEFT, padx=4, pady=3)
+            sw.pack(side=tk.LEFT, padx=SPACE["sm"], pady=SPACE["sm"])
             sw.bind("<Button-1>", lambda e, i=i: self._color(i))
             var = tk.StringVar(value=c["name"])
             ent = tk.Entry(row, textvariable=var, width=12, font=small, relief="flat", bg=bg)
@@ -223,7 +223,7 @@ class ClassList(tk.Frame):
             ent.bind("<FocusIn>", lambda e, i=i: self.current != i and self.after_idle(lambda: self.pick(i)))
             var.trace_add("write", lambda *a, i=i, v=var: self._rename(i, v.get()))
             if i >= 2:
-                x = tk.Label(row, text="✕", bg=bg, fg=COLORS["text_muted"], font=small, cursor="hand2", padx=3)
+                x = tk.Label(row, text="✕", bg=bg, fg=COLORS["text_muted"], font=small, cursor="hand2", padx=SPACE["sm"])
                 x.pack(side=tk.RIGHT)
                 x.bind("<Button-1>", lambda e, i=i: self._remove(i))
             if i:
@@ -233,7 +233,7 @@ class ClassList(tk.Frame):
                                command=lambda i=i, v=ov: self._object(i, v.get())).pack(side=tk.RIGHT)
             else:
                 tk.Label(row, text=t("cls.background"), bg=bg, fg=COLORS["text_muted"],
-                         font=small).pack(side=tk.RIGHT, padx=4)
+                         font=small).pack(side=tk.RIGHT, padx=SPACE["sm"])
             for w in (row,):
                 w.bind("<Button-1>", lambda e, i=i: self.pick(i))
 
@@ -261,7 +261,7 @@ class CategoryList(tk.Frame):
         self._rows.pack(fill=tk.X)
         add = tk.Label(self, text="+ " + t("cat.add"), bg=bg, fg=COLORS["accent"], font=FONTS["small"],
                        cursor="hand2")
-        add.pack(anchor="w", pady=(2, 0))
+        add.pack(anchor="w", pady=(SPACE["xs"], 0))
         add.bind("<Button-1>", lambda e: self._add())
 
     def get(self) -> list[dict]:
@@ -313,7 +313,7 @@ class CategoryList(tk.Frame):
                            highlightbackground=COLORS["accent"] if on else COLORS["border"])
             row.pack(fill=tk.X, pady=1)
             sw = tk.Label(row, bg=c["color"], width=2, cursor="hand2")
-            sw.pack(side=tk.LEFT, padx=4, pady=3)
+            sw.pack(side=tk.LEFT, padx=SPACE["sm"], pady=SPACE["sm"])
             sw.bind("<Button-1>", lambda e, i=i: self._color(i))
             var = tk.StringVar(value=c["name"])
             ent = tk.Entry(row, textvariable=var, width=12, font=small, relief="flat", bg=bg)
@@ -321,7 +321,7 @@ class CategoryList(tk.Frame):
             ent.bind("<FocusIn>", lambda e, i=i: self.current != i and self.after_idle(lambda: self.pick(i)))
             var.trace_add("write", lambda *a, i=i, v=var: self._rename(i, v.get()))
             if len(self.cats) > 1:
-                x = tk.Label(row, text="✕", bg=bg, fg=COLORS["text_muted"], font=small, cursor="hand2", padx=3)
+                x = tk.Label(row, text="✕", bg=bg, fg=COLORS["text_muted"], font=small, cursor="hand2", padx=SPACE["sm"])
                 x.pack(side=tk.RIGHT)
                 x.bind("<Button-1>", lambda e, i=i: self._remove(i))
             row.bind("<Button-1>", lambda e, i=i: self.pick(i))

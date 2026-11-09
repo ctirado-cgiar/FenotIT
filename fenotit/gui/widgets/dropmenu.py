@@ -4,7 +4,7 @@ from __future__ import annotations
 import tkinter as tk
 
 from fenotit.gui.style.components import divider
-from fenotit.gui.style.theme import COLORS, FONTS
+from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 from fenotit.i18n import t
 
 
@@ -99,7 +99,7 @@ class DropMenu(tk.Frame):
         inner.pack(padx=1, pady=1)
         for item in items:
             if item is None:
-                divider(inner).pack(fill=tk.X, pady=2)
+                divider(inner).pack(fill=tk.X, pady=SPACE["xs"])
                 continue
             label, cmd, *rest = item
             label = (label() if callable(label) else label).strip()
@@ -110,11 +110,11 @@ class DropMenu(tk.Frame):
             row.pack(fill=tk.X)
             lbl = tk.Label(row, text=f"  {label}   ", bg=c["bg_card"],
                            fg=c["text_muted"] if disabled else c["text"],
-                           font=FONTS["body"], anchor="w", pady=4, padx=4)
+                           font=FONTS["body"], anchor="w", pady=SPACE["sm"], padx=SPACE["sm"])
             lbl.pack(fill=tk.X)
             if shortcut:
                 tk.Label(row, text=shortcut, bg=c["bg_card"], fg=c["text_muted"],
-                         font=FONTS["small"], padx=8).place(relx=1.0, rely=0.5, anchor="e")
+                         font=FONTS["small"], padx=SPACE["md"]).place(relx=1.0, rely=0.5, anchor="e")
                 lbl.config(text=f"  {label}" + " " * (len(shortcut) + 10))
             if disabled:
                 continue

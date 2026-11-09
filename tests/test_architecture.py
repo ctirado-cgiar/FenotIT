@@ -5,6 +5,8 @@
 - Dos partes de la ventana no definen un método con el mismo nombre.
 - Colores, letras y tamaños de la interfaz salen del tema, y el tema no tiene valores sin uso.
 - Los botones se crean con gui/style/components.button.
+- Los márgenes (padx, pady) usan la escala SPACE del tema.
+- Los textos de la interfaz no separan ideas con «·» ni con raya.
 - Cada archivo empieza con una línea que dice qué hace, y no hay imports sin uso.
 - El grafo de dependencias (docs/map/index.html) coincide con el código.
 """
@@ -108,6 +110,30 @@ def test_buttons_use_components():
            for n in ast.walk(_tree(p)) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
            and n.func.attr == "Button" and getattr(n.func.value, "id", "") == "tk"]
     assert not bad, "tk.Button creado a mano (usar button() de gui/style/components.py):\n" + "\n".join(bad)
+
+
+def test_paddings_use_space_scale():
+    bad = []
+    for p in _py(GUI):
+        if p.parent.name == "style":
+            continue
+        for n in ast.walk(_tree(p)):
+            if isinstance(n, ast.keyword) and n.arg in ("padx", "pady"):
+                vals = [n.value] if isinstance(n.value, ast.Constant) else \
+                    list(n.value.elts) if isinstance(n.value, ast.Tuple) else []
+                if any(isinstance(v, ast.Constant) and isinstance(v.value, int) and v.value > 1 for v in vals):
+                    bad.append(f"{_rel(p)}:{n.lineno} {n.arg}={ast.unparse(n.value)}")
+    assert not bad, "Márgenes con números fijos (usar SPACE[\"xs\"…\"xxl\"]):\n" + "\n".join(bad)
+
+
+def test_texts_without_dot_separators():
+    import json
+    bad = []
+    for f in sorted((PKG / "lang").glob("*.json")):
+        for k, v in json.loads(f.read_text(encoding="utf-8")).items():
+            if " · " in v or " — " in v or "—" in v:
+                bad.append(f"{f.name}: {k} = {v!r}")
+    assert not bad, "Textos que separan ideas con «·» o con raya:\n" + "\n".join(bad)
 
 
 def test_button_styles_exist():

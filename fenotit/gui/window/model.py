@@ -12,7 +12,7 @@ import numpy as np
 
 from fenotit import log, settings
 from fenotit.gui.style.components import button
-from fenotit.gui.style.theme import COLORS, FONTS
+from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 from fenotit.gui.widgets.help import HelpIcon
 from fenotit.i18n import t
 
@@ -29,7 +29,7 @@ class ModelMixin:
         head = tk.Frame(box, bg=bg)
         head.pack(fill=tk.X)
         tk.Label(head, text="MobileSAM", bg=bg, fg=COLORS["text"], font=FONTS["body_bold"]).pack(side=tk.LEFT)
-        HelpIcon(head, "MobileSAM", t("sam.help"), bg=bg).pack(side=tk.LEFT, padx=(4, 0))
+        HelpIcon(head, "MobileSAM", t("sam.help"), bg=bg).pack(side=tk.LEFT, padx=(SPACE["sm"], 0))
         self.model_mode = tk.StringVar(value="auto")
         for key in ("auto", "points"):
             tk.Radiobutton(box, text=t(f"sam.mode.{key}"), variable=self.model_mode, value=key, bg=bg,
@@ -41,7 +41,7 @@ class ModelMixin:
         self.grid_var = tk.StringVar(value=self._grid_names[16])
         cb = ttk.Combobox(grow, textvariable=self.grid_var, values=list(self._grid_names.values()),
                           state="readonly", width=16, font=small)
-        cb.pack(side=tk.LEFT, padx=4)
+        cb.pack(side=tk.LEFT, padx=SPACE["sm"])
         cb.bind("<<ComboboxSelected>>", lambda e: self._on_model_change())
         HelpIcon(grow, t("sam.grid"), t("sam.grid_help"), bg=bg).pack(side=tk.LEFT)
         self._grid_row = grow
@@ -53,20 +53,20 @@ class ModelMixin:
         # categorías de las regiones (solo Automático)
         cat = tk.Frame(box, bg=bg)
         chead = tk.Frame(cat, bg=bg)
-        chead.pack(fill=tk.X, pady=(8, 2))
+        chead.pack(fill=tk.X, pady=(SPACE["md"], SPACE["xs"]))
         tk.Label(chead, text=t("cat.title"), bg=bg, fg=COLORS["text_muted"], font=small).pack(side=tk.LEFT)
-        HelpIcon(chead, t("cat.title"), t("cat.help"), bg=bg).pack(side=tk.LEFT, padx=(4, 0))
+        HelpIcon(chead, t("cat.title"), t("cat.help"), bg=bg).pack(side=tk.LEFT, padx=(SPACE["sm"], 0))
         from fenotit.gui.widgets.segment import CategoryList
         self.category_list = CategoryList(cat, self._on_categories_change, lambda i: None)
         self.category_list.set(self._default_categories())
         self.category_list.pack(fill=tk.X)
         links = tk.Frame(cat, bg=bg)
-        links.pack(fill=tk.X, pady=(4, 0))
+        links.pack(fill=tk.X, pady=(SPACE["sm"], 0))
         tk.Label(links, text=t("sam.regions_photo"), bg=bg, fg=COLORS["text_muted"], font=small).pack(side=tk.LEFT)
         for key, fn in (("sam.all", lambda: self._set_all_regions(True)),
                         ("sam.none", lambda: self._set_all_regions(False))):
             lb = tk.Label(links, text=t(key), bg=bg, fg=COLORS["accent"], font=small, cursor="hand2")
-            lb.pack(side=tk.LEFT, padx=(6, 0))
+            lb.pack(side=tk.LEFT, padx=(SPACE["md"], 0))
             lb.bind("<Button-1>", lambda e, f=fn: f())
         self._cat_box = cat
         self.sam_status = tk.StringVar(value="")
@@ -84,10 +84,10 @@ class ModelMixin:
                   self._cat_box):
             w.pack_forget()
         if auto:
-            self._grid_row.pack(fill=tk.X, pady=(4, 0))
-        self._sam_actions.pack(fill=tk.X, pady=(6, 0))
+            self._grid_row.pack(fill=tk.X, pady=(SPACE["sm"], 0))
+        self._sam_actions.pack(fill=tk.X, pady=(SPACE["md"], 0))
         (self._sam_try if auto else self._sam_clear).pack(side=tk.LEFT)
-        self._sam_status_lbl.pack(fill=tk.X, pady=(4, 0))
+        self._sam_status_lbl.pack(fill=tk.X, pady=(SPACE["sm"], 0))
         if auto:
             self._cat_box.pack(fill=tk.X)
         self.sam_status.set(t("sam.hint_auto") if auto else t("sam.hint_points"))

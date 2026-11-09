@@ -5,7 +5,7 @@ import tkinter as tk
 from tkinter import messagebox
 
 from fenotit.gui.style.components import button
-from fenotit.gui.style.theme import COLORS, FONTS
+from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 from fenotit.i18n import t
 
 
@@ -66,12 +66,12 @@ class AreasMixin:
         self._area_scope = scope
         self._area_scope_var = tk.StringVar()
         tk.Label(scope, textvariable=self._area_scope_var, bg=bg, fg=COLORS["text"],
-                 font=FONTS["small"]).pack(side=tk.LEFT, padx=(6, 4))
+                 font=FONTS["small"]).pack(side=tk.LEFT, padx=(SPACE["md"], SPACE["sm"]))
         self._apply_all_btn = button(scope, text=t("roi.apply_all_short"), command=self._apply_areas_to_all, kind="primary", size="small")      # botón lleno: se ve que es una acción
         self._clear_area_btn = button(scope, text=t("roi.clear_short"), command=self._clear_roi, kind="link",
-                                      size="small", bg=bg, fg=COLORS["text_muted"], padx=4)
-        self._clear_area_btn.pack(side=tk.RIGHT, padx=(0, 4))
-        button(scope, text=t("roi.edit_short"), command=self._edit_areas, bg=bg, kind="link", size="small", padx=4).pack(side=tk.RIGHT)
+                                      size="small", bg=bg, fg=COLORS["text_muted"], padx=SPACE["sm"])
+        self._clear_area_btn.pack(side=tk.RIGHT, padx=(0, SPACE["sm"]))
+        button(scope, text=t("roi.edit_short"), command=self._edit_areas, bg=bg, kind="link", size="small", padx=SPACE["sm"]).pack(side=tk.RIGHT)
 
     def _edit_areas(self):
         """Seleccionar con todas las áreas de la foto elegidas: se ven sus vértices para editarlas."""
@@ -103,7 +103,7 @@ class AreasMixin:
         own = self.project.has_own_roi(path)
         self._area_scope_var.set(t("roi.scope_image" if own else "roi.scope_all", n=len(shapes)))
         if own and len(self.project.images) > 1:
-            self._apply_all_btn.pack(side=tk.LEFT, before=self._clear_area_btn, padx=(2, 4), pady=3)
+            self._apply_all_btn.pack(side=tk.LEFT, before=self._clear_area_btn, padx=(SPACE["xs"], SPACE["sm"]), pady=SPACE["sm"])
         else:
             self._apply_all_btn.pack_forget()
         self._area_scope.place(x=6, rely=1.0, y=-6, anchor="sw")

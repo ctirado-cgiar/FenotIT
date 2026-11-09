@@ -4,7 +4,7 @@ from pathlib import Path
 from tkinter import filedialog, ttk
 
 from fenotit.core.project import IMAGE_EXTS
-from fenotit.gui.style.theme import COLORS, FONTS
+from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 from fenotit.i18n import t
 
 
@@ -20,7 +20,7 @@ class ImagePicker(tk.Frame):
                  font=FONTS["body"]).pack(side=tk.LEFT)
         self._var = tk.StringVar()
         self._combo = ttk.Combobox(self, textvariable=self._var, state="readonly", width=width)
-        self._combo.pack(side=tk.LEFT, padx=6)
+        self._combo.pack(side=tk.LEFT, padx=SPACE["md"])
         self._combo.bind("<<ComboboxSelected>>", self._selected)
         self._refresh(current)
 

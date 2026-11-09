@@ -126,6 +126,17 @@ scroll_arrow       = 12    # flechas de las barras de desplazamiento
 progress_thin      = 8     # alto de la barra de avance de la barra de estado
 focus_ring         = 0     # borde de foco de casillas y botones (0 = sin borde)
 
+# ── Espaciado (px) ───────────────────────────────────────────────────────────────
+# Márgenes entre controles y alrededor de ellos. Las pantallas usan estos nombres en vez
+# de números; cambiar un valor cambia todos los márgenes de ese tamaño.
+[spacing]
+xs  = 2
+sm  = 4
+md  = 8
+lg  = 12
+xl  = 16
+xxl = 24
+
 # ── Botones ──────────────────────────────────────────────────────────────────────
 # bg, fg, hover y pressed son nombres de [colors]; bg = "" usa el fondo del contenedor.
 # font y font_small son nombres de [fonts] (tamaño normal y pequeño).

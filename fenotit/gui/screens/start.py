@@ -16,7 +16,7 @@ from fenotit.gui.style.decor import BLUE, pixel_dissolve
 from fenotit.gui.style.icons import icon
 from fenotit.i18n import t
 from fenotit.gui.style.components import button, divider
-from fenotit.gui.style.theme import COLORS, FONTS
+from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 
 _THUMB = (88, 66)
 
@@ -86,13 +86,13 @@ class StartScreen(tk.Frame):
             from fenotit.gui.window.common import _assets
             logo = Image.open(_assets() / "logo.ico").convert("RGBA").resize((80, 80), Image.LANCZOS)
             self._img["logo"] = ImageTk.PhotoImage(logo)
-            tk.Label(inner, image=self._img["logo"], bg=COLORS["bg_card"]).pack(pady=(0, 10))
+            tk.Label(inner, image=self._img["logo"], bg=COLORS["bg_card"]).pack(pady=(0, SPACE["lg"]))
         except Exception:
             pass
         tk.Label(inner, text=APP_NAME, bg=COLORS["bg_card"], fg=BLUE, font=FONTS["display_large"]).pack()
         tk.Label(inner, text=t("start.subtitle"), bg=COLORS["bg_card"], fg=COLORS["text_muted"], font=FONTS["motto_large"],
-                 wraplength=250, justify="center").pack(pady=(4, 14))
-        tk.Frame(inner, bg=BLUE, width=36, height=2).pack(pady=(0, 14))
+                 wraplength=250, justify="center").pack(pady=(SPACE["sm"], SPACE["lg"]))
+        tk.Frame(inner, bg=BLUE, width=36, height=2).pack(pady=(0, SPACE["lg"]))
         tk.Label(inner, text=t("start.tagline"), bg=COLORS["bg_card"], fg=COLORS["text_faint"], font=FONTS["small"],
                  wraplength=230, justify="center").pack()
         self._build_links()
@@ -110,15 +110,13 @@ class StartScreen(tk.Frame):
                  ("about", t("start.about"), self._links[1][1])]
         items = [x for x in items if x[2]]
         for i, (key, text, cmd) in enumerate(items):
-            if i:
-                tk.Label(box, text="·", bg=self.c["bg"], fg=COLORS["text_faint"]).pack(side=tk.LEFT, padx=4)
             lbl = tk.Label(box, text=text, bg=self.c["bg"], fg=muted, font=FONTS["body"], cursor="hand2")
-            lbl.pack(side=tk.LEFT)
+            lbl.pack(side=tk.LEFT, padx=(SPACE["lg"] if i else 0, 0))
             lbl.bind("<Enter>", lambda e, w=lbl: w.config(fg=BLUE))
             lbl.bind("<Leave>", lambda e, w=lbl: w.config(fg=muted))
             lbl.bind("<Button-1>", lambda e, f=cmd: f())
             self.targets[key] = lbl
-        ver = tk.Label(self, text=f"v{__version__}  ·  Alliance of Bioversity International & CIAT",
+        ver = tk.Label(self, text=f"v{__version__}, Alliance of Bioversity International & CIAT",
                        bg=self.c["bg"], fg=COLORS["text_faint"], font=FONTS["tiny"])
         ver.place(relx=1.0, rely=1.0, x=-20, y=-12, anchor="se")
         self._floating.append(ver)
@@ -148,14 +146,14 @@ class StartScreen(tk.Frame):
         body.place(relx=0.5, rely=0.42, anchor="center")
 
         tk.Label(body, text=t("start.begin"), bg=c["bg"], fg=c["text_muted"],
-                 font=FONTS["motto_xl"]).pack(anchor="w", pady=(0, 10))
+                 font=FONTS["motto_xl"]).pack(anchor="w", pady=(0, SPACE["lg"]))
         row = tk.Frame(body, bg=c["bg"])
         row.pack(anchor="w")
         self.targets["new"] = self._new_tile(row, on_photos, on_folder)
         self.targets["open"] = self._tile(row, "project", t("start.open"), t("start.open_hint"), on_open)
 
         tk.Label(body, text=t("start.recent"), bg=c["bg"], fg=c["text_muted"],
-                 font=FONTS["motto_large"]).pack(anchor="w", pady=(22, 6))
+                 font=FONTS["motto_large"]).pack(anchor="w", pady=(SPACE["xxl"], SPACE["md"]))
         recent = settings.recent_projects()
         if not recent:
             tk.Label(body, text=t("start.no_recent"), bg=c["bg"], fg=c["text_muted"],
@@ -164,7 +162,7 @@ class StartScreen(tk.Frame):
         grid.pack(anchor="w")
         self.targets["recent"] = grid if recent else None
         for i, path in enumerate(recent[:6]):
-            self._recent_card(grid, Path(path), on_recent).grid(row=i // 2, column=i % 2, padx=(0, 10), pady=(0, 8),
+            self._recent_card(grid, Path(path), on_recent).grid(row=i // 2, column=i % 2, padx=(0, SPACE["lg"]), pady=(0, SPACE["md"]),
                                                               sticky="w")
 
     # ── tarjetas ─────────────────────────────────────────────────────────────
@@ -188,12 +186,12 @@ class StartScreen(tk.Frame):
     def _tile(self, parent, ico, title, hint, cmd):
         c = self.c
         card = self._card(parent, 210, 120)
-        card.pack(side=tk.LEFT, padx=(0, 12))
+        card.pack(side=tk.LEFT, padx=(0, SPACE["lg"]))
         parts = [tk.Label(card, image=self._img[ico], bg=c["bg_card"]),
                  tk.Label(card, text=title, bg=c["bg_card"], fg=c["text"], font=FONTS["topbar"]),
                  tk.Label(card, text=hint, bg=c["bg_card"], fg=c["text_muted"], font=FONTS["small"],
                           wraplength=190, justify="center")]
-        parts[0].pack(pady=(18, 4))
+        parts[0].pack(pady=(SPACE["xl"], SPACE["sm"]))
         parts[1].pack()
         parts[2].pack()
         self._hover(card, parts)
@@ -205,17 +203,17 @@ class StartScreen(tk.Frame):
         """Nuevo proyecto: al tocarlo aparecen "Agregar fotos" y "Agregar carpeta"."""
         c = self.c
         card = self._card(parent, 210, 120)
-        card.pack(side=tk.LEFT, padx=(0, 12))
+        card.pack(side=tk.LEFT, padx=(0, SPACE["lg"]))
         front = [tk.Label(card, image=self._img["photo"], bg=c["bg_card"]),
                  tk.Label(card, text=t("start.new"), bg=c["bg_card"], fg=c["text"], font=FONTS["topbar"]),
                  tk.Label(card, text=t("start.new_hint"), bg=c["bg_card"], fg=c["text_muted"], font=FONTS["small"],
                           wraplength=190, justify="center")]
-        front[0].pack(pady=(18, 4))
+        front[0].pack(pady=(SPACE["xl"], SPACE["sm"]))
         front[1].pack()
         front[2].pack()
         choices = tk.Frame(card, bg=c["bg_card"])
         for ico, text, cmd in (("photo_w", t("start.photos"), on_photos), ("folder_w", t("start.folder"), on_folder)):
-            button(choices, text=f"  {text}", image=self._img[ico], compound="left", command=cmd, anchor="w", kind="primary", pady=6).pack(fill=tk.X, padx=14, pady=(10, 0))
+            button(choices, text=f"  {text}", image=self._img[ico], compound="left", command=cmd, anchor="w", kind="primary", pady=SPACE["md"]).pack(fill=tk.X, padx=SPACE["lg"], pady=(SPACE["lg"], 0))
 
         def open_choices(_e=None):
             for w in front:

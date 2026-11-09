@@ -170,7 +170,7 @@ class ImagesMixin:
         self.scaler_left.set_image(img)
         self._on_canvas_row_resize()               # otra proporción: quizá conviene arriba y abajo
         self._fit_docked_chart()
-        self.image_info_var.set(f"{Path(path).name}  ·  {img.shape[1]} × {img.shape[0]} px")
+        self.image_info_var.set(f"{Path(path).name} ({img.shape[1]} × {img.shape[0]} px)")
         self._show_meta()
         self._update_corr_indicator()
         self.preview_var.set("")

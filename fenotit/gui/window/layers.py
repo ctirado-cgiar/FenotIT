@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 
 from fenotit.core.analysis.registry import ANALYSES, AnalysisResult
-from fenotit.gui.style.theme import COLORS, FONTS
+from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 from fenotit.gui.window.common import _on_base, _analysis_label
 
 
@@ -115,7 +115,7 @@ class LayersMixin:
             if len(done) > 1:
                 tk.Label(self.history_frame, text=_analysis_label(name), bg=COLORS["bg_panel"],
                          fg=COLORS["accent"] if current else COLORS["text_muted"],
-                         font=FONTS["small_italic"], anchor="w", padx=6).pack(fill=tk.X, pady=(4, 0))
+                         font=FONTS["small_italic"], anchor="w", padx=SPACE["md"]).pack(fill=tk.X, pady=(SPACE["sm"], 0))
             for i, view in enumerate(self._step_names.get(name, {}).get(path, [])):
                 sel = current and i == self.step_idx
                 bg = COLORS["accent_light"] if sel else COLORS["bg_panel"]
@@ -123,7 +123,7 @@ class LayersMixin:
                 row.pack(fill=tk.X)
                 tk.Frame(row, bg=COLORS["accent"] if sel else bg, width=3).pack(side=tk.LEFT, fill=tk.Y)
                 lbl = tk.Label(row, text=view, bg=bg, fg=COLORS["text"] if current else COLORS["text_muted"],
-                               font=FONTS["small"], anchor="w", padx=8, pady=2, cursor="hand2")
+                               font=FONTS["small"], anchor="w", padx=SPACE["md"], pady=SPACE["xs"], cursor="hand2")
                 lbl.pack(side=tk.LEFT, fill=tk.X, expand=True)
                 for wdg in (row, lbl):
                     wdg.bind("<Button-1>", lambda e, a=name, v=view: self._open_view(a, v))

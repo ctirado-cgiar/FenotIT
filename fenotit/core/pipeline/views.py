@@ -145,7 +145,7 @@ def render_legend(image: np.ndarray, spec: dict, color_format: str = "RGB", scal
         lines.append((f"{_color_text(c, color_format)}   {c['pct']:.1f} %", (c["B"], c["G"], c["R"])))
     title = spec.get("title", "")
     if spec.get("colors"):
-        title = f"{title}  ·  {color_format}" if title else color_format
+        title = f"{title} ({color_format})" if title else color_format
     shape = spec.get("shape")
     footer = spec.get("footer", "")                    # nombre de la foto, pequeño
     small = _font(max(8, round(size * 0.72)))

@@ -15,7 +15,7 @@ from fenotit.core.image_io import load_image
 from fenotit.gui.widgets.basic import ImagePicker
 from fenotit.gui.dialogs.scale import BaseDialog
 from fenotit.gui.style.components import button
-from fenotit.gui.style.theme import COLORS, FONTS
+from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 from fenotit.i18n import t
 
 _log = log.get("gui.corrections")
@@ -47,18 +47,18 @@ class CorrectionsDialog(BaseDialog):
     # ── UI ────────────────────────────────────────────────────────────────────
 
     def _build_buttons(self, parent):
-        button(parent, text=t("common.close"), command=self.destroy, kind="secondary").pack(side=tk.RIGHT, padx=2)
-        button(parent, text=t("corr.apply"), command=self._apply, kind="primary").pack(side=tk.RIGHT, padx=2)
+        button(parent, text=t("common.close"), command=self.destroy, kind="secondary").pack(side=tk.RIGHT, padx=SPACE["xs"])
+        button(parent, text=t("corr.apply"), command=self._apply, kind="primary").pack(side=tk.RIGHT, padx=SPACE["xs"])
 
     def _build_body(self):
-        self._muted(self.body, t("corr.intro")).pack(anchor="w", pady=(0, 6))
-        ImagePicker(self.body, self._paths, self._raw_path, self._set_raw).pack(anchor="w", pady=(0, 8))
+        self._muted(self.body, t("corr.intro")).pack(anchor="w", pady=(0, SPACE["md"]))
+        ImagePicker(self.body, self._paths, self._raw_path, self._set_raw).pack(anchor="w", pady=(0, SPACE["md"]))
         nb = ttk.Notebook(self.body)
         nb.pack(fill=tk.BOTH, expand=True)
         for build, key in ((self._tab_distortion, "corr.tab.distortion"),
                            (self._tab_perspective, "corr.tab.perspective"),
                            (self._tab_color, "corr.tab.color")):
-            f = tk.Frame(nb, bg=COLORS["bg_card"], padx=12, pady=10)
+            f = tk.Frame(nb, bg=COLORS["bg_card"], padx=SPACE["lg"], pady=SPACE["lg"])
             nb.add(f, text=f"  {t(key)}  ")
             build(f)
             if key.endswith(self._tab):
@@ -66,11 +66,11 @@ class CorrectionsDialog(BaseDialog):
 
     def _entry_row(self, parent, label, var, width=8):
         f = tk.Frame(parent, bg=COLORS["bg_card"])
-        f.pack(fill=tk.X, pady=2)
+        f.pack(fill=tk.X, pady=SPACE["xs"])
         tk.Label(f, text=label, bg=COLORS["bg_card"], fg=COLORS["text"],
                  font=FONTS["body"], width=34, anchor="w").pack(side=tk.LEFT)
         tk.Entry(f, textvariable=var, width=width, bg=COLORS["bg_panel"], fg=COLORS["text"],
-                 relief="solid", bd=1, font=FONTS["mono"]).pack(side=tk.LEFT, padx=4)
+                 relief="solid", bd=1, font=FONTS["mono"]).pack(side=tk.LEFT, padx=SPACE["sm"])
         return f
 
     def _set_raw(self, path: str):
@@ -100,13 +100,13 @@ class CorrectionsDialog(BaseDialog):
         row.pack(fill=tk.X)
         self._check(row, var, "corr.enable").pack(side=tk.LEFT)
         HelpIcon(row, t(f"corr.tab.{kind}"), t(f"corr.{kind}.why"), t(f"corr.{kind}.short")).pack(
-            side=tk.LEFT, padx=(4, 0))
+            side=tk.LEFT, padx=(SPACE["sm"], 0))
         return row
 
     def _status(self, parent):
         var = tk.StringVar()
         tk.Label(parent, textvariable=var, bg=COLORS["bg_card"], fg=COLORS["text_muted"],
-                 font=FONTS["small"], justify="left", wraplength=680).pack(anchor="w", pady=(8, 0))
+                 font=FONTS["small"], justify="left", wraplength=680).pack(anchor="w", pady=(SPACE["md"], 0))
         return var
 
     # Distorsión
@@ -116,7 +116,7 @@ class CorrectionsDialog(BaseDialog):
         d = self.c.distortion
         self._d_on = tk.BooleanVar(value=d.enabled)
         self._enable_row(f, self._d_on, "distortion")
-        self._muted(f, t("board.help", n=D_MAX)).pack(anchor="w", pady=(2, 6))
+        self._muted(f, t("board.help", n=D_MAX)).pack(anchor="w", pady=(SPACE["xs"], SPACE["md"]))
         cols, rows = settings.get("board_grid", [7, 6])
 
         def use(res, board_photos=()):
@@ -134,7 +134,7 @@ class CorrectionsDialog(BaseDialog):
         d = self.c.distortion
         if not d.mtx:
             return t("corr.distortion.none")
-        rms = f" · RMS {d.rms:.3f} px" if d.rms else ""
+        rms = f", RMS {d.rms:.3f} px" if d.rms else ""
         return t("corr.distortion.ready", source=d.source) + rms
 
     def _refresh_distortion(self):
@@ -159,7 +159,7 @@ class CorrectionsDialog(BaseDialog):
         p = self.c.perspective
         self._p_on = tk.BooleanVar(value=p.enabled)
         self._enable_row(f, self._p_on, "perspective")
-        self._muted(f, t("corr.perspective.help")).pack(anchor="w", pady=(4, 8))
+        self._muted(f, t("corr.perspective.help")).pack(anchor="w", pady=(SPACE["sm"], SPACE["md"]))
         self._p_w = tk.StringVar(value="" if p.width_mm is None else f"{p.width_mm:g}")
         self._p_h = tk.StringVar(value="" if p.height_mm is None else f"{p.height_mm:g}")
         self._p_m = tk.StringVar(value=str(p.margin_px))
@@ -167,8 +167,8 @@ class CorrectionsDialog(BaseDialog):
         self._entry_row(f, t("corr.perspective.height"), self._p_h)
         self._entry_row(f, t("corr.perspective.margin"), self._p_m)
         self._p_scale = tk.BooleanVar(value=self._aruco_scale)
-        self._check(f, self._p_scale, "corr.perspective.use_scale").pack(anchor="w", pady=(6, 0))
-        self._button(f, "corr.verify", self._verify_aruco).pack(anchor="w", pady=6)
+        self._check(f, self._p_scale, "corr.perspective.use_scale").pack(anchor="w", pady=(SPACE["md"], 0))
+        self._button(f, "corr.verify", self._verify_aruco).pack(anchor="w", pady=SPACE["md"])
         self._p_status = self._status(f)
 
     def _perspective_cfg(self) -> P.Perspective:
@@ -213,11 +213,11 @@ class CorrectionsDialog(BaseDialog):
         bg = COLORS["bg_card"]
         self._c_on = tk.BooleanVar(value=col.enabled)
         self._enable_row(f, self._c_on, "color")
-        self._muted(f, t("corr.color.help")).pack(anchor="w", pady=(4, 6))
+        self._muted(f, t("corr.color.help")).pack(anchor="w", pady=(SPACE["sm"], SPACE["md"]))
 
         def radios(title, var, options, cmd=None):
             box = tk.Frame(f, bg=bg)
-            box.pack(fill=tk.X, pady=(4, 0))
+            box.pack(fill=tk.X, pady=(SPACE["sm"], 0))
             tk.Label(box, text=title, bg=bg, fg=COLORS["text"], font=FONTS["body_bold"],
                      width=14, anchor="nw").pack(side=tk.LEFT, anchor="n")
             col_f = tk.Frame(box, bg=bg)
@@ -242,21 +242,21 @@ class CorrectionsDialog(BaseDialog):
             if i:
                 tk.Label(cr, text="×", bg=bg, fg=COLORS["text_muted"]).pack(side=tk.LEFT)
             tk.Entry(cr, textvariable=var, width=3, justify="center", bg=COLORS["bg_panel"], relief="solid",
-                     bd=1, font=FONTS["mono"]).pack(side=tk.LEFT, padx=2)
-        self._small(cr, "corr.color.values", self._edit_values).pack(side=tk.LEFT, padx=6)
-        self._small(cards["white"], "corr.color.mark_area", self._mark_area).pack(side=tk.LEFT, padx=6)
+                     bd=1, font=FONTS["mono"]).pack(side=tk.LEFT, padx=SPACE["xs"])
+        self._small(cr, "corr.color.values", self._edit_values).pack(side=tk.LEFT, padx=SPACE["md"])
+        self._small(cards["white"], "corr.color.mark_area", self._mark_area).pack(side=tk.LEFT, padx=SPACE["md"])
 
         self._c_ref = tk.StringVar(value=col.reference)
         refs = radios(t("corr.color.towards"), self._c_ref, [
             ("values", t("corr.color.ref_values")), ("photo", t("corr.color.ref_photo"))], self._color_changed)
-        self._small(refs["photo"], "corr.color.use_current", self._use_reference_photo).pack(side=tk.LEFT, padx=6)
+        self._small(refs["photo"], "corr.color.use_current", self._use_reference_photo).pack(side=tk.LEFT, padx=SPACE["md"])
 
         self._c_mode = tk.StringVar(value=col.mode)
         self._mode_rows = radios(t("corr.color.where"), self._c_mode, [
             ("per_image", t("corr.color.mode.per_image")), ("fixed", t("corr.color.mode.fixed"))],
             self._color_changed)
 
-        self._button(f, "corr.color.detect", self._detect_card).pack(anchor="w", pady=(10, 0))
+        self._button(f, "corr.color.detect", self._detect_card).pack(anchor="w", pady=(SPACE["lg"], 0))
         self._c_status = self._status(f)
         self._color_changed()
 

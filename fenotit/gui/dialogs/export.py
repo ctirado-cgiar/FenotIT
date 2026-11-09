@@ -12,7 +12,7 @@ from tkinter import filedialog, messagebox, ttk
 from fenotit import log
 from fenotit.gui.widgets.help import HelpIcon
 from fenotit.gui.style.components import button, divider, section as title
-from fenotit.gui.style.theme import COLORS, FONTS
+from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 from fenotit.i18n import t
 
 _log = log.get("gui.export")
@@ -47,13 +47,13 @@ class ExportDialog(tk.Toplevel):
 
         tk.Frame(self, bg=COLORS["accent"], height=4).pack(fill=tk.X)
         body = tk.Frame(self, bg=bg)
-        body.pack(fill=tk.BOTH, expand=True, padx=22, pady=(14, 8))
+        body.pack(fill=tk.BOTH, expand=True, padx=SPACE["xxl"], pady=(SPACE["lg"], SPACE["md"]))
         tk.Label(body, text=t("export.title"), bg=bg, fg=COLORS["accent"],
                  font=FONTS["heading_large"]).pack(anchor="w")
 
         def section(text, help_key=None):
             title(body, text, bg=bg, help_title=text.capitalize(),
-                  help_text=t(help_key) if help_key else None).pack(fill=tk.X, pady=(14, 4))
+                  help_text=t(help_key) if help_key else None).pack(fill=tk.X, pady=(SPACE["lg"], SPACE["sm"]))
 
         section(t("export.folder"))
         row = tk.Frame(body, bg=bg)
@@ -61,13 +61,13 @@ class ExportDialog(tk.Toplevel):
         self.folder = tk.StringVar(value=folder)
         tk.Entry(row, textvariable=self.folder, width=46, bg=COLORS["bg_panel"], fg=COLORS["text"],
                  relief="solid", bd=1, font=FONTS["small"]).pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=2)
-        button(row, text="…", command=self._pick, width=3, kind="secondary").pack(side=tk.LEFT, padx=(4, 0))
+        button(row, text="…", command=self._pick, width=3, kind="secondary").pack(side=tk.LEFT, padx=(SPACE["sm"], 0))
         self.stamp = tk.BooleanVar(value=stamp)
         row = tk.Frame(body, bg=bg)
-        row.pack(fill=tk.X, pady=(2, 0))
+        row.pack(fill=tk.X, pady=(SPACE["xs"], 0))
         tk.Checkbutton(row, variable=self.stamp, text=t("export.stamp"), bg=bg, fg=COLORS["text"],
                        selectcolor=COLORS["bg_panel"], activebackground=bg, font=FONTS["small"]).pack(side=tk.LEFT)
-        HelpIcon(row, t("export.stamp"), t("export.stamp_help"), bg=bg).pack(side=tk.LEFT, padx=(4, 0))
+        HelpIcon(row, t("export.stamp"), t("export.stamp_help"), bg=bg).pack(side=tk.LEFT, padx=(SPACE["sm"], 0))
 
         self.scope = tk.StringVar(value=(scopes or [("all", "")])[0][0])
         if scopes and len(scopes) > 1:
@@ -77,13 +77,13 @@ class ExportDialog(tk.Toplevel):
             for key, text in scopes:
                 tk.Radiobutton(row, variable=self.scope, value=key, text=text, bg=bg, fg=COLORS["text"],
                                selectcolor=COLORS["bg_panel"], activebackground=bg,
-                               font=FONTS["body"]).pack(side=tk.LEFT, padx=(0, 14))
+                               font=FONTS["body"]).pack(side=tk.LEFT, padx=(0, SPACE["lg"]))
 
         section(t("export.analyses"))
         self.chosen: dict[str, tk.BooleanVar] = {}
         for name, label, n in analyses:
             var = self.chosen[name] = tk.BooleanVar(value=True)
-            tk.Checkbutton(body, variable=var, text=f"{label}  ·  {t('export.n_images', n=n)}", bg=bg,
+            tk.Checkbutton(body, variable=var, text=f"{label} ({t('export.n_images_one' if n == 1 else 'export.n_images', n=n)})", bg=bg,
                            fg=COLORS["text"], selectcolor=COLORS["bg_panel"], activebackground=bg,
                            font=FONTS["body"], anchor="w").pack(fill=tk.X)
 
@@ -97,19 +97,19 @@ class ExportDialog(tk.Toplevel):
             tk.Checkbutton(row, variable=var, text=text, bg=bg, fg=COLORS["text"], selectcolor=COLORS["bg_panel"],
                            activebackground=bg, font=FONTS["body"]).pack(side=tk.LEFT)
             if help_key:
-                HelpIcon(row, text, t(help_key), bg=bg).pack(side=tk.LEFT, padx=(4, 0))
+                HelpIcon(row, text, t(help_key), bg=bg).pack(side=tk.LEFT, padx=(SPACE["sm"], 0))
 
         self.msg = tk.StringVar(value="")
         self._bar = ttk.Progressbar(body, mode="determinate", length=420)
         self._msg_lbl = tk.Label(body, textvariable=self.msg, bg=bg, fg=COLORS["text_muted"], font=FONTS["small"],
                                  anchor="w", justify="left", wraplength=420)
-        self._msg_lbl.pack(fill=tk.X, pady=(14, 0))
+        self._msg_lbl.pack(fill=tk.X, pady=(SPACE["lg"], 0))
 
         divider(self).pack(fill=tk.X)
         btns = tk.Frame(self, bg=bg)
-        btns.pack(fill=tk.X, padx=22, pady=10)
+        btns.pack(fill=tk.X, padx=SPACE["xxl"], pady=SPACE["lg"])
         self._close = button(btns, text=t("common.close"), command=self._on_close, kind="secondary")
-        self._close.pack(side=tk.RIGHT, padx=(6, 0))
+        self._close.pack(side=tk.RIGHT, padx=(SPACE["md"], 0))
         self._go = button(btns, text=t("export.run"), command=self._start, kind="primary")
         self._go.pack(side=tk.RIGHT)
         self._open = button(btns, text=t("export.open_folder"), command=lambda: open_folder(getattr(self, "_done_folder", None) or self.folder.get()), bg=bg, kind="link")
@@ -153,7 +153,7 @@ class ExportDialog(tk.Toplevel):
         if not self.winfo_exists():
             return
         if not self._bar.winfo_ismapped():
-            self._bar.pack(fill=tk.X, pady=(10, 0), before=self._msg_lbl)
+            self._bar.pack(fill=tk.X, pady=(SPACE["lg"], 0), before=self._msg_lbl)
         self._bar.config(maximum=max(n, 1), value=i)
         self.msg.set(text)
 

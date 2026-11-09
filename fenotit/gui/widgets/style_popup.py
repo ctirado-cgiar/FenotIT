@@ -7,7 +7,7 @@ from tkinter import ttk
 
 from fenotit.core.pipeline import overlay
 from fenotit.i18n import t
-from fenotit.gui.style.theme import COLORS, FONTS
+from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 
 _SWATCHES = ("green", "magenta", "yellow", "cyan", "red", "orange", "blue", "white", "black")
 _D = 14            # diámetro del punto de color
@@ -27,13 +27,13 @@ class StylePopup(tk.Toplevel):
         self._style = {**overlay.DEFAULT_STYLE, **(style or {})}
         self._on_change = on_change
         bg = colors["bg_card"]
-        box = tk.Frame(self, bg=bg, padx=10, pady=8)
+        box = tk.Frame(self, bg=bg, padx=SPACE["lg"], pady=SPACE["md"])
         box.pack(padx=1, pady=1)
         self._dots: dict[str, tk.Canvas] = {}
         row = 0
         for role in overlay.ROLES:
             tk.Label(box, text=t(f"style.{role}"), bg=bg, fg=colors["text"], font=FONTS["small"],
-                     anchor="w").grid(row=row, column=0, sticky="w", padx=(0, 8), pady=3)
+                     anchor="w").grid(row=row, column=0, sticky="w", padx=(0, SPACE["md"]), pady=SPACE["sm"])
             names = (() if role == "mask" else ("auto",)) + _SWATCHES
             c = tk.Canvas(box, bg=bg, highlightthickness=0, width=len(names) * (_D + 6), height=_D + 6,
                           cursor="hand2")
@@ -46,7 +46,7 @@ class StylePopup(tk.Toplevel):
             if role == "outline":
                 row = self._slider(box, row, "style.width", 0.5, 4.0, "width", "{:.1f} px")
         tk.Label(box, text=t("style.hint"), bg=bg, fg=colors["text_muted"], font=FONTS["tiny"],
-                 justify="left", wraplength=240).grid(row=row, column=0, columnspan=2, sticky="w", pady=(6, 0))
+                 justify="left", wraplength=240).grid(row=row, column=0, columnspan=2, sticky="w", pady=(SPACE["md"], 0))
         self._paint()
         self.attributes("-topmost", True)
         self.bind("<Escape>", lambda e: self.destroy())
@@ -66,7 +66,7 @@ class StylePopup(tk.Toplevel):
     def _slider(self, box, row, key, lo, hi, field, fmt):
         bg = self._c["bg_card"]
         tk.Label(box, text=t(key), bg=bg, fg=self._c["text_muted"], font=FONTS["tiny"],
-                 anchor="w").grid(row=row, column=0, sticky="w", padx=(10, 8))
+                 anchor="w").grid(row=row, column=0, sticky="w", padx=(SPACE["lg"], SPACE["md"]))
         f = tk.Frame(box, bg=bg)
         f.grid(row=row, column=1, sticky="we")
         value = tk.Label(f, text=fmt.format(self._style[field]), bg=bg, fg=self._c["text"],

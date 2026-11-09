@@ -176,11 +176,11 @@ class ResultsMixin:
         self._set_status(t("status.done", name=_analysis_label(name),
                            detail=_summary(result.stats, aliases=self._class_aliases(result))))
         if result.extra.get("processing_s") is not None:
-            self._set_status(self.status_var.get() + "  ·  " + _duration(result.extra["processing_s"]))
+            self._set_status(self.status_var.get() + f" ({_duration(result.extra['processing_s'])})")
         reused = result.extra.get("reused")
         if reused:
             items = ", ".join(t(f"step.{k}", k) for k in reused)
-            self._set_status(self.status_var.get() + "  ·  " + t("status.reused", items=items))
+            self._set_status(self.status_var.get() + ". " + t("status.reused", items=items))
         self._refresh_history()
         self._log_process(name)
 

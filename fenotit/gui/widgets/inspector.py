@@ -18,7 +18,7 @@ from PIL import Image, ImageTk
 
 from fenotit.core.units import TO_MM, display
 from fenotit.gui.style.components import button, divider
-from fenotit.gui.style.theme import COLORS, FONTS
+from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 from fenotit.i18n import t
 
 CROP = (220, 150)
@@ -32,24 +32,24 @@ class Inspector(tk.Frame):
         super().__init__(parent, bg=bg)
         head = tk.Frame(self, bg=bg)
         head.pack(fill=tk.X)
-        self._title = tk.Label(head, text="", bg=bg, fg=COLORS["accent"], font=FONTS["small_bold"], pady=5)
-        self._title.pack(side=tk.LEFT, padx=(10, 6))
+        self._title = tk.Label(head, text="", bg=bg, fg=COLORS["accent"], font=FONTS["small_bold"], pady=SPACE["sm"])
+        self._title.pack(side=tk.LEFT, padx=(SPACE["lg"], SPACE["md"]))
         close = tk.Label(head, text="×", bg=bg, fg=COLORS["text_muted"], font=FONTS["subtitle"], cursor="hand2")
-        close.pack(side=tk.RIGHT, padx=8)
+        close.pack(side=tk.RIGHT, padx=SPACE["md"])
         close.bind("<Button-1>", lambda e: on_close())
         divider(self).pack(fill=tk.X)
         self._pic = tk.Label(self, bg=COLORS["bg_card"], bd=0, highlightthickness=1,
                              highlightbackground=COLORS["border"])
-        self._pic.pack(padx=8, pady=(6, 4))
+        self._pic.pack(padx=SPACE["md"], pady=(SPACE["md"], SPACE["sm"]))
         self._state = tk.Label(self, text="", bg=bg, fg=COLORS["warning"], font=FONTS["small"],
                                justify="left", anchor="w", wraplength=200)
         self._rows = tk.Frame(self, bg=bg)
-        self._rows.pack(fill=tk.X, padx=10)
+        self._rows.pack(fill=tk.X, padx=SPACE["lg"])
         btns = tk.Frame(self, bg=bg)
-        btns.pack(fill=tk.X, padx=10, pady=(6, 8))
-        kw = dict(kind="secondary", size="small", pady=2)
+        btns.pack(fill=tk.X, padx=SPACE["lg"], pady=(SPACE["md"], SPACE["md"]))
+        kw = dict(kind="secondary", size="small", pady=SPACE["xs"])
         self._star = button(btns, command=on_highlight, **kw)
-        self._star.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 3))
+        self._star.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, SPACE["sm"]))
         self._excl = button(btns, command=on_exclude, **kw)
         self._excl.pack(side=tk.LEFT, fill=tk.X, expand=True)
         self._photo = None
@@ -62,7 +62,7 @@ class Inspector(tk.Frame):
         self._set_pic(crop)
         if excluded:
             self._state.config(text=t("insp.excluded"))
-            self._state.pack(fill=tk.X, padx=10, before=self._rows)
+            self._state.pack(fill=tk.X, padx=SPACE["lg"], before=self._rows)
         else:
             self._state.pack_forget()
         self._fill(rows)
@@ -91,7 +91,7 @@ class Inspector(tk.Frame):
         self._photo = ImageTk.PhotoImage(im)
         self._pic.config(image=self._photo, width=im.width, height=im.height)
         if not keep:
-            self._pic.pack(padx=8, pady=(6, 4), before=self._rows)
+            self._pic.pack(padx=SPACE["md"], pady=(SPACE["md"], SPACE["sm"]), before=self._rows)
 
     def _fill(self, rows):
         bg = COLORS["bg_panel"]
@@ -100,7 +100,7 @@ class Inspector(tk.Frame):
         for r, item in enumerate(rows):
             if item[0] == "bar":
                 bar = tk.Canvas(self._rows, width=200, height=12, bg=bg, highlightthickness=0)
-                bar.grid(row=r, column=0, columnspan=3, sticky="w", pady=(2, 4))
+                bar.grid(row=r, column=0, columnspan=3, sticky="w", pady=(SPACE["xs"], SPACE["sm"]))
                 x = 0.0
                 for hexc, pct in item[1]:
                     w = 200 * pct / 100
@@ -112,7 +112,7 @@ class Inspector(tk.Frame):
                 tk.Frame(self._rows, bg=hexc, width=12, height=12, highlightthickness=1,
                          highlightbackground=COLORS["border"]).grid(row=r, column=0, sticky="w")
                 tk.Label(self._rows, text=text, bg=bg, fg=COLORS["text"], font=FONTS["small"],
-                         anchor="w").grid(row=r, column=1, sticky="w", padx=(6, 0))
+                         anchor="w").grid(row=r, column=1, sticky="w", padx=(SPACE["md"], 0))
                 tk.Label(self._rows, text=f"{pct:.0f} %", bg=bg, fg=COLORS["text_muted"], font=FONTS["small"],
                          anchor="e").grid(row=r, column=2, sticky="e")
             else:
@@ -120,7 +120,7 @@ class Inspector(tk.Frame):
                 tk.Label(self._rows, text=k, bg=bg, fg=COLORS["text_muted"], font=FONTS["small"],
                          anchor="w").grid(row=r, column=0, columnspan=2, sticky="w")
                 tk.Label(self._rows, text=v, bg=bg, fg=COLORS["text"], font=FONTS["small"],
-                         anchor="e").grid(row=r, column=2, sticky="e", padx=(8, 0))
+                         anchor="e").grid(row=r, column=2, sticky="e", padx=(SPACE["md"], 0))
         self._rows.columnconfigure(2, weight=1)
 
 

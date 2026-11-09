@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 from fenotit.gui.style.components import button
-from fenotit.gui.style.theme import COLORS, FONTS
+from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 from fenotit.i18n import t
 
 PAD = 6              # margen del hueco alrededor del elemento
@@ -106,7 +106,7 @@ class Tour:
         pop.overrideredirect(True)
         pop.transient(self.root)
         pop.configure(bg=COLORS["accent"])
-        body = tk.Frame(pop, bg=COLORS["bg_card"], padx=14, pady=12)
+        body = tk.Frame(pop, bg=COLORS["bg_card"], padx=SPACE["lg"], pady=SPACE["lg"])
         body.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
         top = tk.Frame(body, bg=COLORS["bg_card"])
         top.pack(fill=tk.X)
@@ -118,15 +118,15 @@ class Tour:
         x.bind("<Button-1>", lambda e: self.close())
         self._text = tk.Label(body, bg=COLORS["bg_card"], fg=COLORS["text"], font=FONTS["body"], justify="left",
                               anchor="w", wraplength=WIDTH - 28)
-        self._text.pack(fill=tk.X, pady=(6, 10))
+        self._text.pack(fill=tk.X, pady=(SPACE["md"], SPACE["lg"]))
         bar = tk.Frame(body, bg=COLORS["bg_card"])
         bar.pack(fill=tk.X)
         self._count = tk.Label(bar, bg=COLORS["bg_card"], fg=COLORS["text_muted"], font=FONTS["small"])
         self._count.pack(side=tk.LEFT)
-        self._next = button(bar, command=lambda: self._go(+1), kind="primary", size="small", pady=3)
+        self._next = button(bar, command=lambda: self._go(+1), kind="primary", size="small", pady=SPACE["sm"])
         self._next.pack(side=tk.RIGHT)
-        self._prev = button(bar, text=t("tour.prev"), command=lambda: self._go(-1), kind="secondary", size="small", pady=3)
-        self._prev.pack(side=tk.RIGHT, padx=(0, 6))
+        self._prev = button(bar, text=t("tour.prev"), command=lambda: self._go(-1), kind="secondary", size="small", pady=SPACE["sm"])
+        self._prev.pack(side=tk.RIGHT, padx=(0, SPACE["md"]))
         for k, f in (("<Escape>", lambda e: self.close()), ("<Right>", lambda e: self._go(+1)),
                      ("<Left>", lambda e: self._go(-1)), ("<Return>", lambda e: self._go(+1))):
             pop.bind(k, f)
