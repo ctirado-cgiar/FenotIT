@@ -6,6 +6,7 @@ import tkinter as tk
 from fenotit import log
 from fenotit.core import units
 from fenotit.core.analysis.registry import ANALYSES
+from fenotit.gui.style.components import divider
 from fenotit.gui.style.theme import COLORS, FONTS, SIZES, SPACE
 from fenotit.gui.widgets.params import ConfigPanel
 from fenotit.gui.window.common import _analysis_key, _analysis_label
@@ -76,12 +77,13 @@ class AnalyzeMixin:
         for w in box.winfo_children():
             w.destroy()
         cur = self._selected_analysis() if getattr(self, "_analysis_chosen", False) else None
-        for name in ANALYSES:
+        for i, name in enumerate(ANALYSES):
             on = name == cur
-            bg = COLORS["accent_light"] if on else COLORS["bg_card"]
-            card = tk.Frame(box, bg=bg, highlightthickness=1, cursor="hand2",
-                            highlightbackground=COLORS["accent"] if on else COLORS["border"])
-            card.pack(fill=tk.X, pady=1)
+            bg = COLORS["accent_light"] if on else COLORS["bg_panel"]
+            if i:
+                divider(box, "divider").pack(fill=tk.X)
+            card = tk.Frame(box, bg=bg, cursor="hand2")
+            card.pack(fill=tk.X)
             title = tk.Label(card, text=_analysis_label(name), bg=bg, fg=COLORS["accent"] if on else COLORS["text"],
                              font=FONTS["body_bold"], anchor="w", cursor="hand2")
             title.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["sm"], 0))
@@ -90,6 +92,9 @@ class AnalyzeMixin:
                          justify="left", wraplength=SIZES["panel_right"] - 50, cursor="hand2")
             d.pack(fill=tk.X, padx=SPACE["md"], pady=(0, SPACE["sm"]))
             parts = [card, title, d]
+            if not on:
+                card.bind("<Enter>", lambda e, ws=parts: [w.config(bg=COLORS["bg_card"]) for w in ws])
+                card.bind("<Leave>", lambda e, ws=parts: [w.config(bg=COLORS["bg_panel"]) for w in ws])
             for w in parts:
                 w.bind("<Button-1>", lambda e, n=name: self._open_analysis(n))
 

@@ -39,3 +39,10 @@ def apply(root: tk.Misc) -> None:
                 bordercolor=COLORS["border"], lightcolor=COLORS["bg_panel"], font=FONTS["body"])
     s.map("TNotebook.Tab", background=[("selected", COLORS["bg_card"])], foreground=[("selected", COLORS["text"])],
           lightcolor=[("selected", COLORS["bg_card"])])
+    s.map("TCombobox", fieldbackground=[("readonly", COLORS["bg_card"])], background=[("readonly", COLORS["bg_card"])],
+          selectbackground=[("readonly", COLORS["bg_card"])], selectforeground=[("readonly", COLORS["text"])],
+          bordercolor=[("focus", COLORS["accent"])])
+    s.configure("TCombobox", bordercolor=COLORS["border"], lightcolor=COLORS["bg_card"], darkcolor=COLORS["bg_card"],
+                arrowcolor=COLORS["text_muted"])
+    s.configure("Horizontal.TScale", background=COLORS["bg_card"], troughcolor=COLORS["divider"],
+                bordercolor=COLORS["border"], lightcolor=COLORS["bg_card"], darkcolor=COLORS["bg_card"])
