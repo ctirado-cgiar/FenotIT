@@ -2,7 +2,7 @@
 import copy
 from pathlib import Path
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox
 
 from fenotit import log
 from fenotit.core.corrections import colorcard as cc
@@ -30,18 +30,20 @@ def _float_or_none(s: str) -> float | None:
 
 
 class CorrectionsDialog(BaseDialog):
-    W, H = 760, 660
+    """Ventana de una corrección: distorsión del lente, perspectiva o tarjeta de color."""
+    SIZES = {"distortion": (760, 640), "perspective": (620, 460), "color": (660, 620)}
 
     def __init__(self, parent, corrections: P.Corrections, paths=None, current_path=None,
-                 aruco_scale: bool = False, on_apply=None, tab: str = "distortion"):
-        self._tab = tab
+                 aruco_scale: bool = False, on_apply=None, kind: str = "distortion"):
+        self._kind = kind
+        self.W, self.H = self.SIZES[kind]
         self.c = copy.deepcopy(corrections)
         self._paths = list(paths or [])
         self._raw_path = current_path
         self._raw = load_image(current_path) if current_path else None
         self._on_apply = on_apply
         self._aruco_scale = aruco_scale
-        super().__init__(parent, t("corr.title"))
+        super().__init__(parent, t(f"corr.tab.{kind}"))
         self._build_body()
 
     # ── UI ────────────────────────────────────────────────────────────────────
@@ -51,18 +53,12 @@ class CorrectionsDialog(BaseDialog):
         button(parent, text=t("corr.apply"), command=self._apply, kind="primary").pack(side=tk.RIGHT, padx=SPACE["xs"])
 
     def _build_body(self):
-        self._muted(self.body, t("corr.intro")).pack(anchor="w", pady=(0, SPACE["md"]))
         ImagePicker(self.body, self._paths, self._raw_path, self._set_raw).pack(anchor="w", pady=(0, SPACE["md"]))
-        nb = ttk.Notebook(self.body)
-        nb.pack(fill=tk.BOTH, expand=True)
-        for build, key in ((self._tab_distortion, "corr.tab.distortion"),
-                           (self._tab_perspective, "corr.tab.perspective"),
-                           (self._tab_color, "corr.tab.color")):
-            f = tk.Frame(nb, bg=COLORS["bg_card"], padx=SPACE["lg"], pady=SPACE["lg"])
-            nb.add(f, text=f"  {t(key)}  ")
-            build(f)
-            if key.endswith(self._tab):
-                nb.select(f)
+        f = tk.Frame(self.body, bg=COLORS["bg_card"])
+        f.pack(fill=tk.BOTH, expand=True)
+        {"distortion": self._tab_distortion, "perspective": self._tab_perspective, "color": self._tab_color}[self._kind](f)
+        if self._kind == "color":
+            self._color_changed()
 
     def _entry_row(self, parent, label, var, width=8):
         f = tk.Frame(parent, bg=COLORS["bg_card"])
@@ -80,7 +76,7 @@ class CorrectionsDialog(BaseDialog):
 
     def _muted(self, parent, text):
         return tk.Label(parent, text=text, bg=COLORS["bg_card"], fg=COLORS["text_muted"],
-                        font=FONTS["small"], justify="left", wraplength=680)
+                        font=FONTS["small"], justify="left", wraplength=self.W - 70)
 
     def _check(self, parent, var, key):
         return tk.Checkbutton(parent, text=t(key), variable=var,
@@ -106,7 +102,7 @@ class CorrectionsDialog(BaseDialog):
     def _status(self, parent):
         var = tk.StringVar()
         tk.Label(parent, textvariable=var, bg=COLORS["bg_card"], fg=COLORS["text_muted"],
-                 font=FONTS["small"], justify="left", wraplength=680).pack(anchor="w", pady=(SPACE["md"], 0))
+                 font=FONTS["small"], justify="left", wraplength=self.W - 70).pack(anchor="w", pady=(SPACE["md"], 0))
         return var
 
     # Distorsión
@@ -370,11 +366,18 @@ class CorrectionsDialog(BaseDialog):
     # ── Aplicar ───────────────────────────────────────────────────────────────
 
     def _apply(self):
-        self.c.distortion.enabled = self._d_on.get() and bool(self.c.distortion.mtx)
-        self.c.perspective = self._perspective_cfg()
-        self.c.color = self._color_cfg()
+        """Guarda solo la corrección de esta ventana; las demás quedan como estaban."""
+        use_scale = self._aruco_scale and self.c.perspective.enabled
+        if self._kind == "distortion":
+            self.c.distortion.enabled = self._d_on.get() and bool(self.c.distortion.mtx)
+        elif self._kind == "perspective":
+            self.c.perspective = self._perspective_cfg()
+            use_scale = self._p_scale.get() and self.c.perspective.enabled \
+                and bool(self.c.perspective.width_mm and self.c.perspective.height_mm)
+        else:
+            self.c.color = self._color_cfg()
         col = self.c.color
-        if col.enabled:
+        if self._kind == "color" and col.enabled:
             missing = None
             if col.card == "white" and not col.region:
                 missing = "corr.color.area_missing"
@@ -387,8 +390,6 @@ class CorrectionsDialog(BaseDialog):
             if missing:
                 messagebox.showwarning(t("corr.tab.color"), t(missing), parent=self)
                 return
-        use_scale = self._p_scale.get() and self.c.perspective.enabled \
-            and bool(self.c.perspective.width_mm and self.c.perspective.height_mm)
         if self._on_apply:
             self._on_apply(self.c, use_scale)
         self.destroy()
