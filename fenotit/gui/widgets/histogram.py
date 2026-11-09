@@ -206,13 +206,12 @@ class RangeSlider(tk.Canvas):
     @staticmethod
     def _bubble_x(xl: float, xh: float, w: float, half: float) -> tuple[float, float]:
         """Centros de las burbujas: dentro del canvas y sin encimarse cuando las manijas se juntan."""
-        gap = 2
-        bl, bh = xl, xh
+        gap, lo_x, hi_x = 2, half + 1, w - half - 1
+        bl, bh = min(max(xl, lo_x), hi_x), min(max(xh, lo_x), hi_x)
         if bh - bl < 2 * half + gap:
-            mid = (bl + bh) / 2
+            mid = min(max((bl + bh) / 2, lo_x + half + gap / 2), hi_x - half - gap / 2)
             bl, bh = mid - half - gap / 2, mid + half + gap / 2
-        shift = max(0, half + 1 - bl) - max(0, bh - (w - half - 1))
-        return bl + shift, bh + shift
+        return bl, bh
 
     # ── interacción ───────────────────────────────────────────────────────────
 

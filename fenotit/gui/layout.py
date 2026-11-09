@@ -197,11 +197,15 @@ class LayoutMixin:
             w.destroy()
         self._rtab_labels = {}
         for key, text in steps if len(steps) > 1 else ():
-            lbl = tk.Label(self._rtabs, text=text, bg=bg, font=FONTS["body_bold"], cursor="hand2",
-                           padx=SPACE["lg"], pady=SPACE["sm"])
-            lbl.pack(side=tk.LEFT)
-            lbl.bind("<Button-1>", lambda e, k=key: self._select_right_tab(k))
-            self._rtab_labels[key] = lbl
+            tab = tk.Frame(self._rtabs, bg=bg, cursor="hand2")
+            tab.pack(side=tk.LEFT, padx=(0, SPACE["lg"]))
+            lbl = tk.Label(tab, text=text, bg=bg, font=FONTS["body"], cursor="hand2", pady=SPACE["sm"])
+            lbl.pack()
+            line = tk.Frame(tab, height=2, bg=bg)
+            line.pack(fill=tk.X)
+            for w in (tab, lbl):
+                w.bind("<Button-1>", lambda e, k=key: self._select_right_tab(k))
+            self._rtab_labels[key] = (lbl, line)
 
     def _select_right_tab(self, key: str):
         """Muestra en el panel derecho las tarjetas («choose») o un paso («seg», «analysis»)."""
@@ -214,14 +218,14 @@ class LayoutMixin:
         if key != "choose":
             self._an_head.pack(fill=tk.X, padx=(SPACE["xxl"], SPACE["md"]), pady=(SPACE["sm"], 0))
             if self._rtab_labels:
-                self._rtabs.pack(fill=tk.X, padx=SPACE["md"])
+                self._rtabs.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["xs"], 0))
             self._rtab_line.pack(fill=tk.X)
         self._rtab_body.pack(fill=tk.BOTH, expand=True, pady=(SPACE["lg"] if key == "choose" else 0, 0))
         {"choose": self._choose_tab, "seg": self._seg_tab, "analysis": self._an_tab}[key].pack(fill=tk.BOTH, expand=True)
-        for k, lbl in self._rtab_labels.items():
+        for k, (lbl, line) in self._rtab_labels.items():
             on = k == key
-            lbl.config(fg=COLORS["accent"] if on else COLORS["text_muted"],
-                       bg=COLORS["bg_card"] if on else COLORS["bg_panel"])
+            lbl.config(fg=COLORS["accent"] if on else COLORS["text_muted"])
+            line.config(bg=COLORS["accent"] if on else COLORS["bg_panel"])
         self._update_seg_tab()
         self._update_stroke_tool()
         if hasattr(self, "zoom_ctrl"):

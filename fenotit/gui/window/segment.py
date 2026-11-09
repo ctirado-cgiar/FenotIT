@@ -275,8 +275,8 @@ class SegmentMixin:
     def _paint_method_btns(self):
         for k, b in self._method_btns.items():
             on = k == self._seg_method
-            b.config(bg=COLORS["accent"] if on else COLORS["bg_card"], fg=COLORS["on_accent"] if on else COLORS["text"],
-                     highlightbackground=COLORS["accent"] if on else COLORS["border"])
+            b.config(bg=COLORS["accent_light"] if on else COLORS["bg_card"], fg=COLORS["accent"] if on else COLORS["text"],
+                     highlightbackground=COLORS["accent_faint"] if on else COLORS["divider"])
 
     def _set_seg_method(self, key: str, quiet: bool = False):
         if key == self._seg_method:
