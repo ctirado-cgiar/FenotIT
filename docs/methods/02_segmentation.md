@@ -102,3 +102,36 @@ $$p_c = 100\,\frac{n_c}{\sum_k n_k}, \qquad A_c = n_c\,s^2,$$
 where $s$ is the scale in length units per pixel ($s = 1$ without a scale, giving px²).
 The output has one row per class (`class`, `pct`, `area_<unit>2`) and, per image,
 `<class>_pct`, `<class>_area_<unit>2` and `analyzed_area_<unit>2`.
+
+## 2.9 Object detectors (boxes)
+
+A detector is a trained model that returns, for each object, an axis-aligned box, a class
+and a score, instead of a mask. FenotIT runs detectors exported to ONNX on the CPU with ONNX
+Runtime, reading three output layouts: YOLOv8/v11 (one tensor of $4 + C$ values per
+candidate: box center, width and height in input pixels and one score per class), YOLOv5
+(the same with an objectness score that multiplies the class scores) and RF-DETR/DETR (box
+center, width and height as fractions of the image and one logit per class, passed through a
+sigmoid). The class names are read from the model metadata or from the `data.yaml` file that
+Roboflow and Ultralytics export with the weights.
+
+For YOLO models the image is resized without distortion to the model input (640 px by
+default) and padded with gray (*letterbox*); for DETR models it is resized to the input and
+normalized with the ImageNet mean and SD. Boxes are mapped back to image pixels, candidates
+below the minimum confidence (0.25 by default) are dropped and, within each class, boxes that
+overlap a better one with IoU > 0.5 are removed (non-maximum suppression).
+
+A box is kept when its center lies in the analysis area and outside the excluded zones;
+the size filter uses the longer side of the box as length and the shorter side as width.
+Boxes are numbered by rows like objects from masks. With boxes alone, each image reports the
+number of objects and the number per class, each object its class, score, center and box
+width, height and area, and distances between neighbors are measured between box centers
+(Section 7), with the mean nearest-neighbor distance within each class. Shape, color and
+area are not measured from boxes, because a box also contains background.
+
+**Boxes to masks.** Optionally, each box is given to MobileSAM as a box prompt (the two
+corners), and the single-mask output is upsampled inside the box (with a 5 % margin) to the
+image resolution. Smaller objects are drawn over larger ones. The result is one mask per
+detected object with the class of its box, so every object measurement (Sections 3 to 7) and
+the area per class apply. In synthetic tests with ellipses inside known boxes, the mask area
+differed from the ellipse area by less than 1 %.
+

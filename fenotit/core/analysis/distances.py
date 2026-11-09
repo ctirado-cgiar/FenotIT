@@ -51,7 +51,7 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
     res.extra["legends"] = {label: {"title": t("step.distances"), "rows": rows}}
     res.extra["overlays"] = {label: ctx.extra.get("overlays", {}).get("distances")}
     from fenotit.core.pipeline.views import object_geometry
-    res.extra["geometry"] = object_geometry(ctx.labels)     # elegir, resaltar y recortar un objeto
+    res.extra["geometry"] = object_geometry(ctx.labels, ctx.detections)     # elegir, resaltar y recortar un objeto
     res.extra["excluded"] = sorted(ctx.excluded)
     res.extra["highlighted"] = sorted(ctx.highlighted)
     if ctx.highlighted:                                     # ★ en todas las vistas con marcas

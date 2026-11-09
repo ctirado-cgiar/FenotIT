@@ -64,6 +64,6 @@ register(
     segmentation="classifier",
     steps=("segment",),
     seg_methods=("classifier",),
-    refine=False,
+    objects=False,
     params_schema=[],
 )

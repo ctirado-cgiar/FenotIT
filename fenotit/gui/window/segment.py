@@ -28,8 +28,9 @@ class SegmentMixin:
                 "min_val": int(self.min_slider.get()), "max_val": int(self.max_slider.get()),
                 "auto": bool(self.auto_var.get()), "refine": self.refine_list.get(),
                 "classes": self.class_list.get(), "detail": self._detail(),
-                "model": {"name": "mobilesam", "mode": self.model_mode.get(), "grid": self._grid(),
-                          "categories": self.category_list.get()}}
+                "model": {"name": self._model_id, "output": self._model_output(), "mode": self.model_mode.get(),
+                          "grid": self._grid(), "categories": self.category_list.get(),
+                          **self._detector_state()}}
 
     def _set_seg_state(self, d: dict):
         self.cs_var.set(d.get("color_space", "BGR"))
@@ -41,11 +42,12 @@ class SegmentMixin:
         self.class_list.set(d.get("classes") or self._default_classes())
         self.detail_var.set(self._detail_names.get(float(d.get("detail", 1.0)), self._detail_names[1.0]))
         m = d.get("model") or {}
+        self._set_model_state(m)
         self.model_mode.set(m.get("mode", "auto"))
         self.grid_var.set(self._grid_names.get(int(m.get("grid", 16)), self._grid_names[16]))
         self.category_list.set(m.get("categories") or self._default_categories())
         self._on_model_change(quiet=True)
-        if d.get("method") == "model" and "model" not in self._method_btns:
+        if d.get("method") == "model" and ("model" not in self._method_btns or not self._model_id):
             d = dict(d, method="threshold")               # sin el modelo instalado
         self._set_seg_method(d.get("method", "threshold"), quiet=True)
         self.strokes.colors = [c["color"] for c in self.class_list.classes]
@@ -194,8 +196,7 @@ class SegmentMixin:
         bar.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["xs"], SPACE["sm"]))
         self._seg_method = "threshold"
         self._method_btns = {}
-        from fenotit.core.segmentation import sam
-        for key in ("threshold", "classifier") + (("model",) if sam.available() else ()):
+        for key in ("threshold", "classifier") + (("model",) if self._onnx_ready() else ()):
             b = tk.Label(bar, text=t(f"seg.method.{key}"), font=small, cursor="hand2", padx=SPACE["md"], pady=SPACE["sm"],
                          highlightthickness=1)
             b.pack(side=tk.LEFT, padx=(0, SPACE["sm"]))
@@ -217,6 +218,15 @@ class SegmentMixin:
         self._next_label = None
         self._shown_methods = None
         self._paint_method_btns()
+
+    @staticmethod
+    def _onnx_ready() -> bool:
+        """onnxruntime está instalado (se pueden usar y agregar modelos de IA)."""
+        try:
+            import onnxruntime  # noqa: F401
+        except ImportError:
+            return False
+        return True
 
     def _set_next_step(self, label: str | None):
         """Botón al pie de Segmentar con el nombre del paso siguiente (None = no hay)."""
@@ -248,7 +258,7 @@ class SegmentMixin:
                 self._seg_bar.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["xs"], SPACE["sm"]))
             box = {"classifier": self._cls_box, "model": self._model_box}.get(self._seg_method, self._thr_box)
             box.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["xs"], SPACE["sm"]))
-            if self._analysis_refines():
+            if self._analysis_objects() and not self._boxes_only():
                 self._refine_head.pack(fill=tk.X)
                 self.refine_list.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["xs"], SPACE["md"]))
             if self._next_label:
@@ -265,12 +275,12 @@ class SegmentMixin:
             return True
         return ANALYSES[name].segmentation is not None
 
-    def _analysis_refines(self) -> bool:
-        """El análisis elegido usa «Afinar máscara» (o aún no hay análisis elegido)."""
+    def _analysis_objects(self) -> bool:
+        """El análisis elegido trabaja con objetos (o aún no hay análisis elegido)."""
         name = self._selected_analysis()
         if not getattr(self, "_analysis_chosen", False) or name not in ANALYSES:
             return True
-        return ANALYSES[name].refine
+        return ANALYSES[name].objects
 
     def _paint_method_btns(self):
         for k, b in self._method_btns.items():
@@ -289,6 +299,7 @@ class SegmentMixin:
         self._update_stroke_tool()
         if self.config_panel is not None and not quiet:
             self._on_analysis_selected(None, choose=getattr(self, "_analysis_chosen", False))
+        self._update_unavailable()
         self._on_slider_change()
 
     def _on_refine_change(self):

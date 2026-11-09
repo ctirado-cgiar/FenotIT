@@ -76,11 +76,14 @@ FenotIT/
 │   │   ├── corrections/           distortion.py · aruco.py (perspectiva) · colorcard.py · scale.py
 │   │   │                          pipeline.py (orden y aplicación de las correcciones)
 │   │   ├── segmentation/          threshold.py · classifier.py (por ejemplos) · sam.py (MobileSAM)
+│   │   │                          models.py (modelos de IA disponibles) · detect.py (detectores de cajas)
 │   │   │                          regions.py (categorías de regiones) · refine_mask.py (afinar máscara)
 │   │   │                          __init__.py (configuración de la segmentación → piezas)
 │   │   ├── objects/               mask.py (área de análisis y limpieza) · label.py · separate.py · filter.py
+│   │   │                          boxes.py (objetos a partir de cajas)
 │   │   ├── measurements/          morphometry.py · shape.py · color.py · count.py · classes.py · distances.py
-│   │   ├── analysis/              objects.py · distances.py · image_color.py (análisis de la lista)
+│   │   │                          boxes.py (conteo y tamaño con cajas) · cover.py
+│   │   ├── analysis/              objects.py · distances.py · cover.py · image_color.py (análisis de la lista)
 │   │   ├── pipeline/              base.py (contexto y registro de piezas) · cache.py · overlay.py · views.py
 │   │   ├── stats/                 análisis posterior (tablas, sin imágenes)
 │   │   ├── export/                CSV, Excel y metadatos
@@ -98,8 +101,9 @@ FenotIT/
 │   │   ├── dialogs/               una ventana por archivo
 │   │   ├── screens/               start.py · splash.py · tour.py
 │   │   └── charts/                gráficos y colores 3D
-│   ├── assets/                    logo, íconos y themes/ (temas .toml)
+│   ├── assets/                    logo, íconos, themes/ (temas .toml) y models/ (miniaturas máscara/caja)
 │   └── lang/                      en.json, es.json
+├── models/                        modelos de IA (una carpeta por modelo con model.yaml)
 ├── docs/
 │   ├── methods/                   descripción de cada método (inglés)
 │   ├── design/                    guía de diseño de la interfaz y de los temas
@@ -107,6 +111,7 @@ FenotIT/
 └── tests/
     ├── images/                    fotos de prueba
     ├── reference/                 tablas de referencia de las fotos de prueba
+    ├── models/                    detectores ONNX de prueba (make_models.py)
     └── reference.py, test_*.py    (test_gui.py: la ventana completa; test_architecture.py: reglas)
 ```
 

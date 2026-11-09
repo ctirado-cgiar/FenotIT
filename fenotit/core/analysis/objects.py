@@ -11,11 +11,13 @@ from fenotit.core.units import ascii_name, display, mean_sd, per_px
 from fenotit.i18n import t
 
 STEP_FOLDERS = {"mask": "mask", "distance": "mask", "count": "count", "morphometry": "morphometry",
-                "shape": "shape", "color": "color", "classes": "classes"}
+                "box_size": "box_size", "shape": "shape", "color": "color", "classes": "classes"}
 # Las 2 últimas imágenes quedan en memoria: al cambiar solo una medición no se vuelve a segmentar.
 _CACHE = pipeline.ChainCache(size=2)
-MEASUREMENTS = {"count": "measure_count", "morphometry": "measure_size",
+MEASUREMENTS = {"count": "measure_count", "morphometry": "measure_size", "box_size": "measure_size",
                 "shape": "measure_shape", "color": "measure_color", "classes": "measure_classes"}
+# Mediciones que necesitan el contorno de cada objeto (no se calculan con cajas)
+NEEDS_MASKS = ("touching", "measure_shape", "measure_color", "measure_touching")
 
 
 def _size_filter(params: dict) -> dict:
@@ -51,6 +53,12 @@ def object_chain(params: dict) -> list[dict]:
     """Segmentación y objetos (lo común a los análisis que trabajan con objetos)."""
     from fenotit.core import segmentation as S
     seg = segmentation(params)
+    if S.boxes_only(seg):
+        return [*S.chain(seg), {"step": "boxes", "params": {
+            "exclude_border": bool(params.get("exclude_border", False)),
+            "drop_points": [list(map(float, pt)) for pt in params.get("drop_points") or []],
+            "mark_points": [list(map(float, pt)) for pt in params.get("mark_points") or []],
+            **_size_filter(params)}}]
     refine = S.refine_steps(seg)
     # con "Afinar máscara" el usuario decide si se rellenan huecos (es una operación más)
     clean = {"step": "clean", "params": {"fill_holes": False}} if refine else {"step": "clean"}
@@ -67,7 +75,14 @@ def object_chain(params: dict) -> list[dict]:
 
 
 def build_chain(params: dict) -> list[dict]:
+    from fenotit.core import segmentation as S
     chain = object_chain(params)
+    seg = segmentation(params)
+    if S.boxes_only(seg):                      # cajas: tamaño de la caja y conteo (por clase)
+        if params.get("measure_size", True):
+            chain.append({"step": "box_size"})
+        chain.append({"step": "count"})
+        return chain
     if params.get("measure_size", True):
         chain.append({"step": "morphometry",
                       "params": {"isolated_only": not params.get("measure_touching", False)}})
@@ -77,13 +92,19 @@ def build_chain(params: dict) -> list[dict]:
         chain.append({"step": "color", "params": {"n_colors": int(params.get("n_colors", 3)),
                                                   "auto": bool(params.get("n_colors_auto", False)),
                                                   "mode": params.get("color_mode", "object")}})
-    seg = segmentation(params)
     if seg.get("method") == "classifier" and params.get("measure_classes", True):
         c = seg.get("classifier") or {}
         chain.append({"step": "classes", "params": {"names": list(c.get("names", [])),
                                                     "colors": list(c.get("colors", []))}})
     m = seg.get("model") or {}
-    if seg.get("method") == "model" and m.get("mode", "auto") == "auto" and len(m.get("categories") or []) > 1:
+    if seg.get("method") == "model" and m.get("output") == "boxes":
+        names = list(m.get("classes") or [])
+        use = [int(c) for c in m.get("use") or []] or list(range(len(names)))
+        if len(use) > 1:                       # cajas pasadas a máscaras: cada objeto con su clase
+            chain.append({"step": "classes", "params": {"names": [""] + names,
+                                                        "colors": ["#000000"] + list(m.get("colors") or []),
+                                                        "whole": True}})
+    elif seg.get("method") == "model" and m.get("mode", "auto") == "auto" and len(m.get("categories") or []) > 1:
         cats = m["categories"]
         chain.append({"step": "classes", "params": {"names": [""] + [c["name"] for c in cats],
                                                     "colors": ["#000000"] + [c["color"] for c in cats],
@@ -96,11 +117,14 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
     from fenotit.core import roi as areas
     h, w = image.shape[:2]
     roi_mask, exclusions = areas.masks(params.get("roi_shapes"), w, h)
-    ctx = _CACHE.run(image, build_chain(params), mm_per_px=params.get("mm_per_pixel"),
+    chain = build_chain(params)
+    ctx = _CACHE.run(image, chain, mm_per_px=params.get("mm_per_pixel"),
                      unit=params.get("length_unit", "mm"),
                      roi=roi_mask, exclusions=exclusions)
     res = AnalysisResult()
-    chosen = [v for v, key in MEASUREMENTS.items() if params.get(key, v in ("count", "morphometry", "classes"))]
+    in_chain = {s["step"] for s in chain} | ({"classes"} if ctx.tables.get("classes") else set())
+    chosen = [v for v, key in MEASUREMENTS.items()
+              if params.get(key, v in ("count", "morphometry", "box_size", "classes")) and v in in_chain]
     ctx.image_row().update(_image_info(image, params))
     tables = _view_tables(ctx, params.get("color_mode", "object"))
     names, view_tables, legends, overlays = {}, {}, {}, {}
@@ -118,7 +142,7 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
         if key in marks:
             overlays[label] = marks[key]
         view_tables[label] = tables.get(key, tables["image"])
-    res.measurements = tables.get("morphometry", [])        # lo que se puede graficar
+    res.measurements = tables.get("morphometry") or tables.get("box_size", [])   # lo que se puede graficar
     res.stats = dict(ctx.image_row())
     res.extra["tables"] = {k: v for k, v in ctx.tables.items() if v}
     res.extra["step_folders"] = names
@@ -126,7 +150,7 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
     res.extra["legends"] = legends
     res.extra["overlays"] = overlays          # marcas como datos: se dibujan con el estilo elegido
     from fenotit.core.pipeline.views import object_geometry
-    res.extra["geometry"] = object_geometry(ctx.labels)     # elegir, resaltar y recortar un objeto
+    res.extra["geometry"] = object_geometry(ctx.labels, ctx.detections)     # elegir, resaltar y recortar un objeto
     unc = [v for k, v in (ctx.extra.get("area_rel_sd") or {}).items() if k not in ctx.excluded]
     if unc:                                   # % de error del área por la discretización (metadatos)
         res.extra["area_uncertainty_pct"] = [float(np.median(unc)) * 100, float(np.max(unc)) * 100]
@@ -146,7 +170,7 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
     partial = "objects" in _CACHE.hits and 0 < len(changed) < len(chosen)
     res.extra["default_view"] = t(f"step.{changed[0]}", changed[0]) if partial else None
     res.extra["first_view"] = t(f"step.{chosen[0]}", chosen[0]) if chosen else None
-    res.extra["chain"] = build_chain(params)
+    res.extra["chain"] = chain
     res.extra["reused"] = list(_CACHE.hits)
     return res
 
@@ -168,6 +192,17 @@ def _legend_spec(key: str, ctx) -> dict | None:
                 unit = display(col.split("_", 1)[1])
                 rows.append((f"{t(name)}  {mean_sd(v.mean(), v.std(ddof=1) if len(v) > 1 else 0)} {unit}", None))
         return {"title": t("step.morphometry"), "rows": rows}
+    if key == "box_size":
+        measured = [r for r in objects if any(k.startswith("box_width_") for k in r)]
+        if not measured:
+            return None
+        rows = [(f"n = {len(measured)}", (100, 220, 0))]
+        for prefix, name in (("box_width_", "legend.box_width"), ("box_height_", "legend.box_height")):
+            col = next(k for k in measured[0] if k.startswith(prefix))
+            v = np.array([r[col] for r in measured], float)
+            rows.append((f"{t(name)}  {mean_sd(v.mean(), v.std(ddof=1) if len(v) > 1 else 0)} "
+                         f"{display(col[len(prefix):])}", None))
+        return {"title": t("step.box_size"), "rows": rows}
     if key == "color":
         return {"title": t("legend.image_colors"), "colors": ctx.tables.get("image_colors", [])}
     if key == "classes":
@@ -206,10 +241,18 @@ def _image_info(image, params) -> dict:
 def _view_tables(ctx, color_mode: str = "object") -> dict[str, list[dict]]:
     """La tabla que acompaña a cada vista: solo las columnas de esa medición."""
     objects = ctx.tables.get("objects", [])
+    boxes = ctx.detections is not None
+    first = ("object_id", "class", "score") if boxes else ("object_id", "touching")
     out = {"image": ctx.tables.get("image", []),
-           "count": [{k: r.get(k) for k in ("object_id", "touching", "centroid_x_px", "centroid_y_px")
+           "count": [{k: r.get(k) for k in first + ("centroid_x_px", "centroid_y_px")
                       + (("status",) if any(x.get("status", "ok") != "ok" for x in objects) else ())}
                      for r in objects]}
+    if boxes:
+        out["box_size"] = [{k: v for k, v in r.items() if k in ("object_id", "class") or k.startswith("box_")}
+                           for r in objects if any(k.startswith("box_") for k in r)]
+        if ctx.tables.get("classes"):
+            out["classes"] = [{k: v for k, v in r.items() if k != "color"} for r in ctx.tables["classes"]]
+        return out
     measured = [r for r in objects if any(k.startswith("area_") for k in r)]
     if measured:
         cols = [k for k in measured[0] if k not in ("touching", "centroid_x_px", "centroid_y_px")

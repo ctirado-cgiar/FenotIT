@@ -128,6 +128,38 @@ def from_points(img: np.ndarray, points: list) -> np.ndarray:
     return labels
 
 
+def from_boxes(img: np.ndarray, boxes: list, batch: int = 16) -> np.ndarray:
+    """Contorno del objeto dentro de cada caja (x0, y0, x1, y1 en px de la foto): la caja es
+    la indicación para MobileSAM y la máscara se recorta a la caja con un margen del 5 %.
+    Devuelve etiquetas (id = posición + 1); los objetos pequeños quedan encima de los grandes."""
+    labels = np.zeros(img.shape[:2], np.int32)
+    if not len(boxes):
+        return labels
+    emb, k, orig, pre = embed(img)
+    h, w = orig
+    masks = []
+    for i0 in range(0, len(boxes), batch):
+        part = boxes[i0:i0 + batch]
+        coords = np.array([[[x0 * k, y0 * k], [x1 * k, y1 * k]] for x0, y0, x1, y1 in part], np.float32)
+        lab = np.tile(np.array([[2, 3]], np.float32), (len(part), 1))
+        low, _ = _decode(emb, coords, lab)
+        masks += [low[i, 0] for i in range(len(part))]
+    order = sorted(range(len(boxes)), key=lambda i: -(boxes[i][2] - boxes[i][0]) * (boxes[i][3] - boxes[i][1]))
+    for i in order:
+        x0, y0, x1, y1 = boxes[i]
+        mx, my = 0.05 * (x1 - x0), 0.05 * (y1 - y0)
+        X0, Y0 = max(0, int(x0 - mx)), max(0, int(y0 - my))
+        X1, Y1 = min(w, int(np.ceil(x1 + mx))), min(h, int(np.ceil(y1 + my)))
+        if X1 <= X0 or Y1 <= Y0:
+            continue
+        big = cv2.resize(masks[i], (SIZE, SIZE), interpolation=cv2.INTER_LINEAR)
+        py0, px0 = int(Y0 * k), int(X0 * k)
+        py1, px1 = max(py0 + 1, int(np.ceil(Y1 * k))), max(px0 + 1, int(np.ceil(X1 * k)))
+        m = cv2.resize(big[py0:py1, px0:px1], (X1 - X0, Y1 - Y0), interpolation=cv2.INTER_LINEAR) > 0
+        labels[Y0:Y1, X0:X1][m] = i + 1
+    return labels
+
+
 WORK = 2048          # lado mayor del marco común donde se comparan las regiones
 
 
@@ -346,6 +378,7 @@ def model_segment(ctx, p):
             cats = sam.categorize(labels, int(p["default"]), list(p["picks"] or []))
         if p["categories"]:
             ctx.classes = cats[labels].astype(np.int32)
+            ctx.extra["class_names"] = list(p["categories"])
             ctx.extra["class_colors"] = ["#000000"] + list(p["colors"])
         labels = np.where(cats[labels] > 0, labels, 0)
     ctx.extra["instances"] = labels

@@ -31,6 +31,9 @@ def column(col: str, aliases: dict | None = None) -> str:
     if base.endswith("_area") and base[:-5] in aliases:
         name = f"{t('col.area')} {aliases[base[:-5]]}"
         return f"{name} ({unit})" if unit else name
+    if base.startswith("mean_nearest_") and base[13:] in aliases:
+        name = f"{t('col.mean_nearest_class')} ({aliases[base[13:]]})"
+        return f"{name} ({unit})" if unit else name
     if base.startswith("n_") and base[2:] in aliases:
         return f"{t('col.n')} {aliases[base[2:]]}"
     name = t(f"col.{base}", "")

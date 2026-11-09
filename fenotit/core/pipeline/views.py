@@ -34,9 +34,13 @@ def _outline(out, m, sl, color, width):
     cv2.drawContours(out, cnts, -1, color, width, cv2.LINE_AA)
 
 
-def object_geometry(labels) -> dict[int, np.ndarray]:
+def object_geometry(labels, detections=None) -> dict[int, np.ndarray]:
     """Contorno de cada objeto (px de la imagen, simplificado): para elegir un objeto con
-    un clic, resaltarlo y recortarlo, también en resultados livianos (sin imágenes)."""
+    un clic, resaltarlo y recortarlo, también en resultados livianos (sin imágenes). Con
+    cajas de un detector, el rectángulo de cada caja."""
+    if detections is not None:
+        from fenotit.core.objects.boxes import rect
+        return {d["id"]: np.round(rect(d)).astype(np.int32) for d in detections}
     out = {}
     if labels is None:
         return out

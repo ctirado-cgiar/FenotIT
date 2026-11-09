@@ -94,7 +94,8 @@ def _fresh(prefix: Context, mm_per_px, unit="mm") -> Context:
                    mask=prefix.mask, labels=prefix.labels, detections=prefix.detections,
                    skeleton=prefix.skeleton, groups=prefix.groups, classes=prefix.classes,
                    excluded=prefix.excluded,
-                   highlighted=prefix.highlighted)
+                   highlighted=prefix.highlighted,
+                   extra={k: prefix.extra[k] for k in ("class_names", "class_colors") if k in prefix.extra})
 
 
 def _measure(prefix: Context, item: dict, mm_per_px, unit="mm") -> dict:
