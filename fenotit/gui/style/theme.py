@@ -9,6 +9,7 @@ Ningún archivo de la interfaz escribe un color ni un tipo de letra directamente
 COLORS        colores de la interfaz (#RRGGBB)
 FONTS         tipos de letra: (familia, tamaño[, estilo])
 SIZES         tamaños en px (filas de tabla, márgenes de botones…)
+BUTTONS       estilo de cada tipo de botón (primary, secondary, quiet, link)
 CLASS_COLORS  colores que se asignan a las clases y categorías nuevas
 CHART_COLORS  colores de las series en los gráficos
 LOGO_TINTS    tonos del mosaico del logo (de oscuro a claro)
@@ -80,6 +81,7 @@ _FAMILIES = {k: v[0] if isinstance(v, list) else v for k, v in _THEME["families"
 COLORS: dict[str, str] = dict(_THEME["colors"])
 FONTS: dict[str, tuple] = {k: _font(v, _FAMILIES) for k, v in _THEME["fonts"].items()}
 SIZES: dict[str, int] = dict(_THEME["sizes"])
+BUTTONS: dict[str, dict] = {k: dict(v) for k, v in _THEME["buttons"].items()}
 CLASS_COLORS = tuple(_THEME["palettes"]["classes"])
 CHART_COLORS = tuple(_THEME["palettes"]["charts"])
 LOGO_TINTS = tuple(_THEME["palettes"]["logo_tints"])

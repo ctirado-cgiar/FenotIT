@@ -16,6 +16,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from fenotit import settings
+from fenotit.gui.style.components import button, divider
 from fenotit.gui.style.theme import COLORS, FONTS
 from fenotit.gui.widgets.collapsible import CollapsiblePanel
 from fenotit.gui.widgets.image_list import ImageList
@@ -90,8 +91,7 @@ class LayoutMixin:
         self.statusbar = tk.Frame(self.root, bg=COLORS["bg_panel"], height=24)
         self.statusbar.pack(fill=tk.X, side=tk.BOTTOM)
         self.statusbar.pack_propagate(False)
-        tk.Frame(self.statusbar, bg=COLORS["border"],
-                 height=1).pack(fill=tk.X)
+        divider(self.statusbar).pack(fill=tk.X)
         self.status_var = tk.StringVar(value=t("status.ready"))
         self.corr_var = tk.StringVar(value="")
         self._corr_label = tk.Label(self.statusbar, textvariable=self.corr_var,
@@ -120,9 +120,7 @@ class LayoutMixin:
         self._section_lbl(lf, t("left.images"))
         nav = tk.Frame(lf, bg=COLORS["bg_panel"])
         nav.pack(fill=tk.X, padx=8, pady=2)
-        btn = dict(bg=COLORS["btn_bg"], fg=COLORS["accent"], relief="flat",
-                   font=FONTS["small"], cursor="hand2")
-        tk.Button(nav, text="＋", command=self._open_image, width=2, **btn).pack(side=tk.LEFT)
+        button(nav, text="＋", command=self._open_image, width=2, kind="secondary", size="small").pack(side=tk.LEFT)
         self.batch_label = tk.Label(nav, text="—", bg=COLORS["bg_panel"],     # anterior/siguiente: ← → o clic
                                     fg=COLORS["text_muted"], font=FONTS["small"])
         self.batch_label.pack(side=tk.RIGHT, padx=4)
@@ -176,7 +174,7 @@ class LayoutMixin:
             lbl.pack(side=tk.LEFT)
             lbl.bind("<Button-1>", lambda e, k=key: self._select_right_tab(k))
             self._rtab_labels[key] = lbl
-        tk.Frame(rf, bg=COLORS["border"], height=1).pack(fill=tk.X)
+        divider(rf).pack(fill=tk.X)
         self._rtab_body = tk.Frame(rf, bg=bg)
         self._rtab_body.pack(fill=tk.BOTH, expand=True)
         self._seg_tab = tk.Frame(self._rtab_body, bg=bg)

@@ -93,6 +93,7 @@ body_bold     = "sans 9 bold"
 large         = "sans 10"
 topbar        = "sans 10 bold"
 topbar_menu   = "sans 9"    # menús de la barra superior
+section       = "sans 8 bold"  # títulos de sección de paneles y diálogos
 title         = "sans 11 bold"
 subtitle      = "sans 11"
 heading       = "sans 12 bold"
@@ -108,12 +109,58 @@ mono          = "mono 8"
 
 # ── Tamaños (px) ─────────────────────────────────────────────────────────────────
 [sizes]
-row_height      = 20       # filas de las tablas
-button_pad_x    = 8        # margen interior de los botones
-button_pad_y    = 3
-scroll_arrow    = 12       # flechas de las barras de desplazamiento
-progress_thin   = 8        # alto de la barra de avance de la barra de estado
-focus_ring      = 1        # borde de foco de casillas y botones (0 = sin borde)
+row_height         = 20    # filas de las tablas
+button_pad_x       = 14    # margen interior de los botones
+button_pad_y       = 3
+button_small_pad_x = 8     # botones pequeños (barras de herramientas, paneles)
+button_small_pad_y = 3
+panel_pad          = 10    # margen izquierdo y derecho del contenido de los paneles laterales
+section_pad_y      = 5     # alto extra de los títulos de sección de los paneles
+scroll_arrow       = 12    # flechas de las barras de desplazamiento
+progress_thin      = 8     # alto de la barra de avance de la barra de estado
+focus_ring         = 1     # borde de foco de casillas y botones (0 = sin borde)
+
+# ── Botones ──────────────────────────────────────────────────────────────────────
+# bg, fg, hover y pressed son nombres de [colors]; bg = "" usa el fondo del contenedor.
+# font y font_small son nombres de [fonts] (tamaño normal y pequeño).
+[buttons.primary]          # acción principal: Aceptar, Exportar, Aplicar a todas
+bg = "accent"
+fg = "on_accent"
+hover = "accent_dark"
+pressed = "accent_dark"
+font = "body_bold"
+font_small = "small"
+
+[buttons.secondary]        # otras acciones
+bg = "btn_bg"
+fg = "accent"
+hover = "btn_hover"
+pressed = "btn_hover"
+font = "body"
+font_small = "small"
+
+[buttons.quiet]            # Cancelar, Cerrar
+bg = "btn_bg"
+fg = "text_muted"
+hover = "btn_hover"
+pressed = "btn_hover"
+font = "body"
+font_small = "small"
+
+[buttons.run]              # Ejecutar, en la barra superior
+bg = "bg_card"
+fg = "accent"
+hover = "accent_light"
+pressed = "accent_light"
+font = "body_bold"
+font_small = "small"
+
+[buttons.link]             # texto con aspecto de enlace, sin fondo
+bg = ""
+fg = "accent"
+pressed = "accent_light"
+font = "body"
+font_small = "small"
 
 # ── Paletas ──────────────────────────────────────────────────────────────────────
 [palettes]

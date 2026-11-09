@@ -11,6 +11,7 @@ from fenotit.core import units
 from fenotit.core.project import Scale
 from fenotit.gui.dialogs.corrections import CorrectionsDialog
 from fenotit.gui.dialogs.scale import ScaleDialog
+from fenotit.gui.style.components import button
 from fenotit.gui.style.theme import COLORS, FONTS
 from fenotit.i18n import t
 
@@ -163,10 +164,8 @@ class CalibrationMixin:
                 win.destroy()
         btns = tk.Frame(body, bg=COLORS["bg_card"])
         btns.pack(fill=tk.X, pady=(12, 0))
-        tk.Button(btns, text=t("common.cancel"), command=win.destroy, relief="flat",
-                  bg=COLORS["btn_bg"], fg=COLORS["accent"], font=FONTS["small"]).pack(side=tk.RIGHT, padx=(6, 0))
-        tk.Button(btns, text=t("common.ok"), command=ok, relief="flat", bg=COLORS["accent"], fg=COLORS["on_accent"],
-                  font=FONTS["small"]).pack(side=tk.RIGHT)
+        button(btns, text=t("common.cancel"), command=win.destroy, kind="secondary", size="small").pack(side=tk.RIGHT, padx=(6, 0))
+        button(btns, text=t("common.ok"), command=ok, kind="primary", size="small").pack(side=tk.RIGHT)
         win.bind("<Return>", ok)
         win.bind("<Escape>", lambda e: win.destroy())
         entry.focus_set()

@@ -15,6 +15,7 @@ from fenotit.core.project import PREVIEW
 from fenotit.gui.style.decor import BLUE, pixel_dissolve
 from fenotit.gui.style.icons import icon
 from fenotit.i18n import t
+from fenotit.gui.style.components import button, divider
 from fenotit.gui.style.theme import COLORS, FONTS
 
 _THUMB = (88, 66)
@@ -77,7 +78,7 @@ class StartScreen(tk.Frame):
         tk.Frame(self, bg=BLUE, height=4).pack(side=tk.TOP, fill=tk.X)
         hero = tk.Canvas(self, bg=COLORS["bg_card"], width=300, highlightthickness=0)
         hero.pack(side=tk.LEFT, fill=tk.Y)
-        tk.Frame(self, bg=COLORS["divider"], width=1).pack(side=tk.LEFT, fill=tk.Y)
+        divider(self, "divider", vertical=True).pack(side=tk.LEFT, fill=tk.Y)
         hero.bind("<Configure>", lambda e: self._decorate(hero, e.width, e.height))
         inner = tk.Frame(hero, bg=COLORS["bg_card"])
         inner.place(relx=0.5, rely=0.45, anchor="center")
@@ -214,10 +215,7 @@ class StartScreen(tk.Frame):
         front[2].pack()
         choices = tk.Frame(card, bg=c["bg_card"])
         for ico, text, cmd in (("photo_w", t("start.photos"), on_photos), ("folder_w", t("start.folder"), on_folder)):
-            tk.Button(choices, text=f"  {text}", image=self._img[ico], compound="left", command=cmd,
-                      bg=c["accent"], fg=COLORS["on_accent"], activebackground=c["bg_topbar"], activeforeground=COLORS["on_accent"],
-                      relief="flat", bd=0, font=FONTS["body_bold"], anchor="w", padx=12, pady=6,
-                      cursor="hand2").pack(fill=tk.X, padx=14, pady=(10, 0))
+            button(choices, text=f"  {text}", image=self._img[ico], compound="left", command=cmd, anchor="w", kind="primary", pady=6).pack(fill=tk.X, padx=14, pady=(10, 0))
 
         def open_choices(_e=None):
             for w in front:

@@ -9,6 +9,7 @@ import cv2
 import numpy as np
 from PIL import Image, ImageTk
 
+from fenotit.gui.style.components import button
 from fenotit.gui.style.theme import COLORS, FONTS
 from fenotit.gui.canvas.zoom import ZoomableCanvas
 from fenotit.i18n import t
@@ -26,10 +27,8 @@ def _window(parent, title: str) -> tk.Toplevel:
 def _buttons(win, ok, ok_text=None):
     row = tk.Frame(win, bg=COLORS["bg_card"])
     row.pack(fill=tk.X, padx=16, pady=10, side=tk.BOTTOM)
-    tk.Button(row, text=t("common.cancel"), command=win.destroy, bg=COLORS["btn_bg"], fg=COLORS["accent"],
-              relief="flat", font=FONTS["body"], cursor="hand2", padx=10).pack(side=tk.RIGHT, padx=(6, 0))
-    tk.Button(row, text=ok_text or t("common.ok"), command=ok, bg=COLORS["accent"], fg=COLORS["on_accent"],
-              relief="flat", font=FONTS["body_bold"], cursor="hand2", padx=14).pack(side=tk.RIGHT)
+    button(row, text=t("common.cancel"), command=win.destroy, kind="secondary").pack(side=tk.RIGHT, padx=(6, 0))
+    button(row, text=ok_text or t("common.ok"), command=ok, kind="primary").pack(side=tk.RIGHT)
     return row
 
 
@@ -173,7 +172,6 @@ def show_detection(parent, crop: np.ndarray | None, before: np.ndarray, after: n
              wraplength=900, anchor="w").pack(fill=tk.X, padx=22, pady=(4, 0))
     r = tk.Frame(win, bg=COLORS["bg_card"])
     r.pack(fill=tk.X, padx=16, pady=10)
-    tk.Button(r, text=t("common.close"), command=win.destroy, bg=COLORS["accent"], fg=COLORS["on_accent"], relief="flat",
-              font=FONTS["body_bold"], cursor="hand2", padx=14).pack(side=tk.RIGHT)
+    button(r, text=t("common.close"), command=win.destroy, kind="primary").pack(side=tk.RIGHT)
     win.bind("<Escape>", lambda e: win.destroy())
     _center(win, parent)

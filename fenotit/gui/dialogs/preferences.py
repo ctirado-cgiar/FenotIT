@@ -11,6 +11,7 @@ from typing import Callable
 from fenotit import i18n, settings
 from fenotit.gui.widgets.help import HelpIcon
 from fenotit.gui.style import theme
+from fenotit.gui.style.components import button, section as heading
 from fenotit.gui.style.theme import COLORS, FONTS
 from fenotit.i18n import t
 
@@ -42,8 +43,7 @@ def show(root: tk.Misc, max_mpx: float | None, on_ok: Callable[[dict], None]) ->
     row = [1]
 
     def section(key):
-        tk.Label(body, text=t(key).upper(), bg=bg, fg=COLORS["text_muted"],
-                 font=FONTS["small_bold"]).grid(row=row[0], column=0, columnspan=3, sticky="w", pady=(10, 2))
+        heading(body, t(key).upper(), bg=bg).grid(row=row[0], column=0, columnspan=3, sticky="ew", pady=(10, 2))
         row[0] += 1
 
     def line(key, widget, help_key=None):
@@ -104,10 +104,8 @@ def show(root: tk.Misc, max_mpx: float | None, on_ok: Callable[[dict], None]) ->
 
     btns = tk.Frame(win, bg=bg)
     btns.pack(fill=tk.X, padx=20, pady=(10, 14))
-    tk.Button(btns, text=t("common.cancel"), command=win.destroy, bg=COLORS["btn_bg"], fg=COLORS["accent"],
-              relief="flat", font=FONTS["body"], cursor="hand2", padx=10).pack(side=tk.RIGHT, padx=(6, 0))
-    tk.Button(btns, text=t("common.ok"), command=ok, bg=COLORS["accent"], fg=COLORS["on_accent"], relief="flat",
-              font=FONTS["body_bold"], cursor="hand2", padx=14).pack(side=tk.RIGHT)
+    button(btns, text=t("common.cancel"), command=win.destroy, kind="secondary").pack(side=tk.RIGHT, padx=(6, 0))
+    button(btns, text=t("common.ok"), command=ok, kind="primary").pack(side=tk.RIGHT)
     win.bind("<Escape>", lambda e: win.destroy())
     win.update_idletasks()
     win.geometry(f"+{root.winfo_rootx() + (root.winfo_width() - win.winfo_reqwidth()) // 2}"

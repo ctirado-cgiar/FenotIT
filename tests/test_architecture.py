@@ -4,6 +4,7 @@
 - Cada variable de la ventana principal se crea y se cambia en un solo archivo.
 - Dos partes de la ventana no definen un método con el mismo nombre.
 - Colores, letras y tamaños de la interfaz salen del tema, y el tema no tiene valores sin uso.
+- Los botones se crean con gui/style/components.button.
 - Cada archivo empieza con una línea que dice qué hace, y no hay imports sin uso.
 - El grafo de dependencias (docs/map/index.html) coincide con el código.
 """
@@ -101,9 +102,25 @@ def test_gui_uses_only_theme_values():
     assert not bad, "Colores, letras o tamaños fuera del tema (fenotit/assets/themes/classic.toml):\n" + "\n".join(bad)
 
 
+def test_buttons_use_components():
+    allowed = {"components.py", "dropmenu.py"}
+    bad = [f"{_rel(p)}:{n.lineno}" for p in _py(GUI) if p.name not in allowed
+           for n in ast.walk(_tree(p)) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+           and n.func.attr == "Button" and getattr(n.func.value, "id", "") == "tk"]
+    assert not bad, "tk.Button creado a mano (usar button() de gui/style/components.py):\n" + "\n".join(bad)
+
+
+def test_button_styles_exist():
+    theme = _theme()
+    bad = [f"[buttons.{kind}] {key} = {name!r}" for kind, style in theme["buttons"].items()
+           for key, name in style.items() if name and name not in theme["fonts" if key.startswith("font") else "colors"]]
+    assert not bad, "Botones del tema con colores o letras que no existen en classic.toml:\n" + "\n".join(bad)
+
+
 def test_theme_has_no_unused_values():
     theme = _theme()
     code = "\n".join(p.read_text(encoding="utf-8") for p in _py(GUI))
+    code += "\n".join(f'"{v}"' for style in theme["buttons"].values() for v in style.values())
     unused = [f"[{sec}] {k}" for sec in ("colors", "fonts", "sizes") for k in theme[sec]
               if f'"{k}"' not in code and f"'{k}'" not in code]
     assert not unused, "Valores de classic.toml que ningún módulo usa:\n" + "\n".join(unused)

@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 from pathlib import Path
 
+from fenotit.gui.style.components import button, divider
 from fenotit.gui.style.theme import COLORS, FONTS
 from fenotit.gui.canvas.zoom import ZoomableCanvas
 
@@ -51,8 +52,7 @@ class BaseDialog(tk.Toplevel):
                  bg=COLORS["bg_card"], fg=COLORS["accent"],
                  font=FONTS["heading_large"]).pack(anchor="w")
 
-        tk.Frame(self, bg=COLORS["border"],
-                 height=1).pack(fill=tk.X, pady=8)
+        divider(self).pack(fill=tk.X, pady=8)
 
         # Cuerpo (lo rellena cada subclase)
         self.body = tk.Frame(self, bg=COLORS["bg_card"])
@@ -64,8 +64,7 @@ class BaseDialog(tk.Toplevel):
         # Botones de acción
         btn_row = tk.Frame(self, bg=COLORS["bg_card"])
         btn_row.pack(fill=tk.X, padx=20, pady=(8, 12))
-        tk.Frame(self, bg=COLORS["border"],
-                 height=1).pack(fill=tk.X, before=btn_row)
+        divider(self).pack(fill=tk.X, before=btn_row)
         self._build_buttons(btn_row)
 
     def _build_progress(self):
@@ -86,10 +85,7 @@ class BaseDialog(tk.Toplevel):
 
     def _build_buttons(self, parent):
         """Sobreescribir para agregar botones."""
-        tk.Button(parent, text=t("common.close"), command=self.destroy,
-                  bg=COLORS["btn_bg"], fg=COLORS["accent"],
-                  relief="flat", font=FONTS["body"],
-                  cursor="hand2", padx=12).pack(side=tk.RIGHT)
+        button(parent, text=t("common.close"), command=self.destroy, kind="secondary").pack(side=tk.RIGHT)
 
     def _show_progress(self, current: int, total: int, msg: str = ""):
         self._prog_bar.pack(fill=tk.X)
@@ -168,9 +164,7 @@ class ScaleDialog(BaseDialog):
                                       on_click=self._on_click, on_overlay=self._draw_points)
         from fenotit.gui.widgets.toolbar import zoom_bar
         zoom_bar(bar, self._canvas, COLORS)
-        tk.Button(bar, text=f"✕ {t('scale.clear')}", command=self._clear_points,
-                  bg=COLORS["btn_bg"], fg=COLORS["accent"], relief="flat", font=FONTS["small"],
-                  cursor="hand2").pack(side=tk.LEFT, padx=4)
+        button(bar, text=f"✕ {t('scale.clear')}", command=self._clear_points, kind="secondary", size="small").pack(side=tk.LEFT, padx=4)
         self._canvas.pack(fill=tk.BOTH, expand=True, pady=4)
 
         self._pts_label = tk.Label(
@@ -201,11 +195,7 @@ class ScaleDialog(BaseDialog):
                      values=UNITS, state="readonly", width=4,
                      font=FONTS["body"]).pack(side=tk.LEFT)
 
-        tk.Button(step3, text=t("scale.compute"),
-                  command=self._compute,
-                  bg=COLORS["accent"], fg=COLORS["on_accent"],
-                  relief="flat", font=FONTS["small"],
-                  cursor="hand2", padx=8).pack(side=tk.LEFT, padx=8)
+        button(step3, text=t("scale.compute"), command=self._compute, kind="primary", size="small").pack(side=tk.LEFT, padx=8)
 
         # Resultado
         self._result_var = tk.StringVar(value="—")
@@ -214,21 +204,10 @@ class ScaleDialog(BaseDialog):
                  font=FONTS["body_bold"], anchor="w").pack(fill=tk.X)
 
     def _build_buttons(self, parent):
-        tk.Button(parent, text=t("common.close"), command=self.destroy,
-                  bg=COLORS["btn_bg"], fg=COLORS["accent"],
-                  relief="flat", font=FONTS["body"],
-                  cursor="hand2", padx=10).pack(side=tk.RIGHT, padx=2)
-        tk.Button(parent, text=t("scale.clear_points"),
-                  command=self._clear_points,
-                  bg=COLORS["btn_bg"], fg=COLORS["text_muted"],
-                  relief="flat", font=FONTS["body"],
-                  cursor="hand2", padx=10).pack(side=tk.RIGHT, padx=2)
+        button(parent, text=t("common.close"), command=self.destroy, kind="secondary").pack(side=tk.RIGHT, padx=2)
+        button(parent, text=t("scale.clear_points"), command=self._clear_points, kind="quiet").pack(side=tk.RIGHT, padx=2)
         for key, scope, bold in (("scale.apply_all", "all", False), ("scale.apply_image", "image", True)):
-            tk.Button(parent, text=t(key), command=lambda sc=scope: self._apply(sc),
-                      bg=COLORS["accent"] if bold else COLORS["btn_bg"],
-                      fg=COLORS["on_accent"] if bold else COLORS["accent"], relief="flat",
-                      font=FONTS["body_bold"] if bold else FONTS["body"],
-                      cursor="hand2", padx=10).pack(side=tk.RIGHT, padx=2)
+            button(parent, text=t(key), command=lambda sc=scope: self._apply(sc), kind="primary" if bold else "secondary").pack(side=tk.RIGHT, padx=2)
 
     def _pick_image(self, path: str):
         try:

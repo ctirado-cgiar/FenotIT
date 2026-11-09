@@ -12,6 +12,7 @@ from typing import Any
 
 from fenotit import log
 from fenotit.i18n import t
+from fenotit.gui.style.components import button, divider
 from fenotit.gui.style.theme import COLORS, FONTS
 
 _log = log.get("gui.config_panel")
@@ -140,7 +141,7 @@ class ConfigPanel(tk.Frame):
             row.config(pady=0)
             tk.Label(hdr, text=label, bg=self.colors["bg_panel"], fg=self.colors["accent"],
                      font=FONTS["small_bold"], pady=4).pack(side=tk.LEFT)
-            tk.Frame(row, bg=self.colors["border"], height=1).pack(fill=tk.X)
+            divider(row).pack(fill=tk.X)
             return
         if typ == "section":
             lbl = tk.Label(hdr, text=label, bg=self.colors["bg_panel"], fg=self.colors["text"],
@@ -238,24 +239,14 @@ class ConfigPanel(tk.Frame):
                         _log.debug("ignorado", exc_info=True)
                 return dn
 
-            btn_kw = dict(bg=self.colors["bg_panel"],
-                          fg=self.colors["accent"],
-                          relief="flat",
-                          font=FONTS["tiny"],
-                          width=2, height=1,
-                          cursor="hand2",
-                          padx=0, pady=0)
-            tk.Button(btn_frame, text="▲",
-                      command=make_up(),
-                      **btn_kw).pack(side=tk.TOP)
-            tk.Button(btn_frame, text="▼",
-                      command=make_dn(),
-                      **btn_kw).pack(side=tk.TOP)
+            btn_kw = dict(kind="link", size="small", bg=self.colors["bg_panel"], font=FONTS["tiny"],
+                          width=2, height=1, padx=0, pady=0)
+            button(btn_frame, text="▲", command=make_up(), **btn_kw).pack(side=tk.TOP)
+            button(btn_frame, text="▼", command=make_dn(), **btn_kw).pack(side=tk.TOP)
 
         if typ != "section":
             self._vars[key] = var
-        tk.Frame(row, bg=self.colors["border"],
-                 height=1).pack(fill=tk.X, pady=(2, 0))
+        divider(row).pack(fill=tk.X, pady=(2, 0))
 
     def get_values(self, warn: bool = True) -> dict[str, Any]:
         out = {}

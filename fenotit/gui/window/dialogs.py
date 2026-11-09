@@ -11,6 +11,7 @@ from tkinter import messagebox
 
 from fenotit import __version__, log, settings
 from fenotit import i18n
+from fenotit.gui.style.components import button
 from fenotit.gui.style.theme import COLORS, FONTS
 from fenotit.gui.window.common import _assets
 from fenotit.i18n import t
@@ -161,10 +162,7 @@ class DialogsMixin:
             i18n.set_language(code)
             self._restart()
 
-        tk.Button(body, text="OK", command=apply,
-                  bg=COLORS["btn_bg"], fg=COLORS["accent"],
-                  relief="flat", font=FONTS["body"],
-                  cursor="hand2", padx=12).pack(anchor="e", pady=(12, 0))
+        button(body, text="OK", command=apply, kind="secondary").pack(anchor="e", pady=(12, 0))
         win.update_idletasks()
         sw, sh = win.winfo_screenwidth(), win.winfo_screenheight()
         w, h = max(win.winfo_reqwidth(), 260), win.winfo_reqheight()

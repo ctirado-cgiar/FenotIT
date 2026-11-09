@@ -11,6 +11,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from fenotit import log
 from fenotit.gui.widgets.help import HelpIcon
+from fenotit.gui.style.components import button, divider, section as title
 from fenotit.gui.style.theme import COLORS, FONTS
 from fenotit.i18n import t
 
@@ -51,13 +52,8 @@ class ExportDialog(tk.Toplevel):
                  font=FONTS["heading_large"]).pack(anchor="w")
 
         def section(text, help_key=None):
-            row = tk.Frame(body, bg=bg)
-            row.pack(fill=tk.X, pady=(14, 4))
-            tk.Label(row, text=text, bg=bg, fg=COLORS["accent"], font=FONTS["small_bold"]).pack(side=tk.LEFT)
-            if help_key:
-                HelpIcon(row, text.capitalize(), t(help_key), bg=bg).pack(side=tk.LEFT, padx=(6, 0))
-            tk.Frame(row, bg=COLORS["border"], height=1).pack(side=tk.LEFT, fill=tk.X, expand=True,
-                                                             padx=(8, 0), pady=(2, 0))
+            title(body, text, bg=bg, help_title=text.capitalize(),
+                  help_text=t(help_key) if help_key else None).pack(fill=tk.X, pady=(14, 4))
 
         section(t("export.folder"))
         row = tk.Frame(body, bg=bg)
@@ -65,8 +61,7 @@ class ExportDialog(tk.Toplevel):
         self.folder = tk.StringVar(value=folder)
         tk.Entry(row, textvariable=self.folder, width=46, bg=COLORS["bg_panel"], fg=COLORS["text"],
                  relief="solid", bd=1, font=FONTS["small"]).pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=2)
-        tk.Button(row, text="…", command=self._pick, bg=COLORS["btn_bg"], fg=COLORS["accent"], relief="flat",
-                  cursor="hand2", font=FONTS["body"], width=3).pack(side=tk.LEFT, padx=(4, 0))
+        button(row, text="…", command=self._pick, width=3, kind="secondary").pack(side=tk.LEFT, padx=(4, 0))
         self.stamp = tk.BooleanVar(value=stamp)
         row = tk.Frame(body, bg=bg)
         row.pack(fill=tk.X, pady=(2, 0))
@@ -110,19 +105,14 @@ class ExportDialog(tk.Toplevel):
                                  anchor="w", justify="left", wraplength=420)
         self._msg_lbl.pack(fill=tk.X, pady=(14, 0))
 
-        tk.Frame(self, bg=COLORS["border"], height=1).pack(fill=tk.X)
+        divider(self).pack(fill=tk.X)
         btns = tk.Frame(self, bg=bg)
         btns.pack(fill=tk.X, padx=22, pady=10)
-        self._close = tk.Button(btns, text=t("common.close"), command=self._on_close, bg=COLORS["btn_bg"],
-                                fg=COLORS["accent"], relief="flat", font=FONTS["body"], cursor="hand2", padx=12)
+        self._close = button(btns, text=t("common.close"), command=self._on_close, kind="secondary")
         self._close.pack(side=tk.RIGHT, padx=(6, 0))
-        self._go = tk.Button(btns, text=t("export.run"), command=self._start, bg=COLORS["accent"], fg=COLORS["on_accent"],
-                             activebackground=COLORS["accent_dark"], activeforeground=COLORS["on_accent"], relief="flat",
-                             font=FONTS["body_bold"], cursor="hand2", padx=14)
+        self._go = button(btns, text=t("export.run"), command=self._start, kind="primary")
         self._go.pack(side=tk.RIGHT)
-        self._open = tk.Button(btns, text=t("export.open_folder"), bg=bg, fg=COLORS["accent"], relief="flat",
-                               font=FONTS["body"], cursor="hand2",
-                               command=lambda: open_folder(getattr(self, "_done_folder", None) or self.folder.get()))
+        self._open = button(btns, text=t("export.open_folder"), command=lambda: open_folder(getattr(self, "_done_folder", None) or self.folder.get()), bg=bg, kind="link")
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self.bind("<Escape>", lambda e: self._on_close())
 

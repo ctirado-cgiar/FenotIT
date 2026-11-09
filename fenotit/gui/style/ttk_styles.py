@@ -16,7 +16,7 @@ def apply(root: tk.Misc) -> None:
     s.configure("TFrame", background=COLORS["bg"])
     s.configure("TLabel", background=COLORS["bg"], foreground=COLORS["text"], font=FONTS["body"])
     s.configure("TButton", background=COLORS["btn_bg"], foreground=COLORS["accent"], font=FONTS["body"],
-                borderwidth=1, relief="flat", padding=(SIZES["button_pad_x"], SIZES["button_pad_y"]))
+                borderwidth=1, relief="flat", padding=(SIZES["button_small_pad_x"], SIZES["button_pad_y"]))
     s.map("TButton", background=[("active", COLORS["btn_hover"])], foreground=[("active", COLORS["accent"])])
     s.configure("TSeparator", background=COLORS["border"])
     for name in ("Horizontal.TProgressbar", "Thin.Horizontal.TProgressbar"):

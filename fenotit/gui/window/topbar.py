@@ -7,6 +7,7 @@ from PIL import Image, ImageTk
 
 from fenotit import APP_NAME, log
 from fenotit.core.analysis.registry import ANALYSES
+from fenotit.gui.style.components import button, divider
 from fenotit.gui.style.theme import COLORS, FONTS
 from fenotit.gui.widgets.dropmenu import DropMenu, Sub
 from fenotit.gui.widgets.toolbar import IconButton, Tooltip
@@ -134,12 +135,9 @@ class TopbarMixin:
         run = tk.Frame(self.topbar, bg=COLORS["bg_card"])
         run.pack(side=tk.RIGHT, padx=(6, 0), pady=8)
         self._run_frame = run
-        tk.Button(run, text=t("topbar.run"), command=lambda: self._run_analysis(False),
-                  bg=COLORS["bg_card"], fg=COLORS["accent"], font=FONTS["body_bold"],
-                  relief="flat", bd=0, activebackground=COLORS["accent_light"],
-                  activeforeground=COLORS["accent"], padx=10, pady=2,
-                  cursor="hand2").pack(side=tk.LEFT)
-        tk.Frame(run, bg=COLORS["border"], width=1).pack(side=tk.LEFT, fill=tk.Y, pady=3)
+        button(run, text=t("topbar.run"), command=lambda: self._run_analysis(False), kind="run",
+               pady=2).pack(side=tk.LEFT)
+        divider(run, vertical=True).pack(side=tk.LEFT, fill=tk.Y, pady=3)
         DropMenu(run, "", [
             (t("run.current"), lambda: self._run_analysis(False), "Ctrl+Enter"),
             (t("run.all"), lambda: self._run_analysis(True), "Ctrl+Shift+Enter"),

@@ -42,6 +42,6 @@ topbar_menu = "sans 10"
 
 [sizes]
 row_height   = 26
-button_pad_x = 12
-button_pad_y = 5
+button_pad_x = 14
+button_pad_y = 4
 focus_ring   = 0

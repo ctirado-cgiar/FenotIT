@@ -4,6 +4,7 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import messagebox
 
+from fenotit.gui.style.components import button
 from fenotit.gui.style.theme import COLORS, FONTS
 from fenotit.i18n import t
 
@@ -66,16 +67,11 @@ class AreasMixin:
         self._area_scope_var = tk.StringVar()
         tk.Label(scope, textvariable=self._area_scope_var, bg=bg, fg=COLORS["text"],
                  font=FONTS["small"]).pack(side=tk.LEFT, padx=(6, 4))
-        self._apply_all_btn = tk.Button(scope, text=t("roi.apply_all_short"), command=self._apply_areas_to_all,
-                                        bg=COLORS["accent"], fg=COLORS["on_accent"], activebackground=COLORS["accent_dark"],
-                                        activeforeground=COLORS["on_accent"], relief="flat", bd=0, font=FONTS["small"],
-                                        cursor="hand2", padx=8, pady=1)      # botón lleno: se ve que es una acción
-        self._clear_area_btn = tk.Button(scope, text=t("roi.clear_short"), command=self._clear_roi, bg=bg,
-                                         fg=COLORS["text_muted"], relief="flat", bd=0, font=FONTS["small"],
-                                         cursor="hand2", padx=4)
+        self._apply_all_btn = button(scope, text=t("roi.apply_all_short"), command=self._apply_areas_to_all, kind="primary", size="small")      # botón lleno: se ve que es una acción
+        self._clear_area_btn = button(scope, text=t("roi.clear_short"), command=self._clear_roi, kind="link",
+                                      size="small", bg=bg, fg=COLORS["text_muted"], padx=4)
         self._clear_area_btn.pack(side=tk.RIGHT, padx=(0, 4))
-        tk.Button(scope, text=t("roi.edit_short"), command=self._edit_areas, bg=bg, fg=COLORS["accent"],
-                  relief="flat", bd=0, font=FONTS["small"], cursor="hand2", padx=4).pack(side=tk.RIGHT)
+        button(scope, text=t("roi.edit_short"), command=self._edit_areas, bg=bg, kind="link", size="small", padx=4).pack(side=tk.RIGHT)
 
     def _edit_areas(self):
         """Seleccionar con todas las áreas de la foto elegidas: se ven sus vértices para editarlas."""

@@ -11,6 +11,7 @@ import cv2
 import numpy as np
 
 from fenotit import log, settings
+from fenotit.gui.style.components import button
 from fenotit.gui.style.theme import COLORS, FONTS
 from fenotit.gui.widgets.help import HelpIcon
 from fenotit.i18n import t
@@ -46,8 +47,7 @@ class ModelMixin:
         self._grid_row = grow
         arow = tk.Frame(box, bg=bg)
         self._sam_actions = arow
-        self._sam_try = tk.Button(arow, text=t("sam.try"), command=self._sam_try_now, bg=COLORS["btn_bg"],
-                                  fg=COLORS["accent"], relief="flat", font=small, cursor="hand2", padx=8)
+        self._sam_try = button(arow, text=t("sam.try"), command=self._sam_try_now, kind="secondary", size="small")
         self._sam_clear = tk.Label(arow, text=t("sam.clear"), bg=bg, fg=COLORS["accent"], font=small, cursor="hand2")
         self._sam_clear.bind("<Button-1>", lambda e: self._clear_prompts())
         # categorías de las regiones (solo Automático)

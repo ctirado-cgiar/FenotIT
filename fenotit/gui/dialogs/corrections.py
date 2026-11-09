@@ -14,6 +14,7 @@ from fenotit.core.corrections.aruco import detect_aruco_corners
 from fenotit.core.image_io import load_image
 from fenotit.gui.widgets.basic import ImagePicker
 from fenotit.gui.dialogs.scale import BaseDialog
+from fenotit.gui.style.components import button
 from fenotit.gui.style.theme import COLORS, FONTS
 from fenotit.i18n import t
 
@@ -46,12 +47,8 @@ class CorrectionsDialog(BaseDialog):
     # ── UI ────────────────────────────────────────────────────────────────────
 
     def _build_buttons(self, parent):
-        tk.Button(parent, text=t("common.close"), command=self.destroy,
-                  bg=COLORS["btn_bg"], fg=COLORS["accent"], relief="flat",
-                  font=FONTS["body"], cursor="hand2", padx=12).pack(side=tk.RIGHT, padx=2)
-        tk.Button(parent, text=t("corr.apply"), command=self._apply,
-                  bg=COLORS["accent"], fg=COLORS["on_accent"], relief="flat",
-                  font=FONTS["body_bold"], cursor="hand2", padx=12).pack(side=tk.RIGHT, padx=2)
+        button(parent, text=t("common.close"), command=self.destroy, kind="secondary").pack(side=tk.RIGHT, padx=2)
+        button(parent, text=t("corr.apply"), command=self._apply, kind="primary").pack(side=tk.RIGHT, padx=2)
 
     def _build_body(self):
         self._muted(self.body, t("corr.intro")).pack(anchor="w", pady=(0, 6))
@@ -92,13 +89,10 @@ class CorrectionsDialog(BaseDialog):
                               selectcolor=COLORS["bg_panel"], font=FONTS["body"])
 
     def _small(self, parent, key, cmd):
-        return tk.Button(parent, text=t(key), command=cmd, bg=COLORS["btn_bg"], fg=COLORS["accent"],
-                         relief="flat", font=FONTS["small"], cursor="hand2", padx=6, pady=0)
+        return button(parent, text=t(key), command=cmd, kind="secondary", size="small")
 
     def _button(self, parent, key, cmd):
-        return tk.Button(parent, text=t(key), command=cmd, bg=COLORS["btn_bg"],
-                         fg=COLORS["accent"], relief="flat", font=FONTS["body"],
-                         cursor="hand2", padx=10)
+        return button(parent, text=t(key), command=cmd, kind="secondary")
 
     def _enable_row(self, parent, var, kind):
         """Casilla "Aplicar" y el "?" con la explicación (estándar de ayuda: gui/widgets/help.py)."""

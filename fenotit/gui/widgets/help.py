@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import tkinter as tk
 
+from fenotit.gui.style.components import button
 from fenotit.gui.style.theme import COLORS, FONTS
 from fenotit.gui.widgets.toolbar import Tooltip
 from fenotit.i18n import t
@@ -58,8 +59,7 @@ def help_popup(widget, title: str, text: str):
              font=FONTS["body_bold"]).pack(anchor="w")
     tk.Label(inner, text=text, bg=COLORS["bg_card"], fg=COLORS["text"], font=FONTS["small"],
              justify="left", wraplength=300).pack(anchor="w", pady=(3, 0))
-    tk.Button(inner, text=t("common.close"), bg=COLORS["btn_bg"], fg=COLORS["accent"], font=FONTS["tiny"],
-              relief="flat", padx=6, cursor="hand2", command=tw.destroy).pack(anchor="e", pady=(6, 0))
+    button(inner, text=t("common.close"), command=tw.destroy, kind="secondary", size="small").pack(anchor="e", pady=(6, 0))
     tw.update_idletasks()
     w, h = tw.winfo_reqwidth(), tw.winfo_reqheight()
     sw, sh = tw.winfo_screenwidth(), tw.winfo_screenheight()
