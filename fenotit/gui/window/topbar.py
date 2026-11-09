@@ -94,8 +94,7 @@ class TopbarMixin:
             (t("roi.apply_all"), self._apply_areas_to_all),
             (t("roi.clear"), self._clear_roi),
         ])
-        self._drop(self.topbar, t("menu.analysis"), [
-            (_analysis_label(n), lambda n=n: self._open_analysis(n)) for n in ANALYSES])
+        self._drop(self.topbar, t("menu.analysis"), self._choose_analysis)
         self._drop(self.topbar, t("menu.view"), [
             (t("view.panels"), [
                 (t("view.left_panel"), lambda: self._toggle_panel(self.left_panel)),

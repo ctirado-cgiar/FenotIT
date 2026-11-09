@@ -48,9 +48,13 @@ no depende de otras mediciones.
 
 ## Cómo agregar un análisis a la interfaz
 
-Un análisis de la lista es un **tipo de muestra** (hoy: objetos; después: raíces, conteo con IA).
-Cada uno es un módulo en `fenotit/core/analysis/` que arma su cadena y llama `register(...)`
-con su esquema de parámetros; ver `objects.py`. Se carga desde `ANALYSIS_MODULES` en `registry.py`.
+Un análisis es un **tipo de muestra** (hoy: Objetos, Distancias, Clasificar áreas y Color de
+imagen; después: raíces, conteo con IA). Cada uno es un módulo en `fenotit/core/analysis/` que
+arma su cadena y llama `register(...)` con su esquema de parámetros, sus pasos en el panel
+derecho (`steps`: `"segment"` y/o `"params"`), los métodos de segmentación que admite
+(`seg_methods`) y si usa «Afinar máscara» (`refine`). Ver `objects.py` (dos pasos) y `cover.py`
+(un paso). Se carga desde `ANALYSIS_MODULES` en `registry.py`. En la interfaz, el usuario elige
+primero el análisis (tarjetas del panel derecho) y luego ve solo sus pasos.
 
 Esquema de parámetros del panel: `type` (`int`, `float`, `bool`, `section`), `default`, `min`, `max`,
 `step`, `group` (se muestra con ▸ bajo esa casilla), `requires`, `unit` (`area` → px² o mm²).

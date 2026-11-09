@@ -5,7 +5,6 @@ dos canales del espacio de fondo, como silueta tenue."""
 from __future__ import annotations
 
 import tkinter as tk
-import tkinter.font as tkfont
 
 import numpy as np
 
@@ -190,7 +189,10 @@ class RangeSlider(tk.Canvas):
         self.create_line(PAD, y, w - PAD, y, fill=COLORS["slider_trough"], width=4, capstyle="round")
         xl, xh = self._x(self.lo), self._x(self.hi)
         self.create_line(xl, y, xh, y, fill=self.track, width=4, capstyle="round")
-        bw = tkfont.Font(font=FONTS["small_bold"]).measure("255") + 8
+        probe = self.create_text(0, 0, text="255", font=FONTS["small_bold"])
+        x0, _, x1, _ = self.bbox(probe)
+        self.delete(probe)
+        bw = x1 - x0 + 8
         xs = self._bubble_x(xl, xh, w, bw / 2)
         focus = self.focus_get() is self
         for name, x, bx in (("lo", xl, xs[0]), ("hi", xh, xs[1])):

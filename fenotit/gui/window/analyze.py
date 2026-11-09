@@ -1,4 +1,4 @@
-"""Pestaña «2 Analizar»: tarjetas de análisis, parámetros y unidades del panel."""
+"""Análisis elegido: tarjetas para elegirlo, sus pasos, parámetros y unidades del panel."""
 from __future__ import annotations
 
 import tkinter as tk
@@ -6,9 +6,8 @@ import tkinter as tk
 from fenotit import log
 from fenotit.core import units
 from fenotit.core.analysis.registry import ANALYSES
-from fenotit.gui.style.theme import COLORS, FONTS, SPACE
+from fenotit.gui.style.theme import COLORS, FONTS, SIZES, SPACE
 from fenotit.gui.widgets.params import ConfigPanel
-from fenotit.gui.widgets.toolbar import Tooltip
 from fenotit.gui.window.common import _analysis_key, _analysis_label
 from fenotit.i18n import t
 
@@ -85,25 +84,57 @@ class AnalyzeMixin:
             card.pack(fill=tk.X, pady=1)
             title = tk.Label(card, text=_analysis_label(name), bg=bg, fg=COLORS["accent"] if on else COLORS["text"],
                              font=FONTS["body_bold"], anchor="w", cursor="hand2")
-            title.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["sm"], SPACE["sm"] if not on else 0))
-            parts = [card, title]
-            if on:
-                desc = t(f"analysis.{_analysis_key(name)}.desc", ANALYSES[name].description)
-                d = tk.Label(card, text=desc, bg=bg, fg=COLORS["text_muted"], font=FONTS["small"], anchor="w",
-                             justify="left", wraplength=230, cursor="hand2")
-                d.pack(fill=tk.X, padx=SPACE["md"], pady=(0, SPACE["sm"]))
-                parts.append(d)
-            else:
-                Tooltip(title, t(f"analysis.{_analysis_key(name)}.desc", ANALYSES[name].description))
+            title.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["sm"], 0))
+            desc = t(f"analysis.{_analysis_key(name)}.desc", ANALYSES[name].description)
+            d = tk.Label(card, text=desc, bg=bg, fg=COLORS["text_muted"], font=FONTS["small"], anchor="w",
+                         justify="left", wraplength=SIZES["panel_right"] - 50, cursor="hand2")
+            d.pack(fill=tk.X, padx=SPACE["md"], pady=(0, SPACE["sm"]))
+            parts = [card, title, d]
             for w in parts:
                 w.bind("<Button-1>", lambda e, n=name: self._open_analysis(n))
 
     def _open_analysis(self, name: str):
+        """Elige el análisis y abre su primer paso."""
         if name != self._selected_analysis() or not getattr(self, "_analysis_chosen", False):
             self.analysis_var.set(_analysis_label(name))
             self._on_analysis_selected(None)
         self._show_panel(self._panel_of("steps"), True)
-        self._select_right_tab("analysis")
+        self._select_right_tab(self._step_tab(ANALYSES[name].steps[0]))
+
+    def _choose_analysis(self):
+        """Abre el panel derecho en las tarjetas de análisis."""
+        self._show_panel(self._panel_of("steps"), True)
+        self._select_right_tab("choose")
+
+    @staticmethod
+    def _step_tab(step: str) -> str:
+        """Pestaña del panel derecho de cada paso declarado por el análisis."""
+        return {"segment": "seg", "params": "analysis"}[step]
+
+    def _step_label(self, step: str) -> str:
+        if step == "segment":
+            return t("rtab.segment")
+        name = self.active_analysis
+        return t(f"analysis.{_analysis_key(name)}.step", t("rtab.analyze")) if name else t("rtab.analyze")
+
+    def _steps_after(self, step: str) -> list[str]:
+        """Pasos del análisis elegido que siguen a `step`."""
+        steps = list(ANALYSES[self.active_analysis].steps) if self.active_analysis in ANALYSES else []
+        return steps[steps.index(step) + 1:] if step in steps else []
+
+    def _render_analysis_steps(self):
+        """Nombre del análisis elegido, pestañas de sus pasos y método de segmentación que admite."""
+        name = self.active_analysis
+        if name not in ANALYSES:
+            return
+        self._an_title.config(text=_analysis_label(name))
+        self._render_step_tabs([(self._step_tab(s), self._step_label(s)) for s in ANALYSES[name].steps])
+        allowed = ANALYSES[name].seg_methods
+        if allowed and self._seg_method not in allowed:
+            self._set_seg_method(allowed[0], quiet=True)
+        self._show_method_buttons(allowed)
+        after = self._steps_after("segment")
+        self._set_next_step(self._step_label(after[0]) if after else None)
 
     def _show_panel(self, panel, on: bool):
         if on:
@@ -132,6 +163,7 @@ class AnalyzeMixin:
             self._analysis_chosen = True
             self.project.analysis = _analysis_key(name)
         self._render_analysis_cards()
+        self._render_analysis_steps()
         self._update_seg_tab()
         for w in self.config_container.winfo_children():
             w.destroy()
