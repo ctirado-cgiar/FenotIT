@@ -846,7 +846,7 @@
   "minfo.source": "Source",
   "minfo.citation": "Citation",
   "minfo.classes": "Classes",
-  "minfo.classes_help": "One per line, in the model's order ({n}).",
+  "minfo.classes_help": "One per line, in the model's order.",
   "minfo.required": "Fill in: {fields}.",
   "conv.title": "Model converter",
   "conv.link": "Converter…",
