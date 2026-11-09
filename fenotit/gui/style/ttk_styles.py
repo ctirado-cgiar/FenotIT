@@ -30,7 +30,12 @@ def apply(root: tk.Misc) -> None:
                 selectforeground=COLORS["text"])
     s.configure("Treeview", background=COLORS["bg_card"], fieldbackground=COLORS["bg_card"],
                 foreground=COLORS["text"], font=FONTS["small"], rowheight=SIZES["row_height"])
-    s.configure("Treeview.Heading", background=COLORS["bg_panel"], foreground=COLORS["accent"],
+    s.configure("Treeview.Heading", background=COLORS["bg_panel"], foreground=COLORS["table_heading"],
                 font=FONTS["small_bold"], relief="flat")
     s.map("Treeview", background=[("selected", COLORS["bg_table_sel"])],
           foreground=[("selected", COLORS["text"])])
+    s.configure("TNotebook", background=COLORS["bg_card"], bordercolor=COLORS["border"])
+    s.configure("TNotebook.Tab", background=COLORS["bg_panel"], foreground=COLORS["text_muted"],
+                bordercolor=COLORS["border"], lightcolor=COLORS["bg_panel"], font=FONTS["body"])
+    s.map("TNotebook.Tab", background=[("selected", COLORS["bg_card"])], foreground=[("selected", COLORS["text"])],
+          lightcolor=[("selected", COLORS["bg_card"])])

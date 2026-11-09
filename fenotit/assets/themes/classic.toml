@@ -12,8 +12,8 @@ name_en = "Classic"
 # ── Colores (#RRGGBB) ────────────────────────────────────────────────────────────
 [colors]
 # Fondos
-bg            = "#F7F7F7"   # ventana principal
-bg_panel      = "#ECECEC"   # paneles laterales, barra de estado
+bg            = "#FAFAFB"   # ventana principal
+bg_panel      = "#F3F4F6"   # paneles laterales, barra de estado
 bg_card       = "#FFFFFF"   # tarjetas, lienzos, campos de texto, diálogos
 bg_topbar     = "#2166AC"   # barra superior
 topbar_hover  = "#3A7CC4"   # botón de la barra superior con el mouse encima
@@ -28,6 +28,9 @@ placeholder   = "#EBEEF2"   # miniatura que aún no carga, pista de la barra de 
 text          = "#1A1A1A"   # texto principal
 text_muted    = "#666666"   # texto secundario, rótulos
 text_faint    = "#999999"   # texto terciario: versión, separadores, notas
+section_text  = "#5F6B78"   # títulos de sección
+table_heading = "#3A4450"   # títulos de las columnas de las tablas
+help_icon     = "#9AA3AD"   # «?» de ayuda (azul al pasar el mouse)
 text_topbar   = "#FFFFFF"   # texto sobre la barra superior
 on_accent     = "#FFFFFF"   # texto e íconos sobre fondos de acento
 
@@ -41,8 +44,9 @@ accent2        = "#006837"  # verde (botones secundarios)
 topbar_divider = "#4A8FD4"  # separadores de la barra superior
 
 # Bordes y líneas
-border        = "#CCCCCC"
+border        = "#D5DAE0"
 divider       = "#E3E8EE"   # líneas finas que separan secciones
+sash          = "#E3E8EE"   # franjas para cambiar el ancho de los paneles
 grid          = "#EEEEEE"   # cuadrícula de los gráficos
 
 # Botones
@@ -85,9 +89,9 @@ mono  = "Consolas"
 [fonts]
 tiny          = "sans 7"
 tiny_bold     = "sans 7 bold"
-small         = "sans 8"
-small_bold    = "sans 8 bold"
-small_italic  = "sans 8 italic"
+small         = "sans 9"
+small_bold    = "sans 9 bold"
+small_italic  = "sans 9 italic"
 body          = "sans 9"
 body_bold     = "sans 9 bold"
 large         = "sans 10"
@@ -114,11 +118,13 @@ button_pad_x       = 14    # margen interior de los botones
 button_pad_y       = 3
 button_small_pad_x = 8     # botones pequeños (barras de herramientas, paneles)
 button_small_pad_y = 3
+panel_left         = 210   # ancho inicial del panel izquierdo
+panel_right        = 290   # ancho inicial del panel derecho
 panel_pad          = 10    # margen izquierdo y derecho del contenido de los paneles laterales
 section_pad_y      = 5     # alto extra de los títulos de sección de los paneles
 scroll_arrow       = 12    # flechas de las barras de desplazamiento
 progress_thin      = 8     # alto de la barra de avance de la barra de estado
-focus_ring         = 1     # borde de foco de casillas y botones (0 = sin borde)
+focus_ring         = 0     # borde de foco de casillas y botones (0 = sin borde)
 
 # ── Botones ──────────────────────────────────────────────────────────────────────
 # bg, fg, hover y pressed son nombres de [colors]; bg = "" usa el fondo del contenedor.
