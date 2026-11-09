@@ -9,6 +9,7 @@ import numpy as np
 from fenotit import log
 from fenotit.core import pipeline
 from fenotit.core.analysis.registry import ANALYSES
+from fenotit.gui.style.components import button, divider, section
 from fenotit.gui.style.theme import COLORS, FONTS
 from fenotit.gui.widgets.help import HelpIcon
 from fenotit.i18n import t
@@ -212,10 +213,7 @@ class SegmentMixin:
         from fenotit.gui.widgets.segment import RefineList
         self.refine_list = RefineList(rf, self._on_refine_change)
         self.refine_list.pack(fill=tk.X, padx=8, pady=(2, 6))
-        self._next_btn = tk.Button(rf, text=t("seg.next"), command=lambda: self._select_right_tab("analysis"),
-                                   bg=COLORS["accent"], fg=COLORS["on_accent"], activebackground=COLORS["accent"],
-                                   activeforeground=COLORS["on_accent"], relief="flat", font=FONTS["body_bold"],
-                                   cursor="hand2", pady=4)
+        self._next_btn = button(rf, text=t("seg.next"), command=lambda: self._select_right_tab("analysis"), kind="primary")
         self._next_btn.pack(fill=tk.X, padx=8, pady=(6, 8))
         self._paint_method_btns()
 
@@ -273,17 +271,10 @@ class SegmentMixin:
         else:
             self._on_slider_change()
 
-    def _section_lbl(self, parent, text, pad_left: int = 10):
-        f = tk.Frame(parent, bg=COLORS["bg_panel"])
+    def _section_lbl(self, parent, text):
+        f = section(parent, text, bg=COLORS["bg_panel"], line="below")
         f.pack(fill=tk.X)
-        tk.Label(f, text=text, bg=COLORS["bg_panel"],
-                 fg=COLORS["accent"],
-                 font=FONTS["small_bold"],
-                 pady=5).pack(side=tk.LEFT, padx=(pad_left, 10))
-        tk.Frame(f, bg=COLORS["border"],
-                 height=1).pack(fill=tk.X, side=tk.BOTTOM)
         return f
 
     def _divider(self, parent):
-        tk.Frame(parent, bg=COLORS["border"],
-                 height=1).pack(fill=tk.X, pady=4)
+        divider(parent).pack(fill=tk.X, pady=4)

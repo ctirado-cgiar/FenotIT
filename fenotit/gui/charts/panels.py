@@ -24,6 +24,7 @@ except ImportError:
 from fenotit import log
 from fenotit.core.image_io import natural_key
 from fenotit.gui.widgets.help import HelpIcon
+from fenotit.gui.style.components import button, divider
 from fenotit.gui.style.theme import CHART_COLORS, COLORS, FONTS
 from fenotit.i18n import t
 
@@ -104,7 +105,7 @@ class _Chooser(tk.Frame):
             tk.Radiobutton(self, text=t(f"chart.{k}"), variable=self.kind, value=k, command=self._kind_changed,
                            bg=bg, fg=COLORS["text"], selectcolor=COLORS["bg_card"], activebackground=bg,
                            font=FONTS["small"]).pack(side=tk.LEFT, padx=2)
-        tk.Frame(self, bg=COLORS["border"], width=1).pack(side=tk.LEFT, fill=tk.Y, pady=4, padx=6)
+        divider(self, vertical=True).pack(side=tk.LEFT, fill=tk.Y, pady=4, padx=6)
         self.vars_frame = tk.Frame(owner or self, bg=bg)      # con owner puede bajar a otra fila
         self.vars_frame.pack(in_=self, side=tk.LEFT)
         self.extra = tk.Frame(self, bg=bg)          # opciones solo de algunos tipos
@@ -144,14 +145,13 @@ class _Chooser(tk.Frame):
             cb.bind("<<ComboboxSelected>>", lambda e: self._vars_changed())
             self._svars.append(sv)
         from fenotit.gui.widgets.toolbar import Tooltip
-        btn = dict(bg=COLORS["btn_bg"], fg=COLORS["accent"], relief="flat", font=FONTS["topbar"],
-                   cursor="hand2", padx=6, pady=0, bd=0)
+        btn = dict(kind="secondary", size="small", font=FONTS["topbar"], padx=6, pady=0)
         if n > base:
-            b = tk.Button(self.vars_frame, text="−", command=lambda: self._resize(-1), **btn)
+            b = button(self.vars_frame, text="−", command=lambda: self._resize(-1), **btn)
             b.pack(side=tk.LEFT, padx=(2, 0))
             Tooltip(b, t("chart.remove_var"))
         if n < min(most, len(self.cols)):
-            b = tk.Button(self.vars_frame, text="+", command=lambda: self._resize(1), **btn)
+            b = button(self.vars_frame, text="+", command=lambda: self._resize(1), **btn)
             b.pack(side=tk.LEFT, padx=(2, 0))
             Tooltip(b, t("chart.add_z") if kind == "scatter" else t("chart.add_var"))
 
@@ -574,8 +574,7 @@ class BatchChartWindow(tk.Toplevel):
                               values=[NONE] + list(groups))
             gb.pack(side=tk.LEFT, pady=4)
             gb.bind("<<ComboboxSelected>>", lambda e: self._refresh())
-        tk.Button(top, text=t("chart.save"), command=lambda: _save(self._fig, self), bg=COLORS["btn_bg"],
-                  fg=COLORS["accent"], relief="flat", font=FONTS["small"], cursor="hand2").pack(side=tk.RIGHT, padx=8)
+        button(top, text=t("chart.save"), command=lambda: _save(self._fig, self), kind="secondary", size="small").pack(side=tk.RIGHT, padx=8)
         bar = tk.Frame(self, bg=bg)
         bar.pack(fill=tk.X)
         self.chooser = _Chooser(bar, ("bars", "box", "hist", "scatter"), self._refresh, bg)

@@ -10,6 +10,7 @@ from PIL import ImageTk
 from fenotit import settings
 from fenotit.gui.charts.panels import IntraImageChartPanel
 from fenotit.gui.style.icons import icon
+from fenotit.gui.style.components import button
 from fenotit.gui.style.theme import COLORS, FONTS
 from fenotit.gui.widgets.toolbar import IconButton, Tooltip
 from fenotit.i18n import t
@@ -96,14 +97,9 @@ class BottomMixin:
             menu.add_command(label=t("chart.save_with_image"), command=lambda: self._save_intra_chart(True))
             save.configure(menu=menu)
             save.pack(side=tk.RIGHT, padx=2, pady=3)
-            self._compare_btn = tk.Button(self._chart_panel.bar, text=t("chart.whole_batch"), command=self._show_batch_chart,
-                      bg=COLORS["btn_bg"], fg=COLORS["accent"], relief="flat", font=FONTS["small"],
-                      cursor="hand2", pady=2)
+            self._compare_btn = button(self._chart_panel.bar, text=t("chart.whole_batch"), command=self._show_batch_chart, kind="secondary", size="small")
             self._compare_btn.pack(side=tk.RIGHT, padx=2, pady=3)
-            self._colors_btn = tk.Button(self._chart_panel.bar, text=t("c3d.open"),
-                                         command=lambda: self._show_color3d("image"), bg=COLORS["btn_bg"],
-                                         fg=COLORS["accent"], relief="flat", font=FONTS["small"],
-                                         cursor="hand2", pady=2)      # solo en la capa Color
+            self._colors_btn = button(self._chart_panel.bar, text=t("c3d.open"), command=lambda: self._show_color3d("image"), kind="secondary", size="small")      # solo en la capa Color
 
     def _build_chart_dock(self, canvas_row):
         """Lugar del gráfico cuando se lleva arriba, en vez de una de las imágenes."""

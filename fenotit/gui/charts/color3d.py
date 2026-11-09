@@ -13,6 +13,7 @@ from fenotit import log
 from fenotit.core.stats import colors as cs
 from fenotit.gui.charts.panels import MPL_OK, MPL_STYLE, _message, _save
 from fenotit.gui.widgets.help import HelpIcon
+from fenotit.gui.style.components import button
 from fenotit.gui.style.theme import COLORS, FONTS
 from fenotit.i18n import t
 
@@ -111,10 +112,8 @@ class Color3DWindow(tk.Toplevel):
                        fg=COLORS["text"], selectcolor=COLORS["bg_card"], activebackground=bg,
                        font=FONTS["small"]).pack(side=tk.LEFT, padx=(14, 0))
         HelpIcon(top, t("c3d.title"), t("c3d.help"), bg=bg).pack(side=tk.LEFT, padx=(8, 0))
-        tk.Button(top, text=t("chart.save"), command=lambda: _save(self._fig, self), bg=COLORS["btn_bg"],
-                  fg=COLORS["accent"], relief="flat", font=FONTS["small"], cursor="hand2").pack(side=tk.RIGHT, padx=8)
-        tk.Button(top, text=t("c3d.reset"), command=self._reset_view, bg=COLORS["btn_bg"], fg=COLORS["text"],
-                  relief="flat", font=FONTS["small"], cursor="hand2").pack(side=tk.RIGHT, padx=2)
+        button(top, text=t("chart.save"), command=lambda: _save(self._fig, self), kind="secondary", size="small").pack(side=tk.RIGHT, padx=8)
+        button(top, text=t("c3d.reset"), command=self._reset_view, kind="quiet", size="small").pack(side=tk.RIGHT, padx=2)
 
         self.layer_bar = tk.Frame(self, bg=bg)
         self.layer_bar.pack(fill=tk.X)
@@ -476,7 +475,5 @@ class Color3DWindow(tk.Toplevel):
                     relx=acc / total, rely=0, relwidth=pc / total, relheight=1)
                 acc += pc
         if self.on_goto:
-            tk.Button(info, text=t("c3d.goto"), command=lambda: self.on_goto(p.path, p.object_id),
-                      bg=COLORS["accent"], fg=COLORS["on_accent"], relief="flat", font=FONTS["small"], cursor="hand2",
-                      padx=10).pack(pady=10)
+            button(info, text=t("c3d.goto"), command=lambda: self.on_goto(p.path, p.object_id), kind="primary", size="small").pack(pady=10)
         self._picked_point = p

@@ -40,7 +40,9 @@ es un archivo:
 | Distorsión del lente | `core/corrections/distortion.py` | `tests/test_distortion.py` |
 | Perspectiva (ArUco) | `core/corrections/aruco.py` | `tests/test_corrections.py` |
 | Aspecto de la interfaz (tema) | `fenotit/assets/themes/<tema>.toml` | ver `docs/design/README.md` |
+| Aspecto de botones, títulos de sección y separadores | `gui/style/components.py` y `[buttons]` del tema | `tests/test_gui.py` |
 | Íconos | `fenotit/assets/icons/`, `gui/style/icons.py` | ver `docs/design/README.md` |
+| Orden de los controles dentro de una zona | `gui/window/<zona>.py` (p. ej. `topbar.py`, `segment.py`) | `tests/test_gui.py` |
 | Mover una sección a otro panel | `gui/layout.py` (`PANELS`) | `tests/test_gui.py` |
 | Una parte de la ventana | `gui/window/<área>.py` (p. ej. `table.py`, `inspector.py`) | `tests/test_gui.py` |
 | Textos de la interfaz | `fenotit/lang/es.json`, `en.json` | `tests/test_i18n.py` |
@@ -93,6 +95,8 @@ Si agregas un método, agrega también su prueba en `tests/test_<método>.py`: u
 - Columnas de resultados en inglés, en ASCII y con la unidad en el nombre (`area_mm2`,
   `length_px`).
 - Textos que ve el usuario siempre con `t("clave")` y en `fenotit/lang/es.json` y `en.json`.
+- Botones con `button()`, títulos de sección con `section()` y separadores con `divider()`
+  (`gui/style/components.py`).
 - Colores, letras y tamaños de la interfaz solo desde el tema (`COLORS`, `FONTS`, `SIZES`
   de `gui/style/theme.py`, que lee `fenotit/assets/themes/`).
 - Cada archivo empieza con una línea que dice qué hace; no quedan imports sin uso.

@@ -7,7 +7,8 @@ tocar el resto del código.
 |---|---|
 | Temas: colores, letras, tamaños y paletas | `fenotit/assets/themes/<tema>.toml` |
 | Cómo se leen los temas | `fenotit/gui/style/theme.py` |
-| Estilos de botones, tablas y listas (ttk) | `fenotit/gui/style/ttk_styles.py` |
+| Botones, títulos de sección y separadores | `fenotit/gui/style/components.py` (estilos en `[buttons]` del tema) |
+| Estilos de tablas, listas y barras (ttk) | `fenotit/gui/style/ttk_styles.py` |
 | Íconos | `fenotit/assets/icons/` (y los dibujados por defecto en `fenotit/gui/style/icons.py`) |
 | Logo | `fenotit/assets/logo.ico` |
 | Mosaico y píxeles decorativos (carga, inicio, Acerca de) | `fenotit/gui/style/decor.py` (tonos en el tema) |
@@ -28,7 +29,11 @@ Secciones de un tema:
   instalada en el equipo: `sans = ["Inter", "Segoe UI"]`.
 - `[fonts]`: tipos de letra por nombre (`small`, `body`, `title`, `display`…), escritos como
   `"familia tamaño [bold|italic]"`, p. ej. `"sans 9 bold"`.
-- `[sizes]`: alto de las filas de tabla, márgenes de los botones, borde de foco…
+- `[sizes]`: alto de las filas de tabla, márgenes de los botones, márgenes de los paneles,
+  borde de foco…
+- `[buttons.<tipo>]`: color de fondo, de texto, al pasar el mouse y al presionar, y letra de
+  cada tipo de botón: `primary` (acción principal), `secondary`, `quiet` (Cancelar, Cerrar),
+  `run` (Ejecutar) y `link` (sin fondo).
 - `[palettes]`: colores que se reparten a las clases y a las series de los gráficos, y tonos
   del logo.
 
@@ -54,11 +59,11 @@ en `classic.toml` y que `classic.toml` no tenga valores sin uso.
 
 ### Qué cambia un tema y qué no
 
-Un tema cambia colores, letras, tamaños de filas y botones y las paletas. La distribución
-(qué panel va dónde) está en `fenotit/gui/layout.py`. La forma de cada control (márgenes
-internos, esquinas, bordes) está en el archivo de esa parte de la ventana
-(`fenotit/gui/window/`, `fenotit/gui/widgets/`); un cambio de forma que se repita en muchos
-lugares conviene agregarlo como un valor nuevo en `[sizes]`.
+Un tema cambia colores, letras, tamaños y el aspecto de cada tipo de botón. La forma de los
+botones, títulos de sección y separadores está en `fenotit/gui/style/components.py`: todas
+las pantallas los crean con `button()`, `section()` y `divider()`. La distribución (qué
+sección va en cada panel) está en `fenotit/gui/layout.py`, y el orden de los controles dentro
+de cada zona, en su archivo de `fenotit/gui/window/`.
 
 ## Íconos
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import tkinter as tk
 
+from fenotit.gui.style.components import divider
 from fenotit.gui.style.theme import COLORS, FONTS
 from fenotit.i18n import t
 
@@ -22,13 +23,13 @@ class DropMenu(tk.Frame):
         self._popup = None
         self._arrow_only = arrow_only
         self.btn = tk.Button(
-            self, text="▼" if arrow_only else f"  {text}  ▾",
+            self, text="▼" if arrow_only else f"  {text}  ",
             bg=bg, fg=colors["accent"] if arrow_only else COLORS["text_topbar"],
             font=FONTS["subtitle"] if arrow_only else FONTS["topbar_menu"], relief="flat", bd=0,
             **({"padx": 8} if arrow_only else {}),
             activebackground=COLORS["accent_dark"] if arrow_only else COLORS["topbar_pressed"],
             activeforeground=COLORS["on_accent"] if arrow_only else COLORS["text_topbar"],
-            cursor="hand2", command=self._toggle)
+            cursor="hand2", highlightthickness=0, command=self._toggle)
         self.btn.pack()
 
     def _toggle(self):
@@ -50,7 +51,7 @@ class DropMenu(tk.Frame):
         pw = popup.winfo_reqwidth()
         top = self.winfo_toplevel()
         right = top.winfo_rootx() + top.winfo_width()
-        if self._arrow_only or x + pw > right - 4:          # el de ▾ junto al borde derecho se abre hacia la izquierda
+        if self._arrow_only or x + pw > right - 4:          # el de ▼ junto al borde derecho se abre hacia la izquierda
             x = self.winfo_rootx() + self.winfo_width() - pw
         x = max(top.winfo_rootx() + 4, min(x, right - pw - 4))
         popup.wm_geometry(f"+{x}+{y}")
@@ -98,7 +99,7 @@ class DropMenu(tk.Frame):
         inner.pack(padx=1, pady=1)
         for item in items:
             if item is None:
-                tk.Frame(inner, bg=c["border"], height=1).pack(fill=tk.X, pady=2)
+                divider(inner).pack(fill=tk.X, pady=2)
                 continue
             label, cmd, *rest = item
             label = (label() if callable(label) else label).strip()

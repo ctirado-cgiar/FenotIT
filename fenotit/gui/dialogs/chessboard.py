@@ -18,6 +18,7 @@ from PIL import Image, ImageOps, ImageTk
 from fenotit import log
 from fenotit.core.corrections import distortion as D
 from fenotit.core.project import IMAGE_EXTS
+from fenotit.gui.style.components import button
 from fenotit.gui.style.theme import COLORS, FONTS
 from fenotit.i18n import t
 
@@ -61,9 +62,7 @@ class ChessboardPanel(tk.Frame):
         if self.project_paths:
             self._btn(btns, t("board.scan", n=len(self.project_paths)), self._scan).pack(side=tk.LEFT, padx=(6, 0))
         self._btn(btns, t("board.remove"), self._remove).pack(side=tk.LEFT, padx=(6, 0))
-        self._go = tk.Button(btns, text=t("board.run"), command=self._run, bg=COLORS["accent"], fg=COLORS["on_accent"],
-                             activebackground=COLORS["accent_dark"], activeforeground=COLORS["on_accent"], relief="flat",
-                             font=FONTS["body_bold"], cursor="hand2", padx=12)
+        self._go = button(btns, text=t("board.run"), command=self._run, kind="primary")
         self._go.pack(side=tk.LEFT, padx=(6, 0))
         if extra:
             text, cmd = extra
@@ -120,8 +119,7 @@ class ChessboardPanel(tk.Frame):
             self._cancel.set()
 
     def _btn(self, parent, text, cmd):
-        return tk.Button(parent, text=text, command=cmd, bg=COLORS["btn_bg"], fg=COLORS["accent"], relief="flat",
-                         font=FONTS["body"], cursor="hand2", padx=10)
+        return button(parent, text=text, command=cmd, kind="secondary")
 
     # ── fotos ─────────────────────────────────────────────────────────────────
 

@@ -17,6 +17,7 @@ import numpy as np
 from PIL import Image, ImageTk
 
 from fenotit.core.units import TO_MM, display
+from fenotit.gui.style.components import button, divider
 from fenotit.gui.style.theme import COLORS, FONTS
 from fenotit.i18n import t
 
@@ -36,7 +37,7 @@ class Inspector(tk.Frame):
         close = tk.Label(head, text="×", bg=bg, fg=COLORS["text_muted"], font=FONTS["subtitle"], cursor="hand2")
         close.pack(side=tk.RIGHT, padx=8)
         close.bind("<Button-1>", lambda e: on_close())
-        tk.Frame(self, bg=COLORS["border"], height=1).pack(fill=tk.X)
+        divider(self).pack(fill=tk.X)
         self._pic = tk.Label(self, bg=COLORS["bg_card"], bd=0, highlightthickness=1,
                              highlightbackground=COLORS["border"])
         self._pic.pack(padx=8, pady=(6, 4))
@@ -46,10 +47,10 @@ class Inspector(tk.Frame):
         self._rows.pack(fill=tk.X, padx=10)
         btns = tk.Frame(self, bg=bg)
         btns.pack(fill=tk.X, padx=10, pady=(6, 8))
-        kw = dict(bg=COLORS["btn_bg"], fg=COLORS["accent"], relief="flat", font=FONTS["small"], cursor="hand2", pady=2)
-        self._star = tk.Button(btns, command=on_highlight, **kw)
+        kw = dict(kind="secondary", size="small", pady=2)
+        self._star = button(btns, command=on_highlight, **kw)
         self._star.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 3))
-        self._excl = tk.Button(btns, command=on_exclude, **kw)
+        self._excl = button(btns, command=on_exclude, **kw)
         self._excl.pack(side=tk.LEFT, fill=tk.X, expand=True)
         self._photo = None
         self._crop = None

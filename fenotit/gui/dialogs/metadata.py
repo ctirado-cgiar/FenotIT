@@ -10,6 +10,7 @@ from tkinter import filedialog, ttk
 from fenotit import log
 from fenotit.core import metadata
 from fenotit.gui.widgets.help import HelpIcon
+from fenotit.gui.style.components import button, divider
 from fenotit.gui.style.theme import COLORS, FONTS
 from fenotit.i18n import t
 
@@ -54,8 +55,7 @@ class MetadataDialog(tk.Toplevel):
         self.file = tk.StringVar(value=current.get("file", ""))
         tk.Entry(grid, textvariable=self.file, state="readonly", readonlybackground=COLORS["bg_panel"],
                  fg=COLORS["text"], relief="solid", bd=1, font=FONTS["small"]).grid(row=0, column=1, sticky="ew", ipady=2)
-        tk.Button(grid, text="…", command=self._pick, bg=COLORS["btn_bg"], fg=COLORS["accent"], relief="flat",
-                  cursor="hand2", font=FONTS["body"], width=3).grid(row=0, column=2, padx=(4, 0))
+        button(grid, text="…", command=self._pick, width=3, kind="secondary").grid(row=0, column=2, padx=(4, 0))
         tk.Label(grid, text=t("meta.key"), bg=bg, fg=COLORS["text"], font=FONTS["body"]).grid(
             row=1, column=0, sticky="w", padx=(0, 8), pady=(8, 0))
         krow = tk.Frame(grid, bg=bg)
@@ -80,17 +80,14 @@ class MetadataDialog(tk.Toplevel):
                              wraplength=520)
         self.warn.pack(fill=tk.X)
 
-        tk.Frame(self, bg=COLORS["border"], height=1).pack(fill=tk.X)
+        divider(self).pack(fill=tk.X)
         btns = tk.Frame(self, bg=bg)
         btns.pack(fill=tk.X, padx=22, pady=10)
-        self._apply_btn = tk.Button(btns, text=t("common.apply"), command=self._apply, bg=COLORS["accent"],
-                                    fg=COLORS["on_accent"], relief="flat", font=FONTS["body"], cursor="hand2", padx=12)
+        self._apply_btn = button(btns, text=t("common.apply"), command=self._apply, kind="primary")
         self._apply_btn.pack(side=tk.RIGHT, padx=(6, 0))
-        tk.Button(btns, text=t("common.cancel"), command=self.destroy, bg=COLORS["btn_bg"], fg=COLORS["accent"],
-                  relief="flat", font=FONTS["body"], cursor="hand2", padx=12).pack(side=tk.RIGHT)
+        button(btns, text=t("common.cancel"), command=self.destroy, kind="secondary").pack(side=tk.RIGHT)
         if current.get("file"):
-            tk.Button(btns, text=t("meta.remove"), command=self._remove, bg=COLORS["btn_bg"], fg=COLORS["text"],
-                      relief="flat", font=FONTS["body"], cursor="hand2", padx=12).pack(side=tk.LEFT)
+            button(btns, text=t("meta.remove"), command=self._remove, kind="quiet").pack(side=tk.LEFT)
         self.bind("<Escape>", lambda e: self.destroy())
 
         if current.get("file"):

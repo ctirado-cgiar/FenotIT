@@ -10,6 +10,7 @@ from PIL import Image, ImageTk
 from fenotit import APP_NAME
 from fenotit.gui.style.decor import BLUE, pixel_dissolve
 from fenotit.i18n import t
+from fenotit.gui.style.components import button, divider, section as heading
 from fenotit.gui.style.theme import COLORS, FONTS, font as theme_font
 
 _W = 460
@@ -52,10 +53,7 @@ def show(root: tk.Tk, logo: Path, system_info: str):
                  wraplength=wrap).pack(fill=tk.X, pady=pady)
 
     def section(title):
-        row = tk.Frame(body, bg=COLORS["bg_card"])
-        row.pack(fill=tk.X, pady=(16, 4))
-        tk.Label(row, text=title, bg=COLORS["bg_card"], fg=BLUE, font=FONTS["small_bold"]).pack(side=tk.LEFT)
-        tk.Frame(row, bg=COLORS["divider"], height=1).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(8, 0), pady=(2, 0))
+        heading(body, title, bg=COLORS["bg_card"]).pack(fill=tk.X, pady=(16, 4))
 
     label(t("about.description"), 9, _MUTED, pady=(2, 0))
 
@@ -69,7 +67,7 @@ def show(root: tk.Tk, logo: Path, system_info: str):
     label("Alliance of Bioversity International & CIAT · Palmira, Colombia", 9, _MUTED)
     label(t("about.team_note"), 8, _SOFT, "italic", pady=(4, 0))
 
-    tk.Frame(body, bg=COLORS["divider"], height=1).pack(fill=tk.X, pady=(18, 8))
+    divider(body, "divider").pack(fill=tk.X, pady=(18, 8))
     label("© 2026 Alliance of Bioversity International & CIAT  ·  " + t("about.license"), 8, _SOFT)
     label(system_info, 7, _SOFT, pady=(4, 0))
 
@@ -81,13 +79,10 @@ def show(root: tk.Tk, logo: Path, system_info: str):
         win.clipboard_append(f"{APP_NAME}\n{system_info}")
         btn.config(text=t("about.copied"))
         win.after(1500, lambda: btn.winfo_exists() and btn.config(text=t("about.copy_info")))
-    cp = tk.Button(buttons, text=t("about.copy_info"), bg=COLORS["bg_card"], fg=_MUTED, activebackground=COLORS["accent_light"],
-                   relief="flat", bd=0, font=FONTS["body"], cursor="hand2")
+    cp = button(buttons, text=t("about.copy_info"), kind="link", bg=COLORS["bg_card"], fg=_MUTED, padx=0)
     cp.config(command=lambda: copy(cp))
     cp.pack(side=tk.LEFT)
-    tk.Button(buttons, text=t("common.close"), command=win.destroy, bg=BLUE, fg=COLORS["on_accent"],
-              activebackground=COLORS["accent_dark"], activeforeground=COLORS["on_accent"], relief="flat", bd=0,
-              font=FONTS["body_bold"], padx=16, pady=4, cursor="hand2").pack(side=tk.RIGHT)
+    button(buttons, text=t("common.close"), command=win.destroy, kind="primary", padx=16, pady=4).pack(side=tk.RIGHT)
     win.bind("<Escape>", lambda e: win.destroy())
 
     win.update_idletasks()

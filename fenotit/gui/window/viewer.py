@@ -10,6 +10,7 @@ from fenotit import settings
 from fenotit.gui.canvas.areas import AreaEditor
 from fenotit.gui.canvas.tools import CanvasTools
 from fenotit.gui.canvas.zoom import ZoomController
+from fenotit.gui.style.components import button
 from fenotit.gui.style.theme import COLORS, FONTS
 from fenotit.gui.widgets.toolbar import IconButton, Tooltip
 from fenotit.i18n import t
@@ -246,10 +247,9 @@ class ViewerMixin:
         tk.Checkbutton(box, text=t("view.legend"), variable=self.legend_var,
                        command=self._on_display_change, bg=bg, fg=COLORS["text"],
                        selectcolor=bg, activebackground=bg, font=FONTS["small"]).pack(side=tk.LEFT)
-        size_kw = dict(bg=bg, fg=COLORS["accent"], relief="flat", bd=0,
-                       font=FONTS["small"], cursor="hand2", padx=3, pady=0)
-        a_minus = tk.Button(box, text="A−", command=lambda: self._legend_size(0.8), **size_kw)
-        a_plus = tk.Button(box, text="A+", command=lambda: self._legend_size(1.25), **size_kw)
+        size_kw = dict(kind="link", size="small", bg=bg, padx=3, pady=0)
+        a_minus = button(box, text="A−", command=lambda: self._legend_size(0.8), **size_kw)
+        a_plus = button(box, text="A+", command=lambda: self._legend_size(1.25), **size_kw)
         a_minus.pack(side=tk.LEFT)
         a_plus.pack(side=tk.LEFT)
         # posición de la leyenda: cuadrícula 3×3 (el centro no se usa)

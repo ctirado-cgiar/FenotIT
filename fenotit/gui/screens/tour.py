@@ -9,6 +9,7 @@ import tkinter as tk
 from dataclasses import dataclass
 from typing import Callable
 
+from fenotit.gui.style.components import button
 from fenotit.gui.style.theme import COLORS, FONTS
 from fenotit.i18n import t
 
@@ -122,12 +123,9 @@ class Tour:
         bar.pack(fill=tk.X)
         self._count = tk.Label(bar, bg=COLORS["bg_card"], fg=COLORS["text_muted"], font=FONTS["small"])
         self._count.pack(side=tk.LEFT)
-        btn = dict(relief="flat", bd=0, cursor="hand2", font=FONTS["small"], padx=10, pady=3)
-        self._next = tk.Button(bar, command=lambda: self._go(+1), bg=COLORS["accent"], fg=COLORS["on_accent"],
-                               activebackground=COLORS["accent"], activeforeground=COLORS["on_accent"], **btn)
+        self._next = button(bar, command=lambda: self._go(+1), kind="primary", size="small", pady=3)
         self._next.pack(side=tk.RIGHT)
-        self._prev = tk.Button(bar, text=t("tour.prev"), command=lambda: self._go(-1), bg=COLORS["btn_bg"],
-                               fg=COLORS["accent"], activebackground=COLORS["btn_bg"], **btn)
+        self._prev = button(bar, text=t("tour.prev"), command=lambda: self._go(-1), kind="secondary", size="small", pady=3)
         self._prev.pack(side=tk.RIGHT, padx=(0, 6))
         for k, f in (("<Escape>", lambda e: self.close()), ("<Right>", lambda e: self._go(+1)),
                      ("<Left>", lambda e: self._go(-1)), ("<Return>", lambda e: self._go(+1))):

@@ -18,6 +18,7 @@ from fenotit.core.analysis.registry import ANALYSES
 from fenotit.core.corrections import pipeline as corrections
 from fenotit.core.image_io import load_image
 from fenotit.core.project import PROJECT_EXT, Project, Segmentation
+from fenotit.gui.style.components import button
 from fenotit.gui.style.theme import COLORS, FONTS
 from fenotit.gui.window.common import _analysis_key, _on_base, _analysis_label, _analysis_name
 from fenotit.i18n import t
@@ -331,13 +332,9 @@ class ProjectMixin:
             win.destroy()
         bar = tk.Frame(box, bg=COLORS["bg_panel"])
         bar.pack(fill=tk.X)
-        btn = dict(relief="flat", bd=0, cursor="hand2", font=FONTS["body"], padx=12, pady=4)
-        tk.Button(bar, text=t("missing.search"), command=lambda: pick("search"), bg=COLORS["accent"], fg=COLORS["on_accent"],
-                  activebackground=COLORS["accent"], activeforeground=COLORS["on_accent"], **btn).pack(side=tk.LEFT)
-        tk.Button(bar, text=t("missing.remove"), command=lambda: pick("remove"), bg=COLORS["btn_bg"],
-                  fg=COLORS["accent"], **btn).pack(side=tk.LEFT, padx=6)
-        tk.Button(bar, text=t("common.cancel"), command=lambda: pick(None), bg=COLORS["btn_bg"],
-                  fg=COLORS["text"], **btn).pack(side=tk.RIGHT)
+        button(bar, text=t("missing.search"), command=lambda: pick("search"), kind="primary", pady=4).pack(side=tk.LEFT)
+        button(bar, text=t("missing.remove"), command=lambda: pick("remove"), kind="secondary", pady=4).pack(side=tk.LEFT, padx=6)
+        button(bar, text=t("common.cancel"), command=lambda: pick(None), kind="quiet", pady=4).pack(side=tk.RIGHT)
         win.bind("<Escape>", lambda e: pick(None))
         win.update_idletasks()
         x = self.root.winfo_rootx() + (self.root.winfo_width() - win.winfo_width()) // 2
@@ -477,9 +474,7 @@ class ProjectMixin:
         bar.pack(fill=tk.X)
         for text, v, accent in ((t("recovery.later"), None, False), (t("recovery.discard"), False, False),
                                 (t("recovery.recover"), True, True)):
-            tk.Button(bar, text=text, command=lambda v=v: pick(v), relief="flat", cursor="hand2", padx=12,
-                      bg=COLORS["accent"] if accent else COLORS["btn_bg"], fg=COLORS["on_accent"] if accent else COLORS["accent"],
-                      font=FONTS["body_bold"] if accent else FONTS["body"]).pack(side=tk.RIGHT, padx=(6, 0))
+            button(bar, text=text, command=lambda v=v: pick(v), kind="primary" if accent else "secondary").pack(side=tk.RIGHT, padx=(6, 0))
         win.protocol("WM_DELETE_WINDOW", lambda: pick(None))
         win.update_idletasks()
         x = self.root.winfo_rootx() + (self.root.winfo_width() - win.winfo_reqwidth()) // 2

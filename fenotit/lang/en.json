@@ -515,7 +515,7 @@
   "style.width": "Line width",
   "tab.charts": "Charts",
   "tab.table": "Table",
-  "topbar.run": "▶  Run",
+  "topbar.run": "Run",
   "tour.analysis.text": "Objects (seeds, leaves, pods…), Distances between objects or Color of the photo. Choosing one opens its panel on the right.",
   "tour.analysis.title": "Choose what to measure",
   "tour.areas.text": "Draw the area to analyze (R) or zones that must not count (X), such as labels or the color card. Everything outside is ignored.",

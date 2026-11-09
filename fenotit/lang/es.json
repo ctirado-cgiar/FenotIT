@@ -515,7 +515,7 @@
   "style.width": "Grosor de línea",
   "tab.charts": "Gráficos",
   "tab.table": "Tabla",
-  "topbar.run": "▶  Ejecutar",
+  "topbar.run": "Ejecutar",
   "tour.analysis.text": "Objetos (semillas, hojas, vainas…), Distancias entre objetos o Color de la foto. Al elegir uno se abre su panel a la derecha.",
   "tour.analysis.title": "Elige qué medir",
   "tour.areas.text": "Dibuja el área que quieres analizar (R) o zonas que no deben contar (X), como etiquetas o la tarjeta de color. Todo lo que quede fuera se ignora.",
