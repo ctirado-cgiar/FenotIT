@@ -47,7 +47,7 @@ class ModelInfoDialog(BaseDialog):
             box.pack(fill=tk.X)
             self._widgets[key] = box
         if model["output"] == "boxes":
-            tk.Label(self.body, text=t("minfo.classes_help", n=len(model["classes"])), bg=bg,
+            tk.Label(self.body, text=t("minfo.classes_help"), bg=bg,
                      fg=COLORS["text_muted"], font=FONTS["small"], justify="left", wraplength=wrap,
                      anchor="w").pack(fill=tk.X)
         if on_save:
