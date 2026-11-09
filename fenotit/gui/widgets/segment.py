@@ -37,6 +37,15 @@ class RefineList(tk.Frame):
         self._add_btn.pack(anchor="w", pady=(3, 0))
         self._add_btn.bind("<Button-1>", lambda e: self._menu())
         self._muting = False
+        self._width = 0
+        self.bind("<Configure>", self._on_resize, add="+")
+
+    def _on_resize(self, e):
+        """Al cambiar el ancho, los nombres vuelven a repartirse en el espacio disponible."""
+        if abs(e.width - self._width) > 8:
+            self._width = e.width
+            if self.ops:
+                self.after_idle(self._render)
 
     def get(self) -> list[dict]:
         return [dict(o) for o in self.ops]

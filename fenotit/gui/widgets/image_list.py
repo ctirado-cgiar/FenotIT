@@ -121,7 +121,7 @@ class ImageList(tk.Frame):
         sb = ttk.Scrollbar(self._body, orient="vertical")
         self._sb = sb
         self.listbox = tk.Listbox(self._body, bg=c["bg_card"], fg=c["text"], font=self.f["small"],
-                                  selectbackground=c["accent"], selectforeground=COLORS["on_accent"], borderwidth=1,
+                                  selectbackground=c["bg_table_sel"], selectforeground=COLORS["text"], borderwidth=1,
                                   relief="flat", highlightthickness=1, highlightcolor=c["border"],
                                   highlightbackground=c["border"], activestyle="none", exportselection=False)
         self.listbox.bind("<<ListboxSelect>>", self._on_list_select)

@@ -28,7 +28,7 @@ class HelpIcon(tk.Canvas):
 
     def _paint(self, hover: bool):
         self.delete("all")
-        c = COLORS["accent"]
+        c = COLORS["accent"] if hover else COLORS["help_icon"]
         self.create_oval(1, 1, SIZE - 2, SIZE - 2, outline=c, fill=c if hover else self.cget("bg"), width=1)
         self.create_text(SIZE / 2 - 0.5, SIZE / 2, text="?", fill=COLORS["white"] if hover else c,
                          font=FONTS["tiny_bold"])

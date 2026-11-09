@@ -17,7 +17,7 @@ from tkinter import ttk
 
 from fenotit import settings
 from fenotit.gui.style.components import button, divider
-from fenotit.gui.style.theme import COLORS, FONTS
+from fenotit.gui.style.theme import COLORS, FONTS, SIZES
 from fenotit.gui.widgets.collapsible import CollapsiblePanel
 from fenotit.gui.widgets.image_list import ImageList
 from fenotit.gui.widgets.toolbar import Tooltip
@@ -52,7 +52,7 @@ class LayoutMixin:
         self.paned = tk.PanedWindow(
             self.root,
             orient=tk.HORIZONTAL,
-            bg=COLORS["border"],
+            bg=COLORS["sash"],
             sashwidth=5,
             sashrelief="flat",
             sashpad=0,
@@ -64,9 +64,9 @@ class LayoutMixin:
         self.left_panel = CollapsiblePanel(
             self.paned, side="left",
             title=t("panel.left"), colors=COLORS,
-            default_width=200, on_toggle=self._after_panel_toggle, max_width=420)
+            default_width=SIZES["panel_left"], on_toggle=self._after_panel_toggle, max_width=420)
         self.paned.add(self.left_panel, minsize=CollapsiblePanel.COLLAPSED_W,
-                       width=200, stretch="never")
+                       width=SIZES["panel_left"], stretch="never")
 
         # Centro
         self.center_frame = tk.Frame(self.paned, bg=COLORS["bg"])
@@ -77,7 +77,7 @@ class LayoutMixin:
         self.right_panel = CollapsiblePanel(
             self.paned, side="right",
             title=t("panel.right"), colors=COLORS,
-            default_width=260, on_toggle=self._after_panel_toggle, max_width=380)
+            default_width=SIZES["panel_right"], on_toggle=self._after_panel_toggle, max_width=380)
         self.right_panel.tab_host = self.center_frame
         for w in (self.paned, self.left_panel, self.right_panel):
             w.bind("<Configure>", self._limit_panels, add="+")
@@ -85,7 +85,7 @@ class LayoutMixin:
         self.paned.bind("<B1-Motion>", self._sash_motion)
         self.paned.bind("<ButtonRelease-1>", self._sash_release)
         self.paned.add(self.right_panel, minsize=CollapsiblePanel.COLLAPSED_W,
-                       width=260, stretch="never")      # si no, el último panel se queda con todo el espacio que sobra
+                       width=SIZES["panel_right"], stretch="never")      # si no, el último panel se queda con todo el espacio que sobra
 
         # Statusbar
         self.statusbar = tk.Frame(self.root, bg=COLORS["bg_panel"], height=24)

@@ -36,7 +36,16 @@ class ConfigPanel(tk.Frame):
                            highlightthickness=0)
         sb = ttk.Scrollbar(self, orient="vertical",
                            command=canvas.yview)
-        canvas.configure(yscrollcommand=sb.set)
+
+        def scrolled(first, last):
+            """La barra aparece solo si el contenido no cabe."""
+            sb.set(first, last)
+            need = float(first) > 0 or float(last) < 1
+            if need and not sb.winfo_ismapped():
+                sb.pack(side=tk.RIGHT, fill=tk.Y, before=canvas)
+            elif not need and sb.winfo_ismapped():
+                sb.pack_forget()
+        canvas.configure(yscrollcommand=scrolled)
 
         self.inner = tk.Frame(canvas, bg=self.colors["bg_panel"])
         win_id = canvas.create_window((0,0), window=self.inner,
@@ -56,7 +65,6 @@ class ConfigPanel(tk.Frame):
         canvas.bind("<Enter>", _enter)
         canvas.bind("<Leave>", _leave)
 
-        sb.pack(side=tk.RIGHT, fill=tk.Y)
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         if not schema:
@@ -139,8 +147,8 @@ class ConfigPanel(tk.Frame):
         hdr.pack(fill=tk.X)
         if typ == "header":
             row.config(pady=0)
-            tk.Label(hdr, text=label, bg=self.colors["bg_panel"], fg=self.colors["accent"],
-                     font=FONTS["small_bold"], pady=4).pack(side=tk.LEFT)
+            tk.Label(hdr, text=label, bg=self.colors["bg_panel"], fg=self.colors["section_text"],
+                     font=FONTS["section"], pady=4).pack(side=tk.LEFT)
             divider(row).pack(fill=tk.X)
             return
         if typ == "section":
@@ -246,7 +254,6 @@ class ConfigPanel(tk.Frame):
 
         if typ != "section":
             self._vars[key] = var
-        divider(row).pack(fill=tk.X, pady=(2, 0))
 
     def get_values(self, warn: bool = True) -> dict[str, Any]:
         out = {}

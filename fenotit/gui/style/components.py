@@ -40,7 +40,7 @@ def section(parent: tk.Misc, text: str, bg: str | None = None, line: str = "afte
     sin empacar."""
     back = bg or COLORS["bg_card"]
     row = tk.Frame(parent, bg=back)
-    title = tk.Label(row, text=text, bg=back, fg=COLORS["accent"], font=FONTS["section"])
+    title = tk.Label(row, text=text, bg=back, fg=COLORS["section_text"], font=FONTS["section"])
     if line == "below":
         title.pack(side=tk.LEFT, padx=(SIZES["panel_pad"], SIZES["panel_pad"]), pady=SIZES["section_pad_y"])
         divider(row).pack(fill=tk.X, side=tk.BOTTOM)
