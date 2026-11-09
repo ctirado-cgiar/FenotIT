@@ -11,7 +11,7 @@ import numpy as np
 from fenotit.gui.style.theme import COLORS, FONTS
 
 HEIGHT = 64
-PAD = 9                                         # = radio de la manija + 2: alinea deslizador e histograma
+PAD = 8                                         # = radio de la manija + 2: alinea deslizador e histograma
 
 
 class ChannelHistogram(tk.Canvas):
@@ -67,7 +67,7 @@ class ChannelHistogram(tk.Canvas):
         self.delete("all")
         w = max(self.winfo_width(), 60)
         base = HEIGHT
-        self.create_line(PAD, base, w - PAD, base, fill=COLORS["border"])
+        self.create_line(PAD, base, w - PAD, base, fill=COLORS["divider"])
         if self.hist is not None and self.hist.max() > 0:
             top = max([self.hist.max()] + [h.max() for h, _ in self.others])
             step = (w - 2 * PAD) / 256
@@ -78,18 +78,21 @@ class ChannelHistogram(tk.Canvas):
                     pts += [PAD + (v + 0.5) * step, base - hs[v]]
                 self.create_line(*pts, fill=_tint(c, 0.55), width=1)
             hs = self.hist / top * (HEIGHT - 4)
-            light = _tint(self.color, 0.72)
+            inside, outside = _tint(self.color, 0.45), _tint(self.color, 0.85)
+            pts = []
             for v in range(256):
+                pts += [PAD + (v + 0.5) * step, base - hs[v]]
                 if hs[v] <= 0:
                     continue
                 x0 = PAD + v * step
                 self.create_rectangle(x0, base - hs[v], x0 + max(step, 1), base, width=0,
-                                      fill=self.color if self.lo <= v <= self.hi else light)
+                                      fill=inside if self.lo <= v <= self.hi else outside)
+            self.create_line(*pts, fill=self.color, width=1)
         else:
             self.create_text(w / 2, HEIGHT / 2, text="—", fill=COLORS["text_muted"], font=FONTS["small"])
         for v in (self.lo, self.hi):                  # las dos líneas del rango (el valor va en el deslizador)
             x = self._x(v)
-            self.create_line(x, 0, x, base + 3, fill=COLORS["text"], width=1.5)
+            self.create_line(x, 0, x, base + 2, fill=COLORS["accent_darker"], width=1)
 
     # ── arrastrar las líneas ──────────────────────────────────────────────────
 
@@ -116,8 +119,8 @@ class RangeSlider(tk.Canvas):
     el valor de cada una en una burbuja encima. Mín nunca pasa a Máx. Arrastrar mueve la
     manija más cercana; ← → (o la rueda) la mueven de a uno después de tocarla."""
 
-    R = 7                    # radio de la manija
-    BUBBLE = 16              # alto de la burbuja
+    R = 6                    # radio de la manija
+    BUBBLE = 14              # alto de la burbuja
 
     def __init__(self, parent, on_change=None, bg: str | None = None):
         """on_change(lo, hi): el usuario movió una manija (no se llama al poner valores por código)."""
@@ -186,10 +189,10 @@ class RangeSlider(tk.Canvas):
         w = max(self.winfo_width(), 60)
         r, acc = self.R, COLORS["accent"]
         y = self.BUBBLE + 4 + r
-        self.create_line(PAD, y, w - PAD, y, fill=COLORS["slider_trough"], width=4, capstyle="round")
+        self.create_line(PAD, y, w - PAD, y, fill=COLORS["slider_trough"], width=3, capstyle="round")
         xl, xh = self._x(self.lo), self._x(self.hi)
-        self.create_line(xl, y, xh, y, fill=self.track, width=4, capstyle="round")
-        probe = self.create_text(0, 0, text="255", font=FONTS["small_bold"])
+        self.create_line(xl, y, xh, y, fill=self.track, width=3, capstyle="round")
+        probe = self.create_text(0, 0, text="255", font=FONTS["tiny_bold"])
         x0, _, x1, _ = self.bbox(probe)
         self.delete(probe)
         bw = x1 - x0 + 8
@@ -197,11 +200,11 @@ class RangeSlider(tk.Canvas):
         focus = self.focus_get() is self
         for name, x, bx in (("lo", xl, xs[0]), ("hi", xh, xs[1])):
             ring = acc if not (focus and name == self.active) else COLORS["accent_darker"]
-            self.create_oval(x - r, y - r, x + r, y + r, fill=COLORS["white"], outline=ring, width=2)
+            self.create_oval(x - r, y - r, x + r, y + r, fill=COLORS["white"], outline=ring, width=1.5)
             text = str(self.lo if name == "lo" else self.hi)
             self.create_rectangle(bx - bw / 2, 1, bx + bw / 2, self.BUBBLE, fill=acc, outline=acc)
             self.create_polygon(x - 3, self.BUBBLE, x + 3, self.BUBBLE, x, self.BUBBLE + 3, fill=acc, outline=acc)
-            self.create_text(bx, 1 + self.BUBBLE / 2, text=text, fill=COLORS["white"], font=FONTS["small_bold"])
+            self.create_text(bx, 1 + self.BUBBLE / 2, text=text, fill=COLORS["white"], font=FONTS["tiny_bold"])
 
     @staticmethod
     def _bubble_x(xl: float, xh: float, w: float, half: float) -> tuple[float, float]:

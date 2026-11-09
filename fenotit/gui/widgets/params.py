@@ -96,25 +96,19 @@ class ConfigPanel(tk.Frame):
         self._open[key] = not self._open[key]
         self._refresh_rows()
 
-    def _group_active(self, key: str) -> bool:
-        """Una casilla con opciones solo las muestra si está marcada; una sección siempre."""
-        return key not in self._vars or bool(self._vars[key].get())
-
     def _refresh_rows(self):
-        """Empaca las filas en el orden del esquema. Las opciones de un grupo (ícono de ajustes) solo se
-        ven si el grupo está abierto y activo; las de "requires", si esa casilla está marcada."""
+        """Empaca las filas en el orden del esquema. Las opciones de un grupo se ven al abrirlo con
+        su ícono de ajustes, que siempre está a la vista; las de "requires", si esa casilla está
+        marcada."""
         for row in self._rows.values():
             row.pack_forget()
         for key, btn in self._arrows.items():
-            active, opened = self._group_active(key), self._open[key]
-            if not active:
-                btn.config(image="", bg=self.colors["bg_panel"], cursor="")
-            else:
-                btn.config(image=self._tune_icons[opened], cursor="hand2",
-                           bg=self.colors["accent_light"] if opened else self.colors["bg_panel"])
+            opened = self._open[key]
+            btn.config(image=self._tune_icons[opened], cursor="hand2",
+                       bg=self.colors["accent_light"] if opened else self.colors["bg_panel"])
         for item in self._schema:
             group, parent = item.get("group"), item.get("requires")
-            if group and not (self._open.get(group) and self._group_active(group)):
+            if group and not self._open.get(group):
                 continue
             if parent in self._vars and not self._vars[parent].get():
                 continue

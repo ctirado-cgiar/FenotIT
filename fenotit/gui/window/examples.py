@@ -12,6 +12,7 @@ import numpy as np
 
 from fenotit import log, settings
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
+from fenotit.gui.widgets.slider import Slider
 from fenotit.gui.widgets.help import HelpIcon
 from fenotit.i18n import t
 
@@ -187,8 +188,8 @@ class ExamplesMixin:
         brow.pack(fill=tk.X, pady=(SPACE["xs"], 0))
         tk.Label(brow, text=t("cls.brush"), bg=bg, fg=COLORS["text_muted"], font=small).pack(side=tk.LEFT)
         self.brush_var = tk.IntVar(value=int(settings.get("brush", 12)))
-        ttk.Scale(brow, from_=3, to=60, variable=self.brush_var, orient="horizontal",
-                  command=lambda v: self._on_brush()).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=SPACE["md"])
+        Slider(brow, self.brush_var, 3, 60, command=lambda v: self._on_brush(), bg=bg).pack(
+            side=tk.LEFT, fill=tk.X, expand=True, padx=SPACE["md"])
         drow = tk.Frame(box, bg=bg)
         drow.pack(fill=tk.X, pady=(SPACE["sm"], 0))
         tk.Label(drow, text=t("cls.detail"), bg=bg, fg=COLORS["text_muted"], font=small).pack(side=tk.LEFT)
