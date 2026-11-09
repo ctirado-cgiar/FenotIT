@@ -60,7 +60,7 @@ error         = "#C0392B"
 success       = "#006837"
 
 # Deslizadores
-slider_trough = "#DDDDDD"
+slider_trough = "#E3E8EE"
 
 # Marcas sobre la foto
 white          = "#FFFFFF"  # bordes de regiones, halos, puntos medios

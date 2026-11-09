@@ -3,11 +3,11 @@ bajo el ícono de paleta). Los cambios se ven al momento."""
 from __future__ import annotations
 
 import tkinter as tk
-from tkinter import ttk
 
 from fenotit.core.pipeline import overlay
 from fenotit.i18n import t
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
+from fenotit.gui.widgets.slider import Slider
 
 _SWATCHES = ("green", "magenta", "yellow", "cyan", "red", "orange", "blue", "white", "black")
 _D = 14            # diámetro del punto de color
@@ -78,7 +78,7 @@ class StylePopup(tk.Toplevel):
             value.config(text=fmt.format(v))
             self._style[field] = v
             self._on_change(dict(self._style))
-        ttk.Scale(f, from_=lo, to=hi, variable=var, command=changed, length=150).pack(side=tk.LEFT)
+        Slider(f, var, lo, hi, command=changed, length=150, bg=bg).pack(side=tk.LEFT)
         value.pack(side=tk.LEFT)
         return row + 1
 
