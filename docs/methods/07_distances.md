@@ -52,3 +52,11 @@ level when $|z| \ge 1.96$.
 **Limitation.** No edge correction is applied (Donnelly, 1978): objects near the edge of the
 area have their nearest neighbor farther away, which slightly inflates $R$ when $n$ is small.
 Drawing the analysis area tightly around the objects reduces this bias.
+
+## 7.5 Objects with classes
+
+When objects have a class (boxes from a detector, Section 2.9, or regions with a category,
+Section 2.7), each pair also reports `class_a` and `class_b`, and each image reports, for every
+class, the mean distance from each object to its nearest neighbor of the same class
+(`mean_nearest_<class>_<unit>`, centroids; empty when the class has fewer than two objects).
+With boxes alone the distance is always measured between box centers.

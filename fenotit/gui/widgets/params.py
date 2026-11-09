@@ -249,6 +249,21 @@ class ConfigPanel(tk.Frame):
         if typ != "section":
             self._vars[key] = var
 
+    def set_unavailable(self, reasons: dict[str, str]):
+        """Casillas que no se pueden usar con la segmentación actual: en gris, con el motivo
+        al pasar el mouse. Las demás vuelven a la normalidad."""
+        from fenotit.gui.widgets.toolbar import Tooltip
+        tips = self.__dict__.setdefault("_reason_tips", {})
+        for key, (widget, _item) in self._labels.items():
+            if not isinstance(widget, tk.Checkbutton):
+                continue
+            why = reasons.get(key)
+            widget.config(state=tk.DISABLED if why else tk.NORMAL, disabledforeground=self.colors["text_faint"])
+            if why and key not in tips:
+                tips[key] = Tooltip(widget, why)
+            if key in tips:
+                tips[key].text = why or ""
+
     def get_values(self, warn: bool = True) -> dict[str, Any]:
         out = {}
         for k, v in self._vars.items():

@@ -277,6 +277,31 @@ def main(with_sam=False):
             ERRORS.append("Cambiar análisis no muestra las tarjetas")
         w._open_analysis(objects)
 
+    @flow.step("agregar un detector y elegirlo", wait=lambda: result() is not None
+               and result().stats.get("n_objects", 0) > 0, timeout=90)
+    def _():
+        w._open_analysis(objects)
+        filedialog.askopenfilename = lambda **_: str(ROOT / "tests" / "models" / "yolov8_test.onnx")
+        w._add_model()
+        if w._seg_method != "model" or w._model_output() != "boxes":
+            ERRORS.append(f"detector: método {w._seg_method}, salida {w._model_output()}")
+        w._select_right_tab("seg")
+        root.update()
+        w._select_right_tab("analysis")
+        root.update()
+        tips = getattr(w.config_panel, "_reason_tips", {})
+        if not tips.get("measure_shape") or not tips["measure_shape"].text:
+            ERRORS.append("detector: Forma no queda en gris con cajas")
+        w._results.get(objects, {}).pop(w.current_image_path, None)
+        w._run_analysis(False)
+
+    @flow.step("volver a MobileSAM")
+    def _():
+        w._choose_model("mobilesam")
+        w._set_seg_method("threshold")
+        if w.config_panel._reason_tips.get("measure_shape") and w.config_panel._reason_tips["measure_shape"].text:
+            ERRORS.append("Forma sigue en gris sin cajas")
+
     if with_sam:
         @flow.step("MobileSAM", wait=lambda: "…" not in w.sam_status.get() and w._sam_labels() is not None,
                    timeout=240)

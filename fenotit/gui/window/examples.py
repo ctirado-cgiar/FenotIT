@@ -31,10 +31,10 @@ class ExamplesMixin:
         st.active = on
         st.visible = on and bool(self.show_strokes_var.get())
         pt = self.prompts
-        pt.active = self._seg_method == "model" and self.model_mode.get() == "points" and seg_tab \
+        pt.active = self._seg_method == "model" and self._sam_mode() == "points" and seg_tab \
             and bool(self.current_image_path) and self._analysis_segments() and not (self.areas and self.areas.mode)
         pt.redraw()
-        self.region_picker.active = self._seg_method == "model" and self.model_mode.get() == "auto" \
+        self.region_picker.active = self._seg_method == "model" and self._sam_mode() == "auto" \
             and seg_tab and bool(self.current_image_path) and self._analysis_segments() \
             and not (self.areas and self.areas.mode)
         st.colors = [c["color"] for c in self.class_list.classes]
@@ -184,6 +184,7 @@ class ExamplesMixin:
         HelpIcon(head, t("cls.title"), t("cls.help"), bg=bg).pack(side=tk.LEFT, padx=(SPACE["sm"], 0))
         self.class_list = ClassList(box, self._on_classes_change, self._on_class_pick)
         self.class_list.pack(fill=tk.X, pady=(SPACE["xs"], SPACE["sm"]))
+        self.class_list.show_objects(self._analysis_objects())
         brow = tk.Frame(box, bg=bg)
         brow.pack(fill=tk.X, pady=(SPACE["xs"], 0))
         tk.Label(brow, text=t("cls.brush"), bg=bg, fg=COLORS["text_muted"], font=small).pack(side=tk.LEFT)

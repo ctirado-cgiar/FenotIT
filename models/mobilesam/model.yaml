@@ -1,0 +1,6 @@
+name: MobileSAM
+output: masks
+format: sam
+files: [mobilesam_encoder.onnx, mobilesam_decoder.onnx]
+license: Apache-2.0
+source: https://github.com/ChaoningZhang/MobileSAM

@@ -23,7 +23,7 @@ class Tooltip:
         self._after = self.widget.after(self.delay, self._show)
 
     def _show(self):
-        if self._tip:
+        if self._tip or not self.text:
             return
         x = self.widget.winfo_rootx()
         y = self.widget.winfo_rooty() + self.widget.winfo_height() + 4

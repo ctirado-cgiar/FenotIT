@@ -4,7 +4,8 @@ Métodos:
   threshold   umbral en un canal de color (rango Mín-Máx u Otsu)
   classifier  por ejemplos: el usuario pinta trazos de cada clase y un bosque aleatorio
               clasifica cada píxel (como ilastik); da una máscara y un mapa de clases
-  model       un modelo de IA (MobileSAM u otro en ONNX)
+  model       un modelo de IA en ONNX (core/segmentation/models.py): de máscaras (MobileSAM)
+              o de cajas (detector); las cajas pueden pasar a máscaras con MobileSAM
 
 Después, "Afinar máscara": una lista de operaciones morfológicas en orden.
 
@@ -17,8 +18,14 @@ METHODS = ("threshold", "classifier", "model")
 
 from fenotit.core.segmentation.refine_mask import DEFAULT_REFINE, REFINE_OPS, reconstruct, refine, refine_op
 
-__all__ = ["DEFAULT_REFINE", "METHODS", "REFINE_OPS", "chain", "from_legacy", "reconstruct", "refine",
-           "refine_op", "refine_steps"]
+__all__ = ["DEFAULT_REFINE", "METHODS", "REFINE_OPS", "boxes_only", "chain", "from_legacy", "reconstruct",
+           "refine", "refine_op", "refine_steps"]
+
+
+def boxes_only(seg: dict) -> bool:
+    """La segmentación da cajas (detector sin pasar las cajas a máscaras)."""
+    m = seg.get("model") or {}
+    return seg.get("method") == "model" and m.get("output") == "boxes" and not m.get("to_masks")
 
 
 def from_legacy(params: dict) -> dict:
@@ -41,6 +48,12 @@ def chain(seg: dict) -> list[dict]:
                                                  "objects": list(c.get("objects", [1])),
                                                  "colors": list(c.get("colors", [])),
                                                  "detail": float(c.get("detail", 1.0))}}]
+    elif method == "model" and (seg.get("model") or {}).get("output") == "boxes":
+        m = seg["model"]
+        steps = [{"step": "detect", "params": {"model": m.get("name", ""), "conf": float(m.get("conf", 0.25)),
+                                               "use": [int(c) for c in m.get("use") or []],
+                                               "to_masks": bool(m.get("to_masks")),
+                                               "colors": list(m.get("colors") or [])}}]
     elif method == "model":
         m = seg.get("model") or {}
         steps = [{"step": "model_segment", "params": {"model": m.get("name", "mobilesam"),

@@ -72,8 +72,8 @@ class AnalysisDescriptor:
     steps: tuple[str, ...] = ("segment", "params")
     # Métodos de segmentación que admite (None = todos)
     seg_methods: tuple[str, ...] | None = None
-    # Usa «Afinar máscara» (operaciones sobre la máscara de objetos)
-    refine: bool = True
+    # Trabaja con objetos: muestra «Afinar máscara» y la casilla «Objeto» de las clases
+    objects: bool = True
 
 
 # ── Registro global ───────────────────────────────────────────────────────────
@@ -91,7 +91,7 @@ def register(
     segmentation: str | None = "threshold",
     steps: tuple[str, ...] | None = None,
     seg_methods: tuple[str, ...] | None = None,
-    refine: bool = True,
+    objects: bool = True,
 ) -> AnalysisDescriptor:
     """
     Registra un módulo de análisis.
@@ -121,7 +121,7 @@ def register(
         segmentation=segmentation,
         steps=tuple(steps) if steps else (("segment", "params") if segmentation else ("params",)),
         seg_methods=tuple(seg_methods) if seg_methods else None,
-        refine=refine,
+        objects=objects,
     )
     ANALYSES[name] = descriptor
     _log.debug("Análisis registrado: %s", name)

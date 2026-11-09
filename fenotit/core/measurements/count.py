@@ -1,4 +1,5 @@
-"""Conteo (count): número de objetos y marca de cada objeto contado."""
+"""Conteo (count): número de objetos y marca de cada objeto contado (con cajas de un
+detector, `measurements.boxes.count_boxes`)."""
 import numpy as np
 from scipy.ndimage import find_objects
 
@@ -10,6 +11,10 @@ from fenotit.core.pipeline.views import regions, inside_point, add_overlay
     {"key": "numbers", "type": "bool", "default": True},
 ])
 def count(ctx, p):
+    if ctx.detections is not None:
+        from fenotit.core.measurements.boxes import count_boxes
+        count_boxes(ctx, p)
+        return
     ids = {i for i, s in enumerate(find_objects(ctx.labels), 1) if s is not None} - ctx.excluded
     touching = ctx.touching_ids()
     ctx.image_row().update({"n_objects": len(ids), "n_touching": len(touching & ids)})

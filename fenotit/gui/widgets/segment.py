@@ -151,7 +151,7 @@ class RefineList(tk.Frame):
 class ClassList(tk.Frame):
     """Clases de la segmentación por ejemplos. La fila elegida es la del pincel; la primera
     es el fondo. "Objeto" = la clase forma parte de los objetos (p. ej. sano y lesión sí,
-    fondo no)."""
+    fondo no). Con `show_objects(False)` la casilla no se muestra (análisis sin objetos)."""
 
     def __init__(self, parent, on_change: Callable[[], None], on_pick: Callable[[int], None]):
         bg = COLORS["bg_panel"]
@@ -159,6 +159,7 @@ class ClassList(tk.Frame):
         self.on_change, self.on_pick = on_change, on_pick
         self.classes: list[dict] = []
         self.current = 1
+        self._objects = True
         self._rows = tk.Frame(self, bg=bg)
         self._rows.pack(fill=tk.X)
         add = tk.Label(self, text="+ " + t("cls.add"), bg=bg, fg=COLORS["accent"], font=FONTS["small"],
@@ -173,6 +174,11 @@ class ClassList(tk.Frame):
         self.classes = [dict(c) for c in classes]
         self.current = min(self.current, len(self.classes) - 1)
         self._render()
+
+    def show_objects(self, on: bool):
+        if on != self._objects:
+            self._objects = on
+            self._render()
 
     def pick(self, i: int):
         if 0 <= i < len(self.classes):
@@ -226,12 +232,12 @@ class ClassList(tk.Frame):
                 x = tk.Label(row, text="✕", bg=bg, fg=COLORS["text_muted"], font=small, cursor="hand2", padx=SPACE["sm"])
                 x.pack(side=tk.RIGHT)
                 x.bind("<Button-1>", lambda e, i=i: self._remove(i))
-            if i:
+            if i and self._objects:
                 ov = tk.BooleanVar(value=bool(c.get("object", True)))
                 tk.Checkbutton(row, text=t("cls.object"), variable=ov, bg=bg, activebackground=bg,
                                selectcolor=COLORS["bg_card"], font=small,
                                command=lambda i=i, v=ov: self._object(i, v.get())).pack(side=tk.RIGHT)
-            else:
+            elif not i:
                 tk.Label(row, text=t("cls.background"), bg=bg, fg=COLORS["text_muted"],
                          font=small).pack(side=tk.RIGHT, padx=SPACE["sm"])
             for w in (row,):

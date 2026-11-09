@@ -138,6 +138,8 @@ class AnalyzeMixin:
         if allowed and self._seg_method not in allowed:
             self._set_seg_method(allowed[0], quiet=True)
         self._show_method_buttons(allowed)
+        if hasattr(self, "class_list"):
+            self.class_list.show_objects(self._analysis_objects())
         after = self._steps_after("segment")
         self._set_next_step(self._step_label(after[0]) if after else None)
 
@@ -184,6 +186,7 @@ class AnalyzeMixin:
         self.config_panel.pack(fill=tk.BOTH, expand=True)
         for var in self.config_panel._vars.values():          # cambios del panel: Ctrl+Z
             var.trace_add("write", lambda *_: self._settings_changed())
+        self._update_unavailable()
         self.root.after_idle(self._mark_settled)
         self._show_cached_result()
         self._sync_area_units()

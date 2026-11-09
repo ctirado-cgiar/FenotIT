@@ -6,7 +6,10 @@ Delaunay de los centros). Medida de cada par:
   edge_nearest  entre los puntos más cercanos de los dos contornos
   center        de centro a centro
 Tablas: `distances` (un par por fila), por objeto (vecino más cercano y promedio) y por
-imagen (media del vecino más cercano e índice de Clark-Evans, con centros).
+imagen (media del vecino más cercano e índice de Clark-Evans, con centros). Con clases
+(cajas de un detector o regiones con categoría), cada par lleva la clase de sus dos objetos
+y la imagen, el vecino más cercano de la misma clase para cada clase. Con cajas, la
+distancia es siempre de centro a centro.
 """
 from __future__ import annotations
 
@@ -81,14 +84,37 @@ def _contours(labels, ids):
     return out
 
 
+def _object_classes(ctx, ids) -> dict[int, str]:
+    """Clase de cada objeto: la de su caja o la más común entre sus píxeles; vacío sin clases."""
+    names = list(ctx.extra.get("class_names") or [])
+    if ctx.detections is not None:
+        return {d["id"]: d.get("class", "") for d in ctx.detections} if len({d["cls"] for d in ctx.detections}) > 1 \
+            or len(names) > 1 else {}
+    if ctx.classes is None or len(names) < 2:
+        return {}
+    out = {}
+    for oid, sl in enumerate(find_objects(ctx.labels), 1):
+        if sl is None or oid not in ids:
+            continue
+        c = int(np.bincount(ctx.classes[sl][ctx.labels[sl] == oid]).argmax())
+        out[oid] = names[c - 1] if 0 < c <= len(names) else ""
+    return out
+
+
 @step("distances", "measurement", requires=("labels",), params=[
     {"key": "neighbors", "type": "choice", "choices": ["knn", "voronoi"], "default": "knn"},
     {"key": "k", "type": "int", "default": 5, "min": 1, "max": 50},
     {"key": "measure", "type": "choice", "choices": ["edge_line", "edge_nearest", "center"], "default": "edge_line"},
 ])
 def distances(ctx, p):
-    cents = {k: v for k, v in _centroids(ctx.labels).items() if k not in ctx.excluded}
+    if ctx.detections is not None:
+        from fenotit.core.objects.boxes import center
+        cents = {d["id"]: center(d) for d in ctx.detections if d["id"] not in ctx.excluded}
+        p = {**p, "measure": "center"}
+    else:
+        cents = {k: v for k, v in _centroids(ctx.labels).items() if k not in ctx.excluded}
     ids = sorted(cents)
+    klass = _object_classes(ctx, set(ids))
     pts = np.array([cents[i] for i in ids], float).reshape(-1, 2)
     pairs = _pairs(ids, pts, p["neighbors"], p["k"])
     unit, f = ctx.unit, ctx.scale
@@ -110,8 +136,12 @@ def distances(ctx, p):
             p1, p2 = _edge_on_line(ctx.labels, a, b, ca, cb)
         dist = float(np.hypot(p2[0] - p1[0], p2[1] - p1[1]))
         crosses = _crosses(ctx.labels, a, b, p1, p2)
-        rows.append({"object_a": a, "object_b": b, f"distance_{unit}": round(dist * f, ctx.digits(1, 4)),
-                     f"center_distance_{unit}": round(center * f, ctx.digits(1, 4)), "crosses_object": int(crosses)})
+        row = {"object_a": a, "object_b": b}
+        if klass:
+            row.update({"class_a": klass.get(a, ""), "class_b": klass.get(b, "")})
+        row.update({f"distance_{unit}": round(dist * f, ctx.digits(1, 4)),
+                    f"center_distance_{unit}": round(center * f, ctx.digits(1, 4)), "crosses_object": int(crosses)})
+        rows.append(row)
         if not crosses:                        # en la vista no se dibujan líneas que tapan otro objeto
             lines.append((p1, p2, dist))
     ctx.tables["distances"] = rows
@@ -144,16 +174,31 @@ def distances(ctx, p):
                     if rows else None,
                     "clark_evans_R": round(float(nn.mean() / expected), 4),
                     "clark_evans_z": round(float((nn.mean() - expected) / se), 3)})
+    if klass:                                  # vecino más cercano de la misma clase (centros)
+        from fenotit.core.measurements.classes import slug
+        for name in sorted(set(klass.values())):
+            members = [i for i, oid in enumerate(ids) if klass.get(oid) == name]
+            key = f"mean_nearest_{slug(name)}_{unit}"
+            if len(members) < 2:
+                img[key] = None
+                continue
+            sub_pts = pts[members]
+            d = cKDTree(sub_pts).query(sub_pts, k=2)[0][:, 1]
+            img[key] = round(float(d.mean()) * f, 4)
     ctx.image_row().update(img)
 
     # vista: contornos y una línea por par, más tenue cuanto más lejos
     from fenotit.core.pipeline import overlay
     from fenotit.core.pipeline.views import add_overlay, regions
     ov = overlay.empty()
-    for oid, sl, m in regions(ctx.labels):
-        cnts, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE,
-                                   offset=(sl[1].start, sl[0].start))
-        ov["outlines"] += [(c.reshape(-1, 2), oid not in ctx.excluded) for c in cnts]
+    if ctx.detections is not None:
+        from fenotit.core.objects.boxes import rect
+        ov["outlines"] = [(rect(d), d["id"] not in ctx.excluded) for d in ctx.detections]
+    else:
+        for oid, sl, m in regions(ctx.labels):
+            cnts, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE,
+                                       offset=(sl[1].start, sl[0].start))
+            ov["outlines"] += [(c.reshape(-1, 2), oid not in ctx.excluded) for c in cnts]
     if lines:
         ds = np.array([d for *_, d in lines])
         lo, hi = float(ds.min()), float(ds.max())
