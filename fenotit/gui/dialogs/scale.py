@@ -27,6 +27,20 @@ def _assets() -> Path:
 class BaseDialog(tk.Toplevel):
     W, H = 560, 480
 
+    def _fit_content(self):
+        """Ensancha la ventana si su contenido no cabe en el ancho inicial (letra grande o
+        textos más largos en otro idioma), sin pasar del tamaño de la pantalla."""
+        if not self.winfo_exists():
+            return
+        self.update_idletasks()
+        need = self.body.winfo_reqwidth() + 2 * SPACE["xxl"]
+        w = self.winfo_width() if self.winfo_width() > 1 else self.W
+        if need > w:
+            sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
+            h = self.winfo_height() if self.winfo_height() > 1 else self.H
+            w = min(need, sw - 40)
+            self.geometry(f"{w}x{h}+{max(0, (sw - w) // 2)}+{max(0, (sh - h) // 2)}")
+
     def __init__(self, parent, title: str):
         super().__init__(parent)
         self.title(title)
@@ -60,6 +74,7 @@ class BaseDialog(tk.Toplevel):
 
         # Barra de progreso + log
         self._build_progress()
+        self.after_idle(self._fit_content)
 
         # Botones de acción
         btn_row = tk.Frame(self, bg=COLORS["bg_card"])

@@ -98,9 +98,8 @@ class MetadataDialog(tk.Toplevel):
         px, py = parent.winfo_rootx(), parent.winfo_rooty()
         pw, ph = parent.winfo_width(), parent.winfo_height()
         w, h = max(self.winfo_reqwidth(), 560), self.winfo_reqheight()
-        self.geometry(f"{w}x{h}+{px + (pw - w) // 2}+{py + max(0, (ph - h) // 3)}")
-        if not current.get("file"):
-            self.after(100, self._pick)
+        self.minsize(w, 0)
+        self.geometry(f"+{px + (pw - w) // 2}+{py + max(0, (ph - h) // 3)}")      # el alto sigue al contenido
 
     def _pick(self):
         start = Path(self.file.get()).parent if self.file.get() else None

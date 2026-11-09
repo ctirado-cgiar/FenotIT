@@ -101,9 +101,9 @@ class SplashScreen:
                 return
             self._set(start + (1 - start) * i / steps)
             if i < steps:
-                self.window.after(30, lambda: tick(i + 1))
-            else:
-                self.window.after(80, lambda: (self.close(), then()))
+                self.root.after(30, lambda: tick(i + 1))
+            else:                                  # en la ventana principal: el callback cierra esta
+                self.root.after(80, lambda: (self.close(), then()))
         tick()
 
     def close(self):

@@ -159,20 +159,22 @@ class Project:
             self.mode = mode
 
     def _rel(self, p: Path) -> str:
-        """Ruta relativa a la carpeta del proyecto si está dentro. Sin resolve(): en OneDrive
-        cada resolve() toca el disco y esto se llama en cada cambio (¿hay algo sin guardar?)."""
-        ap = Path(os.path.abspath(p))
+        """Ruta relativa a la carpeta del proyecto (también con ../ si está en una carpeta
+        vecina); absoluta solo si está en otra unidad. Sin resolve(): en OneDrive cada
+        resolve() toca el disco y esto se llama en cada cambio (¿hay algo sin guardar?)."""
+        ap = os.path.abspath(p)
         if self.folder:
             try:
-                return ap.relative_to(os.path.abspath(self.folder)).as_posix()
-            except ValueError:
+                return Path(os.path.relpath(ap, os.path.abspath(self.folder))).as_posix()
+            except ValueError:                        # otra unidad (Windows)
                 pass
-        return ap.as_posix()
+        return Path(ap).as_posix()
 
     def to_dict(self) -> dict:
         return {
             "fenotit_version": __version__,
             "name": self.name,
+            "saved_in": Path(os.path.abspath(self.folder)).as_posix() if self.folder else "",
             "images": [self._rel(p) for p in self.images],
             "current_index": self.current_index,
             "mode": self.mode,
@@ -226,10 +228,20 @@ class Project:
         with open(path, encoding="utf-8") as f:
             d = yaml.safe_load(f) or {}
         folder = path.parent
+        saved_in = Path(d["saved_in"]) if d.get("saved_in") else None
 
         def resolve(s: str) -> Path:
+            """Relativa a la carpeta actual del proyecto; si ahí no está y el proyecto se movió
+            solo, relativa a la carpeta donde se guardó."""
             p = Path(s)
-            return p if p.is_absolute() else folder / p
+            if p.is_absolute():
+                return p
+            here = Path(os.path.normpath(folder / p))
+            if saved_in is not None and saved_in != folder and not here.exists():
+                there = Path(os.path.normpath(saved_in / p))
+                if there.exists():
+                    return there
+            return here
 
         return cls(
             name=d.get("name", folder.name),

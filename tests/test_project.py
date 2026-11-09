@@ -109,3 +109,26 @@ if __name__ == "__main__":
         if name.startswith("test_"):
             fn()
             print(f"ok  {name}")
+
+
+def test_paths_survive_moving(tmp_path):
+    """Fotos en una carpeta vecina: se guardan con ../ y se encuentran al mover todo junto;
+    si se mueve solo el proyecto, se buscan donde estaban."""
+    import shutil
+    fotos, proj = tmp_path / "a" / "fotos", tmp_path / "a" / "proyectos" / "p"
+    fotos.mkdir(parents=True)
+    (fotos / "x.jpg").write_bytes(b"0")
+    (fotos / "datos.csv").write_text("foto;g\nx;1\n", encoding="utf-8")
+    p = Project()
+    p.images = [fotos / "x.jpg"]
+    p.metadata = {"file": str(fotos / "datos.csv"), "key_column": "foto"}
+    p.save(proj)
+    assert "../../fotos/x.jpg" in proj.joinpath("p.fenotit").read_text(encoding="utf-8")
+    shutil.copytree(tmp_path / "a", tmp_path / "b")                  # todo junto
+    q = Project.load(tmp_path / "b" / "proyectos" / "p" / "p.fenotit")
+    assert q.images[0] == tmp_path / "b" / "fotos" / "x.jpg" and q.images[0].exists()
+    assert Path(q.metadata["file"]).exists()
+    alone = tmp_path / "c" / "p"                                      # solo el proyecto
+    shutil.copytree(proj, alone)
+    r = Project.load(alone / "p.fenotit")
+    assert r.images[0].exists() and r.images[0] == fotos / "x.jpg"

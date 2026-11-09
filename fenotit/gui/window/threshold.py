@@ -30,14 +30,17 @@ class ThresholdMixin:
         """Espacio de color, canal y rango (o Otsu), con vista previa en vivo."""
         bg, small = COLORS["bg_panel"], FONTS["small"]
         self._seg_box = box
-        row = tk.Frame(box, bg=bg)
+        from fenotit.gui.widgets.flow import FlowRow
+        row = FlowRow(box, bg=bg)                          # los canales bajan si no caben
         row.pack(fill=tk.X, pady=SPACE["xs"])
-        tk.Label(row, text=t("controls.space"), bg=bg, fg=COLORS["text_muted"],
+        space = tk.Frame(row, bg=bg)
+        tk.Label(space, text=t("controls.space"), bg=bg, fg=COLORS["text_muted"],
                  font=small).pack(side=tk.LEFT)
         self.cs_var = tk.StringVar(value="BGR")
-        cs_combo = ttk.Combobox(row, textvariable=self.cs_var, values=list(CHANNEL_NAMES.keys()),
+        cs_combo = ttk.Combobox(space, textvariable=self.cs_var, values=list(CHANNEL_NAMES.keys()),
                                 state="readonly", width=7, font=small)
-        cs_combo.pack(side=tk.LEFT, padx=(SPACE["sm"], SPACE["md"]))
+        cs_combo.pack(side=tk.LEFT, padx=(SPACE["sm"], 0))
+        row.add(space, SPACE["md"])
         cs_combo.bind("<<ComboboxSelected>>", self._on_cs_change)
         self.ch_var = tk.IntVar(value=0)
         self._ch_radios = []
@@ -45,7 +48,7 @@ class ThresholdMixin:
             rb = tk.Radiobutton(row, text="", variable=self.ch_var, value=i,
                                 command=self._on_slider_change, bg=bg, fg=COLORS["text"],
                                 selectcolor=COLORS["bg_card"], activebackground=bg, font=small)
-            rb.pack(side=tk.LEFT)
+            row.add(rb)
             self._ch_radios.append(rb)
         self._update_channel_names()
 

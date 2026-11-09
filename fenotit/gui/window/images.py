@@ -111,6 +111,23 @@ class ImagesMixin:
             self._show_no_image()
             self._show_panel(self._panel_of("images"), False)
 
+    def _show_unreadable(self, path: str):
+        """La foto elegida no se pudo leer: Entrada y Resultado vacíos, sin resultados
+        guardados para ella y marcada como omitida."""
+        self.scaler_left = ImageScaler()
+        self.scaler_right = ImageScaler()
+        self._clear_result()
+        if self.zoom_ctrl:
+            self.zoom_ctrl.set_images(None, None)
+        self.canvas_left.delete("all")
+        self.canvas_right.delete("all")
+        self._show_results_ui(False)
+        self.image_info_var.set(Path(path).name)
+        self.preview_var.set("")
+        self._unreadable.add(path)
+        self._mark_skipped(path, t("msg.image_unreadable", name=Path(path).name))
+        self._set_status(t("msg.image_unreadable", name=Path(path).name))
+
     def _show_no_image(self):
         """Sin fotos: entrada y resultado vacíos y nada que ejecutar."""
         self.current_image_path = None
@@ -161,6 +178,7 @@ class ImagesMixin:
         if path != self.current_image_path:
             return
         if img is None:
+            self._show_unreadable(path)
             messagebox.showerror(t("common.error"), t("msg.image_unreadable", name=Path(path).name),
                                  parent=self.root)
             return

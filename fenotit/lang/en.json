@@ -150,7 +150,7 @@
   "corr.color.place_ok": "Card position saved.",
   "corr.color.ref_missing": "Reference photo missing: open the photo you want to use and click \"Use the current photo\".",
   "corr.color.ref_ok": "Reference photo: {name}",
-  "corr.color.ref_photo": "A reference photo (all like that photo)",
+  "corr.color.ref_photo": "A reference photo",
   "corr.color.ref_values": "The colors of the card (from the maker)",
   "corr.color.short": "So that colors can be compared across photos, days and devices",
   "corr.color.towards": "Correct towards",
@@ -869,5 +869,11 @@
   "minfo.package": "FenotIT model",
   "minfo.shared": "Model saved to:\n{path}",
   "minfo.type": "Type",
-  "minfo.format": "Format"
+  "minfo.format": "Format",
+  "msg.unreadable_summary": "{n} files could not be read ({names}). They may be damaged or not images.",
+  "corr.color.incomplete": "The card is not complete in the photo: {n} of {total} patches are visible. Take the photo with the whole card.",
+  "corr.color.no_fit": "The correction could not be computed from these patches. Check that the card is evenly lit and without glare.",
+  "corr.color.incomplete_short": "The card is not complete in the photo.",
+  "missing.meta_title": "Data table not found",
+  "missing.meta_msg": "The data table «{name}» was not found. Without it, its columns do not appear in the table or the export. Look for it?"
 }

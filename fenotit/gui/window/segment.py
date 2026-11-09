@@ -192,14 +192,15 @@ class SegmentMixin:
         head = self._section_lbl(rf, t("seg.method"))
         HelpIcon(head, t("seg.method").capitalize(), t("seg.method_help"), bg=bg).pack(side=tk.LEFT)
         self._seg_head = head
-        bar = tk.Frame(rf, bg=bg)
+        from fenotit.gui.widgets.flow import FlowRow
+        bar = FlowRow(rf, fill=True, line_gap=SPACE["sm"], bg=bg)
         bar.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["xs"], SPACE["sm"]))
         self._seg_method = "threshold"
         self._method_btns = {}
         for key in ("threshold", "classifier") + (("model",) if self._onnx_ready() else ()):
-            b = tk.Label(bar, text=t(f"seg.method.{key}"), font=small, cursor="hand2", padx=SPACE["md"], pady=SPACE["sm"],
+            b = tk.Label(bar, text=t(f"seg.method.{key}"), font=small, cursor="hand2", padx=SPACE["sm"], pady=SPACE["sm"],
                          highlightthickness=1)
-            b.pack(side=tk.LEFT, padx=(0, SPACE["sm"]))
+            bar.add(b, SPACE["sm"])
             b.bind("<Button-1>", lambda e, k=key: self._set_seg_method(k))
             self._method_btns[key] = b
         self._seg_bar = bar
@@ -239,9 +240,7 @@ class SegmentMixin:
         """Solo los métodos de segmentación que admite el análisis; con uno solo, sin botones."""
         self._shown_methods = [k for k in self._method_btns if not allowed or k in allowed]
         for k, b in self._method_btns.items():
-            b.pack_forget()
-            if k in self._shown_methods:
-                b.pack(side=tk.LEFT, padx=(0, SPACE["sm"]))
+            self._seg_bar.visible(b, k in self._shown_methods)
         self._update_seg_tab()
 
     def _update_seg_tab(self):

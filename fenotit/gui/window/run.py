@@ -25,6 +25,7 @@ _log = log.get("gui.window.run")
 class RunMixin:
     def _init_run(self):
         self._skipped: set[str] = set()          # fotos omitidas (⚠ en la lista)
+        self._unreadable: set[str] = set()       # omitidas porque no se pudieron leer
         self._pending: set[str] = set()          # en cola del lote (… en la lista)
         self._batch: batch.BatchRunner | None = None
         self._rerun_queue: list[str] = []
@@ -223,6 +224,7 @@ class RunMixin:
                                   max_mpx=self.project.max_mpx))
         self._pending = set(paths)                 # al volver a correr, las marcas se rehacen
         self._skipped -= self._pending
+        self._unreadable -= self._pending
         self._progress(0, total)
         self._update_batch_list()
         self._sync_listbox()
@@ -248,6 +250,7 @@ class RunMixin:
                 t("corr.skip_aruco", ids=", ".join(map(str, out.aruco_missing)) or "?")
             self._mark_skipped(path, reason)
         elif out.status == "unreadable":
+            self._unreadable.add(path)
             self._mark_skipped(path, t("msg.image_unreadable", name=Path(path).name))
         else:
             result = out.result or AnalysisResult(status="error", error=out.message)
@@ -298,7 +301,14 @@ class RunMixin:
             msg += ". " + t("status.batch_time", total=_duration(elapsed), per=_duration(elapsed / done))
         self._set_status(msg)
         if n_skipped and not cancelled:
-            messagebox.showwarning(t("corr.skip_title"), t("corr.skip_summary", n=n_skipped), parent=self.root)
+            unread = [p for p in self.batch_paths if p in self._skipped and p in self._unreadable]
+            parts = []
+            if unread:
+                parts.append(t("msg.unreadable_summary", n=len(unread),
+                               names=", ".join(Path(p).name for p in unread[:5]) + (", …" if len(unread) > 5 else "")))
+            if n_skipped > len(unread):
+                parts.append(t("corr.skip_summary", n=n_skipped - len(unread)))
+            messagebox.showwarning(t("corr.skip_title"), "\n\n".join(parts), parent=self.root)
 
     def _log_process(self, name: str):
         """Agrega al log del panel izquierdo el proceso ejecutado."""

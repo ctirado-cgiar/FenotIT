@@ -176,13 +176,15 @@ class CorrectionsDialog(BaseDialog):
                              _float_or_none(self._p_w.get()), _float_or_none(self._p_h.get()))
 
     def _base_image(self, upto: str):
-        """Imagen actual con las correcciones anteriores a `upto` aplicadas."""
+        """Imagen actual con las correcciones anteriores a `upto` aplicadas: las de esta
+        ventana con lo que muestra; las de otras ventanas, como están guardadas."""
         if self._raw is None:
             return None
         c = P.Corrections(distortion=copy.deepcopy(self.c.distortion))
-        c.distortion.enabled = self._d_on.get()
+        if self._kind == "distortion":
+            c.distortion.enabled = self._d_on.get()
         if upto == "color":
-            c.perspective = self._perspective_cfg()
+            c.perspective = self._perspective_cfg() if self._kind == "perspective" else copy.deepcopy(self.c.perspective)
         return P.apply(self._raw, c)[0]
 
     def _verify_aruco(self):
@@ -318,8 +320,9 @@ class CorrectionsDialog(BaseDialog):
         c = self._color_cfg()
         try:
             self.c.color.target = cc.measure_reference(img, c)
-        except Exception as e:
-            self._c_status.set(t("corr.color.not_found") + f"\n{e}")
+        except ValueError as e:
+            self._c_status.set(t("corr.color.incomplete_short") if str(e) == "card incomplete"
+                               else t("corr.color.not_found"))
             return
         self.c.color.target_photo = Path(self._raw_path).name if self._raw_path else ""
         self._c_ref.set("photo")
@@ -353,8 +356,13 @@ class CorrectionsDialog(BaseDialog):
         try:
             fixed, info = cc.correct(img, card, cc.reference_of(c))
         except Exception as e:
+            _log.exception("Tarjeta de color")
+            fixed, info = None, {"error": str(e)}
+        if fixed is None:
+            reason = t("corr.color.incomplete", n=info.get("visible", 0), total=rows * cols) \
+                if info.get("error") == "card incomplete" else t("corr.color.no_fit")
             show_detection(self, cc.preview(img, card), img, None,
-                           t("corr.color.found_only", found=card.found, n=rows * cols) + f"\n{e}")
+                           t("corr.color.found_only", found=card.found, n=rows * cols) + "\n" + reason)
             self._color_changed()
             return
         text = t("corr.color.found", found=card.found, n=rows * cols, err=f"{info['mean_error_rgb']:.1f}")

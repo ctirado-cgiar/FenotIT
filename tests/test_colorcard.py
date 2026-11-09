@@ -69,3 +69,17 @@ if __name__ == "__main__":
         if name.startswith("test_"):
             fn()
             print(f"ok  {name}")
+
+
+def test_card_cut_by_the_border():
+    """Tarjeta cortada por el borde: hasta 4 cuadritos fuera se descartan; con más, aviso
+    "card incomplete" en vez de un error de cálculo."""
+    img, cc = IMG, CC
+    card = cc.detect(img)
+    edge = card.centers.reshape(-1, 2)
+    bottom = int(edge[:, 1].max() - card.chip * 0.2)               # una fila de 4 fuera
+    fixed, info = cc.correct(img[:bottom], card)
+    assert fixed is not None and len(info["dropped"]) >= 4
+    right = int(edge[:, 0].max() - card.chip * 0.2)                # una columna de 6 fuera
+    fixed, info = cc.correct(img[:, :right], card)
+    assert fixed is None and info["error"] == "card incomplete" and info["visible"] == 18

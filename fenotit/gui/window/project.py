@@ -110,7 +110,9 @@ class ProjectMixin:
         return None
 
     def _mark_skipped(self, path: str, reason: str):
+        """La foto no se analiza: sin resultados guardados y con ⚠ en la lista."""
         self._skipped.add(path)
+        self._clear_all_results(path)
         self._update_batch_list()
         _log.warning("%s omitida: %s", Path(path).name, reason)
 
@@ -304,6 +306,16 @@ class ProjectMixin:
                 project.current_index = min(project.current_index, max(len(project.images) - 1, 0))
                 break
             return False
+        meta = project.metadata.get("file")
+        if meta and not Path(meta).exists():             # tabla de datos del usuario movida
+            if messagebox.askyesno(t("missing.meta_title"), t("missing.meta_msg", name=Path(meta).name),
+                                   parent=self.root):
+                path = filedialog.askopenfilename(
+                    parent=self.root, title=t("meta.file"), initialdir=str(project.folder or ""),
+                    filetypes=[(t("meta.filetypes"), "*.csv *.txt *.xlsx *.xlsm")])
+                if path:
+                    project.metadata = {**project.metadata, "file": path}
+                    relinked += 1
         if relinked:
             self._relinked = True                       # al abrir queda "con cambios": conviene guardar
         return True

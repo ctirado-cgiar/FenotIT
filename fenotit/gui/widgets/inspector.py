@@ -44,6 +44,8 @@ class Inspector(tk.Frame):
         self._state = tk.Label(self, text="", bg=bg, fg=COLORS["warning"], font=FONTS["small"],
                                justify="left", anchor="w", wraplength=200)
         self._rows = tk.Frame(self, bg=bg)
+        self._keys: list[tk.Label] = []
+        self._rows.bind("<Configure>", lambda e: self._wrap_keys())
         self._rows.pack(fill=tk.X, padx=SPACE["lg"])
         btns = tk.Frame(self, bg=bg)
         btns.pack(fill=tk.X, padx=SPACE["lg"], pady=(SPACE["md"], SPACE["md"]))
@@ -97,6 +99,7 @@ class Inspector(tk.Frame):
         bg = COLORS["bg_panel"]
         for w in self._rows.winfo_children():
             w.destroy()
+        keys = []
         for r, item in enumerate(rows):
             if item[0] == "bar":
                 bar = tk.Canvas(self._rows, width=200, height=12, bg=bg, highlightthickness=0)
@@ -117,11 +120,29 @@ class Inspector(tk.Frame):
                          anchor="e").grid(row=r, column=2, sticky="e")
             else:
                 k, v = item
-                tk.Label(self._rows, text=k, bg=bg, fg=COLORS["text_muted"], font=FONTS["small"],
-                         anchor="w").grid(row=r, column=0, columnspan=2, sticky="w")
+                key = tk.Label(self._rows, text=k, bg=bg, fg=COLORS["text_muted"], font=FONTS["small"],
+                               anchor="w", justify="left")
+                key.grid(row=r, column=0, columnspan=2, sticky="w")
+                keys.append(key)
                 tk.Label(self._rows, text=v, bg=bg, fg=COLORS["text"], font=FONTS["small"],
-                         anchor="e").grid(row=r, column=2, sticky="e", padx=(SPACE["md"], 0))
-        self._rows.columnconfigure(2, weight=1)
+                         anchor="e").grid(row=r, column=2, sticky="ne", padx=(SPACE["md"], 0))
+        self._rows.columnconfigure(1, weight=1)
+        self._rows.columnconfigure(2, weight=0)
+        self._keys = keys
+        self.after_idle(self._wrap_keys)
+
+    def _wrap_keys(self):
+        """Los nombres de los datos pasan a otra línea si no caben junto al valor."""
+        if not self._rows.winfo_exists():
+            return
+        width = self._rows.winfo_width()
+        if width <= 1:
+            return
+        values = [w for w in self._rows.grid_slaves(column=2) if isinstance(w, tk.Label)]
+        widest = max((w.winfo_reqwidth() for w in values), default=0)
+        for key in self._keys:
+            if key.winfo_exists():
+                key.config(wraplength=max(60, width - widest - SPACE["md"] - 4))
 
 
 # ── Dibujo del recorte por capa (sin tkinter) ────────────────────────────────
