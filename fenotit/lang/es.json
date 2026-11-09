@@ -150,7 +150,7 @@
   "corr.color.place_ok": "Lugar de la tarjeta guardado.",
   "corr.color.ref_missing": "Falta la foto de referencia: abre la foto que quieres usar y toca «Usar la foto actual».",
   "corr.color.ref_ok": "Foto de referencia: {name}",
-  "corr.color.ref_photo": "Una foto de referencia (todas como esa foto)",
+  "corr.color.ref_photo": "Una foto de referencia",
   "corr.color.ref_values": "Los colores de la tarjeta (de la marca)",
   "corr.color.short": "Para que los colores se puedan comparar entre fotos, días y equipos",
   "corr.color.towards": "Corregir hacia",
@@ -869,5 +869,11 @@
   "minfo.package": "Modelo de FenotIT",
   "minfo.shared": "Modelo guardado en:\n{path}",
   "minfo.type": "Tipo",
-  "minfo.format": "Formato"
+  "minfo.format": "Formato",
+  "msg.unreadable_summary": "No se pudieron leer {n} archivos ({names}). Puede que estén dañados o que no sean imágenes.",
+  "corr.color.incomplete": "La tarjeta no está entera en la foto: se ven {n} de {total} cuadritos. Toma la foto con la tarjeta completa.",
+  "corr.color.no_fit": "No se pudo calcular la corrección con estos cuadritos. Revisa que la tarjeta esté bien iluminada y sin reflejos.",
+  "corr.color.incomplete_short": "La tarjeta no está entera en la foto.",
+  "missing.meta_title": "Tabla de datos no encontrada",
+  "missing.meta_msg": "No se encontró la tabla de datos «{name}». Sin ella, sus columnas no aparecen en la tabla ni en la exportación. ¿Buscarla?"
 }

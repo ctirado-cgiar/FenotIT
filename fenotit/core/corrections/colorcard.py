@@ -154,15 +154,22 @@ def detect(image: np.ndarray, rows: int = 4, cols: int = 6) -> Card | None:
 
 
 def measure(image: np.ndarray, card: Card, frac: float = 0.4) -> np.ndarray:
-    """Color medio (RGB 0-1) del centro de cada cuadrito: (filas, cols, 3)."""
+    """Color medio (RGB 0-1) del centro de cada cuadrito: (filas, cols, 3). Un cuadrito
+    que no queda entero dentro de la foto (tarjeta cortada por el borde) queda en NaN."""
     r = max(1, int(card.chip * frac / 2))
-    out = np.zeros((card.rows, card.cols, 3))
+    h, w = image.shape[:2]
+    out = np.full((card.rows, card.cols, 3), np.nan)
     for j in range(card.rows):
         for i in range(card.cols):
             x, y = card.centers[j, i].round().astype(int)
-            patch = image[max(0, y - r):y + r + 1, max(0, x - r):x + r + 1]
-            out[j, i] = patch.reshape(-1, 3).mean(0)[::-1] / 255.0 if patch.size else np.nan
+            if r <= x < w - r and r <= y < h - r:
+                out[j, i] = image[y - r:y + r + 1, x - r:x + r + 1].reshape(-1, 3).mean(0)[::-1] / 255.0
     return out
+
+
+def visible(measured: np.ndarray) -> int:
+    """Cuadritos medidos (dentro de la foto)."""
+    return int(np.isfinite(measured.reshape(-1, 3)).all(1).sum())
 
 
 def _affine(src: np.ndarray, dst: np.ndarray) -> np.ndarray:
@@ -171,9 +178,11 @@ def _affine(src: np.ndarray, dst: np.ndarray) -> np.ndarray:
 
 
 def _fit_error(src, dst) -> float:
-    A = _affine(src, dst)
-    S = np.hstack([src.reshape(-1, 3), np.ones((src.size // 3, 1))])
-    return float(np.abs(S @ A - dst.reshape(-1, 3)).mean())
+    src, dst = src.reshape(-1, 3), dst.reshape(-1, 3)
+    ok = np.isfinite(src).all(1)
+    A = _affine(src[ok], dst[ok])
+    S = np.hstack([src[ok], np.ones((int(ok.sum()), 1))])
+    return float(np.abs(S @ A - dst[ok]).mean())
 
 
 def orient(measured: np.ndarray, reference: np.ndarray) -> tuple[np.ndarray, int]:
@@ -185,6 +194,9 @@ def orient(measured: np.ndarray, reference: np.ndarray) -> tuple[np.ndarray, int
         raise ValueError(f"card {measured.shape[0]}x{measured.shape[1]} does not match reference "
                          f"{reference.shape[0]}x{reference.shape[1]}")
     return min(options, key=lambda o: _fit_error(o[0], reference))
+
+
+MAX_MISSING = 4                                    # cuadritos que pueden faltar (fuera de la foto)
 
 
 def matrix(src: np.ndarray, reference: np.ndarray, max_drop: int = 4) -> tuple[np.ndarray, list[int]]:
@@ -224,6 +236,9 @@ def correct(image: np.ndarray, card: Card | None = None, reference: np.ndarray =
     if card is None:
         return None, {"error": "card not found"}
     measured = measure(image, card)
+    if visible(measured) < card.rows * card.cols - MAX_MISSING:
+        return None, {"error": "card incomplete", "card": card, "visible": visible(measured),
+                      "chips": card.rows * card.cols}
     src, turns = orient(measured, reference)
     A, dropped = matrix(src, reference)
     fixed = apply_matrix(image, A)
@@ -307,6 +322,8 @@ def measure_reference(image: np.ndarray, cfg) -> list:
     if card is None:
         raise ValueError("card not found")
     m = measure(image, card)
+    if visible(m) < m.shape[0] * m.shape[1]:
+        raise ValueError("card incomplete")
     if cfg.card == "colorchecker24":
         m, _ = orient(m, COLORCHECKER24)
     elif m.shape[:2] != (cfg.rows, cfg.cols):
