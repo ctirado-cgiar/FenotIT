@@ -135,7 +135,8 @@ def main(with_sam=False):
     root.report_callback_exception = lambda *exc: ERRORS.append("".join(traceback.format_exception(*exc)))
     w = MainWindow(root)
     flow = Flow(root)
-    objects, image_color = list(ANALYSES)[:2]
+    by_key = {ANALYSES[n].func.__module__.rsplit(".", 1)[-1]: n for n in ANALYSES}
+    objects, image_color, cover = by_key["objects"], by_key["image_color"], by_key["cover"]
     out = Path(tempfile.mkdtemp())
 
     def result(name=objects, path=None):
@@ -259,6 +260,22 @@ def main(with_sam=False):
     def _():
         w._open_analysis(image_color)
         w._run_analysis(False)
+
+    @flow.step("clasificar áreas", wait=lambda: result(cover) is not None, timeout=120)
+    def _():
+        w._open_analysis(cover)
+        if w._right_tab != "seg" or w._seg_method != "classifier":
+            ERRORS.append(f"clasificar áreas: abrió {w._right_tab} con el método {w._seg_method}")
+        w._on_strokes_change([{"c": 0, "w": 0.02, "pts": [[0.1, 0.3], [0.1, 0.7], [0.3, 0.7]]},
+                              {"c": 1, "w": 0.02, "pts": [[0.82, 0.05], [0.9, 0.08], [0.95, 0.1]]}])
+        w._run_analysis(False)
+
+    @flow.step("volver a elegir análisis")
+    def _():
+        w._choose_analysis()
+        if w._right_tab != "choose":
+            ERRORS.append("Cambiar análisis no muestra las tarjetas")
+        w._open_analysis(objects)
 
     if with_sam:
         @flow.step("MobileSAM", wait=lambda: "…" not in w.sam_status.get() and w._sam_labels() is not None,

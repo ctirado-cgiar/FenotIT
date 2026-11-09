@@ -163,38 +163,65 @@ class LayoutMixin:
         self._forget_selection()
 
     def _build_steps(self, rf):
-        """Dos pasos en pestañas: 1 Segmentar (método, ajustes, afinar máscara) y
-        2 Analizar (tipo de análisis y sus mediciones)."""
+        """Panel del análisis: sin análisis elegido, las tarjetas para elegirlo; con uno
+        elegido, su nombre (con Cambiar) y las pestañas de sus pasos."""
         bg = COLORS["bg_panel"]
-        tabs = tk.Frame(rf, bg=bg)
-        tabs.pack(fill=tk.X, padx=(SPACE["xxl"], SPACE["md"]), pady=(SPACE["sm"], 0))          # deja sitio al ícono del panel
+        head = self._an_head = tk.Frame(rf, bg=bg)
+        self._an_title = tk.Label(head, bg=bg, fg=COLORS["text"], font=FONTS["title"], anchor="w")
+        self._an_title.pack(side=tk.LEFT)
+        button(head, text=t("rtab.change"), command=lambda: self._select_right_tab("choose"), kind="link",
+               size="small", bg=bg).pack(side=tk.RIGHT)
+        self._rtabs = tk.Frame(rf, bg=bg)
         self._rtab_labels = {}
-        for key, text in (("seg", t("rtab.segment")), ("analysis", t("rtab.analyze"))):
-            lbl = tk.Label(tabs, text=text, bg=bg, font=FONTS["body_bold"], cursor="hand2", padx=SPACE["lg"], pady=SPACE["sm"])
-            lbl.pack(side=tk.LEFT)
-            lbl.bind("<Button-1>", lambda e, k=key: self._select_right_tab(k))
-            self._rtab_labels[key] = lbl
-        divider(rf).pack(fill=tk.X)
+        self._rtab_line = divider(rf)
         self._rtab_body = tk.Frame(rf, bg=bg)
         self._rtab_body.pack(fill=tk.BOTH, expand=True)
+        self._choose_tab = tk.Frame(self._rtab_body, bg=bg)
+        tk.Label(self._choose_tab, text=t("rtab.choose"), bg=bg, fg=COLORS["section_text"], font=FONTS["section"],
+                 anchor="w").pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["md"], SPACE["xs"]))
+        self._analysis_cards = tk.Frame(self._choose_tab, bg=bg)
+        self._analysis_cards.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["xs"], SPACE["md"]))
         self._seg_tab = tk.Frame(self._rtab_body, bg=bg)
         self._an_tab = tk.Frame(self._rtab_body, bg=bg)
         self._build_seg_tab(self._seg_tab)
-        self._analysis_cards = tk.Frame(self._an_tab, bg=bg)
-        self._analysis_cards.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["md"], SPACE["md"]))
         self.config_container = tk.Frame(self._an_tab, bg=bg)
         self.config_container.pack(fill=tk.BOTH, expand=True, padx=SPACE["sm"])
-        self._right_tab = "seg"
-        self._select_right_tab("seg")
+        self._right_tab = "choose"
+        self._select_right_tab("choose")
+
+    def _render_step_tabs(self, steps: list[tuple[str, str]]):
+        """Pestañas de los pasos del análisis elegido: (clave, nombre); con un solo paso, sin
+        pestañas."""
+        bg = COLORS["bg_panel"]
+        for w in self._rtabs.winfo_children():
+            w.destroy()
+        self._rtab_labels = {}
+        for key, text in steps if len(steps) > 1 else ():
+            lbl = tk.Label(self._rtabs, text=text, bg=bg, font=FONTS["body_bold"], cursor="hand2",
+                           padx=SPACE["lg"], pady=SPACE["sm"])
+            lbl.pack(side=tk.LEFT)
+            lbl.bind("<Button-1>", lambda e, k=key: self._select_right_tab(k))
+            self._rtab_labels[key] = lbl
 
     def _select_right_tab(self, key: str):
+        """Muestra en el panel derecho las tarjetas («choose») o un paso («seg», «analysis»)."""
+        if key != "choose" and not getattr(self, "_analysis_chosen", False):
+            key = "choose"
         self._right_tab = key
+        for w in (self._an_head, self._rtabs, self._rtab_line, self._choose_tab, self._seg_tab, self._an_tab):
+            w.pack_forget()
+        self._rtab_body.pack_forget()
+        if key != "choose":
+            self._an_head.pack(fill=tk.X, padx=(SPACE["xxl"], SPACE["md"]), pady=(SPACE["sm"], 0))
+            if self._rtab_labels:
+                self._rtabs.pack(fill=tk.X, padx=SPACE["md"])
+            self._rtab_line.pack(fill=tk.X)
+        self._rtab_body.pack(fill=tk.BOTH, expand=True, pady=(SPACE["lg"] if key == "choose" else 0, 0))
+        {"choose": self._choose_tab, "seg": self._seg_tab, "analysis": self._an_tab}[key].pack(fill=tk.BOTH, expand=True)
         for k, lbl in self._rtab_labels.items():
             on = k == key
             lbl.config(fg=COLORS["accent"] if on else COLORS["text_muted"],
                        bg=COLORS["bg_card"] if on else COLORS["bg_panel"])
-        (self._an_tab if key == "seg" else self._seg_tab).pack_forget()
-        (self._seg_tab if key == "seg" else self._an_tab).pack(fill=tk.BOTH, expand=True)
         self._update_seg_tab()
         self._update_stroke_tool()
         if hasattr(self, "zoom_ctrl"):

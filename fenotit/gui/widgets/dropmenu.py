@@ -15,6 +15,8 @@ class Sub:
 
 
 class DropMenu(tk.Frame):
+    """Botón de la barra superior. `items` = lista de elementos del menú, o una función que
+    se ejecuta al tocarlo (sin menú)."""
     def __init__(self, parent, text, items, colors, arrow_only=False, **kw):
         bg = COLORS["bg_card"] if arrow_only else colors["bg_topbar"]
         super().__init__(parent, bg=bg, **kw)
@@ -33,6 +35,9 @@ class DropMenu(tk.Frame):
         self.btn.pack()
 
     def _toggle(self):
+        if callable(self.items):                    # botón sin menú: ejecuta la acción
+            self.items()
+            return
         if self._popup and self._popup.winfo_exists():
             self._close()
         else:

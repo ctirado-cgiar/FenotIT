@@ -67,6 +67,13 @@ class AnalysisDescriptor:
     # Bloque de segmentación que usa ("threshold" = umbral/Otsu compartido; None = no segmenta,
     # p. ej. color de la foto completa). Un modelo de IA tendría su propio bloque.
     segmentation: str | None = "threshold"
+    # Pasos del panel derecho, en orden: "segment" (método de segmentación y afinar máscara)
+    # y "params" (parámetros del análisis).
+    steps: tuple[str, ...] = ("segment", "params")
+    # Métodos de segmentación que admite (None = todos)
+    seg_methods: tuple[str, ...] | None = None
+    # Usa «Afinar máscara» (operaciones sobre la máscara de objetos)
+    refine: bool = True
 
 
 # ── Registro global ───────────────────────────────────────────────────────────
@@ -82,6 +89,9 @@ def register(
     params_schema: list[dict] | None = None,
     icon: str = "chart-bar",
     segmentation: str | None = "threshold",
+    steps: tuple[str, ...] | None = None,
+    seg_methods: tuple[str, ...] | None = None,
+    refine: bool = True,
 ) -> AnalysisDescriptor:
     """
     Registra un módulo de análisis.
@@ -109,6 +119,9 @@ def register(
         params_schema=params_schema or [],
         icon=icon,
         segmentation=segmentation,
+        steps=tuple(steps) if steps else (("segment", "params") if segmentation else ("params",)),
+        seg_methods=tuple(seg_methods) if seg_methods else None,
+        refine=refine,
     )
     ANALYSES[name] = descriptor
     _log.debug("Análisis registrado: %s", name)
@@ -125,7 +138,7 @@ def list_names() -> list[str]:
 
 # ── Módulos de análisis: cada uno se registra con register() al importarse ─────
 # Orden = orden en el menú Análisis.
-ANALYSIS_MODULES = ("objects", "distances", "image_color")
+ANALYSIS_MODULES = ("objects", "distances", "cover", "image_color")
 
 
 def _load_modules():

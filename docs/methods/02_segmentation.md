@@ -88,3 +88,17 @@ CIELAB, mean gradient of L*, log of the area as a fraction of the image, compact
 solidity, extent, elongation and contact with the image border. Unused regions are not
 analyzed. With two or more categories, each object reports its category and each image
 reports the number, area and share of objects in each category.
+
+## 2.8 Area classification
+
+The *Classify areas* analysis assigns every pixel of the analysis area to one of the classes
+the user marks with brush strokes, using the same pixel classifier as segmentation by
+examples (Section 2.2), and reports the share and area of each class without separating
+objects. For class $c$ with $n_c$ pixels inside the analysis area $R$ (excluded zones
+removed),
+
+$$p_c = 100\,\frac{n_c}{\sum_k n_k}, \qquad A_c = n_c\,s^2,$$
+
+where $s$ is the scale in length units per pixel ($s = 1$ without a scale, giving px²).
+The output has one row per class (`class`, `pct`, `area_<unit>2`) and, per image,
+`<class>_pct`, `<class>_area_<unit>2` and `analyzed_area_<unit>2`.

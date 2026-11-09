@@ -69,7 +69,7 @@ class ImagesMixin:
         self._show_panel(self._panel_of("images"), True)
         if first:                                  # paso 1 a la vista: segmentar
             self._show_panel(self._panel_of("steps"), True)
-            self._select_right_tab("seg" if not getattr(self, "_analysis_chosen", False) else self._right_tab)
+            self._select_right_tab("choose" if not getattr(self, "_analysis_chosen", False) else self._right_tab)
         self._update_start()
         self._load_single(new[0])
         self._sync_listbox()

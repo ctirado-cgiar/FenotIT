@@ -213,9 +213,26 @@ class SegmentMixin:
         from fenotit.gui.widgets.segment import RefineList
         self.refine_list = RefineList(rf, self._on_refine_change)
         self.refine_list.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["xs"], SPACE["md"]))
-        self._next_btn = button(rf, text=t("seg.next"), command=lambda: self._select_right_tab("analysis"), kind="primary")
-        self._next_btn.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["md"], SPACE["md"]))
+        self._next_btn = button(rf, text="", command=lambda: self._select_right_tab("analysis"), kind="primary")
+        self._next_label = None
+        self._shown_methods = None
         self._paint_method_btns()
+
+    def _set_next_step(self, label: str | None):
+        """Botón al pie de Segmentar con el nombre del paso siguiente (None = no hay)."""
+        self._next_label = label
+        if label:
+            self._next_btn.config(text=t("seg.next_step", step=label))
+        self._update_seg_tab()
+
+    def _show_method_buttons(self, allowed: tuple[str, ...] | None):
+        """Solo los métodos de segmentación que admite el análisis; con uno solo, sin botones."""
+        self._shown_methods = [k for k in self._method_btns if not allowed or k in allowed]
+        for k, b in self._method_btns.items():
+            b.pack_forget()
+            if k in self._shown_methods:
+                b.pack(side=tk.LEFT, padx=(0, SPACE["sm"]))
+        self._update_seg_tab()
 
     def _update_seg_tab(self):
         """Si el análisis elegido no segmenta (Color de imagen), la pestaña lo dice."""
@@ -226,13 +243,16 @@ class SegmentMixin:
             self._seg_note.pack_forget()
             for w in widgets:
                 w.pack_forget()
-            self._seg_head.pack(fill=tk.X)
-            self._seg_bar.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["xs"], SPACE["sm"]))
+            if len(self._shown_methods or self._method_btns) > 1:
+                self._seg_head.pack(fill=tk.X)
+                self._seg_bar.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["xs"], SPACE["sm"]))
             box = {"classifier": self._cls_box, "model": self._model_box}.get(self._seg_method, self._thr_box)
             box.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["xs"], SPACE["sm"]))
-            self._refine_head.pack(fill=tk.X)
-            self.refine_list.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["xs"], SPACE["md"]))
-            self._next_btn.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["md"], SPACE["md"]))
+            if self._analysis_refines():
+                self._refine_head.pack(fill=tk.X)
+                self.refine_list.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["xs"], SPACE["md"]))
+            if self._next_label:
+                self._next_btn.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["md"], SPACE["md"]))
         else:
             for w in widgets:
                 w.pack_forget()
@@ -244,6 +264,13 @@ class SegmentMixin:
         if not getattr(self, "_analysis_chosen", False) or name not in ANALYSES:
             return True
         return ANALYSES[name].segmentation is not None
+
+    def _analysis_refines(self) -> bool:
+        """El análisis elegido usa «Afinar máscara» (o aún no hay análisis elegido)."""
+        name = self._selected_analysis()
+        if not getattr(self, "_analysis_chosen", False) or name not in ANALYSES:
+            return True
+        return ANALYSES[name].refine
 
     def _paint_method_btns(self):
         for k, b in self._method_btns.items():
