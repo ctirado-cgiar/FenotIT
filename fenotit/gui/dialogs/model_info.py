@@ -13,11 +13,12 @@ REQUIRED = ("name", "description", "owner", "license")
 
 
 class ModelInfoDialog(BaseDialog):
-    """`on_save(cambios)` guarda; devuelve None o el texto de un error. Sin `on_save`, solo lectura."""
+    """`on_save(cambios)` guarda; devuelve None o el texto de un error. Sin `on_save`, solo
+    lectura. `on_share(ventana)` guarda el modelo como paquete para otro equipo."""
     W, H = 520, 640
 
-    def __init__(self, parent, model: dict, on_save=None):
-        self._model, self._on_save = model, on_save
+    def __init__(self, parent, model: dict, on_save=None, on_share=None):
+        self._model, self._on_save, self._on_share = model, on_save, on_share
         super().__init__(parent, t("minfo.title"))
         bg = COLORS["bg_card"]
         wrap = self.W - 70
@@ -31,7 +32,7 @@ class ModelInfoDialog(BaseDialog):
         tk.Label(self.body, text=" ".join(facts), bg=bg, fg=COLORS["text_muted"], font=FONTS["small"],
                  justify="left", wraplength=wrap, anchor="w").pack(fill=tk.X, pady=(0, SPACE["md"]))
         self._widgets = {}
-        for key, lines in FIELDS + ((("classes", 5),) if model["output"] == "boxes" else ()):
+        for key, lines in FIELDS + ((("classes", 4),) if model["output"] == "boxes" else ()):
             mark = " *" if on_save and key in REQUIRED else ""
             tk.Label(self.body, text=t(f"minfo.{key}") + mark, bg=bg, fg=COLORS["text"], font=FONTS["small_bold"],
                      anchor="w").pack(fill=tk.X, pady=(SPACE["sm"], 0))
@@ -51,8 +52,14 @@ class ModelInfoDialog(BaseDialog):
         self._error = tk.Label(self.body, text="", bg=bg, fg=COLORS["warning_text"], font=FONTS["small"],
                                anchor="w", justify="left", wraplength=wrap)
         self._error.pack(fill=tk.X, pady=(SPACE["sm"], 0))
+        self.update_idletasks()                           # alto según el contenido, dentro de la pantalla
+        h = min(self.winfo_reqheight(), self.winfo_screenheight() - 80)
+        self.geometry(f"{self.W}x{h}+{(self.winfo_screenwidth() - self.W) // 2}+{max(0, (self.winfo_screenheight() - h) // 2 - 20)}")
 
     def _build_buttons(self, parent):
+        if self._on_share:
+            button(parent, text=t("minfo.share"), command=lambda: self._on_share(self), kind="secondary").pack(
+                side=tk.LEFT)
         if self._on_save:
             button(parent, text=t("common.save"), command=self._save, kind="primary").pack(side=tk.RIGHT)
             button(parent, text=t("common.cancel"), command=self.destroy, kind="quiet").pack(

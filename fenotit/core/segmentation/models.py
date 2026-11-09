@@ -15,7 +15,8 @@ agrega el usuario (carpeta de datos `models/`). Cada modelo es una carpeta con `
     added: 2026-11-09        # fecha en que se agregó (modelos del usuario)
     file: …                  # archivo original que agregó el usuario
 
-`add(ruta)` copia un detector (.onnx, o .pt convertido a ONNX) a la carpeta de datos y
+`add(ruta)` guarda un detector (.onnx, .pt convertido a ONNX o paquete .fenotitmodel) en la
+carpeta de datos, cifrado para que solo lo abra FenotIT (core/segmentation/vault.py), y
 escribe su `model.yaml` con lo que se lee del archivo (formato, clases, tamaño de entrada);
 `update` cambia el nombre, las clases o la ficha (descripción, propietario, licencia,
 fuente, cita). Los modelos agregados quedan en la carpeta de datos y siguen disponibles en
@@ -30,6 +31,7 @@ from pathlib import Path
 import yaml
 
 OUTPUTS = ("masks", "boxes")
+PACKAGE = ".fenotitmodel"                          # paquete para compartir un modelo entre equipos con FenotIT
 INFO = ("description", "owner", "license", "source", "citation")   # ficha del modelo (propiedad intelectual)
 
 
@@ -117,6 +119,8 @@ def add(path: str, name: str | None = None, classes: list[str] | None = None) ->
     import tempfile
     from fenotit.core.segmentation import convert, detect
     src = original = Path(path)
+    if src.suffix.lower() == PACKAGE:
+        return import_package(str(src))
     converted = {}
     if src.suffix.lower() in (".pt", ".pth"):
         if not convert.tools():
@@ -140,16 +144,66 @@ def add(path: str, name: str | None = None, classes: list[str] | None = None) ->
         folder = user_root() / f"{_slug(title)}-{k}"
         k += 1
     folder.mkdir(parents=True)
-    shutil.copy2(src, folder / "model.onnx")
+    from fenotit.core.segmentation import vault
+    (folder / "model.fnt").write_bytes(vault.lock(src.read_bytes()))     # solo lo abre FenotIT
     import datetime
     found = info.get("meta") or {}
-    meta = {"name": title, "output": "boxes", "format": info["format"], "files": ["model.onnx"],
+    meta = {"name": title, "output": "boxes", "format": info["format"], "files": ["model.fnt"],
             "classes": names, "input": info["input"],
             "description": found.get("description", ""), "owner": found.get("author", ""),
             "license": found.get("license", ""), "source": found.get("docs", ""), "citation": "",
             "added": datetime.date.today().isoformat(), "file": str(original),
             "tool": converted.get("tool", "")}
     (folder / "model.yaml").write_text(yaml.safe_dump(meta, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    if converted:                                     # el .onnx convertido no queda en el disco
+        shutil.rmtree(src.parent, ignore_errors=True)
+    return _read(folder)
+
+
+def export_package(model_id: str, dest: str) -> str:
+    """Guarda un modelo agregado por el usuario como paquete `.fenotitmodel` (su model.yaml y
+    el modelo cifrado) para usarlo en otro equipo con FenotIT."""
+    import zipfile
+    folder = user_root() / model_id
+    out = Path(dest)
+    if out.suffix.lower() != PACKAGE:
+        out = out.with_name(out.name + PACKAGE)
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_STORED) as z:
+        for f in ["model.yaml"] + list((_read(folder) or {}).get("files") or []):
+            z.write(folder / f, f)
+    return str(out)
+
+
+def import_package(path: str) -> dict:
+    """Agrega un modelo desde un paquete `.fenotitmodel`. ValueError("package") si no es un
+    paquete de FenotIT o si se cifró con otra clave."""
+    import zipfile
+    from fenotit.core.segmentation import vault
+    try:
+        z = zipfile.ZipFile(path)
+    except (zipfile.BadZipFile, OSError):
+        raise ValueError("package")
+    with z:
+        names = set(z.namelist())
+        if "model.yaml" not in names:
+            raise ValueError("package")
+        meta = yaml.safe_load(z.read("model.yaml")) or {}
+        files = [str(f) for f in meta.get("files") or []]
+        if not files or any(f not in names or "/" in f or "\\" in f or f.startswith(".") for f in files):
+            raise ValueError("package")
+        try:
+            vault.unlock(z.read(files[0]))
+        except ValueError:
+            raise ValueError("package")
+        title = str(meta.get("name") or Path(path).stem)
+        folder = user_root() / _slug(title)
+        k = 2
+        while folder.exists():
+            folder = user_root() / f"{_slug(title)}-{k}"
+            k += 1
+        folder.mkdir(parents=True)
+        for f in ["model.yaml"] + files:
+            (folder / f).write_bytes(z.read(f))
     return _read(folder)
 
 

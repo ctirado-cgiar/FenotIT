@@ -310,6 +310,9 @@ def main(with_sam=False):
         w._open_model_info("mobilesam")                     # de la aplicación: solo lectura
         root.update()
         _close_windows(root)
+        w._open_converter()                                 # conversor de modelos (sin instalar)
+        root.update()
+        _close_windows(root)
 
     @flow.step("volver a MobileSAM")
     def _():
