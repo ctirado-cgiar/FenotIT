@@ -22,15 +22,16 @@ class ModelInfoDialog(BaseDialog):
         super().__init__(parent, t("minfo.title"))
         bg = COLORS["bg_card"]
         wrap = self.W - 70
-        if on_save:
-            tk.Label(self.body, text=t("minfo.intro"), bg=bg, fg=COLORS["text_muted"], font=FONTS["small"],
-                     justify="left", wraplength=wrap, anchor="w").pack(fill=tk.X, pady=(0, SPACE["sm"]))
-        facts = [t(f"model.out.{model['output']}", n=len(model["classes"])) + "."]
-        if model.get("added"):
-            facts.append(t("minfo.added", date=model["added"])
-                         + (f" ({t('minfo.converted', tool=model['tool'])})" if model.get("tool") else "") + ".")
-        tk.Label(self.body, text=" ".join(facts), bg=bg, fg=COLORS["text_muted"], font=FONTS["small"],
-                 justify="left", wraplength=wrap, anchor="w").pack(fill=tk.X, pady=(0, SPACE["md"]))
+        facts = [("type", t(f"model.out.{model['output']}", n=len(model["classes"]))),
+                 ("format", model.get("format", "").upper()), ("added", model.get("added", "")),
+                 ("converted", model.get("tool", "").capitalize())]
+        grid = tk.Frame(self.body, bg=bg)
+        grid.pack(fill=tk.X, pady=(0, SPACE["sm"]))
+        for r, (key, value) in enumerate((k, v) for k, v in facts if v):
+            tk.Label(grid, text=t(f"minfo.{key}"), bg=bg, fg=COLORS["text_muted"], font=FONTS["small"],
+                     anchor="w").grid(row=r, column=0, sticky="w", padx=(0, SPACE["lg"]))
+            tk.Label(grid, text=value, bg=bg, fg=COLORS["text"], font=FONTS["small"], anchor="w").grid(
+                row=r, column=1, sticky="w")
         self._widgets = {}
         for key, lines in FIELDS + ((("classes", 4),) if model["output"] == "boxes" else ()):
             mark = " *" if on_save and key in REQUIRED else ""
@@ -49,6 +50,9 @@ class ModelInfoDialog(BaseDialog):
             tk.Label(self.body, text=t("minfo.classes_help", n=len(model["classes"])), bg=bg,
                      fg=COLORS["text_muted"], font=FONTS["small"], justify="left", wraplength=wrap,
                      anchor="w").pack(fill=tk.X)
+        if on_save:
+            tk.Label(self.body, text=t("minfo.intro"), bg=bg, fg=COLORS["text_muted"], font=FONTS["small"],
+                     justify="left", wraplength=wrap, anchor="w").pack(fill=tk.X, pady=(SPACE["md"], 0))
         self._error = tk.Label(self.body, text="", bg=bg, fg=COLORS["warning_text"], font=FONTS["small"],
                                anchor="w", justify="left", wraplength=wrap)
         self._error.pack(fill=tk.X, pady=(SPACE["sm"], 0))

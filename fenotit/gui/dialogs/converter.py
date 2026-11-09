@@ -15,7 +15,7 @@ _log = log.get("gui.converter")
 
 class ConverterDialog(BaseDialog):
     """`on_ready()` se llama cuando el conversor queda instalado."""
-    W, H = 500, 400
+    W, H = 500, 330
 
     def __init__(self, parent, on_ready=None):
         self._on_ready = on_ready
@@ -51,7 +51,7 @@ class ConverterDialog(BaseDialog):
             self.state.set(t("conv.installing"))
             self._main.config(text=t("common.cancel"))
         elif cs.installed():
-            self.state.set(t("conv.ready", mb=f"{cs.size_mb():,.0f}"))
+            self.state.set(t("conv.ready", gb=f"{cs.size_mb() / 1000:.1f}"))
             self._main.config(text=t("conv.uninstall"))
         else:
             self.state.set(t("conv.not_installed"))
