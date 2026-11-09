@@ -17,10 +17,11 @@ from fenotit.i18n import t
 
 
 class CalibrationMixin:
-    def _open_corrections(self, tab: str = "distortion"):
-        CorrectionsDialog(self.root, self.project.corrections, self.batch_paths, self.current_image_path,
-                          aruco_scale=self.project.scale.source == "aruco",
-                          on_apply=self._on_corrections_applied, tab=tab)
+    def _open_corrections(self, kind: str = "distortion"):
+        """Abre la ventana de una corrección (distortion, perspective o color)."""
+        self._single(f"corr_{kind}", lambda: CorrectionsDialog(
+            self.root, self.project.corrections, self.batch_paths, self.current_image_path,
+            aruco_scale=self.project.scale.source == "aruco", on_apply=self._on_corrections_applied, kind=kind))
 
     def _on_corrections_applied(self, corr, use_aruco_scale: bool):
         self._remember("undo.corrections")
