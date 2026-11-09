@@ -9,8 +9,9 @@ cuando están instaladas en el mismo Python que FenotIT:
 La conversión corre en un proceso aparte (`python convert.py modelo.pt carpeta`, este archivo
 solo usa la biblioteca estándar y la herramienta), que imprime en la última línea un JSON con
 el .onnx y las clases. Las herramientas se instalan aparte (`pip install ultralytics` o
-`pip install rfdetr`). El Python que convierte es el de FenotIT o el indicado en la
-variable de entorno FENOTIT_CONVERT_PYTHON o en la configuración (`convert_python`)."""
+`pip install rfdetr`). El Python que convierte es, en orden: el de la variable de entorno
+FENOTIT_CONVERT_PYTHON, el de la configuración (`convert_python`), el conversor instalado
+desde FenotIT (core/segmentation/converter_setup.py) o el de FenotIT mismo."""
 from __future__ import annotations
 
 import importlib.util
@@ -24,8 +25,7 @@ TOOLS = ("ultralytics", "rfdetr")
 
 
 def python() -> str | None:
-    """El Python que convierte: FENOTIT_CONVERT_PYTHON, `convert_python` de la configuración
-    o el de FenotIT (None en la aplicación instalada sin otro Python indicado)."""
+    """El Python que convierte (None si no hay ninguno con qué convertir)."""
     own = os.environ.get("FENOTIT_CONVERT_PYTHON")
     if not own:
         try:
@@ -35,7 +35,21 @@ def python() -> str | None:
             own = None
     if own:
         return own
+    try:
+        from fenotit.core.segmentation import converter_setup
+        if converter_setup.installed():
+            return str(converter_setup.env_python())
+    except Exception:
+        pass
     return None if getattr(sys, "frozen", False) else sys.executable
+
+
+def _script() -> str:
+    """Este archivo como script (en la aplicación instalada va como archivo de datos)."""
+    here = Path(__file__)
+    if here.suffix == ".py" and here.exists():
+        return str(here)
+    return str(Path(getattr(sys, "_MEIPASS", "")) / "fenotit" / "core" / "segmentation" / "convert.py")
 
 
 _FOUND: dict = {}
@@ -48,7 +62,7 @@ def tools() -> list[str]:
         return []
     if py == sys.executable:
         return [name for name in TOOLS if importlib.util.find_spec(name) is not None]
-    if py not in _FOUND:
+    if py not in _FOUND or not _FOUND[py]:
         code = "import importlib.util as u;print(','.join(n for n in %r if u.find_spec(n)))" % (TOOLS,)
         try:
             out = subprocess.run([py, "-c", code], capture_output=True, text=True, timeout=60).stdout.strip()
@@ -65,7 +79,7 @@ def to_onnx(pt: str, out_dir: str, timeout: int = 1800) -> dict:
     py = python()
     if not py:
         raise RuntimeError("no Python with ultralytics or rfdetr")
-    proc = subprocess.run([py, str(Path(__file__).resolve()), str(pt), str(out_dir)],
+    proc = subprocess.run([py, _script(), str(pt), str(out_dir)],
                           capture_output=True, text=True, timeout=timeout, cwd=str(out_dir))
     lines = [ln for ln in proc.stdout.splitlines() if ln.startswith("{")]
     if not lines:

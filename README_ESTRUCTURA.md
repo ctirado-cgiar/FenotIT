@@ -77,6 +77,8 @@ FenotIT/
 │   │   │                          pipeline.py (orden y aplicación de las correcciones)
 │   │   ├── segmentation/          threshold.py · classifier.py (por ejemplos) · sam.py (MobileSAM)
 │   │   │                          models.py (modelos de IA disponibles) · detect.py (detectores de cajas)
+│   │   │                          convert.py (.pt → ONNX) · converter_setup.py (instalar el conversor)
+│   │   │                          vault.py (modelos cifrados que solo abre FenotIT)
 │   │   │                          regions.py (categorías de regiones) · refine_mask.py (afinar máscara)
 │   │   │                          __init__.py (configuración de la segmentación → piezas)
 │   │   ├── objects/               mask.py (área de análisis y limpieza) · label.py · separate.py · filter.py

@@ -38,11 +38,16 @@ class ModelMixin:
         HelpIcon(head, t("model.title"), t("model.help"), bg=bg).pack(side=tk.LEFT, padx=(SPACE["sm"], 0))
         self._model_rows = tk.Frame(outer, bg=bg)
         self._model_rows.pack(fill=tk.X, pady=(SPACE["xs"], 0))
-        add = tk.Label(outer, text="+ " + t("model.add"), bg=bg, fg=COLORS["accent"], font=small, cursor="hand2",
+        links = tk.Frame(outer, bg=bg)
+        links.pack(fill=tk.X, pady=(SPACE["xs"], SPACE["md"]))
+        add = tk.Label(links, text="+ " + t("model.add"), bg=bg, fg=COLORS["accent"], font=small, cursor="hand2",
                        disabledforeground=COLORS["text_faint"])
-        add.pack(anchor="w", pady=(SPACE["xs"], SPACE["md"]))
+        add.pack(side=tk.LEFT)
         add.bind("<Button-1>", lambda e: str(add.cget("state")) != "disabled" and self._add_model())
         self._model_add_link = add
+        conv = tk.Label(links, text=t("conv.link"), bg=bg, fg=COLORS["accent"], font=small, cursor="hand2")
+        conv.pack(side=tk.RIGHT)
+        conv.bind("<Button-1>", lambda e: self._open_converter())
         self._thumbs = {}
         box = self._sam_box = tk.Frame(outer, bg=bg)
         self._det_box = tk.Frame(outer, bg=bg)
@@ -194,31 +199,22 @@ class ModelMixin:
         from tkinter import filedialog, messagebox
         from fenotit.core.segmentation import models
         path = filedialog.askopenfilename(parent=self.root, title=t("model.add_title"),
-                                          filetypes=[(t("model.filetype"), "*.onnx *.pt *.pth"), ("*", "*")])
+                                          filetypes=[(t("model.filetype"), "*.onnx *.pt *.pth *.fenotitmodel"),
+                                                     ("*", "*")])
         if not path:
             return
         from fenotit.core.segmentation import convert
         if path.lower().endswith((".pt", ".pth")):
             if not convert.tools():
-                messagebox.showwarning(t("model.add_title"), t("model.err_pt"), parent=self.root)
+                if messagebox.askyesno(t("model.add_title"), t("conv.ask"), parent=self.root):
+                    self._open_converter(lambda: self._convert_pt(path))
                 return
-            self.sam_status.set(t("model.converting"))
-            self._model_add_link.config(state=tk.DISABLED)
-
-            def work():
-                try:
-                    m = models.add(path)
-                    self.root.after(0, lambda: self._on_model_added(m))
-                except Exception as e:
-                    _log.exception("Convertir modelo")
-                    msg = t("model.err_format") if str(e) == "format" else t("model.err_convert", error=str(e))
-                    self.root.after(0, lambda: self._on_model_failed(msg))
-            threading.Thread(target=work, daemon=True).start()
+            self._convert_pt(path)
             return
         try:
             m = models.add(path)
         except ValueError as e:
-            key = "model.err_pt" if str(e) == "pt" else "model.err_format"
+            key = {"pt": "model.err_pt", "package": "model.err_package"}.get(str(e), "model.err_format")
             messagebox.showwarning(t("model.add_title"), t(key), parent=self.root)
             return
         except Exception as e:
@@ -226,6 +222,26 @@ class ModelMixin:
             messagebox.showerror(t("model.add_title"), t("model.err_read", error=str(e)), parent=self.root)
             return
         self._on_model_added(m)
+
+    def _open_converter(self, on_ready=None):
+        from fenotit.gui.dialogs.converter import ConverterDialog
+        return self._single("converter", lambda: ConverterDialog(self.root, on_ready))
+
+    def _convert_pt(self, path: str):
+        """Convierte un .pt a ONNX en otro hilo y lo agrega."""
+        from fenotit.core.segmentation import models
+        self.sam_status.set(t("model.converting"))
+        self._model_add_link.config(state=tk.DISABLED)
+
+        def work():
+            try:
+                m = models.add(path)
+                self.root.after(0, lambda: self._on_model_added(m))
+            except Exception as e:
+                _log.exception("Convertir modelo")
+                msg = t("model.err_format") if str(e) == "format" else t("model.err_convert", error=str(e))
+                self.root.after(0, lambda: self._on_model_failed(msg))
+        threading.Thread(target=work, daemon=True).start()
 
     def _on_model_failed(self, msg: str):
         from tkinter import messagebox
@@ -264,7 +280,17 @@ class ModelMixin:
                 self._on_detector_change()
             self._render_models()
             return None
-        return self._single("model_info", lambda: ModelInfoDialog(self.root, m, save if models.is_user(m) else None))
+        def share(win):
+            from tkinter import filedialog, messagebox
+            dest = filedialog.asksaveasfilename(parent=win, title=t("minfo.share"), initialfile=m["name"],
+                                                defaultextension=models.PACKAGE,
+                                                filetypes=[(t("minfo.package"), "*" + models.PACKAGE)])
+            if dest:
+                out = models.export_package(model_id, dest)
+                messagebox.showinfo(t("minfo.share"), t("minfo.shared", path=out), parent=win)
+        user = models.is_user(m)
+        return self._single("model_info", lambda: ModelInfoDialog(self.root, m, save if user else None,
+                                                                  share if user else None))
 
     def _remove_model(self, model_id: str):
         from tkinter import messagebox

@@ -23,12 +23,21 @@ _SESSIONS: dict = {}
 
 
 def session(path: str):
+    """Sesión de ONNX Runtime del modelo; un modelo cifrado por FenotIT (vault) se descifra
+    en memoria."""
     if path not in _SESSIONS:
         import onnxruntime as ort
+        from fenotit.core.segmentation import vault
         opts = ort.SessionOptions()
         opts.log_severity_level = 3
         opts.enable_cpu_mem_arena = False
-        _SESSIONS[path] = ort.InferenceSession(path, opts, providers=["CPUExecutionProvider"])
+        with open(path, "rb") as f:
+            head = f.read(len(vault.MAGIC))
+        src = path
+        if vault.is_locked(head):
+            with open(path, "rb") as f:
+                src = vault.unlock(f.read())
+        _SESSIONS[path] = ort.InferenceSession(src, opts, providers=["CPUExecutionProvider"])
     return _SESSIONS[path]
 
 
