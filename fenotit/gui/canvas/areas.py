@@ -110,13 +110,14 @@ class AreaEditor:
             pts = [self._to_canvas(*p) for p in polygon(s)]
             if s["kind"] != "exclude":
                 area_name = next(area_names)
-                if several_areas:                     # nombre del área junto a su vértice de arriba a la izquierda
+                if several_areas or s.get("name"):                     # nombre del área junto a su vértice de arriba a la izquierda
                     label_x, label_y = min(pts, key=lambda corner: corner[0] + corner[1])
                     label = c.create_text(label_x + SPACE["md"], label_y + SPACE["sm"], text=area_name, anchor="nw",
-                                          fill=COLORS["on_accent"], font=FONTS["small_bold"], tags="area")
+                                          fill=COLORS["on_accent"], font=FONTS["small_bold"],
+                                          tags=("area", f"area_name_{i}"))
                     box = c.bbox(label)
                     c.tag_lower(c.create_rectangle(box[0] - SPACE["sm"], box[1] - 1, box[2] + SPACE["sm"], box[3] + 1,
-                                                   fill=INCLUDE, outline="", tags="area"), label)
+                                                   fill=INCLUDE, outline="", tags=("area", f"area_name_{i}")), label)
             flat = [v for p in pts for v in p]
             sel = i in self.selected
             color = SELECTED if sel else (EXCLUDE if s["kind"] == "exclude" else INCLUDE)
@@ -330,7 +331,47 @@ class AreaEditor:
         self._changed()
         self.stop()
 
+    def _hit_name(self, event) -> int | None:
+        for item in self.canvas.find_overlapping(event.x - 1, event.y - 1, event.x + 1, event.y + 1):
+            for tag in self.canvas.gettags(item):
+                if tag.startswith("area_name_") and tag[10:].isdigit():
+                    return int(tag[10:])
+        return None
+
+    def _edit_name(self, index: int):
+        """Campo de texto sobre el nombre del área: Enter o salir del campo lo guarda, Esc lo deja igual."""
+        left, top, _right, _bottom = self.canvas.bbox(f"area_name_{index}")
+        shape = self.shapes[index]
+        current = roi.area_names(self.shapes)[roi.analysis_areas(self.shapes).index(shape)]
+        entry = tk.Entry(self.canvas, font=FONTS["small_bold"], width=max(8, len(current) + 2),
+                         relief="flat", highlightthickness=1, highlightbackground=INCLUDE, highlightcolor=INCLUDE)
+        entry.insert(0, current)
+        entry.select_range(0, tk.END)
+        window = self.canvas.create_window(left, top, window=entry, anchor="nw", tags="area")
+
+        def close(save: bool):
+            if not entry.winfo_exists():
+                return
+            new_name = entry.get().strip()
+            self.canvas.delete(window)
+            entry.destroy()
+            if save and new_name != current:
+                if new_name:
+                    shape["name"] = new_name
+                else:
+                    shape.pop("name", None)
+                self._changed()
+
+        entry.bind("<Return>", lambda event: close(True))
+        entry.bind("<FocusOut>", lambda event: close(True))
+        entry.bind("<Escape>", lambda event: close(False))
+        entry.focus_set()
+
     def _double(self, event):
+        named = self._hit_name(event)
+        if named is not None and named < len(self.shapes) and not self._points:
+            self._edit_name(named)
+            return "break"
         if self.mode and self.mode.endswith("_poly") and len(self._points) >= 3:
             self._finish_polygon()
 
