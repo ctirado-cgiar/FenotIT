@@ -54,3 +54,29 @@ if __name__ == "__main__":
     print("ok  test_exclude_keeps_numbers")
     test_highlight_is_only_a_mark()
     print("ok  test_highlight_is_only_a_mark")
+
+
+def test_objects_report_their_analysis_area():
+    """Con dos áreas de análisis cada objeto dice en cuál está; sin áreas no hay columna."""
+    import cv2
+    import numpy as np
+    from fenotit.core.analysis import objects
+    image = np.full((400, 600, 3), 30, np.uint8)
+    for center in ((100, 100), (200, 300), (450, 120), (500, 300), (430, 330)):
+        cv2.circle(image, center, 25, (220, 220, 220), -1)
+    params = {"segmentation": {"method": "threshold", "color_space": "BGR", "channel": 0, "min_val": 128,
+                               "max_val": 255}}
+    plain = objects.run(image, params)
+    assert all("analysis_area" not in row for row in plain.extra["tables"]["objects"])
+    assert "areas" not in plain.extra["tables"]
+
+    left = {"kind": "include", "type": "rect", "points": [[0.02, 0.02], [0.48, 0.98]]}
+    right = {"kind": "include", "type": "rect", "points": [[0.52, 0.02], [0.98, 0.98]], "name": "control"}
+    result = objects.run(image, dict(params, roi_shapes=[left, right]))
+    by_area = {}
+    for row in result.extra["tables"]["objects"]:
+        by_area.setdefault(row["analysis_area"], []).append(row["object_id"])
+    assert {name: len(ids) for name, ids in by_area.items()} == {"1": 2, "control": 3}
+    areas = {row["analysis_area"]: row for row in result.extra["tables"]["areas"]}
+    assert areas["1"]["n_objects"] == 2 and areas["control"]["n_objects"] == 3
+    assert abs(areas["1"]["area_size_px2"] - 0.46 * 600 * 0.96 * 400) < 0.02 * 600 * 400

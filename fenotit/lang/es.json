@@ -877,5 +877,7 @@
   "missing.meta_title": "Tabla de datos no encontrada",
   "missing.meta_msg": "No se encontró la tabla de datos «{name}». Sin ella, sus columnas no aparecen en la tabla ni en la exportación. ¿Buscarla?",
   "scale.err_same_points": "Los dos puntos están en el mismo lugar.",
-  "scale.err_distance": "La distancia real debe ser mayor que 0."
+  "scale.err_distance": "La distancia real debe ser mayor que 0.",
+  "col.analysis_area": "Área de análisis",
+  "col.area_size": "Tamaño del área"
 }

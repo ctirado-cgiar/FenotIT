@@ -177,7 +177,9 @@ class ScaleDialog(BaseDialog):
         self._canvas = ZoomableCanvas(b, bg=COLORS["bg_card"], highlightthickness=1,
                                       highlightbackground=COLORS["border"], cursor="crosshair",
                                       on_click=self._on_click, on_overlay=self._draw_points)
+        from fenotit.gui.canvas.loupe import Loupe
         from fenotit.gui.widgets.toolbar import zoom_bar
+        self._loupe = Loupe(self._canvas)
         zoom_bar(bar, self._canvas, COLORS)
         button(bar, text=f"✕ {t('scale.clear')}", command=self._clear_points, kind="secondary", size="small").pack(side=tk.LEFT, padx=SPACE["sm"])
         self._canvas.pack(fill=tk.BOTH, expand=True, pady=SPACE["sm"])

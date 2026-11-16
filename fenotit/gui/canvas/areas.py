@@ -13,8 +13,9 @@ from typing import Callable
 import cv2
 import numpy as np
 
+from fenotit.core import roi
 from fenotit.core.roi import polygon
-from fenotit.gui.style.theme import COLORS, FONTS
+from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 
 INCLUDE, EXCLUDE, SELECTED = COLORS["area_include"], COLORS["area_exclude"], COLORS["selection"]
 MODES = ("include_rect", "include_poly", "exclude_rect", "exclude_poly", "select")
@@ -103,8 +104,19 @@ class AreaEditor:
     def redraw(self):
         c = self.canvas
         c.delete("area")
+        area_names = iter(roi.area_names(self.shapes))
+        several_areas = len(roi.analysis_areas(self.shapes)) > 1
         for i, s in enumerate(self.shapes):
             pts = [self._to_canvas(*p) for p in polygon(s)]
+            if s["kind"] != "exclude":
+                area_name = next(area_names)
+                if several_areas:                     # nombre del área junto a su vértice de arriba a la izquierda
+                    label_x, label_y = min(pts, key=lambda corner: corner[0] + corner[1])
+                    label = c.create_text(label_x + SPACE["md"], label_y + SPACE["sm"], text=area_name, anchor="nw",
+                                          fill=COLORS["on_accent"], font=FONTS["small_bold"], tags="area")
+                    box = c.bbox(label)
+                    c.tag_lower(c.create_rectangle(box[0] - SPACE["sm"], box[1] - 1, box[2] + SPACE["sm"], box[3] + 1,
+                                                   fill=INCLUDE, outline="", tags="area"), label)
             flat = [v for p in pts for v in p]
             sel = i in self.selected
             color = SELECTED if sel else (EXCLUDE if s["kind"] == "exclude" else INCLUDE)

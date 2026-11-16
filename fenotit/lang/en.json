@@ -877,5 +877,7 @@
   "missing.meta_title": "Data table not found",
   "missing.meta_msg": "The data table «{name}» was not found. Without it, its columns do not appear in the table or the export. Look for it?",
   "scale.err_same_points": "The two points are in the same place.",
-  "scale.err_distance": "The real distance must be greater than 0."
+  "scale.err_distance": "The real distance must be greater than 0.",
+  "col.analysis_area": "Analysis area",
+  "col.area_size": "Area size"
 }

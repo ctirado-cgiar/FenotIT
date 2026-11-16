@@ -594,6 +594,16 @@ class ZoomableCanvas(tk.Canvas):
             self.bind(f"<B{b}-Motion>", self._drag)
             self.bind(f"<ButtonRelease-{b}>", lambda e, b=b: self._up(e, b))
 
+    @property
+    def image(self) -> np.ndarray | None:
+        """La imagen que se muestra (BGR)."""
+        return self._img_bgr
+
+    @property
+    def zoom(self) -> float:
+        """Píxeles de pantalla por píxel de la imagen."""
+        return self._state.zoom
+
     # coordenadas
     def _size(self):
         self.update_idletasks()

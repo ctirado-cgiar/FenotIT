@@ -150,6 +150,7 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
     chosen = [measurement for measurement, checkbox in MEASUREMENTS.items()
               if params.get(checkbox, measurement in MEASURED_BY_DEFAULT) and measurement in steps_run]
     ctx.image_row().update(_image_info(image, params))
+    _assign_areas(ctx, params.get("roi_shapes"))
     tables = _view_tables(ctx, params.get("color_mode", "object"))
     folders, view_tables, legends, overlays = {}, {}, {}, {}
     marks = ctx.extra.get("overlays", {})
@@ -195,6 +196,35 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
     result.extra["chain"] = chain
     result.extra["reused"] = list(_CACHE.hits)
     return result
+
+
+def _assign_areas(ctx, shapes: list[dict] | None) -> None:
+    """Con áreas de análisis dibujadas: columna `analysis_area` en cada objeto (el área donde
+    cae su centro; si el centro queda fuera, el área que más píxeles del objeto contiene) y
+    tabla `areas` con el número de objetos y el tamaño de cada área. Sin áreas no agrega nada."""
+    height, width = ctx.image.shape[:2]
+    numbers = areas.area_map(shapes, width, height)
+    object_rows = ctx.tables.get("objects", [])
+    if numbers is None or not object_rows:
+        return
+    names = areas.area_names(shapes)
+    counts = dict.fromkeys(names, 0)
+    for row in object_rows:
+        x = min(width - 1, max(0, int(row["centroid_x_px"])))
+        y = min(height - 1, max(0, int(row["centroid_y_px"])))
+        number = int(numbers[y, x])
+        if number == 0 and ctx.labels is not None:
+            inside = numbers[ctx.labels == row["object_id"]]
+            inside = inside[inside > 0]
+            number = int(np.bincount(inside).argmax()) if inside.size else 0
+        row["analysis_area"] = names[number - 1] if number else ""
+        if number and row.get("status", "ok") != "excluded":
+            counts[names[number - 1]] += 1
+    unit, scale = ctx.unit, ctx.scale
+    ctx.tables["areas"] = [{"analysis_area": name, "n_objects": counts[name],
+                            f"area_size_{unit}2": round(float((numbers == number).sum()) * scale * scale,
+                                                        ctx.digits(2))}
+                           for number, name in enumerate(names, 1)]
 
 
 def _has_column(row: dict, prefix: str) -> bool:
@@ -277,6 +307,8 @@ def _view_tables(ctx, color_mode: str = "object") -> dict[str, list[dict]]:
     object_rows = ctx.tables.get("objects", [])
     from_boxes = ctx.detections is not None
     count_columns = ("object_id", "class", "score") if from_boxes else ("object_id", "touching")
+    if any("analysis_area" in row for row in object_rows):
+        count_columns += ("analysis_area",)
     count_columns += ("centroid_x_px", "centroid_y_px")
     if any(row.get("status", "ok") != "ok" for row in object_rows):
         count_columns += ("status",)
@@ -290,8 +322,9 @@ def _view_tables(ctx, color_mode: str = "object") -> dict[str, list[dict]]:
         return tables
     measured = [row for row in object_rows if _has_column(row, "area_")]
     if measured:
-        size_columns = [column for column in measured[0]
-                        if column not in ("touching", "centroid_x_px", "centroid_y_px") and not column.startswith("mean_")]
+        skipped = ("object_id", "analysis_area", "touching", "centroid_x_px", "centroid_y_px")
+        size_columns = [column for column in ("object_id", "analysis_area") if column in measured[0]]
+        size_columns += [column for column in measured[0] if column not in skipped and not column.startswith("mean_")]
         tables["morphometry"] = [{column: row.get(column) for column in size_columns} for row in measured]
     if ctx.tables.get("object_shape"):
         tables["shape"] = ctx.tables["object_shape"]
