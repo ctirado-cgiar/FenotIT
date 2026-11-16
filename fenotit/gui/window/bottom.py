@@ -50,7 +50,10 @@ class BottomMixin:
             height = int(settings.get("results_height", 160))
         except (TypeError, ValueError):
             height = 160
-        body.configure(height=max(self.RESULTS_MIN_H, height))
+        self._results_height = max(self.RESULTS_MIN_H, height)      # alto elegido por el usuario
+        body.configure(height=self._results_height)
+        for resized in (body, self._canvas_row):
+            resized.bind("<Configure>", lambda event: self._fit_results_height(), add="+")
         # Preferencias → "Abrir la tabla al ejecutar": si no, solo quedan las pestañas a la vista
         self._results_visible = bool(settings.get("show_table_on_run", True))
         self._bottom_tab = "table"
@@ -138,11 +141,30 @@ class BottomMixin:
             self.root.after(50, self._refit_images)
 
     RESULTS_MIN_H = 110
+    IMAGES_MIN_H = 180           # alto que conservan siempre las imágenes
+    IMAGES_MIN_SHARE = 0.5       # parte del alto (imágenes + panel) que conservan las imágenes
+
+    def _results_height_limit(self):
+        """Mayor alto que puede tener el panel sin quitarle a las imágenes su mínimo."""
+        if not (self._results_shown and self._results_visible) or self._bottom_body.winfo_height() <= 1:
+            return None
+        shared = self._bottom_body.winfo_height() + self._canvas_row.winfo_height()
+        images = max(self.IMAGES_MIN_H, shared * self.IMAGES_MIN_SHARE)
+        return max(self.RESULTS_MIN_H, int(shared - images))
+
+    def _fit_results_height(self):
+        """Pone el panel en el alto elegido por el usuario, o en el mayor que cabe en la ventana."""
+        limit = self._results_height_limit()
+        if limit is None:
+            return
+        height = min(self._results_height, limit)
+        if height != int(self._bottom_body.cget("height")):
+            self._bottom_body.configure(height=height)
+            self.root.after(80, self._refit_images)
 
     def _results_drag_start(self, e):
         h0 = int(self._bottom_body.cget("height"))
-        top = h0 + self._canvas_row.winfo_height() - 180      # las imágenes conservan al menos 180 px
-        self._drag = (e.y_root, h0, max(top, self.RESULTS_MIN_H))
+        self._drag = (e.y_root, h0, self._results_height_limit() or h0)
 
     def _results_drag(self, e):
         y0, h0, top = self._drag
@@ -151,7 +173,8 @@ class BottomMixin:
             self._bottom_body.configure(height=h)
 
     def _results_drag_end(self, _e):
-        settings.set("results_height", int(self._bottom_body.cget("height")))
+        self._results_height = int(self._bottom_body.cget("height"))
+        settings.set("results_height", self._results_height)
         self.root.update_idletasks()
         self.root.after(80, self._refit_images)
 

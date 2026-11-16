@@ -124,6 +124,7 @@ def main(with_sam=False):
     threading.excepthook = lambda a: ERRORS.append(f"hilo: {a.exc_type.__name__}: {a.exc_value}")
     settings.set("tour_seen", True)
     settings.set("tour_work_seen", True)
+    settings.set("results_height", 2000)
     i18n.set_language("es")
     i18n.load("es")
 
@@ -164,6 +165,12 @@ def main(with_sam=False):
     @flow.step("analizar una foto", wait=lambda: result() is not None, timeout=90)
     def _():
         w._run_analysis(False)
+
+    @flow.step("el panel de resultados deja al menos la mitad del alto a las imágenes")
+    def _():
+        root.update()
+        assert w._bottom_body.winfo_height() <= w._canvas_row.winfo_height(), (
+            w._bottom_body.winfo_height(), w._canvas_row.winfo_height())
 
     @flow.step("recorrer capas")
     def _():
