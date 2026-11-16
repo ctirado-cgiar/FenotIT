@@ -875,5 +875,7 @@
   "corr.color.no_fit": "The correction could not be computed from these patches. Check that the card is evenly lit and without glare.",
   "corr.color.incomplete_short": "The card is not complete in the photo.",
   "missing.meta_title": "Data table not found",
-  "missing.meta_msg": "The data table «{name}» was not found. Without it, its columns do not appear in the table or the export. Look for it?"
+  "missing.meta_msg": "The data table «{name}» was not found. Without it, its columns do not appear in the table or the export. Look for it?",
+  "scale.err_same_points": "The two points are in the same place.",
+  "scale.err_distance": "The real distance must be greater than 0."
 }

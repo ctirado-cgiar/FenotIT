@@ -44,10 +44,6 @@ def _cell(v) -> str:
     return str(v)
 
 
-def _analysis_key(name: str) -> str:
-    return ANALYSES[name].func.__module__.rsplit(".", 1)[-1]
-
-
 def _row_objects(row: dict) -> list[int]:
     """Objetos de una fila de tabla: object_id, o los dos de un par (Distancias)."""
     ids = [row.get(k) for k in ("object_id", "object_a", "object_b")]
@@ -61,12 +57,14 @@ def _on_base(result, view) -> bool:
     return ov is not None and not ov.get("on_view")
 
 
-def _analysis_label(name: str) -> str:
-    return t(f"analysis.{_analysis_key(name)}.name", name)
+def _analysis_label(key: str) -> str:
+    """Nombre del análisis en el idioma de la interfaz."""
+    return t(f"analysis.{key}.name", key)
 
 
 def _analysis_name(key: str | None) -> str | None:
-    return next((n for n in ANALYSES if _analysis_key(n) == key), None)
+    """La clave si corresponde a un análisis registrado (un proyecto guardado puede traer otra)."""
+    return key if key in ANALYSES else None
 
 
 def _assets() -> Path:

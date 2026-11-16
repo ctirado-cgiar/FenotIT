@@ -20,7 +20,7 @@ from fenotit.core.image_io import load_image
 from fenotit.core.project import PROJECT_EXT, Project, Segmentation
 from fenotit.gui.style.components import button
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
-from fenotit.gui.window.common import _analysis_key, _on_base, _analysis_label, _analysis_name
+from fenotit.gui.window.common import _on_base, _analysis_label, _analysis_name
 from fenotit.i18n import t
 
 
@@ -140,7 +140,7 @@ class ProjectMixin:
             values = panel.get_values(warn=False)
             if self._has_area_units():
                 values["_area_unit"] = self._panel_area_unit
-            self.project.params[_analysis_key(self.active_analysis)] = values
+            self.project.params[self.active_analysis] = values
 
     def _collect_state(self) -> dict:
         self._store_panel_params()
@@ -152,7 +152,7 @@ class ProjectMixin:
 
     def _update_title(self):
         mark = " *" if self._is_dirty() else ""
-        self.root.title(f"{self.project.name}{mark} — {APP_NAME}")
+        self.root.title(f"{self.project.name or t('project.untitled')}{mark} — {APP_NAME}")
         self.root.after(1000, self._update_title)
 
     def _confirm_discard(self) -> bool:
@@ -160,7 +160,7 @@ class ProjectMixin:
             return True
         ans = messagebox.askyesnocancel(
             t("project.unsaved_title"),
-            t("project.unsaved_msg", name=self.project.name), parent=self.root)
+            t("project.unsaved_msg", name=self.project.name or t("project.untitled")), parent=self.root)
         if ans is None:
             return False
         return self._save_project() if ans else True
@@ -185,7 +185,7 @@ class ProjectMixin:
     def _save_project_as(self) -> bool:
         """Nombre y lugar como en cualquier programa; el proyecto es una carpeta con ese
         nombre (ahí van el .fenotit, calibration/ y results/)."""
-        untitled = self.project.name in ("", t("project.untitled"), "Sin título")
+        untitled = self.project.name in ("", t("project.untitled"))
         start = self.project.folder.parent if self.project.folder else (
             Path(self.batch_paths[0]).parent if self.batch_paths else None)
         path = filedialog.asksaveasfilename(
@@ -407,8 +407,7 @@ class ProjectMixin:
         self._open_analysis(name)
         self._run_batch(name)
 
-    def _mark_ran(self, name: str):
-        key = _analysis_key(name)
+    def _mark_ran(self, key: str):
         if key not in self.project.ran:
             self.project.ran.append(key)
 

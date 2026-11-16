@@ -51,7 +51,7 @@ def test_export_adds_user_columns():
     res = {"a/001.jpg": SimpleNamespace(status="ok", error="", extra={"tables": {
         "image": [{"n_objects": 2}], "objects": [{"object_id": 1, "status": "ok"}]}})}
     meta = {"a/001.jpg": {"genotipo": "G1", "status": "control"}}
-    tables = exporter.collect("Objetos", res, ["a/001.jpg", "a/002.jpg"], meta=meta)
+    tables = exporter.collect("objects", res, ["a/001.jpg", "a/002.jpg"], meta=meta)
     img = tables["image"][0]
     assert list(img)[:4] == ["Image_ID", "Image_name", "genotipo", "user_status"]
     assert img["status"] == "ok" and img["user_status"] == "control" and img["n_objects"] == 2

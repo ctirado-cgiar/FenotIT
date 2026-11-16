@@ -59,7 +59,7 @@ class Scale:
 
 @dataclass
 class Project:
-    name: str = "Sin título"
+    name: str = ""
     folder: Path | None = None
     images: list[Path] = field(default_factory=list)
     current_index: int = 0

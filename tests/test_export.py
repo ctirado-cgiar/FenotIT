@@ -19,7 +19,7 @@ PARAMS = {"color_space": "YCrCb", "channel_idx": 1, "min_val": 122, "max_val": 2
 
 def _run(jobs, task=batch.process):
     out, done = [], threading.Event()
-    batch.BatchRunner("Objetos", jobs, Corrections(), lambda i, n, o: out.append(o),
+    batch.BatchRunner("objects", jobs, Corrections(), lambda i, n, o: out.append(o),
                       lambda c: done.set(), workers=2, task=task).start()
     done.wait(300)
     return {o.path: o for o in out}
@@ -39,8 +39,8 @@ def test_batch_and_export():
     store = {p: o.result for p, o in outs.items()}
     with tempfile.TemporaryDirectory() as tmp:
         folder = Path(tmp) / "objects"
-        tables = exporter.collect("Objetos", store, IMAGES, {p: {"mm_per_px": ""} for p in IMAGES})
-        meta = exporter.metadata("Objetos", store, Project())
+        tables = exporter.collect("objects", store, IMAGES, {p: {"mm_per_px": ""} for p in IMAGES})
+        meta = exporter.metadata("objects", store, Project())
         exporter.write_tables(folder, tables, meta, excel=True, excel_name="objects.xlsx")
         image = _read(folder / "image.csv")
         assert [r["status"] for r in image] == ["ok", "ok", "not_analyzed"]
@@ -49,7 +49,7 @@ def test_batch_and_export():
         objects = _read(folder / "objects.csv")
         assert {r["Image_ID"] for r in objects} == {"1", "2"} and len(objects) == 42
         keys = {r["key"]: r["value"] for r in _read(folder / "metadata.csv")}
-        assert keys["analysis"] == "Objetos" and keys["param.min_val"] == "122" and keys["version"]
+        assert keys["analysis"] == "objects" and keys["param.min_val"] == "122" and keys["version"]
         assert (folder / "objects.xlsx").exists() and (folder / "object_colors.csv").exists()
 
         views = Path(tmp) / "views"
@@ -62,7 +62,7 @@ def test_batch_and_export():
 
 def test_cancel():
     out, done = [], threading.Event()
-    r = batch.BatchRunner("Objetos", [batch.Job(p, PARAMS) for p in IMAGES * 3], Corrections(),
+    r = batch.BatchRunner("objects", [batch.Job(p, PARAMS) for p in IMAGES * 3], Corrections(),
                           lambda i, n, o: out.append(o), lambda c: (out.append(c), done.set()), workers=1).start()
     r.cancel()
     assert done.wait(60) and out[-1] is True and len(out) < 10

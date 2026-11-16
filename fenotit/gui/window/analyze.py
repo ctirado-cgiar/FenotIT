@@ -9,7 +9,7 @@ from fenotit.core.analysis.registry import ANALYSES
 from fenotit.gui.style.components import divider
 from fenotit.gui.style.theme import COLORS, FONTS, SIZES, SPACE
 from fenotit.gui.widgets.params import ConfigPanel
-from fenotit.gui.window.common import _analysis_key, _analysis_label
+from fenotit.gui.window.common import _analysis_label
 from fenotit.i18n import t
 
 
@@ -87,7 +87,7 @@ class AnalyzeMixin:
             title = tk.Label(card, text=_analysis_label(name), bg=bg, fg=COLORS["accent"] if on else COLORS["text"],
                              font=FONTS["body_bold"], anchor="w", cursor="hand2")
             title.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["sm"], 0))
-            desc = t(f"analysis.{_analysis_key(name)}.desc", ANALYSES[name].description)
+            desc = t(f"analysis.{name}.desc", "")
             d = tk.Label(card, text=desc, bg=bg, fg=COLORS["text_muted"], font=FONTS["small"], anchor="w",
                          justify="left", wraplength=SIZES["panel_right"] - 50, cursor="hand2")
             d.pack(fill=tk.X, padx=SPACE["md"], pady=(0, SPACE["sm"]))
@@ -120,7 +120,7 @@ class AnalyzeMixin:
         if step == "segment":
             return t("rtab.segment")
         name = self.active_analysis
-        return t(f"analysis.{_analysis_key(name)}.step", t("rtab.analyze")) if name else t("rtab.analyze")
+        return t(f"analysis.{name}.step", t("rtab.analyze")) if name else t("rtab.analyze")
 
     def _steps_after(self, step: str) -> list[str]:
         """Pasos del análisis elegido que siguen a `step`."""
@@ -168,7 +168,7 @@ class AnalyzeMixin:
         self.active_analysis = name
         if choose:
             self._analysis_chosen = True
-            self.project.analysis = _analysis_key(name)
+            self.project.analysis = name
         self._render_analysis_cards()
         self._render_analysis_steps()
         self._update_seg_tab()
@@ -180,7 +180,7 @@ class AnalyzeMixin:
             self.config_container,
             schema=[i for i in ANALYSES[name].params_schema
                     if i.get("segmentation") in (None, self._seg_method)],
-            colors=COLORS, prefix=_analysis_key(name),
+            colors=COLORS, prefix=name,
             units=self._unit_labels(self._panel_area_unit))
         self.config_panel.set_values({k: v for k, v in stored.items() if not k.startswith("_")})
         self.config_panel.pack(fill=tk.BOTH, expand=True)

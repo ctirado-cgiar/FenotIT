@@ -9,6 +9,8 @@
 - Los textos de la interfaz no separan ideas con «·» ni con raya.
 - Cada archivo empieza con una línea que dice qué hace, y no hay imports sin uso.
 - El grafo de dependencias (docs/map/index.html) coincide con el código.
+- Variables y parámetros con nombres completos en los paquetes de READABLE_PACKAGES.
+- El núcleo no contiene textos para el usuario en español (van en fenotit/lang).
 """
 import ast
 import re
@@ -197,3 +199,47 @@ if __name__ == "__main__":
                 failed += 1
                 print("ERROR", name, "\n" + str(e) + "\n")
     sys.exit(1 if failed else 0)
+
+
+# Paquetes ya revisados; se agregan los demás a medida que se limpian.
+READABLE_PACKAGES = ("fenotit/core/analysis",)
+# Nombres cortos admitidos: coordenadas, índices de bucles y `t` (traducción).
+SHORT_NAMES = {"x", "y", "z", "i", "j", "x0", "y0", "x1", "y1", "dx", "dy", "cx", "cy", "ok", "id", "t", "_"}
+
+
+def test_readable_names():
+    bad = []
+    for package in READABLE_PACKAGES:
+        for path in _py(ROOT / package):
+            for node in ast.walk(_tree(path)):
+                if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+                    name = node.id
+                elif isinstance(node, ast.arg):
+                    name = node.arg
+                elif isinstance(node, ast.alias) and node.asname:
+                    name = node.asname
+                else:
+                    continue
+                if len(name.strip("_")) <= 2 and name not in SHORT_NAMES and name not in ("np", "tk", "pd"):
+                    bad.append(f"{_rel(path)}:{node.lineno} {name}")
+    assert not bad, "Nombres de una o dos letras (usar el nombre completo):\n" + "\n".join(sorted(set(bad)))
+
+
+def test_core_has_no_user_texts_in_spanish():
+    """Cadenas del núcleo con tildes o «ñ» fuera de docstrings y de mensajes del registro (log)."""
+    bad = []
+    for path in _py(PKG / "core"):
+        tree = _tree(path)
+        skipped = set()
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef)) and ast.get_docstring(node, clean=False):
+                skipped.add(id(node.body[0].value))
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) \
+                    and node.func.attr in ("debug", "info", "warning", "error", "exception"):
+                skipped.update(id(child) for child in ast.walk(node))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in skipped \
+                    and re.search("[áéíóúñÁÉÍÓÚÑ¿¡]", node.value):
+                bad.append(f"{_rel(path)}:{node.lineno} {node.value[:50]!r}")
+    assert not bad, "Textos en español dentro del núcleo (pasarlos a fenotit/lang):\n" + "\n".join(bad)
+

@@ -148,8 +148,8 @@ def test_working_resolution_keeps_mm():
         small, big = Path(tmp) / "a.png", Path(tmp) / "b.png"
         cv2.imwrite(str(small), img)
         cv2.imwrite(str(big), cv2.resize(img, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC))   # ~69 MP
-        a = batch.process("Objetos", batch.Job(str(small), dict(params, mm_per_pixel=0.15)), Corrections())
-        b = batch.process("Objetos", batch.Job(str(big), dict(params, mm_per_pixel=0.05), max_mpx=20),
+        a = batch.process("objects", batch.Job(str(small), dict(params, mm_per_pixel=0.15)), Corrections())
+        b = batch.process("objects", batch.Job(str(big), dict(params, mm_per_pixel=0.05), max_mpx=20),
                           Corrections())
     ma = np.mean([r["area_mm2"] for r in a.result.measurements])
     mb = np.mean([r["area_mm2"] for r in b.result.measurements])

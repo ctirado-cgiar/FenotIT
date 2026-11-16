@@ -9,6 +9,7 @@ from fenotit.core.analysis.registry import AnalysisResult, register
 from fenotit.i18n import t
 
 _CACHE = pipeline.ChainCache(size=2)
+MEAN_COLOR_COLUMNS = ("mean_R", "mean_G", "mean_B", "mean_L", "mean_a", "mean_b")
 
 
 def build_chain(params: dict) -> list[dict]:
@@ -19,36 +20,36 @@ def build_chain(params: dict) -> list[dict]:
 
 def run(image: np.ndarray, params: dict) -> AnalysisResult:
     from fenotit.core import roi as areas
-    h, w = image.shape[:2]
-    roi_mask, exclusions = areas.masks(params.get("roi_shapes"), w, h)
-    ctx = _CACHE.run(image, build_chain(params), roi=roi_mask, exclusions=exclusions)
-    res = AnalysisResult()
+    height, width = image.shape[:2]
+    roi_mask, exclusions = areas.masks(params.get("roi_shapes"), width, height)
+    chain = build_chain(params)
+    ctx = _CACHE.run(image, chain, roi=roi_mask, exclusions=exclusions)
+    result = AnalysisResult()
     colors = ctx.tables.get("image_colors", [])
-    label = t("step.color")
+    view = t("step.color")
     if "color" in ctx.images:
-        res.step_images[label] = ctx.images["color"]
-        res.extra["legends"] = {label: {"title": t("legend.image_colors"), "colors": colors}}
-        res.extra["view_tables"] = {label: colors}
-        res.extra["step_folders"] = {label: "color"}
-        res.extra["first_view"] = label
-    row = ctx.object_rows().get(1, {})
-    res.stats = {k: row[k] for k in ("mean_R", "mean_G", "mean_B", "mean_L", "mean_a", "mean_b") if k in row}
-    res.extra["tables"] = {"image_colors": colors,
-                           "image": [{"image_width_px": w, "image_height_px": h,
-                                      "mm_per_px": params.get("mm_per_pixel") or "",
-                                      **res.stats, "pixels": int((ctx.labels > 0).sum())}]}
-    res.extra["chain"] = build_chain(params)
-    return res
+        result.step_images[view] = ctx.images["color"]
+        result.extra["legends"] = {view: {"title": t("legend.image_colors"), "colors": colors}}
+        result.extra["view_tables"] = {view: colors}
+        result.extra["step_folders"] = {view: "color"}
+        result.extra["first_view"] = view
+    whole_image_row = ctx.object_rows().get(1, {})          # la foto entera es el único «objeto»
+    result.stats = {column: whole_image_row[column] for column in MEAN_COLOR_COLUMNS if column in whole_image_row}
+    result.extra["tables"] = {"image_colors": colors,
+                              "image": [{"image_width_px": width, "image_height_px": height,
+                                         "mm_per_px": params.get("mm_per_pixel") or "",
+                                         **result.stats, "pixels": int((ctx.labels > 0).sum())}]}
+    result.extra["chain"] = chain
+    return result
 
 
 register(
-    name="Color de imagen",
+    key="image_color",
     func=run,
-    description="Colores dominantes de toda la foto o del área de análisis, sin segmentar",
     icon="palette",
     segmentation=None,
     params_schema=[
-        {"key": "n_colors", "label": "Número de colores", "type": "int", "default": 5, "min": 1, "max": 20},
-        {"key": "n_colors_auto", "label": "Automático", "type": "bool", "default": False},
+        {"key": "n_colors", "type": "int", "default": 5, "min": 1, "max": 20},
+        {"key": "n_colors_auto", "type": "bool", "default": False},
     ],
 )

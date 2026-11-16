@@ -101,6 +101,13 @@ Si agregas un método, agrega también su prueba en `tests/test_<método>.py`: u
 - Colores, letras y tamaños de la interfaz solo desde el tema (`COLORS`, `FONTS`, `SIZES`
   de `gui/style/theme.py`, que lee `fenotit/assets/themes/`).
 - Cada archivo empieza con una línea que dice qué hace; no quedan imports sin uso.
+- Variables, parámetros y alias con su nombre completo (`height`, `class_rows`, `mm_per_pixel`),
+  no letras sueltas ni abreviaturas de dos letras. Se admiten `x`, `y`, `z`, `i`, `j`, `x0`…`y1`,
+  `dx`, `dy`, `cx`, `cy`, `ok`, `id`, `t` (traducción), `np` y `tk`. Los números y colores con
+  significado llevan nombre (constante en mayúsculas al inicio del módulo).
+- El núcleo no lleva textos para el usuario: los análisis y sus parámetros se identifican por
+  clave (`register(key="objects")`) y sus textos están en `fenotit/lang/`
+  (`analysis.<clave>.name`, `param.<clave>.<parámetro>.label`).
 - Encabezados, docstrings y comentarios dicen qué hace el código.
 - Cambios pequeños, uno por envío, con un mensaje corto que diga qué cambia.
 

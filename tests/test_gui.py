@@ -135,8 +135,8 @@ def main(with_sam=False):
     root.report_callback_exception = lambda *exc: ERRORS.append("".join(traceback.format_exception(*exc)))
     w = MainWindow(root)
     flow = Flow(root)
-    by_key = {ANALYSES[n].func.__module__.rsplit(".", 1)[-1]: n for n in ANALYSES}
-    objects, image_color, cover = by_key["objects"], by_key["image_color"], by_key["cover"]
+    objects, image_color, cover = "objects", "image_color", "cover"
+    assert all(key in ANALYSES for key in (objects, image_color, cover))
     out = Path(tempfile.mkdtemp())
 
     def result(name=objects, path=None):

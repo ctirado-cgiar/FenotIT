@@ -196,7 +196,7 @@ def boxes_labels(shape, dets: list[dict]) -> np.ndarray:
 
 # ── Pieza del pipeline ──────────────────────────────────────────────────────
 
-from fenotit.core.pipeline.base import step  # noqa: E402
+from fenotit.core.pipeline.base import BACKGROUND_COLOR, step  # noqa: E402
 
 
 @step("detect", "segmenter", provides=("mask",), params=[
@@ -224,7 +224,7 @@ def detect(ctx, p):
     for d in dets:
         d["class"] = names[d["cls"]] if d["cls"] < len(names) else f"class_{d['cls'] + 1}"
     ctx.extra["class_names"] = names
-    ctx.extra["class_colors"] = ["#000000"] + list(p.get("colors") or [])
+    ctx.extra["class_colors"] = [BACKGROUND_COLOR] + list(p.get("colors") or [])
     if p.get("to_masks"):
         from fenotit.core.segmentation import sam
         labels = sam.from_boxes(ctx.image, [(d["x0"], d["y0"], d["x1"], d["y1"]) for d in dets])

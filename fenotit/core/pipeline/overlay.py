@@ -21,6 +21,15 @@ _EXCLUDED = (150, 150, 150)
 _AUTO_CANDIDATES = ("green", "magenta", "yellow", "cyan", "red", "orange", "blue")
 
 
+UNNAMED_CLASS_COLOR = "#888888"       # color de una clase sin color asignado
+
+
+def hex_to_bgr(hex_color: str) -> tuple[int, int, int]:
+    """"#RRGGBB" → (B, G, R)."""
+    digits = hex_color.lstrip("#")
+    return int(digits[4:6], 16), int(digits[2:4], 16), int(digits[0:2], 16)
+
+
 def empty() -> dict:
     return {"outlines": [], "dots": [], "labels": [], "lines": [], "stars": [], "size": 0}
 

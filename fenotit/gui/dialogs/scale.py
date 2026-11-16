@@ -310,9 +310,11 @@ class ScaleDialog(BaseDialog):
             self._scale_result = result
             self._result_var.set(result.format())
             self._redraw()
-        except Exception as e:
+        except ValueError as error:
+            self._result_var.set(t(f"scale.err_{error}", str(error)))
+        except Exception as error:
             _log.exception("Error calculando escala")
-            self._result_var.set(f"{t('common.error')}: {e}")
+            self._result_var.set(f"{t('common.error')}: {error}")
 
     def _clear_points(self):
         self._points = []

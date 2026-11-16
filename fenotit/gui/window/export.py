@@ -9,7 +9,7 @@ from fenotit.core import batch
 from fenotit.core import units
 from fenotit.core.analysis.registry import ANALYSES, AnalysisResult
 from fenotit.gui.dialogs.export import ExportDialog
-from fenotit.gui.window.common import _analysis_key, _analysis_label
+from fenotit.gui.window.common import _analysis_label
 from fenotit.i18n import t
 
 
@@ -47,8 +47,8 @@ class ExportMixin:
 
     def _export_existing(self, folder: str, names: list[str]) -> str:
         """Subcarpetas de análisis que ya tienen archivos (se reemplazarían)."""
-        hits = [f"{_analysis_key(n)}/" for n in names
-                if (Path(folder) / _analysis_key(n)).is_dir() and any((Path(folder) / _analysis_key(n)).iterdir())]
+        hits = [f"{n}/" for n in names
+                if (Path(folder) / n).is_dir() and any((Path(folder) / n).iterdir())]
         return ", ".join(hits)
 
     def _export_folder_name(self) -> str:
@@ -83,12 +83,11 @@ class ExportMixin:
                  "search": self._search_paths() or []}.get(scope, self.batch_paths)
         written = 0
         try:
-            for name in names:
-                store = self._results.get(name, {})
-                key = _analysis_key(name)
+            for key in names:
+                store = self._results.get(key, {})
                 info = {p: self._image_info(p, store.get(p)) for p in paths}
                 part = {p: r for p, r in store.items() if p in info}
-                tables = exporter.collect(name, part, paths, info, self._skipped,
+                tables = exporter.collect(key, part, paths, info, self._skipped,
                                           board=self._board_photos(), ids=ids,
                                           meta={p: self._meta_row(p) for p in paths})
                 meta = exporter.metadata(key, part, self.project,
@@ -122,7 +121,7 @@ class ExportMixin:
                 dlg.finished(text, ok=not cancelled, folder=str(root))
                 return
             name, jobs = queue.pop(0)
-            task = partial(batch.export_views, str(root / _analysis_key(name) / "views"), dict(self.project.display))
+            task = partial(batch.export_views, str(root / name / "views"), dict(self.project.display))
 
             def outcome(i, n, out):
                 state["i"] += 1

@@ -141,6 +141,8 @@ def step(key: str, kind: str, params: list[dict] | None = None,
 
 
 # paquetes con piezas: cada archivo registra las suyas con @step al importarse
+BACKGROUND_COLOR = "#000000"        # color de la clase 0 (fondo) en los mapas de clases
+
 STEP_PACKAGES = ("fenotit.core.segmentation", "fenotit.core.objects", "fenotit.core.measurements")
 
 

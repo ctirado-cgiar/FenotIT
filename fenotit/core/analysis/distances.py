@@ -7,6 +7,8 @@ import numpy as np
 
 from fenotit.core.analysis import objects     # módulo (no nombres): evita el import circular
 from fenotit.core.analysis.registry import AnalysisResult, register
+from fenotit.core.pipeline import overlay
+from fenotit.core.pipeline.views import add_stars, object_geometry
 from fenotit.core.units import display, mean_sd
 from fenotit.i18n import t
 
@@ -17,72 +19,74 @@ def build_chain(params: dict) -> list[dict]:
         "measure": params.get("measure", "edge_line")}}, {"step": "count"}]
 
 
-def _pattern(row: dict) -> str:
+NEIGHBOR_COLOR_BGR = (255, 0, 255)      # punto de la leyenda junto al número de objetos
+Z_95 = 1.96                             # |z| menor = patrón que no se distingue del azar (95 %)
+
+
+def _pattern(image_row: dict) -> str:
     """Agrupado / al azar / regular según Clark-Evans (z con 95 %)."""
-    r, z = row.get("clark_evans_R"), row.get("clark_evans_z")
-    if r is None or z is None:
+    ratio, z_score = image_row.get("clark_evans_R"), image_row.get("clark_evans_z")
+    if ratio is None or z_score is None:
         return ""
-    key = "random" if abs(z) < 1.96 else ("clustered" if r < 1 else "regular")
-    return t(f"legend.pattern.{key}")
+    pattern = "random" if abs(z_score) < Z_95 else ("clustered" if ratio < 1 else "regular")
+    return t(f"legend.pattern.{pattern}")
 
 
 def run(image: np.ndarray, params: dict) -> AnalysisResult:
     from fenotit.core import roi as areas
-    h, w = image.shape[:2]
-    roi_mask, exclusions = areas.masks(params.get("roi_shapes"), w, h)
-    ctx = objects._CACHE.run(image, build_chain(params), mm_per_px=params.get("mm_per_pixel"),
-                             unit=params.get("length_unit", "mm"),
-                     roi=roi_mask, exclusions=exclusions)
+    height, width = image.shape[:2]
+    roi_mask, exclusions = areas.masks(params.get("roi_shapes"), width, height)
+    chain = build_chain(params)
+    ctx = objects._CACHE.run(image, chain, mm_per_px=params.get("mm_per_pixel"),
+                             unit=params.get("length_unit", "mm"), roi=roi_mask, exclusions=exclusions)
     ctx.image_row().update(objects._image_info(image, params))
-    row = ctx.image_row()
+    image_row = ctx.image_row()
     unit = ctx.unit
-    res = AnalysisResult()
-    label = t("step.distances")
+    result = AnalysisResult()
+    view, mask_view = t("step.distances"), t("step.mask")
     mask = ctx.images.get("mask")
     if mask is not None:
-        res.step_images[t("step.mask")] = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
-    res.step_images[label] = ctx.images["distances"]
-    mean, sd = row.get(f"mean_nearest_{unit}"), row.get(f"sd_nearest_{unit}")
-    rows = [(f"n = {row.get('n_objects', 0)}", (255, 0, 255))]
-    if mean is not None:
-        rows.append((f"{t('legend.nearest')}  {mean_sd(mean, sd or 0)} {display(unit)}", None))
-    if row.get("clark_evans_R") is not None:
-        rows.append((f"Clark-Evans R = {row['clark_evans_R']:.2f}  ({_pattern(row)})", None))
-    res.extra["legends"] = {label: {"title": t("step.distances"), "rows": rows}}
-    res.extra["overlays"] = {label: ctx.extra.get("overlays", {}).get("distances")}
-    from fenotit.core.pipeline.views import object_geometry
-    res.extra["geometry"] = object_geometry(ctx.labels, ctx.detections)     # elegir, resaltar y recortar un objeto
-    res.extra["excluded"] = sorted(ctx.excluded)
-    res.extra["highlighted"] = sorted(ctx.highlighted)
+        result.step_images[mask_view] = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
+    result.step_images[view] = ctx.images["distances"]
+
+    nearest_mean, nearest_sd = image_row.get(f"mean_nearest_{unit}"), image_row.get(f"sd_nearest_{unit}")
+    legend_rows = [(f"n = {image_row.get('n_objects', 0)}", NEIGHBOR_COLOR_BGR)]
+    if nearest_mean is not None:
+        legend_rows.append((f"{t('legend.nearest')}  {mean_sd(nearest_mean, nearest_sd or 0)} {display(unit)}", None))
+    if image_row.get("clark_evans_R") is not None:
+        legend_rows.append((f"Clark-Evans R = {image_row['clark_evans_R']:.2f}  ({_pattern(image_row)})", None))
+    result.extra["legends"] = {view: {"title": view, "rows": legend_rows}}
+
+    result.extra["overlays"] = {view: ctx.extra.get("overlays", {}).get("distances")}
+    result.extra["geometry"] = object_geometry(ctx.labels, ctx.detections)     # elegir, resaltar y recortar un objeto
+    result.extra["excluded"] = sorted(ctx.excluded)
+    result.extra["highlighted"] = sorted(ctx.highlighted)
     if ctx.highlighted:                                     # ★ en todas las vistas con marcas
-        from fenotit.core.pipeline.views import add_stars
-        res.extra["overlays"] = add_stars(res.extra.get("overlays") or {}, res.extra["geometry"], ctx.highlighted,
-                                          list(res.step_images))
-    res.extra["base_image"] = ctx.image
-    res.extra["contrast"] = __import__("fenotit.core.pipeline.overlay", fromlist=["x"]).contrast_color(
-        ctx.image, ctx.labels > 0)
-    res.extra["view_tables"] = {label: ctx.tables.get("distances", []), t("step.mask"): ctx.tables.get("image", [])}
-    res.extra["step_folders"] = {label: "distances", t("step.mask"): "mask"}
-    res.extra["first_view"] = label
-    res.extra["tables"] = {k: v for k, v in ctx.tables.items() if v}
-    res.extra["chain"] = build_chain(params)
-    res.stats = dict(row)
-    return res
+        result.extra["overlays"] = add_stars(result.extra["overlays"], result.extra["geometry"], ctx.highlighted,
+                                             list(result.step_images))
+    result.extra["base_image"] = ctx.image
+    result.extra["contrast"] = overlay.contrast_color(ctx.image, ctx.labels > 0)
+    result.extra["view_tables"] = {view: ctx.tables.get("distances", []), mask_view: ctx.tables.get("image", [])}
+    result.extra["step_folders"] = {view: "distances", mask_view: "mask"}
+    result.extra["first_view"] = view
+    result.extra["tables"] = {name: rows for name, rows in ctx.tables.items() if rows}
+    result.extra["chain"] = chain
+    result.stats = dict(image_row)
+    return result
 
 
 register(
-    name="Distancias",
+    key="distances",
     func=run,
-    description="Distancias entre objetos vecinos y si están agrupados, al azar o espaciados",
     icon="ruler",
     params_schema=[
-        {"key": "hdr_objects", "label": "OBJETOS", "type": "header"},
-        {"key": "touching", "label": "Los objetos se tocan", "type": "bool", "default": False},
-        {"key": "exclude_border", "label": "Excluir objetos del borde", "type": "bool", "default": False},
-        {"key": "hdr_measure", "label": "DISTANCIAS", "type": "header"},
-        {"key": "neighbors", "label": "Vecinos", "type": "choice", "choices": ["knn", "voronoi"], "default": "knn"},
-        {"key": "k", "label": "Número de vecinos", "type": "int", "default": 5, "min": 1, "max": 50},
-        {"key": "measure", "label": "Medir", "type": "choice", "choices": ["edge_line", "edge_nearest", "center"],
+        {"key": "hdr_objects", "type": "header"},
+        {"key": "touching", "type": "bool", "default": False},
+        {"key": "exclude_border", "type": "bool", "default": False},
+        {"key": "hdr_measure", "type": "header"},
+        {"key": "neighbors", "type": "choice", "choices": ["knn", "voronoi"], "default": "knn"},
+        {"key": "k", "type": "int", "default": 5, "min": 1, "max": 50},
+        {"key": "measure", "type": "choice", "choices": ["edge_line", "edge_nearest", "center"],
          "default": "edge_line"},
     ],
 )

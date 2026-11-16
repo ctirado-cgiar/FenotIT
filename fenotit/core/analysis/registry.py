@@ -1,11 +1,11 @@
-"""
-analysis/registry.py
-Registro central de módulos de análisis.
+"""Registro de los análisis disponibles.
 
-Para agregar un análisis nuevo:
-  1. Crear analysis/mi_analisis.py con una función run(image, params) -> AnalysisResult
-  2. Decorar con @register(...) o llamar register() al final del módulo
-  3. Importar el módulo aquí abajo — eso es todo, la UI lo detecta sola.
+Un análisis es un módulo de este paquete con `run(image, params) -> AnalysisResult` que se
+registra con `register(key=...)` y aparece en `ANALYSIS_MODULES`. La clave identifica el
+análisis en el proyecto, en la exportación y en los textos de `lang/`:
+
+    analysis.<clave>.name / .desc / .step     nombre, descripción y nombre del paso
+    param.<clave>.<parámetro>.label / .tip    etiqueta y ayuda de cada parámetro
 """
 
 from __future__ import annotations
@@ -54,13 +54,11 @@ class AnalysisResult:
 
 @dataclass
 class AnalysisDescriptor:
-    name: str
+    key: str                          # identificador: "objects", "distances"…
     func: Callable                    # run(image: np.ndarray, params: dict) -> AnalysisResult
-    description: str = ""
     supports_batch: bool = True
-    # Parámetros que este análisis expone en el panel de configuración
-    # Cada entrada: {"key": str, "label": str, "type": "int"|"float"|"bool",
-    #                "default": Any, "min": Any, "max": Any, "tooltip": str}
+    # Parámetros del panel de configuración. Cada entrada:
+    # {"key": str, "type": "int"|"float"|"bool"|"choice"|"header", "default": Any, "min": Any, "max": Any}
     params_schema: list[dict] = field(default_factory=list)
     # Íconos Tabler para el botón del menú (nombre sin 'ti-')
     icon: str = "chart-bar"
@@ -82,9 +80,8 @@ ANALYSES: dict[str, AnalysisDescriptor] = {}
 
 
 def register(
-    name: str,
+    key: str,
     func: Callable,
-    description: str = "",
     supports_batch: bool = True,
     params_schema: list[dict] | None = None,
     icon: str = "chart-bar",
@@ -93,47 +90,26 @@ def register(
     seg_methods: tuple[str, ...] | None = None,
     objects: bool = True,
 ) -> AnalysisDescriptor:
-    """
-    Registra un módulo de análisis.
-
-    Uso típico al final de cada módulo:
-        register(
-            name="Morfometría",
-            func=run,
-            description="Área, largo, ancho, perímetro y 37 métricas adicionales",
-            params_schema=[
-                {"key": "area_min", "label": "Área mínima (px²)", "type": "int",
-                 "default": 200, "min": 1, "max": 50000,
-                 "tooltip": "Objetos más pequeños que este valor serán ignorados. "
-                            "Sube este número si el fondo tiene ruido."},
-                ...
-            ],
-            icon="ruler-2",
-        )
-    """
+    """Registra un análisis con su clave. Se llama al final de cada módulo de análisis."""
+    default_steps = ("segment", "params") if segmentation else ("params",)
     descriptor = AnalysisDescriptor(
-        name=name,
+        key=key,
         func=func,
-        description=description,
         supports_batch=supports_batch,
         params_schema=params_schema or [],
         icon=icon,
         segmentation=segmentation,
-        steps=tuple(steps) if steps else (("segment", "params") if segmentation else ("params",)),
+        steps=tuple(steps) if steps else default_steps,
         seg_methods=tuple(seg_methods) if seg_methods else None,
         objects=objects,
     )
-    ANALYSES[name] = descriptor
-    _log.debug("Análisis registrado: %s", name)
+    ANALYSES[key] = descriptor
+    _log.debug("Análisis registrado: %s", key)
     return descriptor
 
 
-def get(name: str) -> AnalysisDescriptor | None:
-    return ANALYSES.get(name)
-
-
-def list_names() -> list[str]:
-    return list(ANALYSES.keys())
+def get(key: str) -> AnalysisDescriptor | None:
+    return ANALYSES.get(key)
 
 
 # ── Módulos de análisis: cada uno se registra con register() al importarse ─────

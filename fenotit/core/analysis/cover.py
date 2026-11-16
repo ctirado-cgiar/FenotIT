@@ -6,60 +6,58 @@ from __future__ import annotations
 import numpy as np
 
 from fenotit.core import pipeline
-from fenotit.core import segmentation as S
+from fenotit.core import segmentation
 from fenotit.core.analysis.registry import AnalysisResult, register
+from fenotit.core.pipeline import overlay
 from fenotit.i18n import t
 
 _CACHE = pipeline.ChainCache(size=2)
 
 
 def build_chain(params: dict) -> list[dict]:
-    seg = params.get("segmentation") or {}
-    c = seg.get("classifier") or {}
-    return [*S.chain(dict(seg, method="classifier")),
-            {"step": "cover", "params": {"names": list(c.get("names", [])), "colors": list(c.get("colors", []))}}]
+    settings = params.get("segmentation") or {}
+    classifier = settings.get("classifier") or {}
+    return [*segmentation.chain(dict(settings, method="classifier")),
+            {"step": "cover", "params": {"names": list(classifier.get("names", [])),
+                                         "colors": list(classifier.get("colors", []))}}]
 
 
-def _legend(rows: list[dict]) -> dict | None:
-    out = []
-    for r in rows:
-        if r["pct"] < 0.05:
-            continue
-        h = (r.get("color") or "#888888").lstrip("#")
-        out.append((f"{r['class']}  {r['pct']:.1f} %", (int(h[4:6], 16), int(h[2:4], 16), int(h[0:2], 16))))
-    return {"title": t("step.cover"), "rows": out} if out else None
+def _legend(class_rows: list[dict]) -> dict | None:
+    """Una línea por clase con al menos 0.05 % del área: nombre, porcentaje y su color."""
+    legend_rows = [(f"{row['class']}  {row['pct']:.1f} %", overlay.hex_to_bgr(row.get("color") or overlay.UNNAMED_CLASS_COLOR))
+                   for row in class_rows if row["pct"] >= 0.05]
+    return {"title": t("step.cover"), "rows": legend_rows} if legend_rows else None
 
 
 def run(image: np.ndarray, params: dict) -> AnalysisResult:
     from fenotit.core import roi as areas
-    h, w = image.shape[:2]
-    roi_mask, exclusions = areas.masks(params.get("roi_shapes"), w, h)
+    height, width = image.shape[:2]
+    roi_mask, exclusions = areas.masks(params.get("roi_shapes"), width, height)
     chain = build_chain(params)
     ctx = _CACHE.run(image, chain, mm_per_px=params.get("mm_per_pixel"), unit=params.get("length_unit", "mm"),
                      roi=roi_mask, exclusions=exclusions)
-    res = AnalysisResult()
-    rows = ctx.tables.get("classes", [])
-    label = t("step.cover")
-    res.step_images[label] = ctx.images["cover"]
-    res.extra["step_folders"] = {label: "cover"}
-    res.extra["view_tables"] = {label: rows}
-    legend = _legend(rows)
+    result = AnalysisResult()
+    class_rows = ctx.tables.get("classes", [])
+    view = t("step.cover")
+    result.step_images[view] = ctx.images["cover"]
+    result.extra["step_folders"] = {view: "cover"}
+    result.extra["view_tables"] = {view: class_rows}
+    legend = _legend(class_rows)
     if legend:
-        res.extra["legends"] = {label: legend}
-    res.extra["first_view"] = label
-    ctx.image_row().update({"image_width_px": w, "image_height_px": h,
+        result.extra["legends"] = {view: legend}
+    result.extra["first_view"] = view
+    ctx.image_row().update({"image_width_px": width, "image_height_px": height,
                             "mm_per_px": params.get("mm_per_pixel") or ""})
-    res.stats = dict(ctx.image_row())
-    res.extra["tables"] = {"classes": rows, "image": [dict(ctx.image_row())]}
-    res.extra["base_image"] = ctx.image
-    res.extra["chain"] = chain
-    return res
+    result.stats = dict(ctx.image_row())
+    result.extra["tables"] = {"classes": class_rows, "image": [dict(ctx.image_row())]}
+    result.extra["base_image"] = ctx.image
+    result.extra["chain"] = chain
+    return result
 
 
 register(
-    name="Clasificar áreas",
+    key="cover",
     func=run,
-    description="Porcentaje y área de cada clase marcada con ejemplos, sin separar objetos",
     icon="layers",
     segmentation="classifier",
     steps=("segment",),

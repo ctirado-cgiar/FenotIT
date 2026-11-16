@@ -343,7 +343,7 @@ def _relabel(labels: np.ndarray) -> np.ndarray:
 
 # ── Pieza del pipeline ──────────────────────────────────────────────────────
 
-from fenotit.core.pipeline.base import step  # noqa: E402
+from fenotit.core.pipeline.base import BACKGROUND_COLOR, step  # noqa: E402
 
 
 @step("model_segment", "segmenter", provides=("mask",), params=[
@@ -379,7 +379,7 @@ def model_segment(ctx, p):
         if p["categories"]:
             ctx.classes = cats[labels].astype(np.int32)
             ctx.extra["class_names"] = list(p["categories"])
-            ctx.extra["class_colors"] = ["#000000"] + list(p["colors"])
+            ctx.extra["class_colors"] = [BACKGROUND_COLOR] + list(p["colors"])
         labels = np.where(cats[labels] > 0, labels, 0)
     ctx.extra["instances"] = labels
     ctx.mask = (labels > 0).astype(np.uint8) * 255
