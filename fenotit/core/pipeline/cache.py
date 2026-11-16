@@ -17,14 +17,14 @@ from fenotit.core.pipeline.base import REGISTRY, Context, PipelineError, discove
 
 
 def _hash(*parts) -> str:
-    h = hashlib.blake2b(digest_size=16)
-    for p in parts:
-        if isinstance(p, np.ndarray):
-            h.update(str(p.shape).encode())
-            h.update(np.ascontiguousarray(p[::7, ::7] if p.ndim >= 2 else p).tobytes())
+    digest = hashlib.blake2b(digest_size=16)
+    for part in parts:
+        if isinstance(part, np.ndarray):
+            digest.update(str(part.shape).encode())
+            digest.update(np.ascontiguousarray(part[::7, ::7] if part.ndim >= 2 else part).tobytes())
         else:
-            h.update(json.dumps(p, sort_keys=True, default=str).encode())
-    return h.hexdigest()
+            digest.update(json.dumps(part, sort_keys=True, default=str).encode())
+    return digest.hexdigest()
 
 
 class ChainCache:
@@ -49,13 +49,13 @@ class ChainCache:
         kinds = [REGISTRY[item["step"]].kind if item["step"] in REGISTRY else None for item in chain]
         if None in kinds:
             raise PipelineError(f"unknown step in {[i['step'] for i in chain]}")
-        split = next((i for i, k in enumerate(kinds) if k == "measurement"), len(chain))
-        if any(k != "measurement" for k in kinds[split:]):          # orden no estándar
+        split = next((i for i, step_kind in enumerate(kinds) if step_kind == "measurement"), len(chain))
+        if any(step_kind != "measurement" for step_kind in kinds[split:]):          # orden no estándar
             from fenotit.core.pipeline.base import run
             return run(image, chain, mm_per_px, roi, exclusions, unit)
 
         exclusions = exclusions or []
-        base = _hash(image, roi if roi is not None else "", [(np.asarray(p).tolist(), c) for p, c in exclusions])
+        base = _hash(image, roi if roi is not None else "", [(np.asarray(points).tolist(), exclusion_kind) for points, exclusion_kind in exclusions])
         self.hits = []
 
         pkey = _hash(base, chain[:split])
@@ -82,11 +82,11 @@ class ChainCache:
 
 
 def _apply(ctx: Context, item: dict):
-    s = REGISTRY[item["step"]]
-    missing = [r for r in s.requires if getattr(ctx, r) is None]
+    piece = REGISTRY[item["step"]]
+    missing = [requirement for requirement in piece.requires if getattr(ctx, requirement) is None]
     if missing:
-        raise PipelineError(f"'{s.key}' needs {missing}")
-    s.func(ctx, {**s.defaults(), **(item.get("params") or {})})
+        raise PipelineError(f"'{piece.key}' needs {missing}")
+    piece.func(ctx, {**piece.defaults(), **(item.get("params") or {})})
 
 
 def _fresh(prefix: Context, mm_per_px, unit="mm") -> Context:
@@ -95,18 +95,18 @@ def _fresh(prefix: Context, mm_per_px, unit="mm") -> Context:
                    skeleton=prefix.skeleton, groups=prefix.groups, classes=prefix.classes,
                    excluded=prefix.excluded,
                    highlighted=prefix.highlighted,
-                   extra={k: prefix.extra[k] for k in ("class_names", "class_colors") if k in prefix.extra})
+                   extra={key: prefix.extra[key] for key in ("class_names", "class_colors") if key in prefix.extra})
 
 
 def _measure(prefix: Context, item: dict, mm_per_px, unit="mm") -> dict:
     """Corre una medición sola y guarda lo que aporta."""
     ctx = _fresh(prefix, mm_per_px, unit)
     _apply(ctx, item)
-    rows = {r["object_id"]: {k: v for k, v in r.items() if k != "object_id"}
-            for r in ctx.tables.get("objects", [])}
+    rows = {row["object_id"]: {name: table for name, table in row.items() if name != "object_id"}
+            for row in ctx.tables.get("objects", [])}
     image_row = dict(ctx.tables["image"][0]) if ctx.tables.get("image") else {}
-    others = {k: v for k, v in ctx.tables.items() if k not in ("objects", "image")}
-    new = {k: v for k, v in ctx.extra.items() if k != "overlays" and k not in prefix.extra}
+    others = {name: table for name, table in ctx.tables.items() if name not in ("objects", "image")}
+    new = {name: table for name, table in ctx.extra.items() if name != "overlays" and name not in prefix.extra}
     return {"rows": rows, "image": image_row, "tables": others, "images": dict(ctx.images),
             "overlays": dict(ctx.extra.get("overlays", {})), "extra": new}
 
@@ -114,18 +114,18 @@ def _measure(prefix: Context, item: dict, mm_per_px, unit="mm") -> dict:
 def _compose(prefix: Context, deltas: list[dict], mm_per_px, unit="mm") -> Context:
     ctx = _fresh(prefix, mm_per_px, unit)
     ctx.images = dict(prefix.images)
-    ctx.extra = {k: v for k, v in prefix.extra.items() if not k.startswith("_")}
-    if any(d["rows"] for d in deltas):
+    ctx.extra = {key: value for key, value in prefix.extra.items() if not key.startswith("_")}
+    if any(delta["rows"] for delta in deltas):
         rows = ctx.object_rows()
-        for d in deltas:
-            for oid, cols in d["rows"].items():
+        for delta in deltas:
+            for oid, cols in delta["rows"].items():
                 rows[oid].update(cols)
-    for d in deltas:
-        if d["image"]:
-            ctx.image_row().update(d["image"])
-        ctx.tables.update(d["tables"])
-        ctx.images.update(d["images"])
-        if d.get("overlays"):
-            ctx.extra.setdefault("overlays", {}).update(d["overlays"])
-        ctx.extra.update(d.get("extra") or {})
+    for delta in deltas:
+        if delta["image"]:
+            ctx.image_row().update(delta["image"])
+        ctx.tables.update(delta["tables"])
+        ctx.images.update(delta["images"])
+        if delta.get("overlays"):
+            ctx.extra.setdefault("overlays", {}).update(delta["overlays"])
+        ctx.extra.update(delta.get("extra") or {})
     return ctx

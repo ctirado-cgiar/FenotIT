@@ -56,8 +56,8 @@ class Context:
         el mm se agregan decimales para no perder precisión (0.143 cm² → 0.14273)."""
         import math
         from fenotit.core.units import TO_MM
-        k = TO_MM.get(self.unit, 1.0) if self.mm_per_px else 1.0
-        return base + max(0, power * round(math.log10(k)))
+        to_mm = TO_MM.get(self.unit, 1.0) if self.mm_per_px else 1.0
+        return base + max(0, power * round(math.log10(to_mm)))
 
     def analysis_region(self, shape):
         """Área de análisis menos zonas excluidas (uint8 0/1) en el tamaño `shape`, o None si
@@ -92,15 +92,15 @@ class Context:
         cache = self.extra.get("_touching")
         if cache is not None and cache[0] is self.labels:
             return cache[1]
-        fg = (self.labels > 0) & (self.groups > 0)
-        if not fg.any():
+        foreground = (self.labels > 0) & (self.groups > 0)
+        if not foreground.any():
             return set()
-        lab, grp = self.labels[fg].astype(np.int64), self.groups[fg].astype(np.int64)
+        lab, grp = self.labels[foreground].astype(np.int64), self.groups[foreground].astype(np.int64)
         pairs = np.unique(lab * (int(grp.max()) + 1) + grp)
         objs, grps = pairs // (int(grp.max()) + 1), pairs % (int(grp.max()) + 1)
-        gid, n = np.unique(grps, return_counts=True)
-        shared = gid[n > 1]
-        result = {int(o) for o in objs[np.isin(grps, shared)]}
+        gid, counts = np.unique(grps, return_counts=True)
+        shared = gid[counts > 1]
+        result = {int(object_id) for object_id in objs[np.isin(grps, shared)]}
         self.extra["_touching"] = (self.labels, result)
         return result
 
@@ -120,7 +120,7 @@ class Step:
     label: str = ""
 
     def defaults(self) -> dict:
-        return {p["key"]: p["default"] for p in self.params}
+        return {param["key"]: param["default"] for param in self.params}
 
 
 REGISTRY: dict[str, Step] = {}
@@ -164,12 +164,12 @@ def run(image: np.ndarray, chain: list[dict], mm_per_px: float | None = None,
         discover()
     ctx = Context(image=image, mm_per_px=mm_per_px, length_unit=unit, roi=roi, exclusions=exclusions or [])
     for item in chain:
-        s = REGISTRY.get(item["step"])
-        if s is None:
+        piece = REGISTRY.get(item["step"])
+        if piece is None:
             raise PipelineError(f"unknown step '{item['step']}'")
-        missing = [r for r in s.requires if getattr(ctx, r) is None]
+        missing = [requirement for requirement in piece.requires if getattr(ctx, requirement) is None]
         if missing:
-            raise PipelineError(f"'{s.key}' needs {missing}")
-        params = {**s.defaults(), **(item.get("params") or {})}
-        s.func(ctx, params)
+            raise PipelineError(f"'{piece.key}' needs {missing}")
+        params = {**piece.defaults(), **(item.get("params") or {})}
+        piece.func(ctx, params)
     return ctx

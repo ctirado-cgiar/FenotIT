@@ -202,7 +202,8 @@ if __name__ == "__main__":
 
 
 # Paquetes ya revisados; se agregan los demás a medida que se limpian.
-READABLE_PACKAGES = ("fenotit/core/analysis", "fenotit/core/stats", "fenotit/core/export")
+READABLE_PACKAGES = ("fenotit/core/analysis", "fenotit/core/stats", "fenotit/core/export",
+                     "fenotit/core/pipeline")
 # Nombres cortos admitidos: coordenadas, índices de bucles y `t` (traducción).
 SHORT_NAMES = {"x", "y", "z", "i", "j", "x0", "y0", "x1", "y1", "dx", "dy", "cx", "cy", "ok", "id", "by", "t", "_"}
 
