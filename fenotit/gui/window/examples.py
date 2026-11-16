@@ -11,6 +11,7 @@ import cv2
 import numpy as np
 
 from fenotit import log, settings
+from fenotit.gui.style.components import button
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 from fenotit.gui.widgets.slider import Slider
 from fenotit.gui.widgets.help import HelpIcon
@@ -107,23 +108,37 @@ class ExamplesMixin:
 
     def _classifier_preview(self, img, inc, exc):
         """Aprende de los trazos y clasifica la foto actual en un hilo; mientras, se ve la foto
-        con los trazos. Si los trazos cambian antes de terminar, el resultado viejo se tira."""
+        con los trazos. Si los trazos cambian antes de terminar, el resultado viejo se tira.
+        Con «Ver predicción» apagada solo se ve la foto; con la predicción automática apagada
+        se conserva la última predicción de la foto hasta que se pide actualizar."""
         from fenotit.core.segmentation import classifier as C
         full = self.scaler_left.original
         detail = self._detail()
         strokes = {k: list(v) for k, v in self.project.strokes.items()
                    if k in {self.project.key(p) for p in self.project.images}}
         key = (id(full), detail, json.dumps(strokes, sort_keys=True), self._corr_signature())
+        if not self.show_prediction_var.get():
+            self.zoom_ctrl.redraw_with_overlay(overlay_left=img)
+            self._update_cls_status()
+            self.preview_var.set("")
+            return
         cached = getattr(self, "_cls_cache", None)
         if cached is not None and cached[0] == key:
             self._render_classes(img, cached[1], inc, exc)
             return
-        self.zoom_ctrl.redraw_with_overlay(overlay_left=img)
         painted = {s["c"] for v in strokes.values() for s in v}
-        if len(painted) < 2:
-            self._update_cls_status()
+        paused = not self.auto_predict_var.get() and not self._predict_requested
+        same_photo = cached is not None and cached[0][:2] == key[:2]
+        if paused and same_photo and len(painted) >= 2:
+            self._render_classes(img, cached[1], inc, exc)
+            self._update_cls_status(t("cls.paused"))
+            return
+        self.zoom_ctrl.redraw_with_overlay(overlay_left=img)
+        if len(painted) < 2 or paused:
+            self._update_cls_status(t("cls.paused") if paused and len(painted) >= 2 else "")
             self.preview_var.set("")
             return
+        self._predict_requested = False
         self._cls_gen = getattr(self, "_cls_gen", 0) + 1
         gen = self._cls_gen
         self._update_cls_status(t("cls.learning"))
@@ -158,6 +173,16 @@ class ExamplesMixin:
             return
         self._cls_cache = (key, cm)
         self._update_cls_status(t("cls.learned", s=f"{secs:.1f}"))
+        self._show_preview()
+
+    def _on_prediction_options(self):
+        """Ver predicción o predicción automática cambiaron: el botón Actualizar solo sirve en pausa."""
+        waiting = self.show_prediction_var.get() and not self.auto_predict_var.get()
+        self._predict_button.config(state=tk.NORMAL if waiting else tk.DISABLED)
+        self._show_preview()
+
+    def _predict_now(self):
+        self._predict_requested = True
         self._show_preview()
 
     def _render_classes(self, img, cm, inc, exc):
@@ -210,6 +235,21 @@ class ExamplesMixin:
         tk.Checkbutton(arow, text=t("cls.show_strokes"), variable=self.show_strokes_var, bg=bg,
                        activebackground=bg, selectcolor=COLORS["bg_card"], font=small,
                        command=self._on_show_strokes).pack(side=tk.RIGHT)
+        prow = tk.Frame(box, bg=bg)
+        prow.pack(fill=tk.X, pady=(SPACE["sm"], 0))
+        self.show_prediction_var = tk.BooleanVar(value=True)
+        self.auto_predict_var = tk.BooleanVar(value=True)
+        self._predict_requested = False
+        for text, variable in ((t("cls.show_prediction"), self.show_prediction_var),
+                               (t("cls.auto_predict"), self.auto_predict_var)):
+            tk.Checkbutton(prow, text=text, variable=variable, bg=bg, activebackground=bg,
+                           selectcolor=COLORS["bg_card"], font=small,
+                           command=self._on_prediction_options).pack(anchor="w")
+        urow = tk.Frame(box, bg=bg)
+        urow.pack(fill=tk.X, pady=(SPACE["xs"], 0))
+        self._predict_button = button(urow, t("cls.predict_now"), self._predict_now, size="small", state=tk.DISABLED)
+        self._predict_button.pack(side=tk.LEFT)
+        HelpIcon(urow, t("cls.auto_predict"), t("cls.auto_help"), bg=bg).pack(side=tk.LEFT, padx=(SPACE["sm"], 0))
         self.cls_status = tk.StringVar(value="")
         tk.Label(box, textvariable=self.cls_status, bg=bg, fg=COLORS["text_muted"], font=small,
                  justify="left", wraplength=240, anchor="w").pack(fill=tk.X, pady=(SPACE["sm"], 0))

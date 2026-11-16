@@ -277,6 +277,39 @@ def main(with_sam=False):
                               {"c": 1, "w": 0.02, "pts": [[0.82, 0.05], [0.9, 0.08], [0.95, 0.1]]}])
         w._run_analysis(False)
 
+    paused = {}
+
+    @flow.step("predicción en pausa: un trazo nuevo no vuelve a aprender",
+               wait=lambda: getattr(w, "_cls_cache", None) is not None, timeout=60)
+    def _():
+        w._show_preview()
+
+    @flow.step("pintar con la predicción en pausa")
+    def _():
+        w.auto_predict_var.set(False)
+        w._on_prediction_options()
+        paused["learned"] = w._cls_gen
+        w._on_strokes_change([{"c": 0, "w": 0.02, "pts": [[0.1, 0.3], [0.1, 0.7], [0.3, 0.7]]},
+                              {"c": 1, "w": 0.02, "pts": [[0.82, 0.05], [0.9, 0.08], [0.95, 0.1]]},
+                              {"c": 1, "w": 0.02, "pts": [[0.6, 0.5], [0.65, 0.55]]}])
+        w._show_preview()
+        root.update()
+        if w._cls_gen != paused["learned"]:
+            ERRORS.append("la predicción en pausa volvió a aprender al pintar")
+        if str(w._predict_button.cget("state")) != "normal":
+            ERRORS.append("Actualizar no está disponible con la predicción en pausa")
+
+    @flow.step("Actualizar aprende una vez; ocultar la predicción deja solo la foto")
+    def _():
+        w._predict_now()
+        if w._cls_gen != paused["learned"] + 1:
+            ERRORS.append("Actualizar no volvió a aprender")
+        w.show_prediction_var.set(False)
+        w._on_prediction_options()
+        w.show_prediction_var.set(True)
+        w.auto_predict_var.set(True)
+        w._on_prediction_options()
+
     @flow.step("volver a elegir análisis")
     def _():
         w._choose_analysis()
