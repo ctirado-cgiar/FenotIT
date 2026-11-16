@@ -87,6 +87,15 @@ class HistoryMixin:
         self._mark_settled()
         self._set_status(t(msg, what=t(what)))
 
+    def _apply_state(self, state: dict):
+        """Pone el proyecto y la interfaz en `state` (un _snapshot modificado) sin que los
+        cambios de la interfaz cuenten como pasos de deshacer."""
+        self._restoring = True
+        try:
+            self._restore(self.current_image_path, state)
+        finally:
+            self._restoring = False
+
     def _restore(self, path, state: dict):
         key = self.project.key(path) if path else None
         marks_changed = any(getattr(self.project, f).get(key) != state[f].get(key) for f in ("excluded", "highlighted"))

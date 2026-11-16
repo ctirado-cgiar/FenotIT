@@ -52,6 +52,7 @@ class TopbarMixin:
             (t("menu.save_project"), self._save_project, "Ctrl+S"),
             (t("menu.save_project_as"), self._save_project_as, "Ctrl+Shift+S"),
             None,
+            (t("menu.preset"), Sub(self._preset_items)),
             (t("menu.export"), self._export_results, "Ctrl+E"),
             None,
             (t("menu.exit"), self._on_close, "Ctrl+Q"),

@@ -124,6 +124,15 @@ def _merge(head: dict, user: dict, *parts: dict) -> dict:
     return out
 
 
+def preset_rows(project) -> list[tuple]:
+    """Preset aplicado al proyecto y si se cambió algo después."""
+    from fenotit.core import preset
+    name = (getattr(project, "preset", None) or {}).get("name")
+    if not name:
+        return [("preset", "none")]
+    return [("preset", name), ("preset_modified", "yes" if preset.modified(project) else "no")]
+
+
 def metadata(analysis: str, results: dict[str, Any], project=None, extra: dict | None = None) -> list[dict]:
     """Filas clave/valor: lo necesario para repetir y citar el análisis."""
     ok = [result for result in results.values() if result.status == "ok"]
@@ -149,7 +158,7 @@ def metadata(analysis: str, results: dict[str, Any], project=None, extra: dict |
                  *segmentation_rows(project),
                  ("corrections", ", ".join(corr.active()) or "none"),
                  ("max_megapixels", project.max_mpx or "full"),
-                 ("preset", "none")]
+                 *preset_rows(project)]
     unc = [result.extra["area_uncertainty_pct"] for result in ok if result.extra.get("area_uncertainty_pct")]
     if unc:
         # error relativo del área por la discretización en píxeles: sqrt(P/12)/A (docs/methods)

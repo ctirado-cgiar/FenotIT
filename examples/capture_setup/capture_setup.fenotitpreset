@@ -1,0 +1,99 @@
+fenotit_preset: 1
+fenotit_version: 1.0.0.dev0
+name: Capture setup example
+description: Lens, ArUco perspective and scale, color card, tray area, Otsu on b*,
+  all measurements
+corrections:
+  distortion:
+    enabled: true
+    mtx:
+    - - 2599.9579993513125
+      - 0.0
+      - 1200.8414269683994
+    - - 0.0
+      - 2599.9791825999896
+      - 1500.0377500134025
+    - - 0.0
+      - 0.0
+      - 1.0
+    dist:
+    - - -0.1217004468071631
+      - 0.04472574183975677
+      - 1.4570402468933634e-05
+      - 3.360395769206253e-05
+      - -0.03864966139811497
+    rms: 0.0816
+    source: simulated chessboard, 9 x 6 inner corners
+    size:
+    - 2400
+    - 3000
+    photos: []
+  perspective:
+    enabled: true
+    margin_px: 20
+    width_mm: 210.0
+    height_mm: 310.0
+  color:
+    enabled: true
+    card: colorchecker24
+    rows: 4
+    cols: 6
+    values: null
+    reference: values
+    target: null
+    target_photo: ''
+    mode: per_image
+    place: null
+    region: null
+max_mpx: null
+areas:
+- kind: include
+  type: rect
+  points:
+  - - 0.03
+    - 0.13
+  - - 0.97
+    - 0.87
+segmentation:
+  method: threshold
+  color_space: LAB
+  channel: 2
+  min_val: 0
+  max_val: 255
+  auto: true
+  refine:
+  - op: open
+    size: 3
+    iter: 1
+  - op: fill_holes
+  classes:
+  - name: Fondo
+    color: '#9E9E9E'
+    object: false
+  - name: Objeto
+    color: '#2166AC'
+    object: true
+  detail: 1.0
+  model:
+    name: mobilesam
+    mode: auto
+    grid: 16
+analysis: objects
+params:
+  touching: true
+  exclude_border: true
+  size_filter: false
+  length_min: 0
+  length_max: 0
+  width_min: 0
+  width_max: 0
+  measure_count: true
+  measure_size: true
+  measure_touching: false
+  measure_shape: true
+  harmonics: 20
+  measure_color: true
+  color_mode: object
+  n_colors: 3
+  n_colors_auto: false
+  measure_classes: true

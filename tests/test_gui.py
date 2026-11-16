@@ -172,6 +172,32 @@ def main(with_sam=False):
         assert w._bottom_body.winfo_height() <= w._canvas_row.winfo_height(), (
             w._bottom_body.winfo_height(), w._canvas_row.winfo_height())
 
+    @flow.step("guardar un preset, cambiar el umbral y volver a cargarlo")
+    def _():
+        from fenotit.core import preset
+        saved = out / ("bandeja" + preset.PRESET_EXT)
+        filedialog.asksaveasfilename = lambda **_: str(saved)
+        filedialog.askopenfilename = lambda **_: str(saved)
+        w._write_preset("Bandeja", "", ("segmentation", "analysis"))
+        if not saved.exists() or preset.parts_of(preset.load(saved)) != ("segmentation", "analysis"):
+            ERRORS.append("el preset no se guardó con las partes elegidas")
+        w._show_preset_name()
+        if w._preset_label.cget("text") != "Preset: Bandeja":
+            ERRORS.append(f"nombre del preset: {w._preset_label.cget('text')!r}")
+        w.auto_var.set(False)
+        w._on_auto_change()
+        w.cs_var.set("HSV")
+        w._on_cs_change()
+        w._show_preset_name()
+        if "(modificado)" not in w._preset_label.cget("text"):
+            ERRORS.append("cambiar el espacio de color no marcó el preset como modificado")
+        w._load_preset()
+        root.update()
+        if w.cs_var.get() != "LAB" or not w.auto_var.get():
+            ERRORS.append(f"cargar el preset dejó {w.cs_var.get()}, Otsu {w.auto_var.get()}")
+        if w._preset_label.cget("text") != "Preset: Bandeja":
+            ERRORS.append(f"después de cargar: {w._preset_label.cget('text')!r}")
+
     @flow.step("recorrer capas")
     def _():
         for _ in range(8):

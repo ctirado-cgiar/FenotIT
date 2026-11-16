@@ -25,6 +25,7 @@ from fenotit.gui.window.keys import KeysMixin
 from fenotit.gui.window.layers import LayersMixin
 from fenotit.gui.window.metadata import MetadataMixin
 from fenotit.gui.window.model import ModelMixin
+from fenotit.gui.window.presets import PresetsMixin
 from fenotit.gui.window.project import ProjectMixin
 from fenotit.gui.window.results import ResultsMixin
 from fenotit.gui.window.run import RunMixin
@@ -63,6 +64,7 @@ class MainWindow(
         ThresholdMixin,
         ExamplesMixin,
         ModelMixin,
+        PresetsMixin,
         TourMixin,
         LayoutMixin,
 ):
@@ -95,6 +97,7 @@ class MainWindow(
         self.root.after(20000, self._autosave_tick)
         self.root.after(900, self._offer_recovery)
         self._update_title()
+        self._watch_preset()
         if not settings.get("tour_seen", False):            # primera vez que se abre la app
             self.root.after(1800, lambda: not self.project.images and self._start_tour())
 

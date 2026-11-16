@@ -171,6 +171,7 @@ class LayoutMixin:
         self._an_title.pack(side=tk.LEFT)
         button(head, text=t("rtab.change"), command=lambda: self._select_right_tab("choose"), kind="link",
                size="small", bg=bg).pack(side=tk.RIGHT)
+        self._preset_label = tk.Label(rf, bg=bg, fg=COLORS["text_muted"], font=FONTS["small"], anchor="w")
         self._rtabs = tk.Frame(rf, bg=bg)
         self._rtab_labels = {}
         self._rtab_line = divider(rf)
@@ -212,11 +213,14 @@ class LayoutMixin:
         if key != "choose" and not getattr(self, "_analysis_chosen", False):
             key = "choose"
         self._right_tab = key
-        for w in (self._an_head, self._rtabs, self._rtab_line, self._choose_tab, self._seg_tab, self._an_tab):
+        for w in (self._an_head, self._preset_label, self._rtabs, self._rtab_line, self._choose_tab, self._seg_tab,
+                  self._an_tab):
             w.pack_forget()
         self._rtab_body.pack_forget()
         if key != "choose":
             self._an_head.pack(fill=tk.X, padx=(SPACE["xxl"], SPACE["md"]), pady=(SPACE["sm"], 0))
+            if self._preset_label.cget("text"):
+                self._preset_label.pack(fill=tk.X, padx=(SPACE["xxl"], SPACE["md"]))
             if self._rtab_labels:
                 self._rtabs.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["xs"], 0))
             self._rtab_line.pack(fill=tk.X)
