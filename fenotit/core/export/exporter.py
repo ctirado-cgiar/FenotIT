@@ -14,7 +14,7 @@ igual en todos los análisis.
 from __future__ import annotations
 
 import csv
-import datetime as dt
+import datetime
 import platform
 from pathlib import Path
 from typing import Any
@@ -49,26 +49,26 @@ def save_image(folder: Path, name: str, img: np.ndarray):
     (folder / name).write_bytes(buf.tobytes())
 
 
-def _plain(v):
-    if isinstance(v, np.generic):
-        return v.item()
-    if isinstance(v, (list, tuple, dict)):
-        return str(v)
-    return "" if v is None else v
+def _plain(value):
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, (list, tuple, dict)):
+        return str(value)
+    return "" if value is None else value
 
 
 def write_csv(path: Path, rows: list[dict]):
     path.parent.mkdir(parents=True, exist_ok=True)
-    cols = list(dict.fromkeys(k for r in rows for k in r))
-    with open(path, "w", newline="", encoding="utf-8-sig") as f:
-        w = csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")
-        w.writeheader()
-        w.writerows({k: _plain(v) for k, v in r.items()} for r in rows)
+    cols = list(dict.fromkeys(column for row in rows for column in row))
+    with open(path, "w", newline="", encoding="utf-8-sig") as file:
+        writer = csv.DictWriter(file, fieldnames=cols, extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows({column: _plain(value) for column, value in row.items()} for row in rows)
 
 
 def _params_of(result) -> dict:
-    p = result.extra.get("params") or {}
-    return {k: v for k, v in sorted(p.items()) if k not in SKIP_PARAMS}
+    params = result.extra.get("params") or {}
+    return {key: value for key, value in sorted(params.items()) if key not in SKIP_PARAMS}
 
 
 def collect(analysis: str, results: dict[str, Any], images: list[str],
@@ -82,29 +82,29 @@ def collect(analysis: str, results: dict[str, Any], images: list[str],
     image_info = image_info or {}
     skipped = skipped or set()
     tables: dict[str, list[dict]] = {"image": []}
-    params = [_params_of(r) for r in results.values() if r.status == "ok"]
-    varied = any(p != params[0] for p in params[1:]) if params else False
-    for k, path in enumerate(images, 1):
-        image_id = (ids or {}).get(path, k)
+    params = [_params_of(result) for result in results.values() if result.status == "ok"]
+    varied = any(other != params[0] for other in params[1:]) if params else False
+    for position, path in enumerate(images, 1):
+        image_id = (ids or {}).get(path, position)
         name = Path(path).name
-        r = results.get(path)
+        result = results.get(path)
         status = ("calibration" if path in (board or ()) else "skipped" if path in skipped else "not_analyzed") \
-            if r is None else \
-            ("ok" if r.status == "ok" else "error")
+            if result is None else \
+            ("ok" if result.status == "ok" else "error")
         user = (meta or {}).get(path) or {}
         head = {"Image_ID": image_id, "Image_name": name, **user}
         tail = dict(image_info.get(path, {}))
-        if r is not None and r.status != "ok":
-            tail["error"] = r.error
-        if r is not None and r.extra.get("processing_s") is not None:
-            tail["processing_s"] = r.extra["processing_s"]
-        if varied and r is not None and r.status == "ok":
-            tail["params"] = "; ".join(f"{k}={v}" for k, v in _params_of(r).items())
-        own = (r.extra.get("tables") or {}).get("image") if r is not None and r.status == "ok" else None
+        if result is not None and result.status != "ok":
+            tail["error"] = result.error
+        if result is not None and result.extra.get("processing_s") is not None:
+            tail["processing_s"] = result.extra["processing_s"]
+        if varied and result is not None and result.status == "ok":
+            tail["params"] = "; ".join(f"{param}={value}" for param, value in _params_of(result).items())
+        own = (result.extra.get("tables") or {}).get("image") if result is not None and result.status == "ok" else None
         tables["image"].extend(_merge(head, user, {"status": status}, x, tail) for x in (own or [{}]))
-        if r is None or r.status != "ok":
+        if result is None or result.status != "ok":
             continue
-        for table, rows in (r.extra.get("tables") or {}).items():
+        for table, rows in (result.extra.get("tables") or {}).items():
             if table != "image":
                 tables.setdefault(table, []).extend(
                     _merge(head, user, x) for x in rows)
@@ -116,23 +116,23 @@ def _merge(head: dict, user: dict, *parts: dict) -> dict:
     nuestra, la suya pasa a llamarse user_<nombre> (no se pisan)."""
     out, theirs = dict(head), set(user)
     for part in parts:
-        for k, v in part.items():
-            if k in theirs:
-                out = {(f"user_{c}" if c == k else c): x for c, x in out.items()}
-                theirs.discard(k)
-            out[k] = v
+        for column, value in part.items():
+            if column in theirs:
+                out = {(f"user_{existing}" if existing == column else existing): x for existing, x in out.items()}
+                theirs.discard(column)
+            out[column] = value
     return out
 
 
 def metadata(analysis: str, results: dict[str, Any], project=None, extra: dict | None = None) -> list[dict]:
     """Filas clave/valor: lo necesario para repetir y citar el análisis."""
-    ok = [r for r in results.values() if r.status == "ok"]
+    ok = [result for result in results.values() if result.status == "ok"]
     rows = [("software", APP_NAME), ("version", __version__),
-            ("exported", dt.datetime.now().isoformat(timespec="seconds")),
+            ("exported", datetime.datetime.now().isoformat(timespec="seconds")),
             ("python", platform.python_version()), ("system", f"{platform.system()} {platform.release()}"),
             ("analysis", analysis), ("n_images_ok", len(ok)),
-            ("n_images_error", sum(1 for r in results.values() if r.status != "ok"))]
-    secs = [r.extra["processing_s"] for r in results.values() if r.extra.get("processing_s") is not None]
+            ("n_images_error", sum(1 for result in results.values() if result.status != "ok"))]
+    secs = [result.extra["processing_s"] for result in results.values() if result.extra.get("processing_s") is not None]
     if secs:
         rows += [("processing_s_total", round(sum(secs), 2)),
                  ("processing_s_per_image_mean", round(sum(secs) / len(secs), 3))]
@@ -144,39 +144,39 @@ def metadata(analysis: str, results: dict[str, Any], project=None, extra: dict |
                  ("images_with_own_scale", len(project.image_scale)),
                  ("analysis_areas_all_images", len(project.roi)),
                  ("images_with_own_areas", len(project.image_roi)),
-                 ("objects_excluded_manually", sum(len(v) for v in getattr(project, "excluded", {}).values())),
-                 ("objects_highlighted", sum(len(v) for v in getattr(project, "highlighted", {}).values())),
+                 ("objects_excluded_manually", sum(len(value) for value in getattr(project, "excluded", {}).values())),
+                 ("objects_highlighted", sum(len(value) for value in getattr(project, "highlighted", {}).values())),
                  *segmentation_rows(project),
                  ("corrections", ", ".join(corr.active()) or "none"),
                  ("max_megapixels", project.max_mpx or "full"),
                  ("preset", "none")]
-    unc = [r.extra["area_uncertainty_pct"] for r in ok if r.extra.get("area_uncertainty_pct")]
+    unc = [result.extra["area_uncertainty_pct"] for result in ok if result.extra.get("area_uncertainty_pct")]
     if unc:
         # error relativo del área por la discretización en píxeles: sqrt(P/12)/A (docs/methods)
-        rows += [("area_uncertainty_pct_median", round(float(np.median([u[0] for u in unc])), 3)),
-                 ("area_uncertainty_pct_max", round(float(max(u[1] for u in unc)), 3)),
+        rows += [("area_uncertainty_pct_median", round(float(np.median([bounds[0] for bounds in unc])), 3)),
+                 ("area_uncertainty_pct_max", round(float(max(bounds[1] for bounds in unc)), 3)),
                  ("area_uncertainty_method", "pixel discretization: sd(A) = sqrt(P/12) px2; "
                                              "relative to A; scale error not included")]
     if ok:
-        params = [_params_of(r) for r in ok]
-        if any(p != params[0] for p in params[1:]):
+        params = [_params_of(result) for result in ok]
+        if any(other != params[0] for other in params[1:]):
             rows.append(("params", "varied between images: see the image table"))
         else:
-            rows += [(f"param.{k}", v) for k, v in params[0].items()]
+            rows += [(f"param.{key}", value) for key, value in params[0].items()]
     rows += list((extra or {}).items())
-    return [{"key": k, "value": _plain(v)} for k, v in rows]
+    return [{"key": key, "value": _plain(value)} for key, value in rows]
 
 
 def model_rows(model_id: str) -> list[tuple[str, Any]]:
     """La ficha del modelo de IA (nombre, para qué sirve, propietario, licencia, fuente, cita)."""
     from fenotit.core.segmentation import models
-    m = models.get(model_id) if model_id else None
-    if m is None:
+    model = models.get(model_id) if model_id else None
+    if model is None:
         return [("model", model_id or "")]
-    rows = [("model", m["name"]), ("model_output", m["output"]), ("model_format", m["format"])]
-    rows += [(f"model_{k}", m[k]) for k in models.INFO if m.get(k)]
-    if m["output"] == "boxes":
-        rows.append(("model_classes", "; ".join(m["classes"])))
+    rows = [("model", model["name"]), ("model_output", model["output"]), ("model_format", model["format"])]
+    rows += [(f"model_{field}", model[field]) for field in models.INFO if model.get(field)]
+    if model["output"] == "boxes":
+        rows.append(("model_classes", "; ".join(model["classes"])))
     return rows
 
 
@@ -186,31 +186,31 @@ def segmentation_rows(project) -> list[tuple[str, Any]]:
     method = getattr(seg, "method", "threshold")
     rows = [("segmentation_method", method)]
     if method == "classifier":
-        names = [c.get("name", "") for c in seg.classes]
+        names = [class_info.get("name", "") for class_info in seg.classes]
         obj = [names[i] for i in seg.object_classes()]
         strokes = getattr(project, "strokes", {}) or {}
         rows += [("segmentation", "pixel classifier (random forest, examples painted by the user)"),
                  ("classes", "; ".join(names)), ("object_classes", "; ".join(obj)),
-                 ("examples_images", sum(1 for v in strokes.values() if v)),
-                 ("examples_strokes", sum(len(v) for v in strokes.values())),
+                 ("examples_images", sum(1 for image_strokes in strokes.values() if image_strokes)),
+                 ("examples_strokes", sum(len(image_strokes) for image_strokes in strokes.values())),
                  ("classifier_detail_mpx", seg.detail)]
     elif method == "model" and (getattr(seg, "model", {}) or {}).get("output") == "boxes":
-        m = seg.model
-        names = list(m.get("classes") or [])
-        use = [int(c) for c in m.get("use") or []] or list(range(len(names)))
+        model = seg.model
+        names = list(model.get("classes") or [])
+        use = [int(class_info) for class_info in model.get("use") or []] or list(range(len(names)))
         rows += [("segmentation", "object detector (boxes)" + (", boxes to masks with MobileSAM (Zhang et al. 2023)"
-                                                               if m.get("to_masks") else "")),
-                 *model_rows(m.get("name", "")),
-                 ("detector_min_confidence", m.get("conf", 0.25)),
+                                                               if model.get("to_masks") else "")),
+                 *model_rows(model.get("name", "")),
+                 ("detector_min_confidence", model.get("conf", 0.25)),
                  ("detector_classes_used", "; ".join(names[i] for i in use if i < len(names)))]
     elif method == "model":
-        m = getattr(seg, "model", {}) or {}
+        model = getattr(seg, "model", {}) or {}
         regions = getattr(project, "regions", {}) or {}
-        rows += [*model_rows(m.get("name", "mobilesam")), ("segmentation", "MobileSAM (Zhang et al. 2023), "
-                  + ("automatic regions" if m.get("mode", "auto") == "auto" else "clicks on objects"))]
-        if m.get("mode", "auto") == "auto":
-            rows += [("model_grid", m.get("grid", 16)),
-                     ("region_categories", "; ".join(c.get("name", "") for c in m.get("categories") or [])),
+        rows += [*model_rows(model.get("name", "mobilesam")), ("segmentation", "MobileSAM (Zhang et al. 2023), "
+                  + ("automatic regions" if model.get("mode", "auto") == "auto" else "clicks on objects"))]
+        if model.get("mode", "auto") == "auto":
+            rows += [("model_grid", model.get("grid", 16)),
+                     ("region_categories", "; ".join(class_info.get("name", "") for class_info in model.get("categories") or [])),
                      ("images_with_classified_regions", len(regions)),
                      ("other_images", "regions classified by a random forest trained on the classified ones"
                       if regions else "all regions used")]
@@ -219,8 +219,8 @@ def segmentation_rows(project) -> list[tuple[str, Any]]:
                      + ("Otsu" if seg.auto else f"{seg.min_val}-{seg.max_val}")))
     refine = getattr(seg, "refine", []) or []
     rows.append(("refine_mask", "; ".join(
-        o["op"] + (f" {o.get('size', 3)}px x{o.get('iter', 1)}" if o["op"] != "fill_holes" else "")
-        for o in refine) or "none"))
+        operation["op"] + (f" {operation.get('size', 3)}px x{operation.get('iter', 1)}" if operation["op"] != "fill_holes" else "")
+        for operation in refine) or "none"))
     return rows
 
 
@@ -237,47 +237,47 @@ def write_tables(folder: Path, tables: dict[str, list[dict]], meta: list[dict], 
     written.append(folder / "metadata.csv")
     if excel and XLSX_OK:
         path = folder / excel_name
-        _excel(path, {**{k: v for k, v in tables.items() if v}, "metadata": meta})
+        _excel(path, {**{table_name: table_rows for table_name, table_rows in tables.items() if table_rows}, "metadata": meta})
         written.append(path)
     return written
 
 
 def _excel(path: Path, tables: dict[str, list[dict]]):
-    wb = openpyxl.Workbook()
-    wb.remove(wb.active)
+    workbook = openpyxl.Workbook()
+    workbook.remove(workbook.active)
     head_fill = PatternFill("solid", fgColor="2166AC")
     head_font = Font(color="FFFFFF", bold=True, size=9)
     cell_font = Font(size=9)
     border = Border(*(Side(style="thin", color="CCCCCC"),) * 4)
     for table, rows in tables.items():
-        ws = wb.create_sheet(table[:31])
-        headers = list(dict.fromkeys(k for r in rows for k in r))
-        for c, h in enumerate(headers, 1):
-            cell = ws.cell(row=1, column=c, value=h)
+        sheet = workbook.create_sheet(table[:31])
+        headers = list(dict.fromkeys(column_name for table_row in rows for column_name in table_row))
+        for column_index, header in enumerate(headers, 1):
+            cell = sheet.cell(row=1, column=column_index, value=header)
             cell.font, cell.fill, cell.border = head_font, head_fill, border
             cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-        for r_i, row in enumerate(rows, 2):
-            for c, h in enumerate(headers, 1):
-                val = _plain(row.get(h, ""))
-                cell = ws.cell(row=r_i, column=c, value=val)
+        for row_index, row in enumerate(rows, 2):
+            for column_index, header in enumerate(headers, 1):
+                val = _plain(row.get(header, ""))
+                cell = sheet.cell(row=row_index, column=column_index, value=val)
                 cell.font, cell.border = cell_font, border
                 cell.alignment = Alignment(horizontal="right" if isinstance(val, (int, float)) else "left")
-        for c, h in enumerate(headers, 1):
-            width = max([len(str(h))] + [len(str(_plain(r.get(h, "")))) for r in rows[:500]])
-            ws.column_dimensions[get_column_letter(c)].width = min(width + 2, 40 if table == "metadata" else 25)
-        ws.freeze_panes = "A2"
+        for column_index, header in enumerate(headers, 1):
+            width = max([len(str(header))] + [len(str(_plain(table_row.get(header, "")))) for table_row in rows[:500]])
+            sheet.column_dimensions[get_column_letter(column_index)].width = min(width + 2, 40 if table == "metadata" else 25)
+        sheet.freeze_panes = "A2"
     path.parent.mkdir(parents=True, exist_ok=True)
-    wb.save(path)
+    workbook.save(path)
 
 
 def save_views(result, folder: Path, image_name: str, display: dict) -> int:
     """Imágenes de cada vista (con marcas y leyenda según `display`) en folder/<vista>/."""
     from fenotit.core.pipeline.views import decorate
     draw = decorate(result, display, Path(image_name).stem)
-    n = 0
+    saved = 0
     for view, sub in (result.extra.get("step_folders") or {}).items():
         img = result.step_images.get(view)
         if img is not None:
             save_image(folder / sub, image_name, draw(view, img))
-            n += 1
-    return n
+            saved += 1
+    return saved
