@@ -12,3 +12,5 @@ CLAUDE.md
 *.egg-info/
 tests/images/*/
 fenotit/_model_key.py
+tests/Cgiar_*/
+tests/Kaggle_*/
