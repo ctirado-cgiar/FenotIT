@@ -77,12 +77,12 @@ The mask contains the classes marked as objects. Each object then reports the ar
 each of its classes (`<class>_pct`, `<class>_area_<unit>2`), and each photo the totals.
 
 **Example: banana leaves.** Thirteen photos of banana leaves at different stages (Figure 2.3)
-were segmented with four classes painted on two of them (background, green, dark and dry
-tissue; three to five short strokes per class). The red card in each photo measures 100 mm in
+were segmented with four classes painted on two of them: the background and the three colors of
+the leaf, green, dark and yellow (three to five short strokes per class). The red card in each photo measures 100 mm in
 height; its height was 487.7 px (485.5 to 494.8 px in the 12 photos where it was found), which
 gives a scale of 0.205 mm/px for all photos. Results are in cm and cm²:
 
-| Photo | Leaf area (cm²) | Length (cm) | Width (cm) | Green (%) | Dark (%) | Dry (%) |
+| Photo | Leaf area (cm²) | Length (cm) | Width (cm) | Green (%) | Dark (%) | Yellow (%) |
 |---|---|---|---|---|---|---|
 | 095532 | 110.9 | 19.3 | 8.1 | 64.7 | 21.9 | 13.4 |
 | 095543 | 121.5 | 21.9 | 8.3 | 26.0 | 42.8 | 31.2 |
@@ -100,9 +100,9 @@ gives a scale of 0.205 mm/px for all photos. Results are in cm and cm²:
 
 ![Banana](../img/banana.png)
 
-*Figure 2.3. Banana leaves segmented by examples. (a–c) Three leaves and their class map (green,
-dark and dry tissue; background in blue), with the leaf area and the length and width of the
-smallest enclosing rectangle. (d) Share of each class (bars) and leaf area (line) in the 13
+*Figure 2.3. Banana leaves segmented by examples. (a–c) Three leaves and their class map (the
+leaf colors green, dark and yellow; background in blue), with the leaf area and the length and width of the
+smallest enclosing rectangle. (d) Share of each color (bars) and leaf area (line) in the 13
 photos, in order of capture.*
 
 ## 2.5 Regions from MobileSAM

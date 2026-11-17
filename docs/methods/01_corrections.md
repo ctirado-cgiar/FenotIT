@@ -133,11 +133,17 @@ without one patch (leave-one-out).
 | Drought seed box | 10.0 | 3.9 | 16.7 → 8.9 | 6.0 |
 | CameraTrax card (test photo) | 10.2 | 4.7 | 19.8 → 8.6 | 6.9 |
 
-The correction reduces the mean difference to 40–46 % of its original value. The colored
-patches improve the most; the white and the two lightest grays (patches 19 to 21) end with a
-difference similar to or larger than before (Figure 1.2d). In both seed boxes patches 19 and 20
-are the ones left out by the glare rule, and a single linear correction for the whole card
-fits the colored patches and the light neutrals together.
+The correction reduces the mean difference to 40–46 % of its original value, and the colored
+patches improve the most. The white and the two lightest grays (patches 19 to 21) end with a
+difference similar to or larger than before (Figure 1.2d). The camera's tone curve explains it:
+in the Durango box the white patch was recorded at 85 % of full scale and the next gray at 78 %,
+while their reference values are 95 % and 78 %. The camera compresses the light tones, and a
+linear correction cannot follow that curve: fitted to the whole card, it matches the colored
+patches and the middle grays and leaves the extremes off. Models with squared or root terms, and
+a tone curve fitted to the six grays before the linear correction, gave mean differences of 4.2
+to 4.7 in the same leave-one-out test, no better than the linear model. In the seed boxes the
+glare rule left out the cyan and the white (patches 18 and 19), and in the drought box also the
+black (patch 24).
 
 ![Color card](../img/colorcard.png)
 

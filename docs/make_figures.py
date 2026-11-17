@@ -317,7 +317,7 @@ def fig_segmentation():
 
 
 def banana_strokes():
-    """Brush strokes of four classes (background, green, dark and dry) on two leaves, as drawn
+    """Brush strokes of four classes (background and three leaf colors: green, dark and yellow) on two leaves, as drawn
     in the interface; coordinates are fractions of the photo."""
     def young(px, py):
         return [round(0.40 + px / 352 * 0.54, 4), round(0.02 + py / 900 * 0.78, 4)]
@@ -362,7 +362,7 @@ def red_card_height(img: np.ndarray) -> float | None:
     return float(np.linalg.norm(vertical[1] - vertical[0]))
 
 
-BANANA_CLASSES = ["background", "green", "dark", "dry"]
+BANANA_CLASSES = ["background", "green", "dark", "yellow"]
 BANANA_COLORS = ["#3B5BA5", "#4DAF4A", "#7B3F3F", "#E0B050"]
 
 
@@ -430,20 +430,20 @@ def fig_banana():
     ax.set_xticks(positions, [row["photo"] for row in rows], rotation=45, fontsize=6.5)
     ax.set_ylabel("Share of the leaf (%)")
     ax.set_ylim(0, 100)
-    ax.legend(frameon=False, ncol=3, loc="upper right", bbox_to_anchor=(1.0, 1.14))
+    ax.legend(frameon=False, ncol=3, loc="lower right", bbox_to_anchor=(1.0, 1.0), fontsize=7.5)
     twin = ax.twinx()
     twin.plot(positions, [row["area_cm2"] for row in rows], "o-", color="black", ms=3, lw=0.8)
     twin.set_ylabel("Leaf area (cm²)")
     twin.spines["top"].set_visible(False)
     ax.set_xlabel("Photo (time of capture)")
-    ax.set_title("(d) Leaf area and share of each class in the 13 photos", loc="left")
+    ax.set_title("(d) Leaf area and share of each color in the 13 photos", loc="left")
     save(fig, "banana.png")
     print(f"banana: card {np.median(heights):.1f} px tall (range {min(heights):.1f}-{max(heights):.1f}, "
           f"{len(heights)} photos) -> {mm_per_px:.4f} mm/px")
     for row in rows:
         print(f"  {row['photo']}: area {row['area_cm2']:.1f} cm2, length {row['length_cm']:.1f} cm, "
               f"width {row['width_cm']:.1f} cm, green {row.get('green_pct', 0):.1f} %, "
-              f"dark {row.get('dark_pct', 0):.1f} %, dry {row.get('dry_pct', 0):.1f} %")
+              f"dark {row.get('dark_pct', 0):.1f} %, yellow {row.get('yellow_pct', 0):.1f} %")
 
 
 # ── 3. Separation of touching objects ───────────────────────────────────────
