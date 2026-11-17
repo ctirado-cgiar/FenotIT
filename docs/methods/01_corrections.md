@@ -44,30 +44,26 @@ resolution is applied to photos of another resolution with the same aspect ratio
 the focal lengths and the optical center by the ratio of widths and heights.
 
 **Result on real photos.** Figure 1.1 uses the nine chessboard photos taken in the capture box
-of the bean seed photos (4040 × 3040 px, 7 × 6 inner corners). The camera was calibrated nine
-times, each time with eight of the nine photos, and each calibration corrected the ninth photo
-(cross-validation). On a
-flat board the corners of each row and column lie on a straight line, so the distance from
-each corner to the line fitted through its row or column measures the remaining distortion.
+of the bean seed photos (4040 × 3040 px, 7 × 6 inner corners, squares of about 250 px). The
+camera was calibrated nine times, each time with eight of the nine photos, and each calibration
+corrected the ninth photo (cross-validation). On a flat board every square has the same size, so
+the area of each square was compared with its area on a flat board seen through the same
+perspective (a homography fitted to all corners of the photo).
 
-| Capture box | Photos | Corners off a straight line (RMS), original | Corrected | Largest deviation, original → corrected |
+| Capture box | Photos | Square area error, original | Corrected | Largest, original → corrected |
 |---|---|---|---|---|
-| Durango seeds | 9 | 1.11 px | 0.38 px (−66 %) | 5.0 → 2.4 px |
-| Drought seeds | 7 | 1.01 px | 0.43 px (−57 %) | 3.7 → 1.5 px |
+| Durango seeds | 9 | 0.76 % | 0.32 % | 2.2 → 1.0 % |
+| Drought seeds | 7 | 0.66 % | 0.31 % | 1.6 → 1.0 % |
 
-The reprojection error of the full calibration was 1.01 px (Durango) and 1.12 px (drought). The
-camera of these boxes bends lines by about one pixel, and the correction removes about two
-thirds of it. In all photos the chessboard covers the center of the frame; the correction is
-estimated best where the board was placed, so photos of the board that also reach the
-corners of the frame extend the zone where the model is fitted to data.
+The correction reduces the area error to less than half. The reprojection error of the
+calibration with all photos was 1.01 px (Durango) and 1.12 px (drought).
 
 ![Lens](../img/lens.png)
 
 *Figure 1.1. Lens calibration in the capture box of the bean seed photos. (a) Inner corners
-found on one chessboard photo. (b) For each photo, the RMS distance of its corners to the
-straight line through their row or column, in the original photo (gray, mean 1.11 px) and after the
-correction (blue, mean 0.38 px), each photo corrected with the calibration made from the other
-eight.*
+found on one chessboard photo. (b) Mean area error of the squares of each photo, original (gray,
+0.76 %) and corrected (blue, 0.32 %), each photo corrected with the calibration made from the
+other eight.*
 
 ## 1.2 Perspective (ArUco markers)
 

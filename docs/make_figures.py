@@ -114,20 +114,24 @@ def objects_in(img, seg, shapes, extra=()):
 
 # ── 1. Corrections ──────────────────────────────────────────────────────────
 
-def line_deviation(points: np.ndarray, cols: int, rows: int) -> np.ndarray:
-    """Distance (px) from each chessboard corner to the straight line fitted to its row or column."""
+def square_area_error(points: np.ndarray, cols: int, rows: int) -> np.ndarray:
+    """Relative difference between the area of each chessboard square and its area on a flat
+    board seen through the same perspective (homography fitted to all corners)."""
+    ideal = np.array([[col, row] for row in range(rows) for col in range(cols)], np.float64)
+    homography, _ = cv2.findHomography(ideal, points.astype(np.float64), 0)
+    flat = cv2.perspectiveTransform(ideal.reshape(-1, 1, 2), homography).reshape(rows, cols, 2)
     grid = points.reshape(rows, cols, 2)
-    out = []
-    for line in list(grid) + list(grid.transpose(1, 0, 2)):
-        center = line.mean(0)
-        _, _, axes = np.linalg.svd(line - center)
-        out.append((line - center) @ axes[1])
-    return np.concatenate(out)
+
+    def areas(corners):
+        quad = [corners[:-1, :-1], corners[:-1, 1:], corners[1:, 1:], corners[1:, :-1]]
+        return 0.5 * np.abs(sum(quad[i][..., 0] * quad[(i + 1) % 4][..., 1]
+                                - quad[(i + 1) % 4][..., 0] * quad[i][..., 1] for i in range(4)))
+    return (areas(grid) / areas(flat) - 1).ravel()
 
 
 def lens_evaluation():
-    """Calibration with all board photos and, for each photo, the deviation of its corners from
-    straight lines before and after a correction calibrated without that photo."""
+    """Calibration with all board photos and, for each photo, the area error of its squares
+    before and after a correction calibrated with the other photos."""
     from fenotit.core.corrections import distortion
     photos = sorted(str(p) for p in CALIBRATION.glob("[0-9].jpg"))
     found = [d for d in (distortion.detect(p, *BOARD_CORNERS) for p in photos) if d.found]
@@ -139,8 +143,8 @@ def lens_evaluation():
         new_matrix, _ = cv2.getOptimalNewCameraMatrix(rest.mtx, rest.dist, size, 1, size)
         corners = detection.corners.reshape(-1, 1, 2).astype(np.float64)
         fixed = cv2.undistortPoints(corners, rest.mtx, rest.dist, P=new_matrix).reshape(-1, 2)
-        before.append(line_deviation(detection.corners.reshape(-1, 2), *BOARD_CORNERS))
-        after.append(line_deviation(fixed, *BOARD_CORNERS))
+        before.append(square_area_error(detection.corners.reshape(-1, 2), *BOARD_CORNERS))
+        after.append(square_area_error(fixed, *BOARD_CORNERS))
     return full, found, before, after
 
 
@@ -148,8 +152,8 @@ def fig_lens():
     if not have(CALIBRATION):
         return
     full, found, before, after = lens_evaluation()
-    rms = lambda values: float(np.sqrt(np.mean(np.square(values))))
-    rms_before, rms_after = [rms(v) for v in before], [rms(v) for v in after]
+    mean_before = [100 * np.mean(np.abs(values)) for values in before]
+    mean_after = [100 * np.mean(np.abs(values)) for values in after]
     photo = load_image(found[0].path)
     corners = found[0].corners.reshape(-1, 2)
     pad = 0.6 * np.ptp(corners[:, 0]) / BOARD_CORNERS[0]
@@ -164,17 +168,19 @@ def fig_lens():
     ax.set_title("(a) Detected corners")
     ax = fig.add_subplot(grid[1])
     positions = np.arange(len(found))
-    ax.bar(positions - 0.2, rms_before, 0.4, color=GRAY, label="Original")
-    ax.bar(positions + 0.2, rms_after, 0.4, color=BLUE, label="Corrected")
+    ax.bar(positions - 0.2, mean_before, 0.4, color=GRAY, label="Original")
+    ax.bar(positions + 0.2, mean_after, 0.4, color=BLUE, label="Corrected")
     ax.set_xticks(positions, [str(i + 1) for i in positions])
     ax.set_xlabel("Chessboard photo")
-    ax.set_ylabel("Line deviation, RMS (px)")
-    ax.legend(frameon=False, loc="upper right")
-    ax.set_title("(b) Straightness")
+    ax.set_ylabel("Square area error (%)")
+    ax.set_ylim(0, 1.25 * max(mean_before))
+    ax.legend(frameon=False, loc="upper center", ncol=2)
+    ax.set_title("(b) Area error")
     save(fig, "lens.png")
+    every_before, every_after = np.abs(np.concatenate(before)), np.abs(np.concatenate(after))
     print(f"lens: {len(found)} photos, reprojection RMS {full.rms_error:.2f} px, "
-          f"straightness {np.mean(rms_before):.2f} -> {np.mean(rms_after):.2f} px "
-          f"(max {max(np.abs(v).max() for v in before):.2f} -> {max(np.abs(v).max() for v in after):.2f} px)")
+          f"square area error {100 * every_before.mean():.2f} -> {100 * every_after.mean():.2f} % "
+          f"(max {100 * every_before.max():.2f} -> {100 * every_after.max():.2f} %)")
 
 
 def color_evaluation(path):
