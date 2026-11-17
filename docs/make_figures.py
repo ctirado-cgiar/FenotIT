@@ -23,6 +23,11 @@ from fenotit.core.pipeline import run  # noqa: E402
 
 OUT = ROOT / "docs" / "img"
 IMAGE = ROOT / "tests" / "data" / "images" / "01.jpg"
+CALIBRATION = ROOT / "tests" / "data" / "Cgiar_Bean_Durango_Seeds" / "calibracion"
+BOARD_CORNERS = (7, 6)
+CLUMP_IMAGE = ROOT / "tests" / "data" / "images" / "23455.jpg"
+CLUMP_BOX = (985, 943, 227, 260)                 # top, left, height, width
+CLUMP_SEG = {"step": "otsu", "params": {"color_space": "LAB", "channel": 2}}
 SEG = {"step": "threshold", "params": {"color_space": "YCrCb", "channel": 1, "min_val": 122, "max_val": 255}}
 plt.rcParams.update({"font.size": 8, "axes.titlesize": 9, "figure.dpi": 150, "savefig.bbox": "tight"})
 
@@ -48,6 +53,74 @@ def save(fig, name):
 def crop_box(labels, ids, pad=40):
     ys, xs = np.nonzero(np.isin(labels, ids))
     return slice(max(ys.min() - pad, 0), ys.max() + pad), slice(max(xs.min() - pad, 0), xs.max() + pad)
+
+
+# ── 0. Corrections ──────────────────────────────────────────────────────────
+
+def fig_lens():
+    """Chessboard photos of the capture box: detected corners, corrected photo and displacement."""
+    from fenotit.core.corrections import distortion, pipeline
+    photos = sorted(str(p) for p in CALIBRATION.glob("[0-9].jpg"))
+    result = distortion.calibrate(photos, *BOARD_CORNERS)
+    config = pipeline.Distortion(enabled=True, mtx=result.mtx.tolist(),
+                                 dist=np.ravel(result.dist).tolist(), size=list(result.size))
+    detection = next(d for d in result.detections if d.found)
+    photo = load_image(detection.path)
+    height, width = photo.shape[:2]
+    grid_x, grid_y = np.meshgrid(np.arange(0, width, 8, dtype=np.float32), np.arange(0, height, 8, dtype=np.float32))
+    points = np.stack([grid_x.ravel(), grid_y.ravel()], axis=1).reshape(-1, 1, 2)
+    ideal = cv2.undistortPoints(points, result.mtx, result.dist, P=result.mtx).reshape(-1, 2)
+    shift = np.linalg.norm(ideal - points.reshape(-1, 2), axis=1).reshape(grid_x.shape)
+    fig, ax = panels(3, 3.2, 2.5)
+    ax[0].imshow(rgb(photo))
+    corners = detection.corners.reshape(-1, 2)
+    ax[0].plot(corners[:, 0], corners[:, 1], "+", color="#D73027", ms=4, mew=0.8)
+    ax[0].set_title(f"(a) Chessboard photo, {len(corners)} inner corners")
+    ax[1].imshow(rgb(pipeline.undistort(photo, config)))
+    ax[1].set_title(f"(b) Corrected ({result.n_images_used} photos, RMS {result.rms_error:.2f} px)")
+    shown = ax[2].imshow(shift, cmap="viridis", extent=(0, width, height, 0))
+    for axis in (ax[2].xaxis, ax[2].yaxis):
+        axis.set_visible(False)
+    ax[2].set_title("(c) Displacement of each pixel (px)")
+    fig.colorbar(shown, ax=ax[2], fraction=0.035, pad=0.02)
+    save(fig, "lens.png")
+
+
+def fig_colorcard():
+    """Color card photographed in the capture box: detection, patch colors and corrected photo."""
+    from fenotit.core.corrections import colorcard
+    photo = load_image(str(CALIBRATION / "colorCard.jpg"))
+    fixed, info = colorcard.correct(photo)
+    card = info["card"]
+    centers = card.centers.reshape(-1, 2)
+    pad = 2.2 * card.chip
+    x0, y0 = np.maximum(centers.min(axis=0) - pad, 0).astype(int)
+    x1, y1 = (centers.max(axis=0) + pad).astype(int)
+    before = np.rot90(colorcard.measure(photo, card), info["turns"]).reshape(-1, 3)
+    after = np.rot90(colorcard.measure(fixed, card), info["turns"]).reshape(-1, 3)
+    reference = colorcard.COLORCHECKER24.reshape(-1, 3)
+    fig, ax = plt.subplots(1, 3, figsize=(9.6, 2.9), gridspec_kw={"width_ratios": [1, 1.6, 1], "wspace": 0.45})
+    for axis in (ax[0], ax[2]):
+        axis.set_axis_off()
+    ax[0].imshow(rgb(photo[y0:y1, x0:x1]))
+    half = card.chip * 0.2
+    for x, y in centers:
+        ax[0].add_patch(plt.Rectangle((x - x0 - half, y - y0 - half), 2 * half, 2 * half,
+                                      fill=False, ec="white", lw=0.8))
+    ax[0].set_title(f"(a) Card found ({card.found} of {card.rows * card.cols} patches seen)")
+    strips = np.clip(np.stack([before, after, reference]), 0, 1)
+    ax[1].imshow(strips, aspect="auto", interpolation="nearest")
+    ax[1].set_yticks(range(3), ("measured", "corrected", "reference"))
+    ax[1].set_xticks([])
+    ax[1].tick_params(length=0)
+    for side in ax[1].spines.values():
+        side.set_visible(False)
+    for index in info["dropped"]:
+        ax[1].plot(index, 0, "x", color="white", ms=5, mew=1.2)
+    ax[1].set_title(f"(b) Patch colors, × = not used (error {info['mean_error_rgb']:.1f} of 255)")
+    ax[2].imshow(rgb(fixed[y0:y1, x0:x1]))
+    ax[2].set_title("(c) Corrected photo")
+    save(fig, "colorcard.png")
 
 
 # ── 1. Segmentation ─────────────────────────────────────────────────────────
@@ -82,34 +155,17 @@ def fig_segmentation(img):
 
 # ── 2. Separation of touching objects ───────────────────────────────────────
 
-def touching_clump(img, ids=(3, 4, 5, 6, 7), overlap=0.12):
-    """Synthetic clump: real seeds from the photo pasted in two rows so that they touch."""
-    from scipy.ndimage import find_objects
-    ctx = run(img, [SEG, {"step": "roi"}, {"step": "clean"}, {"step": "label"},
-                    {"step": "filter", "params": {"exclude_border": True}}])
-    bg = np.median(img[ctx.mask == 0].reshape(-1, 3), axis=0).astype(np.uint8)
-    boxes = find_objects(ctx.labels)
-    seeds = [((ctx.labels[boxes[i - 1]] == i), img[boxes[i - 1]]) for i in ids]
-    H = int(sum(m.shape[0] for m, _ in seeds) + 80)
-    W = int(sum(m.shape[1] for m, _ in seeds) + 80)
-    canvas = np.full((H, W, 3), bg, np.uint8)
-    x, y, row_h = 40, 40, 0
-    for k, (m, patch) in enumerate(seeds):
-        h, w = m.shape
-        if k == 3:                                   # second row, shifted and overlapping the first
-            x, y = 40 + int(seeds[0][0].shape[1] * 0.5), y + int(row_h * (1 - overlap))
-        canvas[y:y + h, x:x + w][m] = patch[m]
-        x += int(w * (1 - overlap))
-        row_h = max(row_h, h)
-    ys, xs = np.nonzero((canvas != bg).any(axis=2))
-    return canvas[ys.min() - 30:ys.max() + 30, xs.min() - 30:xs.max() + 30]
+def touching_clump():
+    """Crop of a test photo where four seeds touch and form one component."""
+    top, left, height, width = CLUMP_BOX
+    return load_image(str(CLUMP_IMAGE))[top:top + height, left:left + width]
 
 
-def fig_separation(img):
+def fig_separation():
     from skimage.feature import peak_local_max
     from skimage.segmentation import watershed
-    clump = touching_clump(img)
-    base = run(clump, [SEG, {"step": "roi"}, {"step": "clean"}])
+    clump = touching_clump()
+    base = run(clump, [CLUMP_SEG, {"step": "roi"}, {"step": "clean"}])
     binary = (base.mask > 0).astype(np.uint8)
     dist = cv2.distanceTransform(binary, cv2.DIST_L2, 5)
     _, comps = cv2.connectedComponents(binary, connectivity=8)
@@ -120,12 +176,12 @@ def fig_separation(img):
     markers = np.zeros(binary.shape, np.int32)
     markers[tuple(peaks.T)] = np.arange(1, len(peaks) + 1)
     ws = watershed(-dist, markers, mask=binary > 0)
-    final = run(clump, [SEG, {"step": "roi"}, {"step": "clean"}, {"step": "separate"}])
+    final = run(clump, [CLUMP_SEG, {"step": "roi"}, {"step": "clean"}, {"step": "separate"}])
     fig, ax = panels(5, 2.3, 2.3)
     ax[0].imshow(rgb(clump))
     ax[0].set_title("(a) Touching objects")
     ax[1].imshow(binary, cmap="gray")
-    ax[1].set_title("(b) Mask: one component")
+    ax[1].set_title("(b) Mask: seeds joined")
     ax[2].imshow(dist, cmap="magma")
     ax[2].plot(peaks[:, 1], peaks[:, 0], "c+", ms=8, mew=1.5)
     ax[2].set_title(f"(c) Distance transform\n+ maxima (d_min = {md} px)")
@@ -274,8 +330,13 @@ def fig_distances(img):
 
 if __name__ == "__main__":
     image = load_image(str(IMAGE))
+    if CALIBRATION.exists():
+        fig_lens()
+        fig_colorcard()
+    else:
+        print(f"Sin {CALIBRATION}: no se generan lens.png ni colorcard.png")
     fig_segmentation(image)
-    fig_separation(image)
+    fig_separation()
     fig_morphometry(image)
     fig_efd(image)
     fig_color(image)

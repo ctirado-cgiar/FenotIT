@@ -35,6 +35,12 @@ calibration scripts of the Bean Physiology team. A calibration made at a resolut
 $W_c \times H_c$ is applied to a photo $W \times H$ with the same aspect ratio by scaling $K$:
 $K' = \mathrm{diag}(W/W_c,\ H/H_c,\ 1)\,K$.
 
+![Lens](../img/lens.png)
+
+*Figure 1.1. Lens calibration with nine chessboard photos taken in a capture box. (a) Inner
+corners found in one photo. (b) The same photo after the correction. (c) Distance each pixel
+moves; the largest values are at the corners of the frame, away from where the board was placed.*
+
 ## 1.2 Perspective (ArUco markers)
 
 Four ArUco markers (dictionary `DICT_4X4_50`, Garrido-Jurado et al., 2014) with IDs 0–3 are
@@ -81,6 +87,12 @@ on a reference photo (all photos are then matched to that photo).
 
 **White balance only.** With a white or gray card, a diagonal gain per channel makes the
 marked area neutral (or equal to the reference photo): $g_c = \bar{m} / m_c$.
+
+![Color card](../img/colorcard.png)
+
+*Figure 1.2. Color correction with a 24-patch card photographed in the capture box. (a) Card
+and patch centers found. (b) Color of each patch as measured, after the correction and in the
+reference; patches marked × were left out of the fit. (c) Corrected photo.*
 
 ## 1.4 Scale
 

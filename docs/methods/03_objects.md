@@ -14,8 +14,8 @@ Soille, 2003; implemented with scikit-image, van der Walt et al., 2014), followe
 
 ![Separation](../img/separation.png)
 
-*Figure 3.1. Separation of touching seeds (synthetic clump made of real seeds from a test
-photo). (a) Input. (b) The mask has two components. (c) Euclidean distance transform with its
+*Figure 3.1. Separation of touching seeds (crop of a test photo of common bean). (a) Input.
+(b) In the mask, four seeds form one component. (c) Euclidean distance transform with its
 local maxima, one per seed. (d) Watershed from the maxima. (e) Final objects after the merge
 rules.*
 
