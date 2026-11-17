@@ -142,7 +142,7 @@ def test_working_resolution_keeps_mm():
     from pathlib import Path
     from fenotit.core import batch
     from fenotit.core.image_io import load_image
-    img = load_image(str(Path(__file__).parent / "images" / "01.jpg"))
+    img = load_image(str(Path(__file__).parent / "data" / "images" / "01.jpg"))
     params = {"color_space": "YCrCb", "channel_idx": 1, "min_val": 122, "max_val": 255}
     with tempfile.TemporaryDirectory() as tmp:
         small, big = Path(tmp) / "a.png", Path(tmp) / "b.png"

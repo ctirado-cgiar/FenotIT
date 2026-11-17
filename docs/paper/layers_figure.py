@@ -1,6 +1,6 @@
 """Ilustración de las capas de un análisis, apiladas como en un SIG: la foto abajo y, encima,
 máscara, morfometría, color y distancias. Las capas usan los resultados reales del pipeline
-(tests/images/01.jpg); cada una se dibuja sobre fondo transparente salvo la foto."""
+(tests/data/images/01.jpg); cada una se dibuja sobre fondo transparente salvo la foto."""
 import sys
 from pathlib import Path
 
@@ -17,7 +17,7 @@ SEG = {"method": "threshold", "color_space": "LAB", "channel": 2, "auto": True, 
 
 
 def layers():
-    img = cv2.imread(str(ROOT / "tests" / "images" / "01.jpg"))
+    img = cv2.imread(str(ROOT / "tests" / "data" / "images" / "01.jpg"))
     h, w = img.shape[:2]
     img = img[int(h * .18):int(h * .82), int(w * .1):int(w * .9)]
     p = {"segmentation": SEG, "measure_size": True, "measure_color": True, "n_colors": 3}

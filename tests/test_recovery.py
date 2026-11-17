@@ -12,7 +12,7 @@ def test_roundtrip():
         os.environ["LOCALAPPDATA"] = tmp
         from fenotit.core import recovery
         from fenotit.core.project import Project
-        img = Path(__file__).parent / "images" / "01.jpg"
+        img = Path(__file__).parent / "data" / "images" / "01.jpg"
         proj = Project(name="demo", folder=Path(tmp) / "demo")
         proj.save()
         proj.images = [img]

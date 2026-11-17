@@ -1,5 +1,5 @@
 """Fig. 1: de la foto a los datos en cinco pasos, con una foto real (semillas de frijol con
-tarjeta de color, tests/images/card_cameratrax.jpg) y los resultados reales del pipeline."""
+tarjeta de color, tests/data/images/card_cameratrax.jpg) y los resultados reales del pipeline."""
 import sys
 from pathlib import Path
 
@@ -26,7 +26,7 @@ def rgb(bgr):
 
 
 def data():
-    raw = cv2.imread(str(ROOT / "tests" / "images" / "card_cameratrax.jpg"))
+    raw = cv2.imread(str(ROOT / "tests" / "data" / "images" / "card_cameratrax.jpg"))
     c = P.Corrections()
     c.color.enabled = True
     fixed, _ = P.apply(raw, c)

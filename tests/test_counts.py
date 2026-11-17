@@ -9,7 +9,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from fenotit.core import pipeline
 
-IMAGES = Path(__file__).parent / "images"
+IMAGES = Path(__file__).parent / "data" / "images"
 CHAIN = [{"step": "otsu", "params": {"color_space": "LAB", "channel": 2}},
          {"step": "clean", "params": {"open_iterations": 1}},
          {"step": "separate"},

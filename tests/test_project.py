@@ -5,7 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from fenotit.core.project import Project, Scale, Segmentation
 
-IMAGES = Path(__file__).resolve().parent / "images"
+IMAGES = Path(__file__).resolve().parent / "data" / "images"
 
 
 def test_roundtrip():
@@ -90,7 +90,7 @@ def test_relink_by_name():
     from fenotit.core.project import find_by_name
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
-        src = sorted((Path(__file__).parent / "images").glob("0*.jpg"))[:3]
+        src = sorted((Path(__file__).parent / "data" / "images").glob("0*.jpg"))[:3]
         p = Project(name="x", images=[Path("C:/otro/pc/ensayo/rep1") / f.name for f in src])
         p.set_roi(p.images[0], [{"kind": "include", "type": "rect", "points": [[0, 0], [1, 1]]}])
         dest = tmp / "copia" / "rep1"

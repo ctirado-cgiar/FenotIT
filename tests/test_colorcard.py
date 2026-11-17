@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from fenotit.core.corrections import colorcard as CC
 from fenotit.core.corrections.pipeline import ColorCard, Corrections, apply
 
-IMG = cv2.imread(str(Path(__file__).parent / "images" / "card_cameratrax.jpg"))
+IMG = cv2.imread(str(Path(__file__).parent / "data" / "images" / "card_cameratrax.jpg"))
 
 
 def _rotate(img, ang):

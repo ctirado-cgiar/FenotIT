@@ -1,6 +1,6 @@
 """Validación del modelo de incertidumbre del área (Fig. de incertidumbre del paper).
 
-Siluetas reales de semillas (tests/images/01.jpg) se vuelven a digitalizar con giro y
+Siluetas reales de semillas (tests/data/images/01.jpg) se vuelven a digitalizar con giro y
 desplazamiento subpíxel al azar, a varias resoluciones. Para cada semilla y resolución se
 compara la desviación relativa observada del área con la predicha, √(P/12)/A."""
 import sys
@@ -24,7 +24,7 @@ REPS = 40
 
 def seeds(n=30):
     from fenotit.core import pipeline
-    img = imread(str(ROOT / "tests/images/01.jpg"))
+    img = imread(str(ROOT / "tests/data/images/01.jpg"))
     ctx = pipeline.run(img, [{"step": "otsu", "params": {"color_space": "LAB", "channel": 2}},
                              {"step": "clean", "params": {"open_iterations": 1}},
                              {"step": "label"}, {"step": "filter", "params": {"area_min": 300}}])

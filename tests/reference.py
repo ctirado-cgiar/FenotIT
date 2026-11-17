@@ -1,7 +1,7 @@
 """
 Resultados de referencia para detectar cambios en los números.
 
-    python tests/reference.py --save   guarda la referencia en tests/reference/
+    python tests/reference.py --save   guarda la referencia en tests/data/reference/
     python tests/reference.py          compara contra la referencia guardada
 """
 import argparse
@@ -18,8 +18,8 @@ sys.path.insert(0, str(ROOT))
 from fenotit.core import pipeline
 from fenotit.core.image_io import load_image
 
-IMAGES = sorted((ROOT / "tests" / "images").glob("[0-9][0-9].jpg"))   # 23xxx: test_counts.py
-REF_DIR = ROOT / "tests" / "reference"
+IMAGES = sorted((ROOT / "tests" / "data" / "images").glob("[0-9][0-9].jpg"))   # 23xxx: test_counts.py
+REF_DIR = ROOT / "tests" / "data" / "reference"
 TOL = 1e-6
 
 CHAIN = [
@@ -129,7 +129,7 @@ def main():
     args = ap.parse_args()
 
     if not IMAGES:
-        sys.exit("No hay imágenes en tests/images/")
+        sys.exit("No hay imágenes en tests/data/images/")
     current = run_all()
 
     if args.save:

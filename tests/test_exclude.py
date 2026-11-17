@@ -7,7 +7,7 @@ from fenotit import i18n
 from fenotit.core.analysis.registry import ANALYSES
 from fenotit.core.image_io import load_image
 
-IMAGE = Path(__file__).parent / "images" / "01.jpg"
+IMAGE = Path(__file__).parent / "data" / "images" / "01.jpg"
 PARAMS = {"color_space": "YCrCb", "channel_idx": 1, "min_val": 122, "max_val": 255,
           "measure_shape": True, "measure_color": True}
 

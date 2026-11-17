@@ -14,7 +14,7 @@ def test_click_and_objects():
     if not sam.available():
         print("    (sin modelo: se salta)")
         return
-    img = cv2.imread(str(Path(__file__).parent / "images" / "01.jpg"))
+    img = cv2.imread(str(Path(__file__).parent / "data" / "images" / "01.jpg"))
     lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)[..., 2]
     _, m = cv2.threshold(lab, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     n, cc, st, cen = cv2.connectedComponentsWithStats(m)

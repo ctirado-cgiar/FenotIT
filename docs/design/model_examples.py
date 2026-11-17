@@ -1,5 +1,5 @@
 """Genera las miniaturas que muestran qué da cada tipo de modelo de IA (máscaras o cajas),
-a partir de un recorte de tests/images/01.jpg: fenotit/assets/models/masks.png y boxes.png.
+a partir de un recorte de tests/data/images/01.jpg: fenotit/assets/models/masks.png y boxes.png.
 
     python docs/design/model_examples.py
 """
@@ -15,7 +15,7 @@ COLORS = [(68, 158, 46), (5, 183, 242), (40, 39, 214), (173, 68, 142), (34, 126,
 
 
 def main():
-    img = cv2.imread(str(ROOT / "tests" / "images" / "01.jpg"))
+    img = cv2.imread(str(ROOT / "tests" / "data" / "images" / "01.jpg"))
     h, w = img.shape[:2]
     crop = img[int(h * 0.34):int(h * 0.58), int(w * 0.33):int(w * 0.67)]
     crop = cv2.resize(crop, (SIZE[0] * 4, SIZE[1] * 4), interpolation=cv2.INTER_AREA)

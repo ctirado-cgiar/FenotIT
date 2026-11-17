@@ -22,7 +22,7 @@ import traceback
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-IMAGES = [str(ROOT / "tests" / "images" / n) for n in ("01.jpg", "02.jpg")]
+IMAGES = [str(ROOT / "tests" / "data" / "images" / n) for n in ("01.jpg", "02.jpg")]
 
 if sys.platform.startswith("linux") and not os.environ.get("DISPLAY"):
     if not shutil.which("xvfb-run"):
@@ -347,7 +347,7 @@ def main(with_sam=False):
                and result().stats.get("n_objects", 0) > 0, timeout=90)
     def _():
         w._open_analysis(objects)
-        filedialog.askopenfilename = lambda **_: str(ROOT / "tests" / "models" / "yolov8_test.onnx")
+        filedialog.askopenfilename = lambda **_: str(ROOT / "tests" / "data" / "models" / "yolov8_test.onnx")
         w._add_model()
         if w._seg_method != "model" or w._model_output() != "boxes":
             ERRORS.append(f"detector: método {w._seg_method}, salida {w._model_output()}")

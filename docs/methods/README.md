@@ -1,8 +1,8 @@
-# FenotIT documentation
+# FenotIT methods
 
 Technical documentation of the methods implemented in FenotIT. It is written to support the
 methods section of the software paper. Every figure is produced by
-[`make_figures.py`](make_figures.py) with FenotIT's own pipeline functions on the test images,
+[`make_figures.py`](../make_figures.py) with FenotIT's own pipeline functions on the test images,
 so the pictures show what the software actually computes.
 
 ```
@@ -16,15 +16,15 @@ and labelling, and the parameters used are written to `metadata.csv` on export.
 
 | Step | Section |
 |---|---|
-| 1. Image corrections (lens distortion → perspective → color → scale) and working resolution | [01 Corrections](methods/01_corrections.md) |
-| 2. Segmentation (color-space threshold or Otsu), analysis areas and cleaning | [02 Segmentation](methods/02_segmentation.md) |
-| 3. Objects: labelling, separation of touching objects, filters and numbering | [03 Objects](methods/03_objects.md) |
-| 4. Size and shape descriptors (morphometry) | [04 Morphometry](methods/04_morphometry.md) |
-| 5. Outline shape: elliptic Fourier descriptors, alignment and mean shape | [05 Shape](methods/05_shape.md) |
-| 6. Color: mean color and dominant colors (k-means), CIELAB | [06 Color](methods/06_color.md) |
-| 7. Spatial pattern: neighbor distances and Clark–Evans index | [07 Distances](methods/07_distances.md) |
+| 1. Image corrections (lens distortion → perspective → color → scale) and working resolution | [01 Corrections](01_corrections.md) |
+| 2. Segmentation (color-space threshold or Otsu), analysis areas and cleaning | [02 Segmentation](02_segmentation.md) |
+| 3. Objects: labelling, separation of touching objects, filters and numbering | [03 Objects](03_objects.md) |
+| 4. Size and shape descriptors (morphometry) | [04 Morphometry](04_morphometry.md) |
+| 5. Outline shape: elliptic Fourier descriptors, alignment and mean shape | [05 Shape](05_shape.md) |
+| 6. Color: mean color and dominant colors (k-means), CIELAB | [06 Color](06_color.md) |
+| 7. Spatial pattern: neighbor distances and Clark–Evans index | [07 Distances](07_distances.md) |
 
-All references are in [references.md](methods/references.md).
+All references are in [references.md](references.md).
 
 ## Conventions
 

@@ -10,7 +10,7 @@ dist/
 *.code-workspace
 CLAUDE.md
 *.egg-info/
-tests/images/*/
+tests/data/images/*/
 fenotit/_model_key.py
-tests/Cgiar_*/
-tests/Kaggle_*/
+tests/data/Cgiar_*/
+tests/data/Kaggle_*/

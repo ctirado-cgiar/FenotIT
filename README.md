@@ -47,30 +47,17 @@ Typical workflow: add images → set the segmentation (channel and threshold, or
 
 ## Methods
 
-How every measurement is computed (equations, references and figures): [`docs/`](docs/README.md).
+How every measurement is computed (equations, references and figures): [`docs/methods`](docs/methods/README.md).
 
 ## Development
 
-- Code layout and how to add a new step or analysis: [`README_ESTRUCTURA.md`](README_ESTRUCTURA.md)
-- After any change, check that results did not change unexpectedly:
-
-```bash
-python tests/reference.py        # compares against tests/reference/
-python tests/test_pipeline.py    # steps on synthetic shapes
-python tests/test_counts.py      # counts on real photos with touching seeds
-python tests/test_project.py
-python tests/test_i18n.py
-```
+Code layout, how to add a step or an analysis, tests and code rules: [`docs/desarrollo.md`](docs/desarrollo.md).
 
 Application logs are written to `%LOCALAPPDATA%\FenotIT\logs\fenotit.log` (Windows) or `~/.fenotit/logs/` (other systems).
 
 ## Citation
 
-See [`CITATION.cff`](CITATION.cff), or use **Cite this repository** on GitHub.
-
-## License
-
-[CC BY-NC-SA 4.0](LICENCE.md) — free for research and education, no commercial use.
+See [`CITATION.cff`](CITATION.cff).
 
 ## Contact
 

@@ -27,7 +27,7 @@ from fenotit.core.corrections import distortion as D  # noqa: E402
 from fenotit.core.corrections import pipeline as P  # noqa: E402
 
 OUT = Path(__file__).resolve().parent / "out"
-IMG = ROOT / "tests" / "images"
+IMG = ROOT / "tests" / "data" / "images"
 BLUE, RED, GRAY = "#2166AC", "#D6604D", "#7F7F7F"
 plt.rcParams.update({"font.size": 8, "axes.titlesize": 9, "figure.dpi": 150, "savefig.dpi": 300, "savefig.bbox": "tight",
                      "axes.spines.top": False, "axes.spines.right": False})

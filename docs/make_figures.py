@@ -22,7 +22,7 @@ from fenotit.core.image_io import load_image  # noqa: E402
 from fenotit.core.pipeline import run  # noqa: E402
 
 OUT = ROOT / "docs" / "img"
-IMAGE = ROOT / "tests" / "images" / "01.jpg"
+IMAGE = ROOT / "tests" / "data" / "images" / "01.jpg"
 SEG = {"step": "threshold", "params": {"color_space": "YCrCb", "channel": 1, "min_val": 122, "max_val": 255}}
 plt.rcParams.update({"font.size": 8, "axes.titlesize": 9, "figure.dpi": 150, "savefig.bbox": "tight"})
 

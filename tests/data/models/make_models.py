@@ -3,7 +3,7 @@ tests/test_detect.py: uno con la salida de YOLOv8, otro con la de YOLOv5 y otro 
 RF-DETR, que encuentran los objetos de `scene()` en una foto de 800×600. Requiere el
 paquete onnx (solo para generar los archivos).
 
-    python tests/models/make_models.py
+    python tests/data/models/make_models.py
 """
 from pathlib import Path
 

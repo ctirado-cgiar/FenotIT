@@ -1,6 +1,6 @@
 """Detectores ONNX (cajas): lectura de los formatos YOLOv8, YOLOv5 y RF-DETR, agregar un
 modelo, cadena de Objetos y Distancias con cajas, exclusiones y cajas pasadas a máscaras
-con MobileSAM. Los modelos de tests/models tienen salida fija (los genera make_models.py)."""
+con MobileSAM. Los modelos de tests/data/models tienen salida fija (los genera make_models.py)."""
 import os
 import sys
 import tempfile
@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 os.environ.setdefault("LOCALAPPDATA", tempfile.mkdtemp())
 os.environ.setdefault("APPDATA", os.environ["LOCALAPPDATA"])
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "tests" / "models"))
+sys.path.insert(0, str(ROOT / "tests" / "data" / "models"))
 
 pytest.importorskip("onnxruntime")
 
@@ -20,7 +20,7 @@ from make_models import OBJECTS, scene                    # noqa: E402
 
 from fenotit.core.segmentation import detect, models     # noqa: E402
 
-MODELS = ROOT / "tests" / "models"
+MODELS = ROOT / "tests" / "data" / "models"
 
 
 def _added(name: str) -> dict:

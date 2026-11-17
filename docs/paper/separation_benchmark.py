@@ -51,7 +51,7 @@ def segment(img):
 
 def seed_library():
     seeds = []
-    for f in sorted(glob.glob(str(ROOT / "tests" / "images" / "[01]*.jpg")))[:10]:
+    for f in sorted(glob.glob(str(ROOT / "tests" / "data" / "images" / "[01]*.jpg")))[:10]:
         img = cv2.imread(f)
         m = segment(img)
         n, lab, st, _ = cv2.connectedComponentsWithStats(m, 8)
@@ -69,7 +69,7 @@ def seed_library():
 
 
 def background():
-    img = cv2.imread(str(ROOT / "tests" / "images" / "01.jpg"))
+    img = cv2.imread(str(ROOT / "tests" / "data" / "images" / "01.jpg"))
     tile = img[1900:2500, 150:750]                      # empty tray, real texture
     reps = SIZE // tile.shape[0] + 1
     return np.tile(tile, (reps, reps, 1))[:SIZE, :SIZE].copy()
