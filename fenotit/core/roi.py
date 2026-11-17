@@ -15,19 +15,19 @@ def polygon(shape: dict) -> list[tuple[float, float]]:
         x0, x1 = sorted((x0, x1))
         y0, y1 = sorted((y0, y1))
         return [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
-    return [tuple(p) for p in pts]
+    return [tuple(point) for point in pts]
 
 
-def masks(shapes: list[dict] | None, w: int, h: int):
+def masks(shapes: list[dict] | None, width: int, height: int):
     """(máscara de inclusión o None si no hay áreas, [(puntos px, color)] excluidas)."""
     include, exclusions = None, []
-    for s in shapes or []:
-        pts = np.round(np.asarray(polygon(s), float) * [w, h]).astype(np.int32)
-        if s["kind"] == "exclude":
+    for shape in shapes or []:
+        pts = np.round(np.asarray(polygon(shape), float) * [width, height]).astype(np.int32)
+        if shape["kind"] == "exclude":
             exclusions.append((pts, (255, 255, 255)))
         else:
             if include is None:
-                include = np.zeros((h, w), np.uint8)
+                include = np.zeros((height, width), np.uint8)
             cv2.fillPoly(include, [pts], 255)
     return include, exclusions
 
@@ -60,10 +60,10 @@ def from_legacy(data) -> list[dict]:
     if isinstance(data, list):
         return data
     out = []
-    for op in (data or {}).get("inclusion", []):
-        kind = "exclude" if op.get("type") == "hole" else "include"
-        out.append({"kind": kind, "type": "rect" if op["type"] == "rect" else "polygon",
-                    "points": op["points"]})
-    for op in (data or {}).get("exclusions", []):
-        out.append({"kind": "exclude", "type": "polygon", "points": op["points"]})
+    for entry in (data or {}).get("inclusion", []):
+        kind = "exclude" if entry.get("type") == "hole" else "include"
+        out.append({"kind": kind, "type": "rect" if entry["type"] == "rect" else "polygon",
+                    "points": entry["points"]})
+    for entry in (data or {}).get("exclusions", []):
+        out.append({"kind": "exclude", "type": "polygon", "points": entry["points"]})
     return out

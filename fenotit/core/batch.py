@@ -6,7 +6,7 @@ Sin tkinter: la interfaz recibe los resultados por callbacks (desde un hilo) y l
 a su hilo principal."""
 from __future__ import annotations
 
-import multiprocessing as mp
+import multiprocessing
 import os
 import time
 import threading
@@ -42,7 +42,7 @@ class Outcome:
 
 def light(result):
     """El resultado sin imágenes; `views` guarda los nombres de las vistas."""
-    extra = {k: v for k, v in result.extra.items() if k not in HEAVY}
+    extra = {key: value for key, value in result.extra.items() if key not in HEAVY}
     extra["views"] = list(result.step_images)
     extra["light"] = True
     return replace(result, step_images={}, extra=extra)
@@ -65,12 +65,12 @@ def available_mb() -> float | None:
                             ("ullTotalPageFile", ctypes.c_ulonglong), ("ullAvailPageFile", ctypes.c_ulonglong),
                             ("ullTotalVirtual", ctypes.c_ulonglong), ("ullAvailVirtual", ctypes.c_ulonglong),
                             ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
-            m = MEM()
-            m.dwLength = ctypes.sizeof(MEM)
-            ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(m))
-            return m.ullAvailPhys / 2**20
-        with open("/proc/meminfo") as f:
-            for line in f:
+            memory = MEM()
+            memory.dwLength = ctypes.sizeof(MEM)
+            ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(memory))
+            return memory.ullAvailPhys / 2**20
+        with open("/proc/meminfo") as meminfo:
+            for line in meminfo:
                 if line.startswith("MemAvailable:"):
                     return int(line.split()[1]) / 1024
     except Exception:
@@ -87,10 +87,10 @@ def workers_for(paths: list[str], wanted: int) -> int:
 
     from fenotit.core import image_io  # noqa: F401  (permite fotos de más de 179 MP)
     biggest = 0
-    for p in paths[:50]:
+    for path in paths[:50]:
         try:
-            with Image.open(p) as im:
-                biggest = max(biggest, im.size[0] * im.size[1])
+            with Image.open(path) as picture:
+                biggest = max(biggest, picture.size[0] * picture.size[1])
         except Exception:
             continue
     free = available_mb()
@@ -106,7 +106,7 @@ def process(analysis: str, job: Job, corrections, keep_images: bool = False) -> 
     from fenotit.core.corrections import pipeline as corr
     from fenotit.core.image_io import load_image
 
-    t0 = time.perf_counter()
+    started = time.perf_counter()
     img = load_image(job.path)
     if img is None:
         return Outcome(job.path, "unreadable")
@@ -130,7 +130,7 @@ def process(analysis: str, job: Job, corrections, keep_images: bool = False) -> 
         _log.exception("%s falló en %s", analysis, job.path)
         result = AnalysisResult(status="error", error=str(e))
     result.extra["params"] = params          # para recalcular la vista o exportarla igual
-    result.extra["processing_s"] = round(time.perf_counter() - t0, 3)   # leer + corregir + analizar
+    result.extra["processing_s"] = round(time.perf_counter() - started, 3)   # leer + corregir + analizar
     if result.status != "ok":
         return Outcome(job.path, "error", message=result.error, mm_per_px=params.get("mm_per_pixel"))
     return Outcome(job.path, "ok", result if keep_images else light(result),
@@ -166,9 +166,9 @@ def _init_worker(language: str | None = None):
     root.setLevel(logging.WARNING)
     try:
         log.log_dir().mkdir(parents=True, exist_ok=True)
-        fh = logging.FileHandler(log.log_file(), encoding="utf-8", delay=True)
-        fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)-7s %(name)s [lote]: %(message)s"))
-        root.addHandler(fh)
+        handler = logging.FileHandler(log.log_file(), encoding="utf-8", delay=True)
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)-7s %(name)s [lote]: %(message)s"))
+        root.addHandler(handler)
     except OSError:
         pass
 
@@ -200,13 +200,13 @@ class BatchRunner:
         return self._cancel.is_set()
 
     def _run(self):
-        n = len(self.jobs)
+        total = len(self.jobs)
         done = 0
-        workers = min(workers_for([j.path for j in self.jobs], self.workers), n) or 1
-        _log.info("Lote: %d fotos, %d procesos", n, workers)
+        workers = min(workers_for([j.path for j in self.jobs], self.workers), total) or 1
+        _log.info("Lote: %d fotos, %d procesos", total, workers)
         from fenotit import i18n
         pool = ProcessPoolExecutor(max_workers=workers, initializer=_init_worker, initargs=(i18n.current(),),
-                                   mp_context=mp.get_context("spawn"))   # igual en Windows y Linux
+                                   mp_context=multiprocessing.get_context("spawn"))   # igual en Windows y Linux
         try:
             todo = iter(self.jobs)
             running = {}
@@ -230,7 +230,7 @@ class BatchRunner:
                         out = Outcome(job.path, "error", message=str(e))
                     done += 1
                     if not self._cancel.is_set():
-                        self.on_outcome(done, n, out)
+                        self.on_outcome(done, total, out)
                 submit()
         except Exception:
             _log.exception("Lote")
@@ -238,9 +238,9 @@ class BatchRunner:
         if cancelled:                               # no esperar a las fotos que ya corrían
             procs = list((getattr(pool, "_processes", None) or {}).values())
             pool.shutdown(wait=False, cancel_futures=True)
-            for p in procs:
+            for proc in procs:
                 try:
-                    p.terminate()
+                    proc.terminate()
                 except Exception:
                     _log.debug("terminate", exc_info=True)
         else:

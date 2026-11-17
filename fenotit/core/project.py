@@ -29,29 +29,29 @@ class Segmentation:
     max_val: int = 255
     auto: bool = False            # umbral automático (Otsu) en el canal elegido
     refine: list = field(default_factory=lambda: [{"op": "fill_holes"}])   # afinar máscara, en orden
-    classes: list = field(default_factory=lambda: [dict(c) for c in DEFAULT_CLASSES])
+    classes: list = field(default_factory=lambda: [dict(entry) for entry in DEFAULT_CLASSES])
     detail: float = 1.0           # MP de la copia en que se clasifica (por ejemplos)
     model: dict = field(default_factory=lambda: {"name": "mobilesam", "mode": "auto", "grid": 16})
     detector: dict = field(default_factory=dict)   # detector de cajas (análisis Detección y detecciones por objeto)
 
     @classmethod
-    def from_dict(cls, d: dict | None) -> "Segmentation":
-        d = dict(d or {})
-        op = d.pop("morph_op", "none")                     # versiones anteriores: una operación
-        size, it = d.pop("morph_size", 3), d.pop("morph_iter", 1)
-        if "refine" not in d:
-            d["refine"] = ([{"op": op, "size": int(size), "iter": int(it)}] if op != "none" else []) \
+    def from_dict(cls, data: dict | None) -> "Segmentation":
+        data = dict(data or {})
+        operation = data.pop("morph_op", "none")                     # versiones anteriores: una operación
+        size, repeats = data.pop("morph_size", 3), data.pop("morph_iter", 1)
+        if "refine" not in data:
+            data["refine"] = ([{"op": operation, "size": int(size), "iter": int(repeats)}] if operation != "none" else []) \
                 + [{"op": "fill_holes"}]
-        model = d.get("model") or {}
-        if "detector" not in d and model.get("output") == "boxes":   # detector guardado como modelo de Segmentar
-            d["detector"] = {key: value for key, value in model.items() if key not in ("output", "mode", "grid")}
-            d["model"] = {"name": "mobilesam", "mode": "auto", "grid": 16}
-            if d.get("method") == "model":
-                d["method"] = "threshold"
-        return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
+        model = data.get("model") or {}
+        if "detector" not in data and model.get("output") == "boxes":   # detector guardado como modelo de Segmentar
+            data["detector"] = {key: value for key, value in model.items() if key not in ("output", "mode", "grid")}
+            data["model"] = {"name": "mobilesam", "mode": "auto", "grid": 16}
+            if data.get("method") == "model":
+                data["method"] = "threshold"
+        return cls(**{key: value for key, value in data.items() if key in cls.__dataclass_fields__})
 
     def object_classes(self) -> list[int]:
-        return [i for i, c in enumerate(self.classes) if i and c.get("object", True)]
+        return [i for i, entry in enumerate(self.classes) if i and entry.get("object", True)]
 
 
 DEFAULT_CLASSES = [{"name": "Fondo", "color": "#9E9E9E", "object": False},
@@ -120,7 +120,7 @@ class Project:
         self.image_roi = {}
 
     def others_with_own_roi(self, path) -> int:
-        return sum(1 for k in self.image_roi if k != self.key(path))
+        return sum(1 for photo in self.image_roi if photo != self.key(path))
 
     def marks_for(self, kind: str, path) -> list[list[float]]:
         """Objetos marcados a mano en una foto: kind = "excluded" | "highlighted"."""
@@ -150,7 +150,7 @@ class Project:
         self.image_scale = {}
 
     def others_with_own_scale(self, path) -> int:
-        return sum(1 for k in self.image_scale if k != self.key(path))
+        return sum(1 for photo in self.image_scale if photo != self.key(path))
 
     @property
     def preview(self) -> Path | None:
@@ -162,29 +162,29 @@ class Project:
         return self.folder / f"{self.folder.name}{PROJECT_EXT}" if self.folder else None
 
     def set_images(self, paths, mode: str | None = None):
-        self.images = [Path(p) for p in paths]
+        self.images = [Path(path) for path in paths]
         self.current_index = 0
         if mode:
             self.mode = mode
 
-    def _rel(self, p: Path) -> str:
+    def _rel(self, path: Path) -> str:
         """Ruta relativa a la carpeta del proyecto (también con ../ si está en una carpeta
         vecina); absoluta solo si está en otra unidad. Sin resolve(): en OneDrive cada
         resolve() toca el disco y esto se llama en cada cambio (¿hay algo sin guardar?)."""
-        ap = os.path.abspath(p)
+        absolute = os.path.abspath(path)
         if self.folder:
             try:
-                return Path(os.path.relpath(ap, os.path.abspath(self.folder))).as_posix()
+                return Path(os.path.relpath(absolute, os.path.abspath(self.folder))).as_posix()
             except ValueError:                        # otra unidad (Windows)
                 pass
-        return Path(ap).as_posix()
+        return Path(absolute).as_posix()
 
     def to_dict(self) -> dict:
         return {
             "fenotit_version": __version__,
             "name": self.name,
             "saved_in": Path(os.path.abspath(self.folder)).as_posix() if self.folder else "",
-            "images": [self._rel(p) for p in self.images],
+            "images": [self._rel(path) for path in self.images],
             "current_index": self.current_index,
             "mode": self.mode,
             "analysis": self.analysis,
@@ -193,13 +193,13 @@ class Project:
             "unit": self.unit,
             "params": self.params,
             "roi": self.roi,
-            "image_roi": {self._rel(Path(k)): v for k, v in self.image_roi.items()},
-            "image_scale": {self._rel(Path(k)): asdict(v) for k, v in self.image_scale.items()},
-            "excluded_objects": {self._rel(Path(k)): v for k, v in self.excluded.items()},
-            "highlighted_objects": {self._rel(Path(k)): v for k, v in self.highlighted.items()},
-            "strokes": {self._rel(Path(k)): v for k, v in self.strokes.items() if v},
-            "prompts": {self._rel(Path(k)): v for k, v in self.prompts.items() if v},
-            "regions": {self._rel(Path(k)): v for k, v in self.regions.items() if v},
+            "image_roi": {self._rel(Path(photo)): value for photo, value in self.image_roi.items()},
+            "image_scale": {self._rel(Path(photo)): asdict(value) for photo, value in self.image_scale.items()},
+            "excluded_objects": {self._rel(Path(photo)): value for photo, value in self.excluded.items()},
+            "highlighted_objects": {self._rel(Path(photo)): value for photo, value in self.highlighted.items()},
+            "strokes": {self._rel(Path(photo)): value for photo, value in self.strokes.items() if value},
+            "prompts": {self._rel(Path(photo)): value for photo, value in self.prompts.items() if value},
+            "regions": {self._rel(Path(photo)): value for photo, value in self.regions.items() if value},
             "corrections": self.corrections.to_dict(),
             "ran": self.ran,
             "preset": self.preset,
@@ -216,15 +216,15 @@ class Project:
             raise ValueError("El proyecto no tiene carpeta")
         self.folder.mkdir(parents=True, exist_ok=True)
         for sub in ("calibration", "results"):        # versiones anteriores las creaban vacías
-            d = self.folder / sub
+            sub_folder = self.folder / sub
             try:
-                if d.is_dir() and not any(d.iterdir()):
-                    d.rmdir()
+                if sub_folder.is_dir() and not any(sub_folder.iterdir()):
+                    sub_folder.rmdir()
             except OSError:
                 pass
         self.corrections.save_files(self.folder)
-        with open(self.file, "w", encoding="utf-8") as f:
-            yaml.safe_dump(self.to_dict(), f, allow_unicode=True, sort_keys=False)
+        with open(self.file, "w", encoding="utf-8") as file:
+            yaml.safe_dump(self.to_dict(), file, allow_unicode=True, sort_keys=False)
         for old_ext in OLD_PROJECT_EXTS:
             self.file.with_suffix(old_ext).unlink(missing_ok=True)
         return self.file
@@ -238,63 +238,63 @@ class Project:
             if not found:
                 raise FileNotFoundError(f"No hay un proyecto {PROJECT_EXT} en {path}")
             path = found[0]
-        with open(path, encoding="utf-8") as f:
-            d = yaml.safe_load(f) or {}
+        with open(path, encoding="utf-8") as file:
+            data = yaml.safe_load(file) or {}
         folder = path.parent
-        saved_in = Path(d["saved_in"]) if d.get("saved_in") else None
+        saved_in = Path(data["saved_in"]) if data.get("saved_in") else None
 
-        def resolve(s: str) -> Path:
+        def resolve(stored: str) -> Path:
             """Relativa a la carpeta actual del proyecto; si ahí no está y el proyecto se movió
             solo, relativa a la carpeta donde se guardó."""
-            p = Path(s)
-            if p.is_absolute():
-                return p
-            here = Path(os.path.normpath(folder / p))
+            candidate = Path(stored)
+            if candidate.is_absolute():
+                return candidate
+            here = Path(os.path.normpath(folder / candidate))
             if saved_in is not None and saved_in != folder and not here.exists():
-                there = Path(os.path.normpath(saved_in / p))
+                there = Path(os.path.normpath(saved_in / candidate))
                 if there.exists():
                     return there
             return here
 
         return cls(
-            name=d.get("name", folder.name),
+            name=data.get("name", folder.name),
             folder=folder,
-            images=[resolve(s) for s in d.get("images", [])],
-            current_index=int(d.get("current_index", 0)),
-            mode=d.get("mode", "individual"),
-            analysis=d.get("analysis"),
-            segmentation=Segmentation.from_dict(d.get("segmentation")),
-            scale=Scale(**d.get("scale", {})),
-            unit=d.get("unit", "mm"),
-            params=d.get("params", {}) or {},
-            roi=from_legacy(d.get("roi")),
-            image_roi={cls.key(resolve(k)): from_legacy(v) for k, v in (d.get("image_roi") or {}).items()},
-            image_scale={cls.key(resolve(k)): Scale(**v) for k, v in (d.get("image_scale") or {}).items()},
-            excluded={cls.key(resolve(k)): v for k, v in (d.get("excluded_objects") or {}).items()},
-            highlighted={cls.key(resolve(k)): v for k, v in (d.get("highlighted_objects") or {}).items()},
-            strokes={cls.key(resolve(k)): v for k, v in (d.get("strokes") or {}).items()},
-            prompts={cls.key(resolve(k)): v for k, v in (d.get("prompts") or {}).items()},
-            regions={cls.key(resolve(k)): v for k, v in (d.get("regions") or {}).items()},
-            corrections=Corrections.from_dict(d.get("corrections"), folder),
-            ran=list(d.get("ran") or []),
-            preset=dict(d.get("preset") or {}),
-            max_mpx=d.get("max_mpx", 50.0),
-            display={"legend": True, "color_format": "RGB", "legend_scale": 1.0, **(d.get("display") or {})},
-            metadata=({**d["metadata"], "file": str(resolve(d["metadata"]["file"]))}
-                      if (d.get("metadata") or {}).get("file") else {}),
+            images=[resolve(stored) for stored in data.get("images", [])],
+            current_index=int(data.get("current_index", 0)),
+            mode=data.get("mode", "individual"),
+            analysis=data.get("analysis"),
+            segmentation=Segmentation.from_dict(data.get("segmentation")),
+            scale=Scale(**data.get("scale", {})),
+            unit=data.get("unit", "mm"),
+            params=data.get("params", {}) or {},
+            roi=from_legacy(data.get("roi")),
+            image_roi={cls.key(resolve(photo)): from_legacy(value) for photo, value in (data.get("image_roi") or {}).items()},
+            image_scale={cls.key(resolve(photo)): Scale(**value) for photo, value in (data.get("image_scale") or {}).items()},
+            excluded={cls.key(resolve(photo)): value for photo, value in (data.get("excluded_objects") or {}).items()},
+            highlighted={cls.key(resolve(photo)): value for photo, value in (data.get("highlighted_objects") or {}).items()},
+            strokes={cls.key(resolve(photo)): value for photo, value in (data.get("strokes") or {}).items()},
+            prompts={cls.key(resolve(photo)): value for photo, value in (data.get("prompts") or {}).items()},
+            regions={cls.key(resolve(photo)): value for photo, value in (data.get("regions") or {}).items()},
+            corrections=Corrections.from_dict(data.get("corrections"), folder),
+            ran=list(data.get("ran") or []),
+            preset=dict(data.get("preset") or {}),
+            max_mpx=data.get("max_mpx", 50.0),
+            display={"legend": True, "color_format": "RGB", "legend_scale": 1.0, **(data.get("display") or {})},
+            metadata=({**data["metadata"], "file": str(resolve(data["metadata"]["file"]))}
+                      if (data.get("metadata") or {}).get("file") else {}),
         )
 
     def missing_images(self) -> list[Path]:
-        return [p for p in self.images if not p.exists()]
+        return [path for path in self.images if not path.exists()]
 
     def relink(self, found: dict) -> int:
         """Cambia la ruta de las fotos movidas (vieja -> nueva) y de todo lo que se guarda por
         foto (áreas, escala, marcas). Devuelve cuántas se cambiaron."""
-        old_new = {self.key(a): Path(b) for a, b in found.items()}
-        self.images = [old_new.get(self.key(p), p) for p in self.images]
+        old_new = {self.key(old): Path(new) for old, new in found.items()}
+        self.images = [old_new.get(self.key(path), path) for path in self.images]
         for name in ("image_roi", "image_scale", "excluded", "highlighted", "strokes", "prompts", "regions"):
-            d = getattr(self, name)
-            setattr(self, name, {(self.key(old_new[k]) if k in old_new else k): v for k, v in d.items()})
+            per_photo = getattr(self, name)
+            setattr(self, name, {(self.key(old_new[photo]) if photo in old_new else photo): value for photo, value in per_photo.items()})
         return len(old_new)
 
 
@@ -304,29 +304,29 @@ def find_by_name(missing: list, folder) -> dict:
     carpetas finales con la ruta original (p. ej. .../ensayo1/rep2/foto.jpg)."""
     import os
     wanted: dict[str, list[Path]] = {}
-    for p in missing:
-        wanted.setdefault(Path(p).name.lower(), []).append(Path(p))
+    for path in missing:
+        wanted.setdefault(Path(path).name.lower(), []).append(Path(path))
     candidates: dict[str, list[Path]] = {}
     for root, _dirs, files in os.walk(folder):
-        for f in files:
-            k = f.lower()
-            if k in wanted:
-                candidates.setdefault(k, []).append(Path(root) / f)
+        for file_name in files:
+            lowered = file_name.lower()
+            if lowered in wanted:
+                candidates.setdefault(lowered, []).append(Path(root) / file_name)
 
-    def shared_tail(a: Path, b: Path) -> int:
-        n = 0
-        for x, y in zip(reversed(a.parent.parts), reversed(b.parent.parts)):
+    def shared_tail(path_a: Path, path_b: Path) -> int:
+        shared = 0
+        for x, y in zip(reversed(path_a.parent.parts), reversed(path_b.parent.parts)):
             if x.lower() != y.lower():
                 break
-            n += 1
-        return n
+            shared += 1
+        return shared
     found = {}
     for name, olds in wanted.items():
         cands = list(candidates.get(name, []))
         for old in olds:
             if not cands:
                 break
-            best = max(cands, key=lambda c: shared_tail(old, c))
+            best = max(cands, key=lambda candidate: shared_tail(old, candidate))
             found[old] = best
             cands.remove(best)
     return found

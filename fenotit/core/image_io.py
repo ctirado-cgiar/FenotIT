@@ -81,10 +81,10 @@ class ImageScaler:
         self.canvas_w: int = 400         # tamaño de canvas disponible
         self.canvas_h: int = 300
 
-    def set_canvas_size(self, w: int, h: int):
+    def set_canvas_size(self, width: int, height: int):
         """Llamar cuando el canvas cambie de tamaño (resize de ventana)."""
-        self.canvas_w = max(w, 100)
-        self.canvas_h = max(h, 100)
+        self.canvas_w = max(width, 100)
+        self.canvas_h = max(height, 100)
         if self.original is not None:
             self._recompute_display()
 
@@ -106,11 +106,11 @@ class ImageScaler:
         """Recalcula la imagen de display para el canvas actual."""
         if self.original is None:
             return
-        h, w = self.original.shape[:2]
-        scale = min(self.canvas_w / w, self.canvas_h / h, 1.0)
+        height, width = self.original.shape[:2]
+        scale = min(self.canvas_w / width, self.canvas_h / height, 1.0)
         self.scale = scale
-        self.display_w = int(w * scale)
-        self.display_h = int(h * scale)
+        self.display_w = int(width * scale)
+        self.display_h = int(height * scale)
         if scale < 1.0:
             self.display = cv2.resize(
                 self.original,
@@ -154,8 +154,8 @@ class ImageScaler:
         """Escala una máscara del tamaño display → tamaño original."""
         if self.original is None:
             return mask_display
-        oh, ow = self.original.shape[:2]
-        return cv2.resize(mask_display, (ow, oh), interpolation=cv2.INTER_NEAREST)
+        height, width = self.original.shape[:2]
+        return cv2.resize(mask_display, (width, height), interpolation=cv2.INTER_NEAREST)
 
     def scale_mask_to_display(self, mask_original: np.ndarray) -> np.ndarray:
         """Escala una máscara del tamaño original → tamaño display."""

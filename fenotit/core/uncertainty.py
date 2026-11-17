@@ -28,5 +28,5 @@ def combined(area_rel: float, scale_rel: float = 0.0) -> float:
     return math.hypot(area_rel, 2 * scale_rel)
 
 
-def min_area_px(target_rel: float, k: float = CIRCLE_K) -> float:
-    return (math.sqrt(k / 12) / target_rel) ** (4 / 3)
+def min_area_px(target_rel: float, shape_constant: float = CIRCLE_K) -> float:
+    return (math.sqrt(shape_constant / 12) / target_rel) ** (4 / 3)

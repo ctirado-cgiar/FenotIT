@@ -13,8 +13,8 @@ def ascii_name(unit: str) -> str:
 
 def display(unit: str) -> str:
     """Para mostrar: um → µm, um2 → µm², mm2 → mm²."""
-    u = "µm" + unit[2:] if unit.startswith("um") else unit
-    return u.replace("2", "²")
+    text = "µm" + unit[2:] if unit.startswith("um") else unit
+    return text.replace("2", "²")
 
 
 def per_px(mm_per_px: float | None, unit: str) -> float | None:
@@ -22,9 +22,9 @@ def per_px(mm_per_px: float | None, unit: str) -> float | None:
     return mm_per_px / TO_MM.get(unit, 1.0) if mm_per_px else None
 
 
-def mean_sd(mean: float, sd: float) -> str:
+def mean_sd(mean: float, spread: float) -> str:
     """Media ± DE con decimales según el tamaño (5.7 ± 0.4; 0.57 ± 0.04; 16193 ± 1958)."""
     import math
-    m = abs(mean)
-    d = 0 if m >= 1000 else 1 if m >= 1 or m == 0 else min(8, 1 - math.floor(math.log10(m)))
-    return f"{mean:.{d}f} ± {sd:.{d}f}"
+    magnitude = abs(mean)
+    decimals = 0 if magnitude >= 1000 else 1 if magnitude >= 1 or magnitude == 0 else min(8, 1 - math.floor(math.log10(magnitude)))
+    return f"{mean:.{decimals}f} ± {spread:.{decimals}f}"
