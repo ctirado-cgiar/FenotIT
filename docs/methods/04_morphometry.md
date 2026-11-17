@@ -1,69 +1,69 @@
-# 4. Morphometry (size and shape descriptors)
+# 4. Morphometry
 
-Descriptors are computed for each isolated object (objects with `touching = 1` are counted
-but not measured unless "Measure touching objects" is on). The outer contour $C$ is traced
-with Suzuki & Abe (1985) without approximation.
+Size and shape descriptors are computed for each object. Objects that come from a split region
+(`touching = 1`, section 3.2) are counted and measured only when "Measure touching objects" is
+on. The outer outline of each object is traced with the algorithm of Suzuki & Abe (1985).
 
 ![Morphometry](../img/morphometry.png)
 
-*Figure 4.1. (a) Contour (yellow), minimum-area rectangle (red) and centroid. (b) Convex
-hull (green). (c) Least-squares ellipse, and the shortest (red) and longest (green) radius
-from the centroid.*
+*Figure 4.1. Geometry measured on one mottled bean seed from a Petri dish photo (bruchid trial,
+section 8.5). (a) Outline
+(yellow), smallest enclosing rectangle (red) and centroid (cross). (b) Convex hull (green), the
+outline of the seed with every concavity bridged. (c) Ellipse fitted to the outline (blue), and
+the shortest (red) and longest (green) distances from the centroid to the outline.*
 
-## 4.1 Basic quantities
+## 4.1 What is measured
 
-| Symbol | Definition |
-|---|---|
-| $A$ | Area: number of object pixels |
-| $A_p$ | Polygon area of $C$ (shoelace formula); used in the ratios so that all terms come from the same polygon |
-| $P$ | Perimeter: length of $C$ simplified with Douglas–Peucker, tolerance 1 px (Douglas & Peucker, 1973) |
-| $H$ | Convex hull of $C$ (Sklansky, 1982), with area $A_H$ and perimeter $P_H$ |
-| $L$, $W$ | Length and width: long and short sides of the minimum-area enclosing rectangle (Freeman & Shapira, 1975; rotating calipers, Toussaint, 1983) |
-| $a$, $b$ | Major and minor axis (full lengths) of the least-squares ellipse fitted to $C$ (Fitzgibbon & Fisher, 1995) |
-| $(\bar x, \bar y)$ | Centroid: mean of the object pixels |
-| $r_i$ | Distance from the centroid to each contour point |
-
-**Why the simplified perimeter.** The raw pixel contour follows the pixel staircase and
-overestimates the perimeter of curved and oblique outlines by several percent. Simplifying with a
-1 px tolerance removes the staircase while keeping the real shape.
-
-**Length and width.** The minimum-area rectangle gives the length and width of the object in
-any orientation, as with calipers. In the image they are drawn as the two axes through the
-rectangle center.
+- **Area**: number of pixels of the object.
+- **Perimeter**: length of the outline after simplifying it with the Douglas–Peucker algorithm
+  with a tolerance of 1 px (Douglas & Peucker, 1973). The raw pixel outline follows the steps of
+  the pixel grid, which add length on curved and oblique edges; the simplification removes the
+  steps and keeps the shape.
+- **Polygon area**: area enclosed by the outline polygon. The ratios below use it together with
+  the perimeter, so that both come from the same polygon.
+- **Convex hull**: the smallest convex polygon that contains the outline (Sklansky, 1982), with
+  its own area and perimeter.
+- **Length and width**: the long and short sides of the smallest rectangle, at any angle, that
+  encloses the object (Freeman & Shapira, 1975; found with rotating calipers, Toussaint, 1983).
+  They are the length and width a caliper would give.
+- **Ellipse axes**: full lengths of the major and minor axes of the ellipse fitted to the
+  outline by least squares (Fitzgibbon & Fisher, 1995).
+- **Centroid**: mean position of the object pixels.
+- **Radii**: distances from the centroid to each point of the outline.
 
 ## 4.2 Exported descriptors
 
-Sizes are multiplied by $s$ (or $s^2$ for areas) and carry the unit in the column name.
+Lengths are multiplied by the scale (unit per pixel) and areas by the scale squared; the unit is
+part of the column name (`<u>` is `mm`, `um`, `cm`, `m` or `px`). Ratios have no unit.
 
-| Column | Formula | Range | Interpretation |
-|---|---|---|---|
-| `area_<u>2` | $A\,s^2$ | > 0 | Projected area |
-| `length_<u>`, `width_<u>` | $L\,s$, $W\,s$ | > 0 | Caliper length and width |
-| `perimeter_<u>` | $P\,s$ | > 0 | Outline length |
-| `aspect_ratio` | $L / W$ | ≥ 1 | 1 = as long as wide |
-| `elongation` | $1 - W / L$ | [0, 1) | 0 = isometric |
-| `circularity` | $\min(1,\ 4\pi A_p / P^2)$ | (0, 1] | 1 = disk (Cox, 1927; "form factor") |
-| `solidity` | $A_p / A_H$ | (0, 1] | < 1 = concavities, notches |
-| `convexity` | $\min(1,\ P_H / P)$ | (0, 1] | < 1 = rough or lobed outline |
-| `rectangularity` | $A_p / (L W)$ | (0, 1] | 1 = rectangle; π/4 ≈ 0.785 = ellipse |
-| `eccentricity` | $\sqrt{1 - (b/a)^2}$ | [0, 1) | Of the fitted ellipse; 0 = circle |
-| `major_axis_<u>`, `minor_axis_<u>` | $a\,s$, $b\,s$ | > 0 | Ellipse axes |
-| `radius_min/mean/max_<u>` | $\min r_i,\ \bar r_i,\ \max r_i$ (× $s$) | > 0 | Radii from the centroid |
-| `radius_ratio` | $\min r_i / \max r_i$ | (0, 1] | 1 = round |
-| `centroid_x_px`, `centroid_y_px` | $(\bar x, \bar y)$ | px | Position in the photo |
+| Column | Definition | Values |
+|---|---|---|
+| `area_<u>2` | Area | > 0 |
+| `length_<u>`, `width_<u>` | Length and width of the smallest enclosing rectangle | > 0 |
+| `perimeter_<u>` | Perimeter | > 0 |
+| `aspect_ratio` | length / width | 1 for an object as wide as long, larger for longer objects |
+| `elongation` | 1 − width / length | 0 for an object as wide as long, close to 1 for a thin one |
+| `circularity` | 4π × polygon area / perimeter², at most 1 (Cox, 1927) | 1 for a disk, lower for long or irregular outlines |
+| `solidity` | polygon area / convex hull area | 1 for a convex object, lower with notches and concavities |
+| `convexity` | convex hull perimeter / perimeter, at most 1 | 1 for a smooth convex outline, lower for rough or lobed ones |
+| `rectangularity` | polygon area / (length × width) | 1 for a rectangle, about 0.785 for an ellipse |
+| `eccentricity` | √(1 − (minor axis / major axis)²) of the fitted ellipse | 0 for a circle, close to 1 for a thin ellipse |
+| `major_axis_<u>`, `minor_axis_<u>` | Ellipse axes | > 0 |
+| `radius_min_<u>`, `radius_mean_<u>`, `radius_max_<u>` | Shortest, mean and longest radius | > 0 |
+| `radius_ratio` | shortest radius / longest radius | 1 for a disk |
+| `centroid_x_px`, `centroid_y_px` | Centroid, in pixels from the top-left corner | |
 
-Definitions follow the usual image-analysis conventions (Russ & Neal, 2016), which are also
-used by ImageJ (Schneider et al., 2012) and CellProfiler (Stirling et al., 2021), so the
-values can be compared. Note that the ratios are dimensionless and do not depend on the scale.
+The definitions follow the usual conventions of image analysis (Russ & Neal, 2016), the same
+used by ImageJ (Schneider et al., 2012) and CellProfiler (Stirling et al., 2021).
 
-## 4.3 Image-level values
+## 4.3 Values per photo
 
 | Column | Meaning |
 |---|---|
 | `n_objects` | Objects counted (manually excluded objects are not counted) |
-| `n_touching` | Objects that came from splitting a clump |
-| `n_measured` | Objects with morphometry |
+| `n_touching` | Objects that come from a split region |
+| `n_measured` | Objects with size and shape measurements |
 | `n_excluded_manual`, `n_highlighted` | Objects excluded or highlighted in the inspector |
 
-Summary statistics shown in the legends and charts are the arithmetic mean $\bar x$ and the
-sample standard deviation (SD, $n - 1$ denominator).
+Legends and charts summarize each descriptor with the mean and the sample standard deviation
+(SD, computed with n − 1).

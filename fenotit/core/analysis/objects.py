@@ -8,6 +8,7 @@ import numpy as np
 from fenotit.core import pipeline
 from fenotit.core import roi as areas
 from fenotit.core import segmentation as segmentation_methods
+from fenotit.core.analysis.object_params import PARAMS_SCHEMA
 from fenotit.core.analysis.registry import AnalysisResult, register
 from fenotit.core.efd import contour_points, from_row
 from fenotit.core.pipeline import overlay
@@ -363,40 +364,6 @@ def _view_tables(ctx, color_mode: str = "object") -> dict[str, list[dict]]:
         tables["color"] = (ctx.tables.get("image_colors", []) if color_mode == "pooled"
                            else ctx.tables["object_colors"])
     return tables
-
-
-PARAMS_SCHEMA = [
-    {"key": "hdr_objects", "type": "header"},
-    {"key": "touching", "type": "bool", "default": False},
-    {"key": "exclude_border", "type": "bool", "default": False},
-    {"key": "size_filter", "type": "bool", "default": False},
-    {"key": "length_min", "type": "float", "default": 0,
-     "min": 0, "max": 10_000_000, "step": 1, "unit": "length", "group": "size_filter"},
-    {"key": "length_max", "type": "float", "default": 0,
-     "min": 0, "max": 10_000_000, "step": 1, "unit": "length", "group": "size_filter"},
-    {"key": "width_min", "type": "float", "default": 0,
-     "min": 0, "max": 10_000_000, "step": 1, "unit": "length", "group": "size_filter"},
-    {"key": "width_max", "type": "float", "default": 0,
-     "min": 0, "max": 10_000_000, "step": 1, "unit": "length", "group": "size_filter"},
-    {"key": "hdr_measure", "type": "header"},
-    {"key": "measure_count", "type": "bool", "default": True},
-    {"key": "measure_size", "type": "bool", "default": True},
-    {"key": "measure_touching", "type": "bool",
-     "default": False, "group": "measure_size"},
-    {"key": "measure_shape", "type": "bool", "default": False},
-    {"key": "harmonics", "type": "int", "default": 20, "min": 1, "max": 50,
-     "group": "measure_shape"},
-    {"key": "measure_color", "type": "bool", "default": False},
-    {"key": "color_mode", "type": "choice", "choices": ["object", "pooled"],
-     "default": "object", "group": "measure_color"},
-    {"key": "n_colors", "type": "int", "default": 3, "min": 1, "max": 20,
-     "group": "measure_color"},
-    {"key": "n_colors_auto", "type": "bool", "default": False,
-     "group": "measure_color"},
-    {"key": "measure_classes", "type": "bool", "default": True,
-     "segmentation": "classifier"},
-    {"key": "measure_detections", "type": "bool", "default": False},
-]
 
 
 register(

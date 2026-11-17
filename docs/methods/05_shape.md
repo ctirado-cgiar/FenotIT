@@ -1,59 +1,66 @@
 # 5. Outline shape: elliptic Fourier descriptors
 
-Size descriptors (section 4) summarize the outline in a few numbers. To compare the outline
-itself, FenotIT describes it with elliptic Fourier descriptors (EFD; Kuhl & Giardina, 1982),
-the standard method for seed and leaf outlines in plant biology (Iwata & Ukai, 2002).
+The descriptors of section 4 summarize an outline in a few numbers. To compare outlines as a
+whole, FenotIT describes each one with elliptic Fourier descriptors (EFD; Kuhl & Giardina,
+1982), a common method for seed and leaf outlines in plant biology (Iwata & Ukai, 2002).
 
 ![EFD](../img/efd_harmonics.png)
 
-*Figure 5.1. Outline of a seed (gray) and its reconstruction (red) with 1, 2, 4, 8 and 20
-harmonics. The first harmonic is always an ellipse; each further harmonic adds detail.
-FenotIT uses 20 by default.*
+*Figure 5.1. Outline of the seed of Figure 4.1 (gray) and its reconstruction (red) with 1, 2,
+4, 8 and 20 harmonics. The first harmonic is an ellipse; each further harmonic adds finer
+detail. FenotIT uses 20 harmonics by default.*
 
-## 5.1 Coefficients
+## 5.1 The outline as a sum of ellipses
 
-The closed contour is a sequence of $K$ points. Let $\Delta x_p$, $\Delta y_p$ be the steps
-between consecutive points, $\Delta t_p = \sqrt{\Delta x_p^2 + \Delta y_p^2}$,
-$t_p = \sum_{j \le p} \Delta t_j$ and $T = t_K$ the perimeter. For harmonic $n = 1 \dots N$:
+Walking once around the outline, the x and y coordinates of the point reached are two periodic
+curves. Each of them can be written as a sum of cosines and sines of increasing frequency
+(a Fourier series). Harmonic $n$ goes around $n$ times while the outline is walked once, and
+it is described by four numbers $a_n$, $b_n$, $c_n$, $d_n$: $a_n$ and $b_n$ for x, and $c_n$
+and $d_n$ for y. Each harmonic traces an ellipse, and adding the harmonics in order rebuilds
+the outline (Figure 5.1).
 
-$$a_n = \frac{T}{2 n^2 \pi^2} \sum_{p=1}^{K} \frac{\Delta x_p}{\Delta t_p}\left[\cos\frac{2\pi n t_p}{T} - \cos\frac{2\pi n t_{p-1}}{T}\right]$$
+Let the outline have $K$ points and let $t$ be the distance walked along it from the first
+point, so that $t$ goes from 0 to the perimeter $T$. Point $p$ is reached at distance $t_p$,
+and the step from point $p - 1$ to point $p$ has horizontal size $\Delta x_p$, vertical size
+$\Delta y_p$ and length $\Delta t_p$. The coefficients of harmonic $n$ are
 
-$$b_n = \frac{T}{2 n^2 \pi^2} \sum_{p=1}^{K} \frac{\Delta x_p}{\Delta t_p}\left[\sin\frac{2\pi n t_p}{T} - \sin\frac{2\pi n t_{p-1}}{T}\right]$$
+$$a_n = \frac{T}{2 n^2 \pi^2} \sum_{p=1}^{K} \frac{\Delta x_p}{\Delta t_p}\left[\cos\frac{2\pi n t_p}{T} - \cos\frac{2\pi n t_{p-1}}{T}\right],\qquad
+b_n = \frac{T}{2 n^2 \pi^2} \sum_{p=1}^{K} \frac{\Delta x_p}{\Delta t_p}\left[\sin\frac{2\pi n t_p}{T} - \sin\frac{2\pi n t_{p-1}}{T}\right]$$
 
-and $c_n$, $d_n$ the same with $\Delta y_p$. The outline is reconstructed as
+and $c_n$, $d_n$ are given by the same formulas with $\Delta y_p$ in place of $\Delta x_p$.
+With $N$ harmonics, the rebuilt outline is
 
-$$x(t) = \sum_{n=1}^{N} a_n \cos\frac{2\pi n t}{T} + b_n \sin\frac{2\pi n t}{T},\qquad
-y(t) = \sum_{n=1}^{N} c_n \cos\frac{2\pi n t}{T} + d_n \sin\frac{2\pi n t}{T}.$$
+$$x(t) = \sum_{n=1}^{N} \left( a_n \cos\frac{2\pi n t}{T} + b_n \sin\frac{2\pi n t}{T} \right),\qquad
+y(t) = \sum_{n=1}^{N} \left( c_n \cos\frac{2\pi n t}{T} + d_n \sin\frac{2\pi n t}{T} \right)$$
 
-Objects whose contour has fewer than $2N + 2$ points are skipped.
+around the centroid of the outline. An outline needs at least $2N + 2$ points to be described
+with $N$ harmonics; objects with fewer points are not described.
 
-## 5.2 Normalization
+## 5.2 Removing position, size, rotation and starting point
 
-So that only shape is compared, the coefficients are made invariant to the starting point,
-rotation and size with the first-harmonic ellipse (Kuhl & Giardina, 1982):
+The coefficients change when the same outline is walked from another starting point, rotated
+or scaled. They are normalized with the ellipse of the first harmonic (Kuhl & Giardina, 1982):
 
-1. **Starting point.** $\theta_1 = \tfrac12 \arctan\dfrac{2(a_1 b_1 + c_1 d_1)}{a_1^2 - b_1^2 + c_1^2 - d_1^2}$; each harmonic is rotated in phase by $n\,\theta_1$.
-2. **Rotation.** $\psi_1 = \arctan(c_1^* / a_1^*)$ of the phase-shifted first harmonic; all harmonics are rotated by $-\psi_1$, aligning the major axis of the first ellipse with $x$.
-3. **Size.** All coefficients are divided by $|a_1^{**}|$, the semi-major axis of the first ellipse.
+1. **Starting point.** The start is moved to the end of the major axis of the first ellipse;
+   every harmonic is shifted in phase accordingly.
+2. **Rotation.** The outline is rotated so that the major axis of the first ellipse lies along
+   x.
+3. **Size.** All coefficients are divided by the semi-major axis of the first ellipse.
 
-After normalization $a_1 = 1$, $b_1 = c_1 = 0$, and $|d_1|$ is the minor/major ratio of the
-first ellipse. The $4N$ normalized coefficients are exported per object (`efd_a1 … efd_dN`,
-table `object_shape`).
+After this, the first harmonic is always $a_1 = 1$, $b_1 = c_1 = 0$, and $|d_1|$ is the ratio of
+the minor to the major axis of the first ellipse. The $4N$ normalized coefficients of each
+object are exported in the table `object_shape` (`efd_a1` to `efd_dN`).
 
 ## 5.3 Alignment and mean shape
 
-The normalization leaves two ambiguities that matter for seeds: a seed rotated 180° and a
-seed seen from the other face (mirror image) give different coefficients. Within each group
-that is compared (one photo, a batch or a genotype), every outline is replaced by whichever
-of its four variants — identity, 180° rotation, and the two reflections — is closest
-(Euclidean distance between coefficient vectors) to the current group mean. Starting from the
-first object, the mean is updated and the choice repeated three times. The mean shape is the
-arithmetic mean of the aligned coefficients.
+A seed turned by 180°, or seen from its other face (a mirror image), gives different
+coefficients after normalization. Within each group compared (a photo, a batch or a genotype),
+every outline is replaced by whichever of four versions (as it is, turned by 180°, and its two
+mirror images) is closest to the current mean of the group, measured as the Euclidean distance
+between coefficient lists. The mean starts as the first object; the choice and the mean are
+updated three times. The mean shape is the mean of the aligned coefficients, drawn by rebuilding
+its outline.
 
-**Difference from the mean.** For each object the inspector reports the Euclidean distance
-between its aligned coefficients and the mean, $\delta = \lVert \mathbf{c} - \bar{\mathbf{c}} \rVert$,
-next to the median $\delta$ of the photo, so atypical outlines (broken or deformed seeds)
-stand out.
-
-*Planned: principal component analysis of the coefficients (Iwata & Ukai, 2002) to describe
-the main modes of shape variation and compare groups.*
+**Difference from the mean.** For each object the inspector shows the Euclidean distance between
+its aligned coefficients and those of the mean shape, next to the median distance in the photo.
+Broken or deformed seeds have distances well above the median.

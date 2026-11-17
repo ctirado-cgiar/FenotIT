@@ -1,31 +1,27 @@
-# FenotIT — Digital Plant Phenotyping Platform
+# FenotIT: Digital Plant Phenotyping Platform
 
-Desktop software for image-based plant phenotyping. It segments objects (seeds, leaves, roots…) and measures their shape, color and number, one image at a time or in batches.
+Desktop software for image-based plant phenotyping. It finds the objects in a photo (seeds, pods, leaves, lesions, insects) and measures their number, size, shape, color and arrangement, one photo at a time or in batches, without programming.
 
-Developed by Cristian Tirado-Murcia (software development and analysis methods), in collaboration with the Physiology Team of the Bean Program, Alliance of Bioversity International & CIAT (Palmira, Colombia).
+Developed by Cristian Tirado-Murcia (software development and analysis methods), in collaboration with the Physiology Team of the Bean Program, Alliance of Bioversity International and CIAT (Palmira, Colombia).
 
-> **Status:** under active development towards v1.0. Results and file formats may still change.
+> **Status:** in development towards version 1.0. Results and file formats may still change.
 
 ## Features
 
-- **One analysis, several measurements:** segment once, then tick what to measure
-  - **Count:** one dot per object, to check at a glance what was counted
-  - **Morphometry:** area, length, width, perimeter, circularity, solidity and more per object
-  - **Shape:** elliptic Fourier descriptors per object, and mean shape by image, batch or group
-  - **Color:** dominant colors (KMeans) per object and per image, in RGB and CIELab
-- **Touching objects:** optional declumping (distance peaks + watershed + notch cuts); touching objects are counted but not measured
-- **Segmentation** by manual or automatic (Otsu) threshold on any channel of BGR, HSV, LAB, YCrCb, HLS, XYZ, YUV or LUV
-- **Analysis areas and excluded areas** (rectangle or polygon), several per photo, for one photo or all
-- **Scale per photo or for all** (two points, typed value or ArUco markers)
-- **Optional corrections:** lens distortion (chessboard), perspective (ArUco), color card and scale
-- **Projects** (`.fnt`) that keep images, thresholds, parameters, areas and scale
-- **Export** to CSV and Excel, one table per level (object, image), with the result images
-- **Interface in English and Spanish**
-- 100 % local processing, no internet required
+- **Analyses:** Objects (count and measure each object), Detection (objects found by a detection model), Distances (spacing between objects and Clark–Evans index), Classify areas (share and area of each class) and Image color.
+- **Segmentation:** threshold on one channel of eight color spaces, manual or automatic (Otsu); classification by examples painted on the photo (random forest); regions from the MobileSAM model, grouped into categories with clicks.
+- **Detection models:** YOLO and RF-DETR models trained by the user, run on the CPU; boxes as objects or counted inside each object (for example, holes per seed).
+- **Measurements per object:** area, length, width, perimeter and shape ratios; elliptic Fourier descriptors and mean shape; mean and dominant colors (fixed or automatic number) in RGB and CIELAB; area of each class.
+- **Touching objects:** optional separation (distance peaks, watershed and cuts at notches).
+- **Analysis areas and excluded zones** (rectangle or polygon), per photo or for all photos, with results per area.
+- **Corrections:** lens distortion (chessboard), perspective (ArUco markers), color card and scale (two points, typed value or ArUco markers), each optional.
+- **Projects** (`.fnt`) and **presets** (`.fntp`) that keep the corrections, segmentation and analysis of a capture setup.
+- **Export** to CSV and Excel, one table per level (object, photo, class, area), with the result images and a metadata table with every parameter.
+- **Interface** in English and Spanish. All processing is local, without internet.
 
 ## Installation (from source)
 
-Requires Python 3.11+ (3.12 recommended). Windows 10/11 is the tested platform.
+Requires Python 3.11 or later (3.12 recommended). Windows 10 and 11 are the tested platforms.
 
 ```bash
 git clone https://github.com/ctirado-cgiar/FenotIT.git
@@ -38,16 +34,16 @@ pip install -r requirements.txt
 ## Usage
 
 ```bash
-python main.py                      # open the app
+python main.py                  # open the app
 python main.py MyTrial.fnt      # open a project
 python -m fenotit --version
 ```
 
-Typical workflow: add images → set the segmentation (channel and threshold, or Otsu) → optionally draw the analysis area → tick the measurements → **▶ Run** (this image or all) → **File → Export**. **Help → Shortcuts** lists the keyboard shortcuts.
+Typical workflow: add photos, choose an analysis, set the segmentation (or the detection model), draw the analysis area if needed, tick the measurements, run on this photo or on all, and export with **Project → Export**. **Help → Shortcuts** lists the keyboard shortcuts.
 
 ## Methods
 
-How every measurement is computed (equations, references and figures): [`docs/methods`](docs/methods/README.md).
+How each measurement is computed, with equations, references and figures made with real photos: [`docs/methods`](docs/methods/README.md).
 
 ## Development
 
@@ -61,5 +57,5 @@ See [`CITATION.cff`](CITATION.cff).
 
 ## Contact
 
-Cristian Tirado-Murcia — c.tirado@cgiar.org
+Cristian Tirado-Murcia, c.tirado@cgiar.org
 Alliance of Bioversity International and CIAT

@@ -5,7 +5,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from fenotit.core.analysis import objects
+from fenotit.core.analysis import objects     # módulo (no nombres): evita el import circular
+from fenotit.core.analysis.object_params import PARAMS_SCHEMA
 from fenotit.core.analysis.registry import AnalysisResult, register
 
 # Parámetros del análisis de objetos que no aplican a cajas de un detector
@@ -34,5 +35,5 @@ register(
     segmentation=None,
     steps=("detect", "params"),
     param_texts="objects",
-    params_schema=[item for item in objects.PARAMS_SCHEMA if item["key"] not in NOT_FOR_DETECTION],
+    params_schema=[item for item in PARAMS_SCHEMA if item["key"] not in NOT_FOR_DETECTION],
 )
