@@ -37,11 +37,11 @@ class DetectMixin:
         add = tk.Label(links, text="+ " + t("model.add"), bg=bg, fg=COLORS["accent"], font=small, cursor="hand2",
                        disabledforeground=COLORS["text_faint"])
         add.pack(side=tk.LEFT)
-        add.bind("<Button-1>", lambda e: str(add.cget("state")) != "disabled" and self._add_model())
+        add.bind("<Button-1>", lambda event: str(add.cget("state")) != "disabled" and self._add_model())
         self._add_links.append(add)
         conv = tk.Label(links, text=t("conv.link"), bg=bg, fg=COLORS["accent"], font=small, cursor="hand2")
         conv.pack(side=tk.RIGHT)
-        conv.bind("<Button-1>", lambda e: self._open_converter())
+        conv.bind("<Button-1>", lambda event: self._open_converter())
         self._det_box = tk.Frame(body, bg=bg)
         self._build_detector_box(self._det_box)
         self.det_status = tk.StringVar(value="")
@@ -69,10 +69,10 @@ class DetectMixin:
         classes_head.pack(fill=tk.X)
         tk.Label(classes_head, text=t("det.classes"), bg=bg, fg=COLORS["text_muted"], font=small).pack(side=tk.LEFT)
         HelpIcon(classes_head, t("det.classes"), t("det.classes_help"), bg=bg).pack(side=tk.LEFT, padx=(SPACE["sm"], 0))
-        for key, on in (("sam.none", False), ("sam.all", True)):
+        for key, active in (("sam.none", False), ("sam.all", True)):
             link = tk.Label(classes_head, text=t(key), bg=bg, fg=COLORS["accent"], font=small, cursor="hand2")
             link.pack(side=tk.RIGHT, padx=(SPACE["md"], 0))
-            link.bind("<Button-1>", lambda e, value=on: self._use_all_classes(value))
+            link.bind("<Button-1>", lambda event, value=active: self._use_all_classes(value))
         self._det_classes = tk.Frame(box, bg=bg)
         self._det_classes.pack(fill=tk.X, pady=(SPACE["xs"], SPACE["md"]))
         self._det_use: list[tk.BooleanVar] = []
@@ -91,14 +91,14 @@ class DetectMixin:
     # ── Modelos de detección ────────────────────────────────────────────────
 
     def _detectors(self) -> list[dict]:
-        return [m for m in self._models if m["output"] == "boxes"]
+        return [model for model in self._models if model["output"] == "boxes"]
 
     def _detector(self) -> dict | None:
-        return next((m for m in self._detectors() if m["id"] == self._det_model_id), None)
+        return next((model for model in self._detectors() if model["id"] == self._det_model_id), None)
 
     def _render_detectors(self):
         detectors = self._detectors()
-        if self._det_model_id not in [m["id"] for m in detectors]:
+        if self._det_model_id not in [model["id"] for model in detectors]:
             self._det_model_id = detectors[0]["id"] if detectors else ""
             if detectors:
                 self._set_classes(detectors[0]["classes"], None)
@@ -160,9 +160,9 @@ class DetectMixin:
                            command=self._on_detector_change).pack(side=tk.LEFT)
             self._det_use.append(var)
 
-    def _use_all_classes(self, on: bool):
+    def _use_all_classes(self, active: bool):
         for var in self._det_use:
-            var.set(on)
+            var.set(active)
         self._on_detector_change()
 
     @staticmethod
@@ -182,7 +182,7 @@ class DetectMixin:
     def _set_detector_state(self, state: dict):
         self.conf_var.set(float(state.get("conf", 0.25)))
         self.to_masks_var.set(bool(state.get("to_masks", False)))
-        ids = [m["id"] for m in self._detectors()]
+        ids = [model["id"] for model in self._detectors()]
         self._det_model_id = state.get("name") if state.get("name") in ids else (ids[0] if ids else "")
         model = self._detector()
         if model:
@@ -236,7 +236,7 @@ class DetectMixin:
 
     # ── Vista previa ────────────────────────────────────────────────────────
 
-    def _detect_preview(self, img, inc, exc):
+    def _detect_preview(self, img, include, exclude):
         """Cajas del detector sobre la foto, del color de su clase (o el contorno de cada
         objeto si se pasan a máscaras); se calculan en otro hilo y se guardan por foto."""
         from fenotit.core.segmentation import detect, sam
@@ -245,7 +245,7 @@ class DetectMixin:
         key = (id(full), self._det_model_id, state["conf"], tuple(state["use"]), state["to_masks"])
         cached = self._det_cache
         if cached is not None and cached[0] == key:
-            self._render_detections(img, cached[1], cached[2], inc, exc)
+            self._render_detections(img, cached[1], cached[2], include, exclude)
             return
         self.zoom_ctrl.redraw_with_overlay(overlay_left=img)
         self.preview_var.set("")
@@ -259,8 +259,8 @@ class DetectMixin:
         def work():
             started = time.perf_counter()
             try:
-                found = [d for d in detect.run(full, model, state["conf"]) if d["cls"] in state["use"]]
-                labels = sam.from_boxes(full, [(d["x0"], d["y0"], d["x1"], d["y1"]) for d in found]) \
+                found = [box for box in detect.run(full, model, state["conf"]) if box["cls"] in state["use"]]
+                labels = sam.from_boxes(full, [(box["x0"], box["y0"], box["x1"], box["y1"]) for box in found]) \
                     if state["to_masks"] and self._detection_analysis() else None
                 seconds = time.perf_counter() - started
                 self.root.after(0, lambda: self._on_detect_done(generation, key, found, labels, seconds))
@@ -277,33 +277,33 @@ class DetectMixin:
         self.det_status.set(t("det.done", n=len(found), s=f"{seconds:.1f}"))
         self._show_preview()
 
-    def _render_detections(self, img, found, labels, inc, exc):
+    def _render_detections(self, img, found, labels, include, exclude):
         scale = img.shape[1] / self.scaler_left.original.shape[1]
         height, width = img.shape[:2]
         colors = [self._class_color(index) for index in range(len(self._det_names))]
-        bgr = [(int(c[5:7], 16), int(c[3:5], 16), int(c[1:3], 16)) for c in colors] or [(255, 255, 255)]
-        region = np.full((height, width), 255, np.uint8) if inc is None else inc.copy()
-        if exc:
-            cv2.fillPoly(region, [points for points, _ in exc], 0)
+        bgr = [(int(color[5:7], 16), int(color[3:5], 16), int(color[1:3], 16)) for color in colors] or [(255, 255, 255)]
+        region = np.full((height, width), 255, np.uint8) if include is None else include.copy()
+        if exclude:
+            cv2.fillPoly(region, [points for points, _ in exclude], 0)
         view = (img * 0.8).astype(np.uint8)
         mask = np.zeros((height, width), np.uint8)
         if labels is not None:
             resized = cv2.resize(labels.astype(np.int32), (width, height), interpolation=cv2.INTER_NEAREST)
             resized[region == 0] = 0
             classes = np.zeros(len(found) + 1, np.int32)
-            classes[1:] = [d["cls"] for d in found]
+            classes[1:] = [box["cls"] for box in found]
             palette = np.array(bgr, np.uint8)[np.clip(classes, 0, len(bgr) - 1)]
             inside = resized > 0
             view[inside] = (0.45 * img[inside] + 0.55 * palette[resized[inside]]).astype(np.uint8)
             mask[inside] = 255
         else:
             thickness = max(1, int(round(max(height, width) / 350)))
-            for d in found:
-                x0, y0 = int(d["x0"] * scale), int(d["y0"] * scale)
-                x1, y1 = int(d["x1"] * scale), int(d["y1"] * scale)
+            for box in found:
+                x0, y0 = int(box["x0"] * scale), int(box["y0"] * scale)
+                x1, y1 = int(box["x1"] * scale), int(box["y1"] * scale)
                 center_x, center_y = min(width - 1, (x0 + x1) // 2), min(height - 1, (y0 + y1) // 2)
                 if not region[center_y, center_x]:
                     continue
                 cv2.rectangle(mask, (x0, y0), (x1, y1), 255, -1)
-                cv2.rectangle(view, (x0, y0), (x1, y1), bgr[d["cls"] % len(bgr)], thickness)
+                cv2.rectangle(view, (x0, y0), (x1, y1), bgr[box["cls"] % len(bgr)], thickness)
         self._show_mask_overlay(img, mask, view)

@@ -19,8 +19,8 @@ class CollapsiblePanel(tk.Frame):
     COLLAPSED_W = 14
 
     def __init__(self, parent, side: str, title: str,
-                 colors: dict, default_width: int = 200, on_toggle=None, max_width: int = 420, **kw):
-        super().__init__(parent, bg=colors["bg_panel"], **kw)
+                 colors: dict, default_width: int = 200, on_toggle=None, max_width: int = 420, **options):
+        super().__init__(parent, bg=colors["bg_panel"], **options)
         self.max_width = max_width
         self.colors        = colors
         self._on_toggle    = on_toggle
@@ -39,14 +39,14 @@ class CollapsiblePanel(tk.Frame):
         self._corner_place = (dict(relx=1.0, x=-4, y=5, anchor="ne") if side == "left"
                               else dict(x=4, y=5, anchor="nw"))
         self._corner.place(**self._corner_place)
-        self._corner.bind("<Button-1>", lambda e=None: self.toggle())
+        self._corner.bind("<Button-1>", lambda event=None: self.toggle())
         Tooltip(self._corner, t("view.toggle_panel"))
 
         self.configure(width=default_width)
         # el ancho lo decide el usuario (barra divisoria), no el contenido: así el panel no
         # crece solo cuando aparece un texto o un menú largo
         self.pack_propagate(False)
-        self.bind("<Map>", lambda e: self._corner.lift(), add="+")
+        self.bind("<Map>", lambda event: self._corner.lift(), add="+")
 
     def toggle(self):
         if self._expanded:
@@ -54,9 +54,9 @@ class CollapsiblePanel(tk.Frame):
         else:
             self.expand()
 
-    def _pane(self, **kw):
+    def _pane(self, **options):
         if isinstance(self.master, tk.PanedWindow):
-            self.master.paneconfigure(self, **kw)
+            self.master.paneconfigure(self, **options)
 
     def collapse(self):
         """Oculta el panel y deja la pestañita para volver a abrirlo."""

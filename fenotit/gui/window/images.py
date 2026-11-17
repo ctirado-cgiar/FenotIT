@@ -27,8 +27,8 @@ class ImagesMixin:
 
     def _image_list_room(self) -> int:
         """Tope de la lista de imágenes: 45 % del espacio, y menos si CAPAS lo necesita."""
-        lf = self._panel_of("images").content
-        room = lf.winfo_height() - self.image_list.winfo_y()
+        label_frame = self._panel_of("images").content
+        room = label_frame.winfo_height() - self.image_list.winfo_y()
         return min(int(room * 0.45), room - self._layers_need())
 
     def _open_image(self):
@@ -43,8 +43,8 @@ class ImagesMixin:
         folder = filedialog.askdirectory(title=t("dlg.image_folder"))
         if not folder:
             return
-        paths = sorted((str(p) for p in Path(folder).iterdir()
-                        if p.suffix.lower() in IMAGE_EXTS), key=natural_key)
+        paths = sorted((str(path) for path in Path(folder).iterdir()
+                        if path.suffix.lower() in IMAGE_EXTS), key=natural_key)
         if not paths:
             messagebox.showwarning(t("msg.no_images_title"),
                                    t("msg.no_images"))
@@ -54,15 +54,15 @@ class ImagesMixin:
 
     def _add_images(self, paths: list[str]):
         """Agrega imágenes a la lista (sin repetir) y muestra la primera nueva."""
-        current = [str(p) for p in self.project.images]
-        new = sorted(dict.fromkeys(str(p) for p in paths if str(p) not in current), key=natural_key)
+        current = [str(path) for path in self.project.images]
+        new = sorted(dict.fromkeys(str(path) for path in paths if str(path) not in current), key=natural_key)
         if not new:
             if paths:
                 self.batch_index = current.index(str(paths[0]))
                 self._load_single(self.batch_paths[self.batch_index])
                 self._sync_listbox()
             return
-        self.project.images = [Path(p) for p in current + new]
+        self.project.images = [Path(path) for path in current + new]
         self.project.current_index = len(current)
         self._update_batch_list()
         first = not current
@@ -81,7 +81,7 @@ class ImagesMixin:
         if not path:
             return
         self._remember("undo.remove_image")
-        images = [p for p in self.project.images if str(p) != str(path)]
+        images = [image for image in self.project.images if str(image) != str(path)]
         self._clear_all_results(path)
         self.project.image_roi.pop(self.project.key(path), None)
         self.project.image_scale.pop(self.project.key(path), None)
@@ -234,9 +234,9 @@ class ImagesMixin:
         """Anterior / siguiente entre las imágenes que se ven (respeta el buscador)."""
         if not self.batch_paths:
             return
-        k = self.image_list.step(self.batch_index, delta)
-        if k is not None and k != self.batch_index:
-            self._select_image(k)
+        position = self.image_list.step(self.batch_index, delta)
+        if position is not None and position != self.batch_index:
+            self._select_image(position)
 
     def _select_image(self, index: int):
         self.batch_index = index
@@ -249,17 +249,17 @@ class ImagesMixin:
 
     def _update_batch_list(self):
         """Lista de imágenes; ✓ = ya analizada en esta sesión, ⚠ = omitida."""
-        marks = {p: "board" for p in self._board_photos()}
-        marks.update({p: "error" for p in self._skipped})
+        marks = {path: "board" for path in self._board_photos()}
+        marks.update({path: "error" for path in self._skipped})
         store = self.results_cache
-        marks.update({p: "done" if store[p].status == "ok" else "error" for p in self.batch_paths if p in store})
-        marks.update({p: "pending" for p in self._pending})
+        marks.update({path: "done" if store[path].status == "ok" else "error" for path in self.batch_paths if path in store})
+        marks.update({path: "pending" for path in self._pending})
         if self.batch_paths:
             self.batch_index = min(self.batch_index, len(self.batch_paths) - 1)
         self.image_list.set_items(self.batch_paths, marks, self.batch_index if self.batch_paths else -1)
         self._update_batch_label()
 
     def _update_batch_label(self):
-        n = len(self.batch_paths)
+        count = len(self.batch_paths)
         self.batch_label.config(
-            text=f"{self.batch_index+1} / {n}" if n else "—")
+            text=f"{self.batch_index+1} / {count}" if count else "—")

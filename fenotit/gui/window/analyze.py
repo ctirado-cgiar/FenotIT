@@ -34,8 +34,8 @@ class AnalyzeMixin:
 
     def _area_unit(self) -> str:
         """La unidad de la escala si hay alguna (de todas las fotos o de alguna); si no, px."""
-        p = self.project
-        return p.unit if p.scale.source != "none" or p.image_scale else "px"
+        project = self.project
+        return project.unit if project.scale.source != "none" or project.image_scale else "px"
 
     def _has_area_units(self) -> bool:
         return any(i.get("unit") in self._UNIT_POWER
@@ -51,18 +51,18 @@ class AnalyzeMixin:
             # mm de cada unidad; para pasar de/a px se usa la escala (al quitarla, la última usada)
             mpp = self.mm_per_pixel or getattr(self, "_panel_mpp", None)
             if old != "px" and new != "px":
-                f = units.TO_MM[old] / units.TO_MM[new]
+                factor = units.TO_MM[old] / units.TO_MM[new]
             elif mpp:
-                f = mpp / units.TO_MM[new] if old == "px" else units.TO_MM[old] / mpp
+                factor = mpp / units.TO_MM[new] if old == "px" else units.TO_MM[old] / mpp
             else:
-                f = None
-            if f:
+                factor = None
+            if factor:
                 vals = panel.get_values(warn=False)
                 changed = {}
                 for i in ANALYSES[self.active_analysis].params_schema:
                     power = self._UNIT_POWER.get(i.get("unit"))
                     if power and i["key"] in vals:
-                        changed[i["key"]] = round(vals[i["key"]] * f ** power, 6)
+                        changed[i["key"]] = round(vals[i["key"]] * factor ** power, 6)
                 panel.set_values(changed)
             else:
                 _log.info("Sin escala para convertir; se conservan los números")
@@ -74,29 +74,29 @@ class AnalyzeMixin:
     def _render_analysis_cards(self):
         """Los análisis como tarjetas: la elegida en azul con su descripción; clic = elegir."""
         box = self._analysis_cards
-        for w in box.winfo_children():
-            w.destroy()
+        for widget in box.winfo_children():
+            widget.destroy()
         cur = self._selected_analysis() if getattr(self, "_analysis_chosen", False) else None
         for i, name in enumerate(ANALYSES):
-            on = name == cur
-            bg = COLORS["accent_light"] if on else COLORS["bg_panel"]
+            active = name == cur
+            bg = COLORS["accent_light"] if active else COLORS["bg_panel"]
             if i:
                 divider(box, "divider").pack(fill=tk.X)
             card = tk.Frame(box, bg=bg, cursor="hand2")
             card.pack(fill=tk.X)
-            title = tk.Label(card, text=_analysis_label(name), bg=bg, fg=COLORS["accent"] if on else COLORS["text"],
+            title = tk.Label(card, text=_analysis_label(name), bg=bg, fg=COLORS["accent"] if active else COLORS["text"],
                              font=FONTS["body_bold"], anchor="w", cursor="hand2")
             title.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["sm"], 0))
             desc = t(f"analysis.{name}.desc", "")
-            d = tk.Label(card, text=desc, bg=bg, fg=COLORS["text_muted"], font=FONTS["small"], anchor="w",
+            label = tk.Label(card, text=desc, bg=bg, fg=COLORS["text_muted"], font=FONTS["small"], anchor="w",
                          justify="left", wraplength=SIZES["panel_right"] - 50, cursor="hand2")
-            d.pack(fill=tk.X, padx=SPACE["md"], pady=(0, SPACE["sm"]))
-            parts = [card, title, d]
-            if not on:
-                card.bind("<Enter>", lambda e, ws=parts: [w.config(bg=COLORS["bg_card"]) for w in ws])
-                card.bind("<Leave>", lambda e, ws=parts: [w.config(bg=COLORS["bg_panel"]) for w in ws])
-            for w in parts:
-                w.bind("<Button-1>", lambda e, n=name: self._open_analysis(n))
+            label.pack(fill=tk.X, padx=SPACE["md"], pady=(0, SPACE["sm"]))
+            parts = [card, title, label]
+            if not active:
+                card.bind("<Enter>", lambda event, widgets=parts: [widget.config(bg=COLORS["bg_card"]) for widget in widgets])
+                card.bind("<Leave>", lambda event, widgets=parts: [widget.config(bg=COLORS["bg_panel"]) for widget in widgets])
+            for widget in parts:
+                widget.bind("<Button-1>", lambda event, analysis_name=name: self._open_analysis(analysis_name))
 
     def _open_analysis(self, name: str):
         """Elige el análisis y abre su primer paso."""
@@ -151,7 +151,7 @@ class AnalyzeMixin:
             return
         self._an_title.config(text=_analysis_label(name))
         steps = self._analysis_steps(name)
-        self._render_step_tabs([(self._step_tab(s), self._step_label(s)) for s in steps])
+        self._render_step_tabs([(self._step_tab(step), self._step_label(step)) for step in steps])
         allowed = ANALYSES[name].seg_methods
         if allowed and self._seg_method not in allowed:
             self._set_seg_method(allowed[0], quiet=True)
@@ -164,13 +164,13 @@ class AnalyzeMixin:
         self._set_det_next_step(self._step_label(after[0]) if after else None)
         self._render_detectors()
         self._update_unavailable()
-        if self._right_tab not in ("choose",) and self._right_tab not in [self._step_tab(s) for s in steps]:
+        if self._right_tab not in ("choose",) and self._right_tab not in [self._step_tab(step) for step in steps]:
             self._select_right_tab(self._step_tab(steps[-1]))
         elif self._right_tab in self._rtab_labels:
             self._select_right_tab(self._right_tab)
 
-    def _show_panel(self, panel, on: bool):
-        if on:
+    def _show_panel(self, panel, active: bool):
+        if active:
             panel.expand()
         else:
             panel.hide_all()
@@ -182,7 +182,7 @@ class AnalyzeMixin:
 
     def _selected_analysis(self) -> str | None:
         label = self.analysis_var.get()
-        return next((n for n in ANALYSES if _analysis_label(n) == label), None)
+        return next((name for name in ANALYSES if _analysis_label(name) == label), None)
 
     def _on_analysis_selected(self, _event, choose: bool = True):
         """choose=False: solo deja listo el panel (al iniciar); el análisis cuenta como
@@ -199,8 +199,8 @@ class AnalyzeMixin:
         self._render_analysis_cards()
         self._render_analysis_steps()
         self._update_seg_tab()
-        for w in self.config_container.winfo_children():
-            w.destroy()
+        for widget in self.config_container.winfo_children():
+            widget.destroy()
         stored = self.project.params.get(self.project.analysis, {})
         self._panel_area_unit = stored.get("_area_unit", "px")
         self.config_panel = ConfigPanel(
@@ -209,7 +209,7 @@ class AnalyzeMixin:
                     if i.get("segmentation") in (None, self._seg_method)],
             colors=COLORS, prefix=ANALYSES[name].param_texts or name,
             units=self._unit_labels(self._panel_area_unit))
-        self.config_panel.set_values({k: v for k, v in stored.items() if not k.startswith("_")})
+        self.config_panel.set_values({key: value for key, value in stored.items() if not key.startswith("_")})
         self.config_panel.pack(fill=tk.BOTH, expand=True)
         for var in self.config_panel._vars.values():          # cambios del panel: Ctrl+Z
             var.trace_add("write", lambda *_: self._settings_changed())

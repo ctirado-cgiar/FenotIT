@@ -20,26 +20,26 @@ class TableMixin:
             rows = result.measurements
             cols = result.table_columns or (list(rows[0].keys()) if rows else [])
         else:
-            cols = list(dict.fromkeys(k for r in rows for k in r))
+            cols = list(dict.fromkeys(key for row in rows for key in row))
         self.table["columns"] = cols
         self._table_rows, self._table_cols, self._table_sort = list(rows or []), cols, (None, False)
         if not rows:
             return
         from fenotit.gui.widgets.labels import column as _col
         from fenotit.core.measurements.classes import slug
-        self._col_alias = {slug(r["class"]): r["class"] for r in
+        self._col_alias = {slug(row["class"]): row["class"] for row in
                            ((result.extra.get("tables") or {}).get("classes") or [])}
-        column = lambda c: _col(c, self._col_alias)
+        column = lambda col_name: _col(col_name, self._col_alias)
         font, head = tkfont.nametofont("TkDefaultFont"), tkfont.nametofont("TkHeadingFont")
         self._table_widths = {}
         for col in cols:
-            sample = [_cell(r.get(col)) for r in rows[:200]]
-            width = max([head.measure(column(col) + " ▼") + 20] + [font.measure(v) + 14 for v in sample])
+            sample = [_cell(row.get(col)) for row in rows[:200]]
+            width = max([head.measure(column(col) + " ▼") + 20] + [font.measure(value) + 14 for value in sample])
             self._table_widths[col] = min(max(width, 60), 260)
-            self.table.heading(col, text=column(col), anchor="w", command=lambda c=col: self._sort_table(c))
+            self.table.heading(col, text=column(col), anchor="w", command=lambda col_name=col: self._sort_table(col_name))
         first = cols[0]                    # ▲ en la primera columna si ya viene ordenada: se ve que se puede ordenar
-        vals = [r.get(first) for r in rows]
-        if all(isinstance(v, (int, float)) for v in vals) and vals == sorted(vals):
+        vals = [row.get(first) for row in rows]
+        if all(isinstance(value, (int, float)) for value in vals) and vals == sorted(vals):
             self._table_sort = (first, False)
             self.table.heading(first, text=column(first) + " ▲")
         self._fit_table_columns()
@@ -58,14 +58,14 @@ class TableMixin:
             return
         if total <= avail:                   # sobra: se reparte
             extra = (avail - total) / len(widths)
-            sized = {c: w + extra for c, w in widths.items()}
+            sized = {key: value + extra for key, value in widths.items()}
         elif total <= avail * 1.3:           # falta poco: se angostan un poco (sin barra)
-            sized = {c: max(44, w * avail / total) for c, w in widths.items()}
+            sized = {key: max(44, value * avail / total) for key, value in widths.items()}
         else:
             sized = widths
-        for col, w in sized.items():
-            self.table.column(col, width=int(w), minwidth=40, stretch=False, anchor="w")
-        self._table_hscroll(sum(int(w) for w in sized.values()) > avail + 1)
+        for col, value in sized.items():
+            self.table.column(col, width=int(value), minwidth=40, stretch=False, anchor="w")
+        self._table_hscroll(sum(int(value) for value in sized.values()) > avail + 1)
 
     def _table_hscroll(self, need: bool):
         xsb = self._table_xsb
@@ -83,23 +83,23 @@ class TableMixin:
         from fenotit.core.measurements.classes import slug
         out = {}
         tables = result.extra.get("tables") or {}
-        for r in (tables.get("classes") or []) + (tables.get("detections") or []):
-            out[slug(r["class"])] = r["class"]
+        for row in (tables.get("classes") or []) + (tables.get("detections") or []):
+            out[slug(row["class"])] = row["class"]
         return out
 
-    def _shown(self, col: str, v) -> str:
+    def _shown(self, col: str, value) -> str:
         """Valor para la pantalla: estados y sí/no traducidos; números con pocos decimales."""
-        if col == "status" and v:
-            return t(f"insp.status.{v}", str(v))
-        if col in self._YES_NO and v in (0, 1, True, False):
-            return t("common.yes") if v else t("common.no")
-        return _cell(v)
+        if col == "status" and value:
+            return t(f"insp.status.{value}", str(value))
+        if col in self._YES_NO and value in (0, 1, True, False):
+            return t("common.yes") if value else t("common.no")
+        return _cell(value)
 
     def _fill_table(self):
         self.table.delete(*self.table.get_children())
         self._table_items = {}
         for row in self._table_rows:
-            iid = self.table.insert("", "end", values=[self._shown(c, row.get(c)) for c in self._table_cols])
+            iid = self.table.insert("", "end", values=[self._shown(col_name, row.get(col_name)) for col_name in self._table_cols])
             self._table_items[iid] = row
         self._sync_table_selection()
 
@@ -114,7 +114,7 @@ class TableMixin:
         finally:
             self.root.after_idle(lambda: setattr(self, "_table_syncing", False))
 
-    def _on_table_select(self, _e=None):
+    def _on_table_select(self, _event=None):
         if getattr(self, "_table_syncing", False):
             return
         sel = self.table.selection()
@@ -132,18 +132,18 @@ class TableMixin:
         desc = not desc if last == col else False
         self._table_sort = (col, desc)
 
-        def key(r):
-            v = r.get(col)
-            if isinstance(v, (int, float)) and v == v:
-                return (0, float(v), "")
+        def key(row):
+            value = row.get(col)
+            if isinstance(value, (int, float)) and value == value:
+                return (0, float(value), "")
             try:
-                return (0, float(v), "")
+                return (0, float(value), "")
             except (TypeError, ValueError):
-                return (1, 0.0, str(v or ""))
+                return (1, 0.0, str(value or ""))
         self._table_rows.sort(key=key, reverse=desc)
         from fenotit.gui.widgets.labels import column
-        for c in self._table_cols:
+        for col_name in self._table_cols:
             alias = getattr(self, "_col_alias", {})
-            mark = (" ▼" if desc else " ▲") if c == col else ""
-            self.table.heading(c, text=column(c, alias) + mark)
+            mark = (" ▼" if desc else " ▲") if col_name == col else ""
+            self.table.heading(col_name, text=column(col_name, alias) + mark)
         self._fill_table()

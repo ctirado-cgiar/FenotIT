@@ -42,7 +42,7 @@ class ProjectMixin:
 
     @property
     def batch_paths(self) -> list[str]:
-        return [str(p) for p in self.project.images]
+        return [str(path) for path in self.project.images]
 
     @property
     def batch_index(self) -> int:
@@ -58,28 +58,28 @@ class ProjectMixin:
 
     def _scale_for(self, path: str | None) -> float | None:
         """mm/px de una foto: su propia escala; si no, la de todas (ArUco: la de cada foto)."""
-        sc = self.project.scale_for(path)
+        scale = self.project.scale_for(path)
         info = self._corr_info.get(path) if path else None
-        if sc.source == "aruco":
+        if scale.source == "aruco":
             return info.mm_per_px if info else None
-        if sc.mm_per_pixel and info is not None:          # guardada para la foto completa
-            return sc.mm_per_pixel / info.work_k
-        return sc.mm_per_pixel
+        if scale.mm_per_pixel and info is not None:          # guardada para la foto completa
+            return scale.mm_per_pixel / info.work_k
+        return scale.mm_per_pixel
 
     def _scale_summary(self, path: str | None) -> str | None:
         """La escala que ya tiene la foto (para no cambiarla sin querer): px por unidad."""
-        sc = self.project.scale_for(path)
-        if sc.source == "aruco":
-            mm = self._scale_for(path)
+        scale = self.project.scale_for(path)
+        if scale.source == "aruco":
+            millimeters = self._scale_for(path)
         else:
-            mm = sc.mm_per_pixel
-        if not mm:
+            millimeters = scale.mm_per_pixel
+        if not millimeters:
             return None
         unit = self.project.unit
-        per = mm / units.TO_MM[unit]
+        per = millimeters / units.TO_MM[unit]
         own = bool(path) and self.project.key(path) in self.project.image_scale
         return t("scale.current", px=f"{1 / per:.2f}", unit=units.display(unit), per=f"{per:.5g}",
-                 src=t(f"scale.src.{sc.source}", sc.source),
+                 src=t(f"scale.src.{scale.source}", scale.source),
                  scope=t("scale.scope_image") if own else t("scale.scope_all"))
 
     def _load_corrected(self, path: str):
@@ -96,13 +96,13 @@ class ProjectMixin:
 
     def _board_photos(self) -> set[str]:
         """Fotos del tablero de ajedrez que están entre las fotos cargadas: no se analizan."""
-        return {str(p) for p in self.project.corrections.distortion.photos or []}
+        return {str(path) for path in self.project.corrections.distortion.photos or []}
 
     def _skip_reason(self, info) -> str | None:
         """Motivo para no analizar una imagen (perspectiva activa pero sin los 4 ArUco)."""
-        d = self.project.corrections.distortion
-        if info and d.enabled and d.mtx and "distortion" not in info.applied:
-            return t("corr.skip_distortion", size="×".join(map(str, d.size or [])) or "?")
+        distortion_cfg = self.project.corrections.distortion
+        if info and distortion_cfg.enabled and distortion_cfg.mtx and "distortion" not in info.applied:
+            return t("corr.skip_distortion", size="×".join(map(str, distortion_cfg.size or [])) or "?")
         if info and self.project.corrections.perspective.enabled and "perspective" not in info.applied:
             return t("corr.skip_aruco", ids=", ".join(map(str, info.aruco_missing)) or "?")
         if info and self.project.corrections.color.enabled and "color" not in info.applied:
@@ -118,8 +118,8 @@ class ProjectMixin:
 
     def _recent_items(self) -> list:
         cur = str(self.project.file) if self.project.file else None
-        return [(Path(p).stem, lambda p=p: self._open_recent(p)) for p in settings.recent_projects()
-                if p != cur]
+        return [(Path(path).stem, lambda path=path: self._open_recent(path)) for path in settings.recent_projects()
+                if path != cur]
 
     def _invalidate_results(self):
         self._corr_info.clear()
@@ -129,10 +129,10 @@ class ProjectMixin:
         self._show_results_ui(False)
 
     def _blank_project(self) -> Project:
-        p = Project(name=t("project.untitled"))
-        p.max_mpx = self._default_max_mpx()
-        p.segmentation.classes = self._default_classes()
-        return p
+        project = Project(name=t("project.untitled"))
+        project.max_mpx = self._default_max_mpx()
+        project.segmentation.classes = self._default_classes()
+        return project
 
     def _store_panel_params(self):
         panel = getattr(self, "config_panel", None)
@@ -303,7 +303,7 @@ class ProjectMixin:
                     relinked += project.relink(find_by_name(missing, folder))
                 continue
             if ans == "remove":
-                project.images = [p for p in project.images if p.exists()]
+                project.images = [path for path in project.images if path.exists()]
                 project.current_index = min(project.current_index, max(len(project.images) - 1, 0))
                 break
             return False
@@ -321,7 +321,7 @@ class ProjectMixin:
             self._relinked = True                       # al abrir queda "con cambios": conviene guardar
         return True
 
-    def _missing_dialog(self, n: int, total: int, examples: list, relinked: int) -> str | None:
+    def _missing_dialog(self, n_missing: int, total: int, examples: list, relinked: int) -> str | None:
         """search | remove | None (cancelar)."""
         win = tk.Toplevel(self.root)
         win.title(t("missing.title"))
@@ -331,24 +331,24 @@ class ProjectMixin:
         box = tk.Frame(win, bg=COLORS["bg_panel"], padx=SPACE["xl"], pady=SPACE["lg"])
         box.pack(fill=tk.BOTH)
         head = t("missing.found", k=relinked) + "  " if relinked else ""
-        tk.Label(box, text=head + t("missing.msg", n=n, total=total), bg=COLORS["bg_panel"], fg=COLORS["text"],
+        tk.Label(box, text=head + t("missing.msg", n=n_missing, total=total), bg=COLORS["bg_panel"], fg=COLORS["text"],
                  font=FONTS["body"], justify="left", wraplength=420).pack(anchor="w")
-        tk.Label(box, text="\n".join(Path(p).name for p in examples) + ("\n…" if n > len(examples) else ""),
+        tk.Label(box, text="\n".join(Path(path).name for path in examples) + ("\n…" if n_missing > len(examples) else ""),
                  bg=COLORS["bg_panel"], fg=COLORS["text_muted"], font=FONTS["small"], justify="left").pack(
                      anchor="w", pady=(SPACE["md"], SPACE["lg"]))
         tk.Label(box, text=t("missing.hint"), bg=COLORS["bg_panel"], fg=COLORS["text_muted"], font=FONTS["small"],
                  justify="left", wraplength=420).pack(anchor="w", pady=(0, SPACE["lg"]))
         res = {"v": None}
 
-        def pick(v):
-            res["v"] = v
+        def pick(choice):
+            res["v"] = choice
             win.destroy()
         bar = tk.Frame(box, bg=COLORS["bg_panel"])
         bar.pack(fill=tk.X)
         button(bar, text=t("missing.search"), command=lambda: pick("search"), kind="primary", pady=SPACE["sm"]).pack(side=tk.LEFT)
         button(bar, text=t("missing.remove"), command=lambda: pick("remove"), kind="secondary", pady=SPACE["sm"]).pack(side=tk.LEFT, padx=SPACE["md"])
         button(bar, text=t("common.cancel"), command=lambda: pick(None), kind="quiet", pady=SPACE["sm"]).pack(side=tk.RIGHT)
-        win.bind("<Escape>", lambda e: pick(None))
+        win.bind("<Escape>", lambda event: pick(None))
         win.update_idletasks()
         x = self.root.winfo_rootx() + (self.root.winfo_width() - win.winfo_width()) // 2
         y = self.root.winfo_rooty() + (self.root.winfo_height() - win.winfo_height()) // 3
@@ -393,9 +393,9 @@ class ProjectMixin:
 
     def _offer_rerun(self):
         """Los resultados no se guardan en el proyecto: al abrirlo se ofrece recalcularlos."""
-        names = [n for n in (_analysis_name(k) for k in self.project.ran) if n]
+        names = [name for name in (_analysis_name(key) for key in self.project.ran) if name]
         if not names or not messagebox.askyesno(
-                t("rerun.title"), t("rerun.msg", analyses=", ".join(_analysis_label(n) for n in names),
+                t("rerun.title"), t("rerun.msg", analyses=", ".join(_analysis_label(name) for name in names),
                                     n=len(self.batch_paths)), parent=self.root):
             return
         self._queue_reruns(names)
@@ -462,7 +462,7 @@ class ProjectMixin:
         recovery.discard(getattr(self, "_recovery_file", None))
         self._recovery_file = None
 
-    def _recovery_dialog(self, name: str, when: str, n: int):
+    def _recovery_dialog(self, name: str, when: str, n_photos: int):
         """True = recuperar, False = descartar la copia, None = decidir después."""
         bg = COLORS["bg_card"]
         win = tk.Toplevel(self.root)
@@ -475,18 +475,18 @@ class ProjectMixin:
         box.pack(fill=tk.BOTH)
         tk.Label(box, text=t("recovery.title"), bg=bg, fg=COLORS["accent"],
                  font=FONTS["heading"]).pack(anchor="w")
-        tk.Label(box, text=t("recovery.msg", name=name, when=when, n=n), bg=bg, fg=COLORS["text"],
+        tk.Label(box, text=t("recovery.msg", name=name, when=when, n=n_photos), bg=bg, fg=COLORS["text"],
                  font=FONTS["body"], justify="left", wraplength=380).pack(anchor="w", pady=(SPACE["md"], SPACE["lg"]))
         res = {"v": None}
 
-        def pick(v):
-            res["v"] = v
+        def pick(choice):
+            res["v"] = choice
             win.destroy()
         bar = tk.Frame(box, bg=bg)
         bar.pack(fill=tk.X)
-        for text, v, accent in ((t("recovery.later"), None, False), (t("recovery.discard"), False, False),
-                                (t("recovery.recover"), True, True)):
-            button(bar, text=text, command=lambda v=v: pick(v), kind="primary" if accent else "secondary").pack(side=tk.RIGHT, padx=(SPACE["md"], 0))
+        for text, choice, accent in ((t("recovery.later"), None, False), (t("recovery.discard"), False, False),
+                                     (t("recovery.recover"), True, True)):
+            button(bar, text=text, command=lambda choice=choice: pick(choice), kind="primary" if accent else "secondary").pack(side=tk.RIGHT, padx=(SPACE["md"], 0))
         win.protocol("WM_DELETE_WINDOW", lambda: pick(None))
         win.update_idletasks()
         x = self.root.winfo_rootx() + (self.root.winfo_width() - win.winfo_reqwidth()) // 2
@@ -520,21 +520,21 @@ class ProjectMixin:
     def _write_preview(self):
         """Miniatura de la vista que se está viendo (con sus marcas, sin leyenda) en la
         carpeta del proyecto: los recientes de la pantalla de inicio la muestran."""
-        r, target = self.last_result, self.project.preview
-        if target is None or not r or not self.step_names or not 0 <= self.step_idx < len(self.step_names):
+        result, target = self.last_result, self.project.preview
+        if target is None or not result or not self.step_names or not 0 <= self.step_idx < len(self.step_names):
             return
         name = self.step_names[self.step_idx]
-        ovs = r.extra.get("overlays") or {}
-        base = r.extra.get("base_image") if _on_base(r, name) else r.step_images.get(name)
+        ovs = result.extra.get("overlays") or {}
+        base = result.extra.get("base_image") if _on_base(result, name) else result.step_images.get(name)
         if base is None:
             return
         try:
             from fenotit.core.pipeline import overlay
-            k = self.PREVIEW_SIDE / max(base.shape[:2])
-            small = cv2.resize(base, (max(1, round(base.shape[1] * k)), max(1, round(base.shape[0] * k))),
+            factor = self.PREVIEW_SIDE / max(base.shape[:2])
+            small = cv2.resize(base, (max(1, round(base.shape[1] * factor)), max(1, round(base.shape[0] * factor))),
                                interpolation=cv2.INTER_AREA)
             if name in ovs:
-                overlay.draw(small, ovs[name], self._mark_colors(r), (0, 0), k, screen=True)
+                overlay.draw(small, ovs[name], self._mark_colors(result), (0, 0), factor, screen=True)
             ok, buf = cv2.imencode(".jpg", small, [cv2.IMWRITE_JPEG_QUALITY, 85])
             if ok:
                 target.write_bytes(buf.tobytes())

@@ -16,10 +16,10 @@ from fenotit.i18n import t
 
 class ThresholdMixin:
     def _update_channel_names(self):
-        cs    = self.cs_var.get()
-        names = CHANNEL_NAMES.get(cs, ["0","1","2"])
-        for i, rb in enumerate(self._ch_radios):
-            rb.config(text=names[i])
+        colorspaces_value    = self.cs_var.get()
+        names = CHANNEL_NAMES.get(colorspaces_value, ["0","1","2"])
+        for i, radio in enumerate(self._ch_radios):
+            radio.config(text=names[i])
 
     def _on_cs_change(self, _=None):
         self._update_channel_names()
@@ -45,11 +45,11 @@ class ThresholdMixin:
         self.ch_var = tk.IntVar(value=0)
         self._ch_radios = []
         for i in range(3):
-            rb = tk.Radiobutton(row, text="", variable=self.ch_var, value=i,
+            radio = tk.Radiobutton(row, text="", variable=self.ch_var, value=i,
                                 command=self._on_slider_change, bg=bg, fg=COLORS["text"],
                                 selectcolor=COLORS["bg_card"], activebackground=bg, font=small)
-            row.add(rb)
-            self._ch_radios.append(rb)
+            row.add(radio)
+            self._ch_radios.append(radio)
         self._update_channel_names()
 
         self.auto_var = tk.BooleanVar(value=False)
@@ -65,7 +65,7 @@ class ThresholdMixin:
         rrow.pack(fill=tk.X, pady=(SPACE["md"], 0))
         tk.Label(rrow, text=t("seg.range"), bg=bg, fg=COLORS["text_muted"], font=small).pack(side=tk.LEFT)
         HelpIcon(rrow, t("seg.range"), t("seg.range_help"), bg=bg).pack(side=tk.LEFT, padx=(SPACE["sm"], 0))
-        self.range_slider = RangeSlider(box, on_change=lambda lo, hi: self._on_slider_moved(), bg=bg)
+        self.range_slider = RangeSlider(box, on_change=lambda low, high: self._on_slider_moved(), bg=bg)
         self.range_slider.pack(fill=tk.X)
         self.min_slider = self.range_slider.end("lo")
         self.max_slider = self.range_slider.end("hi")
@@ -95,20 +95,20 @@ class ThresholdMixin:
             self.auto_var.set(False)
         self._on_slider_change()
 
-    def _sync_sliders(self, lo: int, hi: int):
-        self._slider_state = (int(lo), int(hi))
-        self.min_slider.set(lo)
-        self.max_slider.set(hi)
+    def _sync_sliders(self, low: int, high: int):
+        self._slider_state = (int(low), int(high))
+        self.min_slider.set(low)
+        self.max_slider.set(high)
         if hasattr(self, "histogram"):
-            self.histogram.set_range(lo, hi)
+            self.histogram.set_range(low, high)
 
-    def _on_hist_drag(self, lo: int, hi: int):
+    def _on_hist_drag(self, low: int, high: int):
         """Arrastrar una línea del histograma = mover el deslizador (umbral manual)."""
         self.auto_var.set(False)
-        self._sync_sliders(lo, hi)
+        self._sync_sliders(low, high)
         self._on_slider_change()
 
-    def _update_histogram(self, img: np.ndarray, inc, exc):
+    def _update_histogram(self, img: np.ndarray, include, exclude):
         """Histograma del canal elegido, solo dentro del área de análisis (sin excluidas)."""
         key = (id(img), self.cs_var.get(), self.ch_var.get(),
                json.dumps(self.project.roi_for(self.current_image_path), sort_keys=True, default=str))
@@ -118,16 +118,16 @@ class ThresholdMixin:
             space, sel = self.cs_var.get(), int(self.ch_var.get())
             chans = colorspaces.channels(img, space)
             region = None
-            if inc is not None or exc:
-                region = (inc > 0) if inc is not None else np.ones(chans[0].shape, bool)
-                if exc:
+            if include is not None or exclude:
+                region = (include > 0) if include is not None else np.ones(chans[0].shape, bool)
+                if exclude:
                     region = region.astype(np.uint8)
-                    cv2.fillPoly(region, [pts for pts, _ in exc], 0)
+                    cv2.fillPoly(region, [pts for pts, _ in exclude], 0)
                     region = region > 0
-            vals = [c[region] if region is not None else c[::2, ::2] for c in chans]
+            vals = [channel[region] if region is not None else channel[::2, ::2] for channel in chans]
             colors = colorspaces.CHANNEL_COLORS.get(space, [COLORS["accent"]] * 3)
             sel = min(sel, len(vals) - 1)
             self.histogram.set_data(vals[sel], colors[sel],
-                                    [(v, colors[i]) for i, v in enumerate(vals) if i != sel])
+                                    [(values, colors[i]) for i, values in enumerate(vals) if i != sel])
             self.range_slider.set_track(colors[sel])
         self.histogram.set_range(int(self.min_slider.get()), int(self.max_slider.get()))

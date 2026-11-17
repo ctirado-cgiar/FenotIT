@@ -89,10 +89,10 @@ class ResultsMixin:
         photo = ImageTk.PhotoImage(Image.fromarray(rgb))
         setattr(self, attr, photo)
         canvas.delete("all")
-        cw = canvas.winfo_width()
-        ch = canvas.winfo_height()
-        x  = max(0, (cw - img_bgr.shape[1]) // 2)
-        y  = max(0, (ch - img_bgr.shape[0]) // 2)
+        width = canvas.winfo_width()
+        height = canvas.winfo_height()
+        x  = max(0, (width - img_bgr.shape[1]) // 2)
+        y  = max(0, (height - img_bgr.shape[0]) // 2)
         canvas.create_image(x, y, anchor="nw", image=photo)
         # Informar al ROI selector el offset real de la imagen
         if canvas is self.canvas_left and self.areas:
@@ -153,9 +153,9 @@ class ResultsMixin:
         self._full_paths.append(path)
         del self._full_paths[:-2]
         for name, per in self._results.items():
-            for p, r in per.items():
-                if p not in self._full_paths and r.step_images:
-                    per[p] = batch.light(r)
+            for key, value in per.items():
+                if key not in self._full_paths and value.step_images:
+                    per[key] = batch.light(value)
 
     def _on_result(self, name: str, result: AnalysisResult, path: str):
         self.root.config(cursor="")
@@ -179,7 +179,7 @@ class ResultsMixin:
             self._set_status(self.status_var.get() + f" ({_duration(result.extra['processing_s'])})")
         reused = result.extra.get("reused")
         if reused:
-            items = ", ".join(t(f"step.{k}", k) for k in reused)
+            items = ", ".join(t(f"step.{step_key}", step_key) for step_key in reused)
             self._set_status(self.status_var.get() + ". " + t("status.reused", items=items))
         self._refresh_history()
         self._log_process(name)
@@ -195,9 +195,9 @@ class ResultsMixin:
             self._chart_panel.load(result.measurements)
             full = (getattr(self, "_open_windows", {}) or {}).get("chart_full")
             if full is not None and full.winfo_exists():        # la ventana completa sigue a la foto
-                for w in full.winfo_children():
-                    if isinstance(w, IntraImageChartPanel):
-                        w.load(result.measurements)
+                for widget in full.winfo_children():
+                    if isinstance(widget, IntraImageChartPanel):
+                        widget.load(result.measurements)
         if not self.step_names:
             self._update_table(result)
             return
@@ -209,14 +209,14 @@ class ResultsMixin:
         self._jump_to_step(len(self.step_names) - 1)
 
     def _current_view_image(self):
-        r = self.last_result
-        if not r or not self.step_names or not 0 <= self.step_idx < len(self.step_names):
+        result = self.last_result
+        if not result or not self.step_names or not 0 <= self.step_idx < len(self.step_names):
             return None
         name = self.step_names[self.step_idx]
-        img = r.step_images.get(name)
-        if img is None and _on_base(r, name):
-            img = r.extra.get("base_image")
+        img = result.step_images.get(name)
+        if img is None and _on_base(result, name):
+            img = result.extra.get("base_image")
         if img is None:
             return None
         stem = Path(self.current_image_path).stem if self.current_image_path else None
-        return name, self._decorate_fn(r, stem)(name, img)
+        return name, self._decorate_fn(result, stem)(name, img)

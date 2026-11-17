@@ -37,9 +37,9 @@ class TopbarMixin:
         brand.append(tk.Label(self.topbar, text=APP_NAME, bg=COLORS["bg_topbar"], fg=COLORS["text_topbar"],
                               font=FONTS["heading"], cursor="hand2"))
         brand[-1].pack(side=tk.LEFT, padx=(0, SPACE["md"]))
-        for w in brand:                                    # como en la mayoría de apps: el logo lleva al inicio
-            w.bind("<Button-1>", lambda e: self._go_home())
-            Tooltip(w, t("menu.home"))
+        for widget in brand:                                    # como en la mayoría de apps: el logo lleva al inicio
+            widget.bind("<Button-1>", lambda event: self._go_home())
+            Tooltip(widget, t("menu.home"))
         self._vdiv()
 
         self._drop(self.topbar, t("menu.project"), [
@@ -153,7 +153,7 @@ class TopbarMixin:
         bar = tk.Frame(self.topbar, bg=COLORS["bg_topbar"])
         bar.pack(side=tk.RIGHT)
         size = max(16, int(round(18 * self.root.winfo_fpixels("1i") / 96)))
-        kw = dict(bg=COLORS["bg_topbar"], hover=COLORS["topbar_hover"], active=COLORS["topbar_active"], size=size)
+        kwargs = dict(bg=COLORS["bg_topbar"], hover=COLORS["topbar_hover"], active=COLORS["topbar_active"], size=size)
         pct = tk.Label(bar, textvariable=self._zoom_pct_var, bg=COLORS["bg_topbar"], fg=COLORS["text_topbar"],
                        font=FONTS["small"], width=6, cursor="hand2")
         self._zoom_tools = {}
@@ -164,17 +164,17 @@ class TopbarMixin:
                 ("zoom_area", lambda: self._set_zoom_tool("zoom_area"), f"{t('view.zoom_area')}  (Z)"),
                 ("pan", lambda: self._set_zoom_tool("pan"), f"{t('view.pan')}  (H)"),
                 ("inspect", lambda: self._set_zoom_tool("inspect"), f"{t('view.inspect')}  (I)")):
-            b = IconButton(bar, name, cmd, tip, **kw)
-            b.pack(side=tk.LEFT, padx=1, pady=SPACE["md"])
+            button_widget = IconButton(bar, name, cmd, tip, **kwargs)
+            button_widget.pack(side=tk.LEFT, padx=1, pady=SPACE["md"])
             if name in ("zoom_area", "pan", "inspect"):
-                self._zoom_tools[name] = b
+                self._zoom_tools[name] = button_widget
         pct.pack(side=tk.LEFT, padx=(SPACE["sm"], 0))
         tk.Frame(bar, bg=COLORS["topbar_divider"], width=1).pack(side=tk.LEFT, fill=tk.Y, pady=SPACE["md"], padx=(SPACE["md"], SPACE["sm"]))
-        self._style_btn = IconButton(bar, "palette", self._open_style, f"{t('style.title')}", **kw)
+        self._style_btn = IconButton(bar, "palette", self._open_style, f"{t('style.title')}", **kwargs)
         self._style_btn.pack(side=tk.LEFT, padx=1, pady=SPACE["md"])
         self._style_popup = None
         self.root.bind("<ButtonPress-1>", self._close_style_popup, add="+")
-        pct.bind("<Button-1>", lambda e: self.do_zoom_100())
+        pct.bind("<Button-1>", lambda event: self.do_zoom_100())
         Tooltip(pct, f"{t('view.zoom_100')}  (Ctrl+1)")
         self._zoom_tools["pan"].select(True)
 
@@ -183,11 +183,11 @@ class TopbarMixin:
             side=tk.LEFT, fill=tk.Y, pady=SPACE["md"], padx=SPACE["sm"])
 
     def _drop(self, parent, text, items):
-        m = DropMenu(parent, text, items, COLORS)
-        m.pack(side=tk.LEFT)
+        menu = DropMenu(parent, text, items, COLORS)
+        menu.pack(side=tk.LEFT)
         self._menus = getattr(self, "_menus", {})
-        self._menus[text] = m
-        return m
+        self._menus[text] = menu
+        return menu
 
     def _populate_analysis_menu(self):
         names = list(ANALYSES.keys())

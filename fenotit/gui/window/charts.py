@@ -14,22 +14,22 @@ from fenotit.i18n import t
 class ChartsMixin:
     def _show_batch_chart(self):
         """Ventana de gráficos del lote (análisis elegido)."""
-        results = {p: r for p, r in self.results_cache.items() if r is not None and r.status == "ok"}
+        results = {key: value for key, value in self.results_cache.items() if value is not None and value.status == "ok"}
         if not results:
             messagebox.showinfo(t("msg.no_data_title"), t("msg.no_data_batch"), parent=self.root)
             return
         self._replace_window("batch_chart", lambda: BatchChartWindow(
-            self.root, results, meta={p: self._meta_row(p) for p in results},
+            self.root, results, meta={key: self._meta_row(key) for key in results},
             groups=self._meta_columns(), on_pick=self._goto_object))
 
     def _color_images(self, paths) -> list:
         """[(ruta, Image_ID, nombre, tablas)] con resultado del análisis elegido."""
-        ids = {p: i for i, p in enumerate(self.batch_paths, 1)}
+        ids = {path: i for i, path in enumerate(self.batch_paths, 1)}
         out = []
-        for p in paths:
-            r = self.results_cache.get(p)
-            if r is not None and r.status == "ok" and p in ids:
-                out.append((p, ids[p], Path(p).name, r.extra.get("tables") or {}))
+        for path in paths:
+            result = self.results_cache.get(path)
+            if result is not None and result.status == "ok" and path in ids:
+                out.append((path, ids[path], Path(path).name, result.extra.get("tables") or {}))
         return out
 
     def _show_color3d(self, scope: str = "image"):
@@ -73,11 +73,11 @@ class ChartsMixin:
                                          on_pick=lambda oid: self._goto_object(self.current_image_path, oid))
             if hasattr(panel, "bar"):
                 button(panel.bar, text=t("chart.save"), command=lambda: panel.save_figure(), kind="secondary", size="small").pack(side=tk.RIGHT, padx=SPACE["md"], pady=SPACE["sm"])
-                panel.chooser.chosen = {k: list(v) for k, v in src.chooser.chosen.items()}
+                panel.chooser.chosen = {key: list(value) for key, value in src.chooser.chosen.items()}
                 panel.chooser.count = dict(src.chooser.count)
                 panel.chooser.kind.set(src.chooser.kind.get())
             panel.pack(fill=tk.BOTH, expand=True)
-            win.bind("<Escape>", lambda e: win.destroy())
+            win.bind("<Escape>", lambda event: win.destroy())
             win.update_idletasks()
             panel.load(src._rows)
             win.after(100, panel.redraw)

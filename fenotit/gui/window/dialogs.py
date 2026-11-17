@@ -26,15 +26,15 @@ class DialogsMixin:
         self._single("preferences", lambda: preferences_dialog.show(self.root, self.project.max_mpx,
                                                                      self._apply_preferences))
 
-    def _apply_preferences(self, v: dict):
+    def _apply_preferences(self, values: dict):
         for key in ("workers", "show_table_on_run", "autosave_min"):
-            settings.set(key, v[key])
-        settings.set("default_max_mpx", v["max_mpx"] or 0)
-        self._set_working_res(v["max_mpx"])
-        restart = v["language"] != i18n.current() or v["theme"] != (settings.get("theme") or "classic")
-        settings.set("theme", v["theme"])
-        if v["language"] != i18n.current():
-            i18n.set_language(v["language"])
+            settings.set(key, values[key])
+        settings.set("default_max_mpx", values["max_mpx"] or 0)
+        self._set_working_res(values["max_mpx"])
+        restart = values["language"] != i18n.current() or values["theme"] != (settings.get("theme") or "classic")
+        settings.set("theme", values["theme"])
+        if values["language"] != i18n.current():
+            i18n.set_language(values["language"])
         if restart:
             self._restart()
 
@@ -52,8 +52,8 @@ class DialogsMixin:
 
     @staticmethod
     def _default_max_mpx() -> float | None:
-        v = settings.get("default_max_mpx", 50.0)
-        return float(v) if v else None
+        value = settings.get("default_max_mpx", 50.0)
+        return float(value) if value else None
 
     def _open_log_folder(self):
         folder = Path(log.log_file()).parent
@@ -105,17 +105,17 @@ class DialogsMixin:
                     col.pack(side=tk.LEFT, anchor="n", padx=(0, SPACE["xxl"]))
                 tk.Label(col, text=title.upper(), bg=COLORS["bg_card"], fg=COLORS["accent"],
                          font=FONTS["small_bold"]).pack(anchor="w", pady=(SPACE["md"], SPACE["xs"]))
-                g = tk.Frame(col, bg=COLORS["bg_card"])
-                g.pack(anchor="w", fill=tk.X)
-                g.columnconfigure(0, minsize=150 if i < 3 else 170)
-                for r, (k, v) in enumerate(rows):
-                    v = re.sub(r"^[^\w(]+", "", v).rstrip("…").strip()          # sin íconos ni "…"
-                    v = v[:1].upper() + v[1:]
-                    tk.Label(g, text=k, bg=COLORS["bg_panel"], fg=COLORS["text"], font=FONTS["small"],
-                             padx=SPACE["sm"]).grid(row=r, column=0, sticky="w", pady=1)
-                    tk.Label(g, text=v, bg=COLORS["bg_card"], fg=COLORS["text"], font=FONTS["small"]).grid(
-                        row=r, column=1, sticky="w", padx=(SPACE["md"], 0))
-            win.bind("<Escape>", lambda e: win.destroy())
+                frame = tk.Frame(col, bg=COLORS["bg_card"])
+                frame.pack(anchor="w", fill=tk.X)
+                frame.columnconfigure(0, minsize=150 if i < 3 else 170)
+                for row, (keys, action) in enumerate(rows):
+                    action = re.sub(r"^[^\w(]+", "", action).rstrip("…").strip()          # sin íconos ni "…"
+                    action = action[:1].upper() + action[1:]
+                    tk.Label(frame, text=keys, bg=COLORS["bg_panel"], fg=COLORS["text"], font=FONTS["small"],
+                             padx=SPACE["sm"]).grid(row=row, column=0, sticky="w", pady=1)
+                    tk.Label(frame, text=action, bg=COLORS["bg_card"], fg=COLORS["text"], font=FONTS["small"]).grid(
+                        row=row, column=1, sticky="w", padx=(SPACE["md"], 0))
+            win.bind("<Escape>", lambda event: win.destroy())
             return win
         self._single("shortcuts", build)
 
@@ -164,9 +164,9 @@ class DialogsMixin:
 
         button(body, text="OK", command=apply, kind="secondary").pack(anchor="e", pady=(SPACE["lg"], 0))
         win.update_idletasks()
-        sw, sh = win.winfo_screenwidth(), win.winfo_screenheight()
-        w, h = max(win.winfo_reqwidth(), 260), win.winfo_reqheight()
-        win.geometry(f"{w}x{h}+{(sw - w) // 2}+{(sh - h) // 2}")
+        screen_width, screen_height = win.winfo_screenwidth(), win.winfo_screenheight()
+        width, height = max(win.winfo_reqwidth(), 260), win.winfo_reqheight()
+        win.geometry(f"{width}x{height}+{(screen_width - width) // 2}+{(screen_height - height) // 2}")
         return win
 
     def _system_info(self) -> str:

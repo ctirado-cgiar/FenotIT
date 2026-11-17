@@ -20,21 +20,21 @@ class ExportMixin:
     def _export_results(self):
         """Una sola exportación: tablas + metadatos por análisis (y, si se pide, Excel e
         imágenes de las vistas, que se recalculan en procesos aparte)."""
-        done = [(n, _analysis_label(n), sum(1 for p in self.batch_paths if p in self._results.get(n, {})
-                                            and self._results[n][p].status == "ok"))
-                for n in ANALYSES if self._results.get(n)]
-        done = [d for d in done if d[2]]
+        done = [(name, _analysis_label(name), sum(1 for path in self.batch_paths if path in self._results.get(name, {})
+                                            and self._results[name][path].status == "ok"))
+                for name in ANALYSES if self._results.get(name)]
+        done = [entry for entry in done if entry[2]]
         if not done:
             messagebox.showwarning(t("msg.no_results_title"), t("msg.no_results"), parent=self.root)
             return
         folder = settings.get("export_dir") or (str(self.project.folder) if self.project.folder else "") \
             or (str(Path(self.batch_paths[0]).parent) if self.batch_paths else "")
-        n = len(self.batch_paths)
-        scopes = [("all", t("export.scope_all", n=n))]
-        if self.current_image_path and n > 1:
+        name = len(self.batch_paths)
+        scopes = [("all", t("export.scope_all", n=name))]
+        if self.current_image_path and name > 1:
             scopes.append(("current", t("export.scope_current")))
         found = self._search_paths()
-        if found is not None and 0 < len(found) < n:
+        if found is not None and 0 < len(found) < name:
             scopes.append(("search", t("export.scope_search", n=len(found))))
         ExportDialog(self.root, done, folder, run=self._run_export, cancel=self._cancel_export, scopes=scopes,
                      stamp=bool(settings.get("export_stamp", False)), existing=self._export_existing)
@@ -47,26 +47,26 @@ class ExportMixin:
 
     def _export_existing(self, folder: str, names: list[str]) -> str:
         """Subcarpetas de análisis que ya tienen archivos (se reemplazarían)."""
-        hits = [f"{n}/" for n in names
-                if (Path(folder) / n).is_dir() and any((Path(folder) / n).iterdir())]
+        hits = [f"{name}/" for name in names
+                if (Path(folder) / name).is_dir() and any((Path(folder) / name).iterdir())]
         return ", ".join(hits)
 
     def _export_folder_name(self) -> str:
-        import datetime as _dt
+        import datetime
         import re
-        stamp = _dt.datetime.now().strftime("%Y-%m-%d_%H%M")
+        stamp = datetime.datetime.now().strftime("%Y-%m-%d_%H%M")
         base = self.project.name if self.project.folder else "export"
         base = re.sub(r'[<>:"/\\|?*]+', "_", base).strip() or "export"
         return f"{base}_{stamp}"
 
     def _image_info(self, path: str, result: AnalysisResult | None = None) -> dict:
-        sc = self.project.scale_for(path)
+        scale = self.project.scale_for(path)
         shapes = self.project.roi_for(path)
         own = self.project.key(path) in self.project.image_scale
         used = (result.extra.get("params") or {}) if result is not None else {}
         mpp = used.get("mm_per_pixel") if "mm_per_pixel" in used else self._scale_for(path)
         return {"file": path, "mm_per_px": mpp or "", "work_scale": used.get("work_scale", ""),
-                "scale_source": sc.source + (" (image)" if own else ""),
+                "scale_source": scale.source + (" (image)" if own else ""),
                 "length_unit": units.ascii_name(self.project.unit),
                 "n_analysis_areas": sum(1 for x in shapes if x["kind"] == "include"),
                 "n_excluded_areas": sum(1 for x in shapes if x["kind"] == "exclude")}
@@ -78,18 +78,18 @@ class ExportMixin:
         settings.set("export_dir", folder)
         settings.set("export_stamp", stamp)
         root = Path(folder) / self._export_folder_name() if stamp else Path(folder)
-        ids = {p: i for i, p in enumerate(self.batch_paths, 1)}       # Image_ID = posición en el proyecto
+        ids = {entry_key: i for i, entry_key in enumerate(self.batch_paths, 1)}       # Image_ID = posición en el proyecto
         paths = {"current": [self.current_image_path] if self.current_image_path else [],
                  "search": self._search_paths() or []}.get(scope, self.batch_paths)
         written = 0
         try:
             for key in names:
                 store = self._results.get(key, {})
-                info = {p: self._image_info(p, store.get(p)) for p in paths}
-                part = {p: r for p, r in store.items() if p in info}
+                info = {entry_key: self._image_info(entry_key, store.get(entry_key)) for entry_key in paths}
+                part = {entry_key: value for entry_key, value in store.items() if entry_key in info}
                 tables = exporter.collect(key, part, paths, info, self._skipped,
                                           board=self._board_photos(), ids=ids,
-                                          meta={p: self._meta_row(p) for p in paths})
+                                          meta={entry_key: self._meta_row(entry_key) for entry_key in paths})
                 meta = exporter.metadata(key, part, self.project,
                                          {"view_images": "views/" if views else "no",
                                           "images_exported": f"{scope} ({len(paths)} of {len(self.batch_paths)})"})
@@ -104,12 +104,12 @@ class ExportMixin:
         queue = []
         for name in names:
             store = self._results.get(name, {})
-            jobs = [batch.Job(p, store[p].extra.get("params") or self._build_params(),
+            jobs = [batch.Job(path, store[path].extra.get("params") or self._build_params(),
                               max_mpx=self.project.max_mpx, full_res_scale=False)
-                    for p in paths if p in store and store[p].status == "ok"]
+                    for path in paths if path in store and store[path].status == "ok"]
             if jobs:
                 queue.append((name, jobs))
-        total = sum(len(j) for _, j in queue)
+        total = sum(len(analysis_jobs) for _, analysis_jobs in queue)
         state = {"i": 0, "errors": 0}
 
         def next_analysis(cancelled=False):
@@ -123,7 +123,7 @@ class ExportMixin:
             name, jobs = queue.pop(0)
             task = partial(batch.export_views, str(root / name / "views"), dict(self.project.display))
 
-            def outcome(i, n, out):
+            def outcome(i, name, out):
                 state["i"] += 1
                 state["errors"] += out.status != "ok"
                 dlg.progress(state["i"], total, t("export.views_progress", i=state["i"], n=total))
@@ -131,8 +131,8 @@ class ExportMixin:
             self._export_runner = batch.BatchRunner(
                 name, jobs, self.project.corrections, task=task,
                 workers=int(settings.get("workers", 0) or 0) or None,
-                on_outcome=lambda i, n, o: after(0, lambda: outcome(i, n, o)),
-                on_done=lambda c: after(0, lambda: next_analysis(c))).start()
+                on_outcome=lambda i, name, out: after(0, lambda: outcome(i, name, out)),
+                on_done=lambda cancelled: after(0, lambda: next_analysis(cancelled))).start()
         dlg.progress(0, total, t("export.views_progress", i=0, n=total))
         next_analysis()
 

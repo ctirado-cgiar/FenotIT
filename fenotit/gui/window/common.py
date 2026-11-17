@@ -35,26 +35,26 @@ CV2_CODES = {
 }
 
 
-def _cell(v) -> str:
+def _cell(value) -> str:
     """Texto de una celda: decimales recortados para que la tabla se lea."""
-    if v is None:
+    if value is None:
         return ""
-    if isinstance(v, float):
-        return f"{v:.4g}" if abs(v) < 1e-3 and v != 0 else f"{v:.3f}".rstrip("0").rstrip(".")
-    return str(v)
+    if isinstance(value, float):
+        return f"{value:.4g}" if abs(value) < 1e-3 and value != 0 else f"{value:.3f}".rstrip("0").rstrip(".")
+    return str(value)
 
 
 def _row_objects(row: dict) -> list[int]:
     """Objetos de una fila de tabla: object_id, o los dos de un par (Distancias)."""
-    ids = [row.get(k) for k in ("object_id", "object_a", "object_b")]
+    ids = [row.get(key) for key in ("object_id", "object_a", "object_b")]
     return [int(i) for i in ids if isinstance(i, (int, np.integer))]
 
 
 def _on_base(result, view) -> bool:
     """¿La vista se dibuja como foto + marcas (contornos, puntos)? Las de Color o Máscara
     tienen su propia imagen (y, a lo sumo, ★ encima)."""
-    ov = (result.extra.get("overlays") or {}).get(view) if result is not None else None
-    return ov is not None and not ov.get("on_view")
+    marks = (result.extra.get("overlays") or {}).get(view) if result is not None else None
+    return marks is not None and not marks.get("on_view")
 
 
 def _analysis_label(key: str) -> str:
@@ -76,9 +76,9 @@ def _peek_tab(host, image, command, side: str):
     carpeta): clic = mostrar el panel. side = left | right | bottom."""
     tab = tk.Label(host, image=image, bg=COLORS["bg_panel"], cursor="hand2", padx=SPACE["sm"], pady=SPACE["sm"],
                    highlightthickness=1, highlightbackground=COLORS["border"])
-    tab.bind("<Button-1>", lambda e: command())
-    tab.bind("<Enter>", lambda e: tab.config(bg=COLORS["accent_light"]))
-    tab.bind("<Leave>", lambda e: tab.config(bg=COLORS["bg_panel"]))
+    tab.bind("<Button-1>", lambda event: command())
+    tab.bind("<Enter>", lambda event: tab.config(bg=COLORS["accent_light"]))
+    tab.bind("<Leave>", lambda event: tab.config(bg=COLORS["bg_panel"]))
     place = {"left": dict(x=0, y=24, anchor="nw"),
              "right": dict(relx=1.0, x=0, y=24, anchor="ne"),
              "bottom": dict(relx=0.5, rely=1.0, y=0, anchor="s")}[side]
@@ -93,8 +93,8 @@ def _duration(seconds: float) -> str:
     """12.3 s, 2 min 05 s"""
     if seconds < 60:
         return f"{seconds:.1f} s" if seconds < 10 else f"{seconds:.0f} s"
-    m, s = divmod(int(round(seconds)), 60)
-    return f"{m} min {s:02d} s"
+    minutes, secs = divmod(int(round(seconds)), 60)
+    return f"{minutes} min {secs:02d} s"
 
 
 def _summary(stats: dict, limit: int = 6, aliases: dict | None = None) -> str:
@@ -102,10 +102,10 @@ def _summary(stats: dict, limit: int = 6, aliases: dict | None = None) -> str:
     análisis (conteos, distancias, color, modelos…): los valores que el análisis puso, sin
     vacíos ni la resolución, con pocos decimales."""
     aliases = aliases or {}
-    hidden = {k for k in aliases if k.startswith("\0")}          # fondo de la segmentación por ejemplos
-    items = [(k, v) for k, v in stats.items() if v not in (None, "") and k not in _SUMMARY_SKIP
-             and not k.endswith("_per_px") and not any(k.startswith(h[1:] + "_") for h in hidden)
-             and not (v == 0 and k.startswith("n_") and k[2:] in aliases)]     # clases sin objetos
+    hidden = {key for key in aliases if key.startswith("\0")}          # fondo de la segmentación por ejemplos
+    items = [(key, value) for key, value in stats.items() if value not in (None, "") and key not in _SUMMARY_SKIP
+             and not key.endswith("_per_px") and not any(key.startswith(hidden_key[1:] + "_") for hidden_key in hidden)
+             and not (value == 0 and key.startswith("n_") and key[2:] in aliases)]     # clases sin objetos
     from fenotit.gui.widgets.labels import column
-    text = ", ".join(f"{column(k, aliases)}: {_cell(v)}" for k, v in items[:limit])
+    text = ", ".join(f"{column(key, aliases)}: {_cell(value)}" for key, value in items[:limit])
     return text + (", …" if len(items) > limit else "")

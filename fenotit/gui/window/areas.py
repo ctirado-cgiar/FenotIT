@@ -49,8 +49,8 @@ class AreasMixin:
         path = self.current_image_path
         if not path:
             return
-        n = self.project.others_with_own_roi(path)
-        if n and not messagebox.askyesno(t("roi.apply_all"), t("roi.apply_all_warn", n=n), parent=self.root):
+        n_own = self.project.others_with_own_roi(path)
+        if n_own and not messagebox.askyesno(t("roi.apply_all"), t("roi.apply_all_warn", n=n_own), parent=self.root):
             return
         self._remember("undo.apply_all")
         self.project.apply_roi_to_all(self.project.roi_for(path))
@@ -89,8 +89,8 @@ class AreasMixin:
             self._set_roi_mode(mode)
 
     def _paint_area_tools(self):
-        for mode, b in getattr(self, "_area_btns", {}).items():
-            b.select(bool(self.areas) and self.areas.mode == mode)
+        for mode, value in getattr(self, "_area_btns", {}).items():
+            value.select(bool(self.areas) and self.areas.mode == mode)
 
     def _update_area_scope(self):
         """Indicador abajo a la izquierda, solo si esta foto tiene áreas: si son suyas o

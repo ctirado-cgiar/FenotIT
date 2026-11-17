@@ -18,9 +18,9 @@ from fenotit.i18n import t
 
 class ViewerMixin:
     def _build_center_panel(self):
-        cf = self.center_frame
+        center = self.center_frame
 
-        canvas_row = tk.Frame(cf, bg=COLORS["bg"])
+        canvas_row = tk.Frame(center, bg=COLORS["bg"])
         canvas_row.pack(fill=tk.BOTH, expand=True, padx=SPACE["md"], pady=(SPACE["sm"], SPACE["xs"]))
         canvas_row.rowconfigure(0, weight=1)
         # Cada lado: título + ojo (ocultar) y su imagen. Oculto, queda una franja con el
@@ -36,7 +36,7 @@ class ViewerMixin:
             edge = tk.LEFT if side == "input" else tk.RIGHT
             tk.Label(head, text=title, bg=COLORS["bg"], fg=COLORS["text_muted"],
                      font=FONTS["small"]).pack(side=edge, padx=SPACE["xs"])
-            IconButton(head, "eye", lambda sd=side: self._toggle_side(sd), t("view.hide_side", name=title),
+            IconButton(head, "eye", lambda spread=side: self._toggle_side(spread), t("view.hide_side", name=title),
                        bg=COLORS["bg"], hover=COLORS["btn_hover"], active=COLORS["accent_light"],
                        size=14, color=COLORS["text_muted"]).pack(side=edge)
             canvas = tk.Canvas(col, bg=COLORS["bg_card"], highlightthickness=1, width=120, height=120,
@@ -44,27 +44,27 @@ class ViewerMixin:
             canvas.pack(fill=tk.BOTH, expand=True)
             # oculto: franja con el ojo tachado y el nombre en vertical
             strip = tk.Frame(canvas_row, bg=COLORS["bg_panel"], width=22, cursor="hand2")
-            IconButton(strip, "eye_off", lambda sd=side: self._toggle_side(sd), t("view.show_side", name=title),
+            IconButton(strip, "eye_off", lambda spread=side: self._toggle_side(spread), t("view.show_side", name=title),
                        bg=COLORS["bg_panel"], hover=COLORS["btn_hover"], active=COLORS["accent_light"],
                        size=14, color=COLORS["accent"]).pack(side=tk.TOP, pady=SPACE["sm"])
             font = tkfont.Font(font=FONTS["small"])
-            vt = tk.Canvas(strip, width=20, height=font.measure(title) + 8, bg=COLORS["bg_panel"],
+            canvas_value = tk.Canvas(strip, width=20, height=font.measure(title) + 8, bg=COLORS["bg_panel"],
                            highlightthickness=0, cursor="hand2")
-            vt.create_text(10, (font.measure(title) + 8) / 2, text=title, angle=90, fill=COLORS["text_muted"],
+            canvas_value.create_text(10, (font.measure(title) + 8) / 2, text=title, angle=90, fill=COLORS["text_muted"],
                            font=FONTS["small"])
-            vt.pack(side=tk.TOP)
-            for w in (strip, vt):
-                w.bind("<Button-1>", lambda e, sd=side: self._toggle_side(sd))
+            canvas_value.pack(side=tk.TOP)
+            for widget in (strip, canvas_value):
+                widget.bind("<Button-1>", lambda event, spread=side: self._toggle_side(spread))
             # la misma franja, acostada, cuando Entrada y Resultado van uno encima del otro
             hstrip = tk.Frame(canvas_row, bg=COLORS["bg_panel"], height=22, cursor="hand2")
-            IconButton(hstrip, "eye_off", lambda sd=side: self._toggle_side(sd), t("view.show_side", name=title),
+            IconButton(hstrip, "eye_off", lambda spread=side: self._toggle_side(spread), t("view.show_side", name=title),
                        bg=COLORS["bg_panel"], hover=COLORS["btn_hover"], active=COLORS["accent_light"],
                        size=14, color=COLORS["accent"]).pack(side=tk.LEFT, padx=SPACE["sm"])
-            hl = tk.Label(hstrip, text=title, bg=COLORS["bg_panel"], fg=COLORS["text_muted"], font=FONTS["small"],
+            label = tk.Label(hstrip, text=title, bg=COLORS["bg_panel"], fg=COLORS["text_muted"], font=FONTS["small"],
                           cursor="hand2")
-            hl.pack(side=tk.LEFT)
-            for w in (hstrip, hl):
-                w.bind("<Button-1>", lambda e, sd=side: self._toggle_side(sd))
+            label.pack(side=tk.LEFT)
+            for widget in (hstrip, label):
+                widget.bind("<Button-1>", lambda event, spread=side: self._toggle_side(spread))
             self._hstrips[side] = hstrip
             self._cols[side], self._strips[side] = col, strip
             if side == "input":
@@ -99,13 +99,13 @@ class ViewerMixin:
 
         self._canvas_row = canvas_row
         from fenotit.gui.screens.start import StartScreen
-        self._start = StartScreen(cf, COLORS, FONTS, self._open_image, self._open_folder,
+        self._start = StartScreen(center, COLORS, FONTS, self._open_image, self._open_folder,
                                   self._open_project, self._open_recent,
                                   links=((t("menu.language"), self._choose_language), (t("menu.about"), self._about),
                                          (t("start.help"), self._start_tour)))
         self._build_view_controls()
 
-        self._build_bottom_panel(cf)
+        self._build_bottom_panel(center)
 
     def _set_zoom_tool(self, tool: str):
         if self.zoom_ctrl is None:
@@ -164,12 +164,12 @@ class ViewerMixin:
         if mode in ("row", "column"):
             return mode
         row = self._canvas_row
-        W, H = row.winfo_width(), row.winfo_height()
-        if not self.scaler_left.has_image or W < 50 or H < 50:
+        width, height = row.winfo_width(), row.winfo_height()
+        if not self.scaler_left.has_image or width < 50 or height < 50:
             return self._orient
-        ih, iw = self.scaler_left.original.shape[:2]
-        side = min(W / 2 / iw, H / ih)
-        stacked = min(W / iw, H / 2 / ih)
+        box_height, box_width = self.scaler_left.original.shape[:2]
+        side = min(width / 2 / box_width, height / box_height)
+        stacked = min(width / box_width, height / 2 / box_height)
         if stacked > side * 1.1:
             return "column"
         if side > stacked * 1.1:
@@ -184,7 +184,7 @@ class ViewerMixin:
     def _sides_label(self, mode: str):
         return lambda: ("✓ " if settings.get("sides_layout", "auto") == mode else "    ") + t(f"view.sides_{mode}")
 
-    def _on_canvas_row_resize(self, _e=None):
+    def _on_canvas_row_resize(self, _event=None):
         if self._results_shown and self._sides_orient() != self._orient:
             self._layout_sides()
             self.root.after(50, self._refit_images)
@@ -198,31 +198,31 @@ class ViewerMixin:
         row = self._canvas_row
         orient = self._orient = self._sides_orient() if has_result else self._orient
         stacked = orient == "column"
-        for w in (list(self._cols.values()) + list(self._strips.values()) + list(self._hstrips.values())
+        for widget in (list(self._cols.values()) + list(self._strips.values()) + list(self._hstrips.values())
                   + [self._chart_col]):
-            w.grid_forget()
-        for c in (0, 1):
-            row.columnconfigure(c, weight=0, uniform="", minsize=0)
-            row.rowconfigure(c, weight=0, uniform="", minsize=0)
+            widget.grid_forget()
+        for column in (0, 1):
+            row.columnconfigure(column, weight=0, uniform="", minsize=0)
+            row.rowconfigure(column, weight=0, uniform="", minsize=0)
         if stacked:
             row.columnconfigure(0, weight=1)
         else:
             row.rowconfigure(0, weight=1)
-        for k, side in enumerate(("input", "result")):
+        for index, side in enumerate(("input", "result")):
             if dock == side:
-                w, full = self._chart_col, True
+                widget, full = self._chart_col, True
             elif side == "result" and not has_result:
                 continue
             elif has_result and self._hidden[side]:
-                w, full = (self._hstrips if stacked else self._strips)[side], False
+                widget, full = (self._hstrips if stacked else self._strips)[side], False
             else:
-                w, full = self._cols[side], True
-            r, c = (k, 0) if stacked else (0, k)
+                widget, full = self._cols[side], True
+            grid_row, grid_column = (index, 0) if stacked else (0, index)
             if full:
-                w.grid(row=r, column=c, sticky="nsew", padx=SPACE["xs"], pady=(0, 2) if stacked else 0)
-                (row.rowconfigure if stacked else row.columnconfigure)(k, weight=1, uniform="side")
+                widget.grid(row=grid_row, column=grid_column, sticky="nsew", padx=SPACE["xs"], pady=(0, 2) if stacked else 0)
+                (row.rowconfigure if stacked else row.columnconfigure)(index, weight=1, uniform="side")
             else:
-                w.grid(row=r, column=c, sticky="ew" if stacked else "ns")
+                widget.grid(row=grid_row, column=grid_column, sticky="ew" if stacked else "ns")
 
     def _set_hidden(self, hidden: dict):
         """Qué lados (Entrada, Resultado) están ocultos."""
@@ -268,19 +268,19 @@ class ViewerMixin:
     _POS_GRID = (("tl", "tc", "tr"), ("ml", None, "mr"), ("bl", "bc", "br"))
 
     def _paint_pos_grid(self):
-        c, cur = self._pos_grid, self.project.display.get("legend_pos", "tl") if hasattr(self, "project") else "tl"
-        c.delete("all")
-        for r, row in enumerate(self._POS_GRID):
-            for k, pos in enumerate(row):
+        canvas, cur = self._pos_grid, self.project.display.get("legend_pos", "tl") if hasattr(self, "project") else "tl"
+        canvas.delete("all")
+        for row_index, row in enumerate(self._POS_GRID):
+            for column_index, pos in enumerate(row):
                 if pos is None:
                     continue
-                x, y = 2 + k * 8, 1 + r * 6
-                c.create_rectangle(x, y, x + 6, y + 4, outline=COLORS["accent"],
+                x, y = 2 + column_index * 8, 1 + row_index * 6
+                canvas.create_rectangle(x, y, x + 6, y + 4, outline=COLORS["accent"],
                                    fill=COLORS["accent"] if pos == cur else "")
 
     def _pick_legend_pos(self, event):
-        k, r = min(2, max(0, (event.x - 2) // 8)), min(2, max(0, (event.y - 1) // 6))
-        pos = self._POS_GRID[r][k]
+        column_index, row_index = min(2, max(0, (event.x - 2) // 8)), min(2, max(0, (event.y - 1) // 6))
+        pos = self._POS_GRID[row_index][column_index]
         if pos:
             self.project.display = {**self.project.display, "legend_pos": pos}
             self._paint_pos_grid()

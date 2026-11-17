@@ -18,14 +18,14 @@ class TourMixin:
         start = getattr(self, "_start", None)
         if start is not None and start.winfo_ismapped():
             settings.set("tour_seen", True)
-            tg = start.targets
+            tag = start.targets
             steps = [Step(t("tour.home.title"), t("tour.home.text")),
-                     Step(t("tour.new.title"), t("tour.new.text"), lambda: tg.get("new")),
-                     Step(t("tour.open.title"), t("tour.open.text"), lambda: tg.get("open")),
-                     Step(t("tour.recent.title"), t("tour.recent.text"), lambda: tg.get("recent"),
-                          lambda: tg.get("recent") is not None),
-                     Step(t("tour.lang.title"), t("tour.lang.text"), lambda: tg.get("language")),
-                     Step(t("tour.help.title"), t("tour.help.text"), lambda: tg.get("help"))]
+                     Step(t("tour.new.title"), t("tour.new.text"), lambda: tag.get("new")),
+                     Step(t("tour.open.title"), t("tour.open.text"), lambda: tag.get("open")),
+                     Step(t("tour.recent.title"), t("tour.recent.text"), lambda: tag.get("recent"),
+                          lambda: tag.get("recent") is not None),
+                     Step(t("tour.lang.title"), t("tour.lang.text"), lambda: tag.get("language")),
+                     Step(t("tour.help.title"), t("tour.help.text"), lambda: tag.get("help"))]
             self._tour = Tour(self.root, steps, on_close=done)
             self._tour.start()
             return
@@ -57,14 +57,14 @@ class TourMixin:
         ]
         # empieza donde está el usuario: lo siguiente que le toca hacer
         if not has_photo():
-            at = "welcome"
+            start_key = "welcome"
         elif results():
-            at = "layers"
+            start_key = "layers"
         elif panel_on():
-            at = "params"
+            start_key = "params"
         elif self._panel_of("steps").winfo_ismapped():
-            at = "segment" if self._right_tab == "seg" else "analysis"
+            start_key = "segment" if self._right_tab == "seg" else "analysis"
         else:
-            at = "areas"
+            start_key = "areas"
         self._tour = Tour(self.root, steps, on_close=done)
-        self._tour.start(at)
+        self._tour.start(start_key)

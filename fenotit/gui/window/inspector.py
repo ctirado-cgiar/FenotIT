@@ -22,64 +22,64 @@ class InspectorMixin:
 
     def _pick_object(self, x: float, y: float):
         """Clic con Inspeccionar: el objeto que contiene el punto (o nada)."""
-        for oid, c in self._geometry().items():
-            x0, y0 = c.min(axis=0)
-            x1, y1 = c.max(axis=0)
+        for oid, contour in self._geometry().items():
+            x0, y0 = contour.min(axis=0)
+            x1, y1 = contour.max(axis=0)
             if x0 - 2 <= x <= x1 + 2 and y0 - 2 <= y <= y1 + 2 \
-                    and cv2.pointPolygonTest(c.reshape(-1, 1, 2).astype(np.float32), (float(x), float(y)), True) >= -2:
+                    and cv2.pointPolygonTest(contour.reshape(-1, 1, 2).astype(np.float32), (float(x), float(y)), True) >= -2:
                 self._sel_point = (x, y)
                 self._select_object(oid)
                 return
         self._clear_selection()
 
     def _object_at(self, x: float, y: float) -> int | None:
-        for oid, c in self._geometry().items():
-            x0, y0 = c.min(axis=0)
-            x1, y1 = c.max(axis=0)
+        for oid, contour in self._geometry().items():
+            x0, y0 = contour.min(axis=0)
+            x1, y1 = contour.max(axis=0)
             if x0 - 2 <= x <= x1 + 2 and y0 - 2 <= y <= y1 + 2 \
-                    and cv2.pointPolygonTest(c.reshape(-1, 1, 2).astype(np.float32), (float(x), float(y)), True) >= -2:
+                    and cv2.pointPolygonTest(contour.reshape(-1, 1, 2).astype(np.float32), (float(x), float(y)), True) >= -2:
                 return oid
         return None
 
-    def _hover_object(self, canvas, p):
+    def _hover_object(self, canvas, point):
         """Inspeccionar en la capa Distancias: al pasar el mouse sobre un objeto se ven las
         líneas a sus vecinos con la distancia (en los dos lados)."""
-        r = self.last_result
-        view = self.step_names[self.step_idx] if r and self.step_names and 0 <= self.step_idx < len(self.step_names) else None
-        kind = (r.extra.get("step_folders") or {}).get(view) if r else None
-        oid = self._object_at(*p) if p is not None and kind == "distances" else None
+        result = self.last_result
+        view = self.step_names[self.step_idx] if result and self.step_names and 0 <= self.step_idx < len(self.step_names) else None
+        kind = (result.extra.get("step_folders") or {}).get(view) if result else None
+        oid = self._object_at(*point) if point is not None and kind == "distances" else None
         if oid == getattr(self, "_hover_oid", None):
             return
         self._hover_oid = oid
-        for c in (self.canvas_left, self.canvas_right):
-            c.delete("hover")
+        for canvas_widget in (self.canvas_left, self.canvas_right):
+            canvas_widget.delete("hover")
         if oid is None:
             return
-        tables = r.extra.get("tables") or {}
-        cents = {o["object_id"]: (o.get("centroid_x_px"), o.get("centroid_y_px")) for o in tables.get("objects", [])}
-        pairs = [x for x in tables.get("distances", []) if oid in (x.get("object_a"), x.get("object_b"))]
-        dcol = next((k for k in (pairs[0] if pairs else {}) if k.startswith("distance_")), None)
-        from fenotit.gui.widgets import inspector as ins
-        for c in (self.canvas_left, self.canvas_right):
-            if not c.winfo_ismapped() or cents.get(oid, (None,))[0] is None:
+        tables = result.extra.get("tables") or {}
+        centers = {obj["object_id"]: (obj.get("centroid_x_px"), obj.get("centroid_y_px")) for obj in tables.get("objects", [])}
+        pairs = [pair for pair in tables.get("distances", []) if oid in (pair.get("object_a"), pair.get("object_b"))]
+        distance_column = next((column for column in (pairs[0] if pairs else {}) if column.startswith("distance_")), None)
+        from fenotit.gui.widgets import inspector as inspector_draw
+        for canvas_widget in (self.canvas_left, self.canvas_right):
+            if not canvas_widget.winfo_ismapped() or centers.get(oid, (None,))[0] is None:
                 continue
-            a = self.zoom_ctrl.to_canvas(c, *cents[oid])
-            for x in pairs:
-                other = x["object_b"] if x["object_a"] == oid else x["object_a"]
-                if cents.get(other, (None,))[0] is None or a is None:
+            start = self.zoom_ctrl.to_canvas(canvas_widget, *centers[oid])
+            for pair in pairs:
+                other = pair["object_b"] if pair["object_a"] == oid else pair["object_a"]
+                if centers.get(other, (None,))[0] is None or start is None:
                     continue
-                b = self.zoom_ctrl.to_canvas(c, *cents[other])
-                c.create_line(*a, *b, fill=COLORS["white"], width=4, tags="hover")
-                c.create_line(*a, *b, fill=COLORS["accent"], width=2, tags="hover")
-                v = x.get(dcol)
-                if isinstance(v, (int, float)):
-                    tx, ty = (a[0] + 2 * b[0]) / 3, (a[1] + 2 * b[1]) / 3     # cerca del vecino
+                end = self.zoom_ctrl.to_canvas(canvas_widget, *centers[other])
+                canvas_widget.create_line(*start, *end, fill=COLORS["white"], width=4, tags="hover")
+                canvas_widget.create_line(*start, *end, fill=COLORS["accent"], width=2, tags="hover")
+                distance = pair.get(distance_column)
+                if isinstance(distance, (int, float)):
+                    text_x, text_y = (start[0] + 2 * end[0]) / 3, (start[1] + 2 * end[1]) / 3     # cerca del vecino
                     for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
-                        c.create_text(tx + dx, ty + dy, text=ins.fmt(float(v)), fill=COLORS["white"],
+                        canvas_widget.create_text(text_x + dx, text_y + dy, text=inspector_draw.fmt(float(distance)), fill=COLORS["white"],
                                       font=FONTS["body_bold"], tags="hover")
-                    c.create_text(tx, ty, text=ins.fmt(float(v)), fill=COLORS["area_include"], font=FONTS["body_bold"],
+                    canvas_widget.create_text(text_x, text_y, text=inspector_draw.fmt(float(distance)), fill=COLORS["area_include"], font=FONTS["body_bold"],
                                   tags="hover")
-            c.create_oval(a[0] - 4, a[1] - 4, a[0] + 4, a[1] + 4, fill=COLORS["highlight"], outline=COLORS["white"], tags="hover")
+            canvas_widget.create_oval(start[0] - 4, start[1] - 4, start[0] + 4, start[1] + 4, fill=COLORS["highlight"], outline=COLORS["white"], tags="hover")
 
     def _select_object(self, oid: int, from_table: bool = False):
         geom = self._geometry()
@@ -126,118 +126,118 @@ class InspectorMixin:
         """Solo lo de la capa que se está viendo (ver gui/widgets/inspector.py)."""
         from fenotit.core.pipeline import overlay
         from fenotit.core.pipeline.views import _color_text
-        from fenotit.gui.widgets import inspector as ins
-        r, oid = self.last_result, self._sel
-        if r is None or oid is None:
+        from fenotit.gui.widgets import inspector as inspector_draw
+        result, oid = self.last_result, self._sel
+        if result is None or oid is None:
             return
-        geom = self._geometry()
-        contour = geom[oid]
+        geometry = self._geometry()
+        contour = geometry[oid]
         view = self.step_names[self.step_idx] if self.step_names and 0 <= self.step_idx < len(self.step_names) else None
-        kind = (r.extra.get("step_folders") or {}).get(view, "")
-        ovs = r.extra.get("overlays") or {}
-        base = r.extra.get("base_image")
+        kind = (result.extra.get("step_folders") or {}).get(view, "")
+        overlays = result.extra.get("overlays") or {}
+        base = result.extra.get("base_image")
         if base is None and self.scaler_left.has_image:
             base = self.scaler_left.original
-        img = base if _on_base(r, view) else (r.step_images.get(view) if r.step_images.get(view) is not None else base)
-        tables = r.extra.get("tables") or {}
-        obj = next((x for x in tables.get("objects", []) if x.get("object_id") == oid), {})
-        excluded, starred = oid in (r.extra.get("excluded") or []), oid in (r.extra.get("highlighted") or [])
+        image = base if _on_base(result, view) else (result.step_images.get(view) if result.step_images.get(view) is not None else base)
+        tables = result.extra.get("tables") or {}
+        obj = next((record for record in tables.get("objects", []) if record.get("object_id") == oid), {})
+        excluded, starred = oid in (result.extra.get("excluded") or []), oid in (result.extra.get("highlighted") or [])
         unit = self.project.unit
         size = (max(140, min(260, self._panel_of("inspector").content.winfo_width() - 24)), 140)    # cabe en el panel
-        upx = ins.per_unit(r.stats.get("mm_per_px") or None, unit)        # unidad por px de la foto
+        units_per_px = inspector_draw.per_unit(result.stats.get("mm_per_px") or None, unit)        # unidad por px de la foto
 
         def col(prefix):
-            return next((k for k in obj if k.startswith(prefix)), None)
+            return next((column for column in obj if column.startswith(prefix)), None)
 
         def value(key):
-            v = obj.get(key) if key else None
-            return f"{ins.fmt(float(v))} {units.display(key.rsplit('_', 1)[-1])}" if isinstance(v, (int, float)) else "—"
+            number = obj.get(key) if key else None
+            return f"{inspector_draw.fmt(float(number))} {units.display(key.rsplit('_', 1)[-1])}" if isinstance(number, (int, float)) else "—"
 
         rows, crop = [], None
         if kind == "morphometry":
-            crop, origin, k = ins.crop_around(img, contour, size, margin=0.5) if img is not None else (None, (0, 0), 1)
+            crop, origin, zoom = inspector_draw.crop_around(image, contour, size, margin=0.5) if image is not None else (None, (0, 0), 1)
             if crop is not None:
-                overlay.highlight(crop, contour, origin, k)
-                (l1, l2), (w1, w2) = ins.morph_axes(contour)
-                lc, wc = col("length_"), col("width_")
-                mask, taken = ins.object_mask(crop.shape, contour, origin, k), []
-                for (p1, p2), key in (((l1, l2), lc), ((w1, w2), wc)):
-                    v = obj.get(key)
-                    label = ins.fmt(float(v)) if isinstance(v, (int, float)) else ""
-                    ins.cota(crop, (np.asarray(p1) - origin) * k, (np.asarray(p2) - origin) * k, label, mask, taken)
-                ins.scale_bar(crop, upx / k if upx else None, unit, mask, taken)
+                overlay.highlight(crop, contour, origin, zoom)
+                (length_start, length_end), (width_start, width_end) = inspector_draw.morph_axes(contour)
+                length_column, width_column = col("length_"), col("width_")
+                mask, taken = inspector_draw.object_mask(crop.shape, contour, origin, zoom), []
+                for (start, end), key in (((length_start, length_end), length_column), ((width_start, width_end), width_column)):
+                    measured = obj.get(key)
+                    label = inspector_draw.fmt(float(measured)) if isinstance(measured, (int, float)) else ""
+                    inspector_draw.cota(crop, (np.asarray(start) - origin) * zoom, (np.asarray(end) - origin) * zoom, label, mask, taken)
+                inspector_draw.scale_bar(crop, units_per_px / zoom if units_per_px else None, unit, mask, taken)
             for name, prefix in (("insp.area", "area_"), ("insp.length", "length_"), ("insp.width", "width_"),
                                  ("insp.perimeter", "perimeter_")):
                 rows.append((t(name), value(col(prefix))))
         elif kind == "shape":
             shapes = tables.get("object_shape", [])
-            ids = [x["object_id"] for x in shapes]
+            ids = [record["object_id"] for record in shapes]
             if oid in ids:
                 from fenotit.core.efd import from_row
                 from fenotit.core.stats.shape import align
-                coeffs = align([from_row(x) for x in shapes])
+                coeffs = align([from_row(record) for record in shapes])
                 mean = np.mean(coeffs, axis=0)
-                d = [float(np.sqrt(((c - mean) ** 2).sum())) for c in coeffs]
-                me = d[ids.index(oid)]
-                crop = ins.shape_view(coeffs[ids.index(oid)], mean, size)
-                rows += [(t("insp.shape_diff"), f"{me:.3f}"), (t("insp.shape_typical"), f"{np.median(d):.3f}")]
+                differences = [float(np.sqrt(((coefficients - mean) ** 2).sum())) for coefficients in coeffs]
+                own = differences[ids.index(oid)]
+                crop = inspector_draw.shape_view(coeffs[ids.index(oid)], mean, size)
+                rows += [(t("insp.shape_diff"), f"{own:.3f}"), (t("insp.shape_typical"), f"{np.median(differences):.3f}")]
             else:
-                crop, origin, k = ins.crop_around(img, contour, size) if img is not None else (None, (0, 0), 1)
+                crop, origin, zoom = inspector_draw.crop_around(image, contour, size) if image is not None else (None, (0, 0), 1)
                 if crop is not None:
-                    overlay.highlight(crop, contour, origin, k)
+                    overlay.highlight(crop, contour, origin, zoom)
                 rows.append((t("insp.no_shape"), ""))
         elif kind == "color":
-            crop, origin, k = ins.crop_around(img, contour, size) if img is not None else (None, (0, 0), 1)
+            crop, origin, zoom = inspector_draw.crop_around(image, contour, size) if image is not None else (None, (0, 0), 1)
             if crop is not None:
-                overlay.highlight(crop, contour, origin, k)
-            cs = [c for c in tables.get("object_colors", []) if c.get("object_id") == oid and c.get("hex")]
-            fmt_ = self.project.display.get("color_format", "RGB")
-            if cs:
-                rows.append(("bar", [(c["hex"], float(c.get("pct", 0))) for c in cs]))
-                rows += [("color", c["hex"], _color_text(c, fmt_), float(c.get("pct", 0))) for c in cs]
+                overlay.highlight(crop, contour, origin, zoom)
+            colors = [color for color in tables.get("object_colors", []) if color.get("object_id") == oid and color.get("hex")]
+            color_format = self.project.display.get("color_format", "RGB")
+            if colors:
+                rows.append(("bar", [(color["hex"], float(color.get("pct", 0))) for color in colors]))
+                rows += [("color", color["hex"], _color_text(color, color_format), float(color.get("pct", 0))) for color in colors]
         elif kind == "distances":
-            pairs = [x for x in tables.get("distances", []) if oid in (x.get("object_a"), x.get("object_b"))]
-            dcol = next((k for k in (pairs[0] if pairs else {}) if k.startswith("distance_")), None)
+            pairs = [record for record in tables.get("distances", []) if oid in (record.get("object_a"), record.get("object_b"))]
+            distance_column = next((column for column in (pairs[0] if pairs else {}) if column.startswith("distance_")), None)
 
-            def centre(c):
-                m = cv2.moments(c.reshape(-1, 1, 2).astype(np.float32))
-                return np.array([m["m10"] / m["m00"], m["m01"] / m["m00"]]) if m["m00"] else c.mean(axis=0)
-            me = centre(contour)
-            neigh = [(x["object_b"] if x["object_a"] == oid else x["object_a"], x.get(dcol)) for x in pairs]
-            neigh = [(n, v) for n, v in neigh if n in geom]
-            extra = np.array([centre(geom[n]) for n, _ in neigh]) if neigh else None
-            crop, origin, k = ins.crop_around(img, contour, size, extra=extra) if img is not None else (None, (0, 0), 1)
+            def centre(points):
+                moments = cv2.moments(points.reshape(-1, 1, 2).astype(np.float32))
+                return np.array([moments["m10"] / moments["m00"], moments["m01"] / moments["m00"]]) if moments["m00"] else points.mean(axis=0)
+            own = centre(contour)
+            neighbors = [(record["object_b"] if record["object_a"] == oid else record["object_a"], record.get(distance_column)) for record in pairs]
+            neighbors = [(neighbor, measured) for neighbor, measured in neighbors if neighbor in geometry]
+            extra = np.array([centre(geometry[neighbor]) for neighbor, _ in neighbors]) if neighbors else None
+            crop, origin, zoom = inspector_draw.crop_around(image, contour, size, extra=extra) if image is not None else (None, (0, 0), 1)
             if crop is not None:                          # foto tenue: resaltan las líneas y los valores
                 crop[:] = (crop.astype(np.float32) * 0.35 + 255 * 0.65).astype(np.uint8)
-                for n, _ in neigh:
-                    pts = np.round((geom[n] - origin) * k).astype(np.int32).reshape(-1, 1, 2)
+                for neighbor, _ in neighbors:
+                    pts = np.round((geometry[neighbor] - origin) * zoom).astype(np.int32).reshape(-1, 1, 2)
                     cv2.polylines(crop, [pts], True, (150, 150, 150), 1, cv2.LINE_AA)
-                pts = np.round((contour - origin) * k).astype(np.int32).reshape(-1, 1, 2)
+                pts = np.round((contour - origin) * zoom).astype(np.int32).reshape(-1, 1, 2)
                 cv2.polylines(crop, [pts], True, (60, 60, 60), 1, cv2.LINE_AA)
-                mask, taken = ins.object_mask(crop.shape, contour, origin, k), []
-                p1 = (me - origin) * k
-                for n, _ in neigh:
-                    p2 = (centre(geom[n]) - origin) * k
-                    cv2.line(crop, tuple(np.round(p1).astype(int)), tuple(np.round(p2).astype(int)),
+                mask, taken = inspector_draw.object_mask(crop.shape, contour, origin, zoom), []
+                start = (own - origin) * zoom
+                for neighbor, _ in neighbors:
+                    end = (centre(geometry[neighbor]) - origin) * zoom
+                    cv2.line(crop, tuple(np.round(start).astype(int)), tuple(np.round(end).astype(int)),
                              (172, 102, 33), 1, cv2.LINE_AA)
-                    cv2.circle(crop, tuple(np.round(p2).astype(int)), 2, (172, 102, 33), -1, cv2.LINE_AA)
-                for n, v in neigh:                         # el valor en la punta, por fuera
-                    if isinstance(v, (int, float)):
-                        p2 = (centre(geom[n]) - origin) * k
-                        u = (p2 - p1) / (np.hypot(*(p2 - p1)) or 1)
-                        nn = np.array([-u[1], u[0]])
-                        ins.label_at(crop, ins.fmt(float(v)), [p2 + u * 13, p2 + u * 13 + nn * 10,
-                                                               p2 + u * 13 - nn * 10, p2 + nn * 11, p2 - nn * 11],
+                    cv2.circle(crop, tuple(np.round(end).astype(int)), 2, (172, 102, 33), -1, cv2.LINE_AA)
+                for neighbor, measured in neighbors:                         # el valor en la punta, por fuera
+                    if isinstance(measured, (int, float)):
+                        end = (centre(geometry[neighbor]) - origin) * zoom
+                        direction = (end - start) / (np.hypot(*(end - start)) or 1)
+                        normal = np.array([-direction[1], direction[0]])
+                        inspector_draw.label_at(crop, inspector_draw.fmt(float(measured)), [end + direction * 13, end + direction * 13 + normal * 10,
+                                                               end + direction * 13 - normal * 10, end + normal * 11, end - normal * 11],
                                      mask, taken, 0.34, dark=True)
             for name, prefix in (("insp.nearest", "nearest_"), ("insp.mean_neighbor", "mean_neighbor_")):
                 rows.append((t(name), value(col(prefix))))
-            rows.append((t("insp.n_neighbors"), str(obj.get("n_neighbors", len(neigh)))))
+            rows.append((t("insp.n_neighbors"), str(obj.get("n_neighbors", len(neighbors)))))
         else:                                              # conteo, máscara
-            crop, origin, k = ins.crop_around(img, contour, size) if img is not None else (None, (0, 0), 1)
+            crop, origin, zoom = inspector_draw.crop_around(image, contour, size) if image is not None else (None, (0, 0), 1)
             if crop is not None:
-                if view in ovs:
-                    overlay.draw(crop, ovs[view], self._mark_colors(r), origin, k, screen=True)
-                overlay.highlight(crop, contour, origin, k)
+                if view in overlays:
+                    overlay.draw(crop, overlays[view], self._mark_colors(result), origin, zoom, screen=True)
+                overlay.highlight(crop, contour, origin, zoom)
             status = "excluded" if excluded else "highlighted" if starred else "ok"
             rows += [(t("insp.touching"), t("insp.yes") if obj.get("touching") else t("insp.no")),
                      (t("insp.status"), t(f"insp.status.{status}"))]
@@ -258,29 +258,29 @@ class InspectorMixin:
     def _toggle_mark(self, kind: str):
         """Excluir / destacar (o quitarlo): se guarda un punto del objeto (0-1) en el proyecto
         y la foto se recalcula al momento. El número del objeto no cambia."""
-        r, oid, path = self.last_result, self._sel, self.current_image_path
-        if r is None or oid is None or not path:
+        result, oid, path = self.last_result, self._sel, self.current_image_path
+        if result is None or oid is None or not path:
             return
         contour = self._geometry()[oid].reshape(-1, 1, 2).astype(np.float32)
-        base = r.extra.get("base_image")
-        w = r.stats.get("image_width_px") or (base.shape[1] if base is not None else 0)
-        h = r.stats.get("image_height_px") or (base.shape[0] if base is not None else 0)
-        if not w or not h:
+        base = result.extra.get("base_image")
+        width = result.stats.get("image_width_px") or (base.shape[1] if base is not None else 0)
+        height = result.stats.get("image_height_px") or (base.shape[0] if base is not None else 0)
+        if not width or not height:
             return
 
         def outside(points):
-            return [p for p in points if cv2.pointPolygonTest(contour, (p[0] * w, p[1] * h), True) < -15]
+            return [point for point in points if cv2.pointPolygonTest(contour, (point[0] * width, point[1] * height), True) < -15]
         self._remember(f"undo.{kind}")
-        if oid in (r.extra.get(kind) or []):
+        if oid in (result.extra.get(kind) or []):
             self.project.set_marks(kind, path, outside(self.project.marks_for(kind, path)))
         else:
-            pt = self._sel_point
-            if pt is None or cv2.pointPolygonTest(contour, (float(pt[0]), float(pt[1])), False) < 0:
-                m = cv2.moments(contour)
-                pt = (m["m10"] / m["m00"], m["m01"] / m["m00"]) if m["m00"] else tuple(contour[0, 0])
-                if cv2.pointPolygonTest(contour, (float(pt[0]), float(pt[1])), False) < 0:
-                    pt = tuple(contour[0, 0])
-            self.project.set_marks(kind, path, self.project.marks_for(kind, path) + [[pt[0] / w, pt[1] / h]])
+            point = self._sel_point
+            if point is None or cv2.pointPolygonTest(contour, (float(point[0]), float(point[1])), False) < 0:
+                moments = cv2.moments(contour)
+                point = (moments["m10"] / moments["m00"], moments["m01"] / moments["m00"]) if moments["m00"] else tuple(contour[0, 0])
+                if cv2.pointPolygonTest(contour, (float(point[0]), float(point[1])), False) < 0:
+                    point = tuple(contour[0, 0])
+            self.project.set_marks(kind, path, self.project.marks_for(kind, path) + [[point[0] / width, point[1] / height]])
             other = "highlighted" if kind == "excluded" else "excluded"      # una sola marca por objeto
             self.project.set_marks(other, path, outside(self.project.marks_for(other, path)))
         self._run_analysis(all_images=False)
@@ -300,28 +300,28 @@ class InspectorMixin:
         """Imagen para el punto elegido: el objeto recortado si la foto está abierta; si
         no, la foto en miniatura."""
         from fenotit.core.pipeline import overlay
-        from fenotit.gui.widgets import inspector as ins
-        r = self.last_result
-        if path == self.current_image_path and r is not None:
-            base = r.extra.get("base_image")
+        from fenotit.gui.widgets import inspector as inspector_draw
+        result = self.last_result
+        if path == self.current_image_path and result is not None:
+            base = result.extra.get("base_image")
             if base is None and self.scaler_left.has_image:
                 base = self.scaler_left.original
-            geom = self._geometry()
+            geometry = self._geometry()
             if base is not None:
-                if oid in geom:
-                    crop, origin, k = ins.crop_around(base, geom[oid], (206, 170))
+                if oid in geometry:
+                    crop, origin, zoom = inspector_draw.crop_around(base, geometry[oid], (206, 170))
                     if crop is not None:
-                        overlay.highlight(crop, geom[oid], origin, k)
+                        overlay.highlight(crop, geometry[oid], origin, zoom)
                     return crop
                 return cv2.resize(base, None, fx=206 / base.shape[1], fy=206 / base.shape[1],
                                   interpolation=cv2.INTER_AREA)
         try:
-            from PIL import Image as _Im, ImageOps
-            with _Im.open(path) as im:
-                im.draft("RGB", (412, 412))
-                im = ImageOps.exif_transpose(im).convert("RGB")
-                im.thumbnail((206, 206))
-                return np.asarray(im)[:, :, ::-1].copy()
+            from PIL import Image, ImageOps
+            with Image.open(path) as picture:
+                picture.draft("RGB", (412, 412))
+                picture = ImageOps.exif_transpose(picture).convert("RGB")
+                picture.thumbnail((206, 206))
+                return np.asarray(picture)[:, :, ::-1].copy()
         except Exception:
             _log.debug("miniatura %s", path, exc_info=True)
             return None

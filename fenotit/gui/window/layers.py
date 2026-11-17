@@ -23,23 +23,23 @@ class LayersMixin:
         return self._layers_title.winfo_reqheight() + max(rows, 22) + 12 + insp
 
     def _layers_scroll(self):
-        cv = self._layers_canvas
-        h = self.history_frame.winfo_reqheight()
-        cv.config(scrollregion=(0, 0, cv.winfo_width(), h))
-        need = h > cv.winfo_height() + 1
+        canvas = self._layers_canvas
+        height = self.history_frame.winfo_reqheight()
+        canvas.config(scrollregion=(0, 0, canvas.winfo_width(), height))
+        need = height > canvas.winfo_height() + 1
         if need != self._layers_sb.winfo_ismapped():
             if need:
-                self._layers_sb.pack(side=tk.RIGHT, fill=tk.Y, before=cv)
+                self._layers_sb.pack(side=tk.RIGHT, fill=tk.Y, before=canvas)
             else:
                 self._layers_sb.pack_forget()
-                cv.yview_moveto(0)
+                canvas.yview_moveto(0)
 
-    def _layers_wheel(self, e, d):
-        w = e.widget
-        while w is not None and w is not self._layers_canvas:
-            w = getattr(w, "master", None)
-        if w is not None and self._layers_sb.winfo_ismapped():
-            self._layers_canvas.yview_scroll(d, "units")
+    def _layers_wheel(self, event, delta):
+        widget = event.widget
+        while widget is not None and widget is not self._layers_canvas:
+            widget = getattr(widget, "master", None)
+        if widget is not None and self._layers_sb.winfo_ismapped():
+            self._layers_canvas.yview_scroll(delta, "units")
 
     def _keep_layers_visible(self):
         """CAPAS nunca desaparece: si con el inspector no cabe, el recorte se achica."""
@@ -95,21 +95,21 @@ class LayersMixin:
             self.zoom_ctrl.set_right(img, marks)
         else:
             self.canvas_right.update_idletasks()
-            cw = max(self.canvas_right.winfo_width(),  100)
-            ch = max(self.canvas_right.winfo_height(), 100)
-            self.scaler_right.set_canvas_size(cw, ch)
+            width = max(self.canvas_right.winfo_width(),  100)
+            height = max(self.canvas_right.winfo_height(), 100)
+            self.scaler_right.set_canvas_size(width, height)
             self._show_on(self.canvas_right,
                           self.scaler_right.display, "_photo_right")
 
     def _refresh_history(self):
         """Vistas de la foto actual, agrupadas por análisis (solo los que ya tienen
         resultado). Tocar una vista de otro análisis lo activa y la muestra al instante."""
-        for w in self.history_frame.winfo_children():
-            w.destroy()
+        for widget in self.history_frame.winfo_children():
+            widget.destroy()
         path = self.current_image_path
         if not path:
             return
-        done = [n for n in ANALYSES if path in self._results.get(n, {})]
+        done = [name for name in ANALYSES if path in self._results.get(name, {})]
         for name in done:
             current = name == getattr(self, "active_analysis", None)
             if len(done) > 1:
@@ -126,10 +126,10 @@ class LayersMixin:
                                font=FONTS["small"], anchor="w", padx=SPACE["md"], pady=SPACE["xs"], cursor="hand2")
                 lbl.pack(side=tk.LEFT, fill=tk.X, expand=True)
                 for wdg in (row, lbl):
-                    wdg.bind("<Button-1>", lambda e, a=name, v=view: self._open_view(a, v))
-                    wdg.bind("<Enter>", lambda e, r=row, l=lbl: (r.config(bg=COLORS["accent_light"]),
-                                                                 l.config(bg=COLORS["accent_light"])))
-                    wdg.bind("<Leave>", lambda e, r=row, l=lbl, c=bg: (r.config(bg=c), l.config(bg=c)))
+                    wdg.bind("<Button-1>", lambda event, analysis=name, view=view: self._open_view(analysis, view))
+                    wdg.bind("<Enter>", lambda event, row_frame=row, label_widget=lbl: (row_frame.config(bg=COLORS["accent_light"]),
+                                                                 label_widget.config(bg=COLORS["accent_light"])))
+                    wdg.bind("<Leave>", lambda event, row_frame=row, label_widget=lbl, color=bg: (row_frame.config(bg=color), label_widget.config(bg=color)))
         self.image_list.refit()                # más capas = la lista de fotos cede espacio
 
     def _step_view(self, delta: int):
@@ -137,15 +137,15 @@ class LayersMixin:
         path = self.current_image_path
         if not path:
             return
-        flat = [(n, v) for n in ANALYSES if path in self._results.get(n, {})
-                for v in self._step_names.get(n, {}).get(path, [])]
+        flat = [(name, view) for name in ANALYSES if path in self._results.get(name, {})
+                for view in self._step_names.get(name, {}).get(path, [])]
         if not flat:
             return
         cur = (self.active_analysis, self.step_names[self.step_idx]) \
             if self.step_names and 0 <= self.step_idx < len(self.step_names) else None
-        k = flat.index(cur) + delta if cur in flat else 0
-        if 0 <= k < len(flat):
-            self._open_view(*flat[k])
+        position = flat.index(cur) + delta if cur in flat else 0
+        if 0 <= position < len(flat):
+            self._open_view(*flat[position])
 
     def _open_view(self, analysis: str, view: str):
         if analysis != self.active_analysis:

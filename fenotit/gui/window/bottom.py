@@ -17,11 +17,11 @@ from fenotit.i18n import t
 
 
 class BottomMixin:
-    def _build_bottom_panel(self, cf):
+    def _build_bottom_panel(self, center_frame):
         """Tabla y gráficos: pestañas propias; ocultar deja solo las pestañas (al tocarlas se
         vuelve a abrir). Arriba, una franja para cambiar la altura arrastrando."""
         self.step_label_var = tk.StringVar(value="—")
-        wrap = self._bottom_wrap = tk.Frame(cf, bg=COLORS["bg"])
+        wrap = self._bottom_wrap = tk.Frame(center_frame, bg=COLORS["bg"])
         grip = self._bottom_grip = tk.Frame(wrap, bg=COLORS["bg"], height=6, cursor="sb_v_double_arrow")
         grip.bind("<ButtonPress-1>", self._results_drag_start)
         grip.bind("<B1-Motion>", self._results_drag)
@@ -29,15 +29,15 @@ class BottomMixin:
         bar = self._bottom_bar = tk.Frame(wrap, bg=COLORS["bg"])
         self._tab_labels = {}
         for key, text in (("table", t("tab.table")), ("charts", t("tab.charts"))):
-            lbl = tk.Label(bar, text=text, font=FONTS["small"], padx=SPACE["lg"], pady=SPACE["sm"], cursor="hand2", bd=0,
+            tab_label = tk.Label(bar, text=text, font=FONTS["small"], padx=SPACE["lg"], pady=SPACE["sm"], cursor="hand2", bd=0,
                            highlightthickness=1, highlightbackground=COLORS["border"])
-            lbl.pack(side=tk.LEFT, padx=(0, SPACE["xs"]))
-            lbl.bind("<Button-1>", lambda e, k=key: self._select_bottom_tab(k))
-            self._tab_labels[key] = lbl
+            tab_label.pack(side=tk.LEFT, padx=(0, SPACE["xs"]))
+            tab_label.bind("<Button-1>", lambda event, tab=key: self._select_bottom_tab(tab))
+            self._tab_labels[key] = tab_label
         self._panel_bottom_icon = ImageTk.PhotoImage(icon("panel_bottom", 12, COLORS["accent"]))
         corner = tk.Label(bar, image=self._panel_bottom_icon, bg=COLORS["bg"], cursor="hand2", padx=SPACE["sm"], pady=SPACE["xs"])
         corner.pack(side=tk.LEFT, padx=SPACE["md"])
-        corner.bind("<Button-1>", lambda e: self._toggle_results_panel())
+        corner.bind("<Button-1>", lambda event: self._toggle_results_panel())
         Tooltip(corner, t("view.toggle_results"))
         self._meta_var = tk.StringVar(value="")               # valores de la tabla del usuario de esta foto
         self._meta_label = tk.Label(bar, textvariable=self._meta_var, bg=COLORS["bg"], fg=COLORS["text_muted"],
@@ -60,17 +60,17 @@ class BottomMixin:
 
         # ── Tabla ─────────────────────────────────────────────────────────
         tab_table = tk.Frame(body, bg=COLORS["bg_card"])
-        tv_f = tk.Frame(tab_table, bg=COLORS["bg_card"])
-        tv_f.pack(fill=tk.BOTH, expand=True)
-        xsb = ttk.Scrollbar(tv_f, orient="horizontal")
-        ysb = ttk.Scrollbar(tv_f, orient="vertical")
-        self.table = ttk.Treeview(tv_f, show="headings",
-                                   xscrollcommand=xsb.set,
-                                   yscrollcommand=ysb.set, height=4)
-        xsb.config(command=self.table.xview)
-        ysb.config(command=self.table.yview)
-        ysb.pack(side=tk.RIGHT,  fill=tk.Y)
-        self._table_xsb = xsb                   # solo aparece si las columnas no caben
+        table_frame = tk.Frame(tab_table, bg=COLORS["bg_card"])
+        table_frame.pack(fill=tk.BOTH, expand=True)
+        x_scrollbar = ttk.Scrollbar(table_frame, orient="horizontal")
+        y_scrollbar = ttk.Scrollbar(table_frame, orient="vertical")
+        self.table = ttk.Treeview(table_frame, show="headings",
+                                   xscrollcommand=x_scrollbar.set,
+                                   yscrollcommand=y_scrollbar.set, height=4)
+        x_scrollbar.config(command=self.table.xview)
+        y_scrollbar.config(command=self.table.yview)
+        y_scrollbar.pack(side=tk.RIGHT,  fill=tk.Y)
+        self._table_xsb = x_scrollbar                   # solo aparece si las columnas no caben
         self.table.pack(fill=tk.BOTH, expand=True)
         self.table.bind("<Configure>", self._fit_table_columns, add="+")
         self.table.bind("<<TreeviewSelect>>", self._on_table_select, add="+")
@@ -79,19 +79,19 @@ class BottomMixin:
         tab_charts = tk.Frame(body, bg=COLORS["bg_card"])
         self._tab_frames = {"table": tab_table, "charts": tab_charts}
         self._chart_panel = IntraImageChartPanel(
-            cf, colors=COLORS, on_pick=lambda oid: self._goto_object(self.current_image_path, oid))
+            center_frame, colors=COLORS, on_pick=lambda oid: self._goto_object(self.current_image_path, oid))
         self._chart_panel.pack(in_=tab_charts, fill=tk.BOTH, expand=True)
         if hasattr(self._chart_panel, "bar"):
             self._dock_icon = ImageTk.PhotoImage(icon("dock_up", 14, COLORS["accent"]))
             self._dock_btn = tk.Label(self._chart_panel.bar, image=self._dock_icon, bg=COLORS["bg_panel"],
                                       cursor="hand2", padx=SPACE["sm"])
             self._dock_btn.pack(side=tk.RIGHT, padx=(SPACE["xs"], SPACE["md"]))
-            self._dock_btn.bind("<Button-1>", lambda e: self._dock_chart())
+            self._dock_btn.bind("<Button-1>", lambda event: self._dock_chart())
             Tooltip(self._dock_btn, t("chart.dock"))
             self._full_icon = ImageTk.PhotoImage(icon("expand", 14, COLORS["accent"]))
             full = tk.Label(self._chart_panel.bar, image=self._full_icon, bg=COLORS["bg_panel"], cursor="hand2", padx=SPACE["sm"])
             full.pack(side=tk.RIGHT, padx=(SPACE["xs"], 0))
-            full.bind("<Button-1>", lambda e: self._chart_fullscreen())
+            full.bind("<Button-1>", lambda event: self._chart_fullscreen())
             Tooltip(full, t("chart.fullscreen"))
             save = self._save_btn = tk.Menubutton(self._chart_panel.bar, text=t("chart.save") + " ▾", bg=COLORS["btn_bg"],
                                  fg=COLORS["text_muted"], relief="flat", font=FONTS["small"], cursor="hand2", pady=SPACE["xs"])
@@ -108,19 +108,19 @@ class BottomMixin:
         """Lugar del gráfico cuando se lleva arriba, en vez de una de las imágenes."""
         self._results_shown = False
         self._chart_dock, self._dock_saved = None, None
-        cc = self._chart_col = tk.Frame(canvas_row, bg=COLORS["bg"])
-        head = tk.Frame(cc, bg=COLORS["bg"])
+        chart_column = self._chart_col = tk.Frame(canvas_row, bg=COLORS["bg"])
+        head = tk.Frame(chart_column, bg=COLORS["bg"])
         head.pack(fill=tk.X)
         self._chart_title = tk.Label(head, text=t("tab.charts"), bg=COLORS["bg"], fg=COLORS["text_muted"],
                                      font=FONTS["small"])
         self._chart_eye = IconButton(head, "eye", self._undock_chart, t("chart.undock"), bg=COLORS["bg"],
                                      hover=COLORS["btn_hover"], active=COLORS["accent_light"], size=14,
                                      color=COLORS["text_muted"])
-        self._chart_host = tk.Frame(cc, bg=COLORS["bg_card"], highlightthickness=1, width=100, height=100,
+        self._chart_host = tk.Frame(chart_column, bg=COLORS["bg_card"], highlightthickness=1, width=100, height=100,
                                     highlightbackground=COLORS["border"])
         self._chart_host.pack_propagate(False)        # el gráfico no agranda la ventana
         self._chart_host.pack(fill=tk.BOTH, expand=True)
-        self._chart_host.bind("<Configure>", lambda e: self._fit_docked_chart(), add="+")
+        self._chart_host.bind("<Configure>", lambda event: self._fit_docked_chart(), add="+")
 
     def _toggle_results_panel(self):
         """Oculta o muestra la tabla y los gráficos (las pestañas quedan a la vista)."""
@@ -162,33 +162,33 @@ class BottomMixin:
             self._bottom_body.configure(height=height)
             self.root.after(80, self._refit_images)
 
-    def _results_drag_start(self, e):
-        h0 = int(self._bottom_body.cget("height"))
-        self._drag = (e.y_root, h0, self._results_height_limit() or h0)
+    def _results_drag_start(self, event):
+        start_height = int(self._bottom_body.cget("height"))
+        self._drag = (event.y_root, start_height, self._results_height_limit() or start_height)
 
-    def _results_drag(self, e):
-        y0, h0, top = self._drag
-        h = int(min(max(h0 - (e.y_root - y0), self.RESULTS_MIN_H), top))
-        if h != int(self._bottom_body.cget("height")):
-            self._bottom_body.configure(height=h)
+    def _results_drag(self, event):
+        start_y, start_height, limit = self._drag
+        height = int(min(max(start_height - (event.y_root - start_y), self.RESULTS_MIN_H), limit))
+        if height != int(self._bottom_body.cget("height")):
+            self._bottom_body.configure(height=height)
 
-    def _results_drag_end(self, _e):
+    def _results_drag_end(self, _event):
         self._results_height = int(self._bottom_body.cget("height"))
         settings.set("results_height", self._results_height)
         self.root.update_idletasks()
         self.root.after(80, self._refit_images)
 
     def _paint_tabs(self):
-        for key, lbl in self._tab_labels.items():
-            on = self._results_visible and key == self._bottom_tab and not (key == "charts" and self._chart_dock)
-            lbl.config(bg=COLORS["bg_card"] if on else COLORS["bg_panel"],
-                       fg=COLORS["accent"] if on else COLORS["text_muted"])
+        for key, tab_label in self._tab_labels.items():
+            active = self._results_visible and key == self._bottom_tab and not (key == "charts" and self._chart_dock)
+            tab_label.config(bg=COLORS["bg_card"] if active else COLORS["bg_panel"],
+                       fg=COLORS["accent"] if active else COLORS["text_muted"])
 
     def _layout_results(self):
         """Pestañas Tabla/Gráficos solo si la foto tiene resultados; abiertas o solo pestañas."""
         wrap = self._bottom_wrap
-        for w in (self._bottom_grip, self._bottom_bar, self._bottom_body):
-            w.pack_forget()
+        for widget in (self._bottom_grip, self._bottom_bar, self._bottom_body):
+            widget.pack_forget()
         if not self._results_shown:
             wrap.pack_forget()
             return
@@ -197,22 +197,22 @@ class BottomMixin:
             self._bottom_grip.pack(fill=tk.X)
             self._bottom_bar.pack(fill=tk.X)
             self._bottom_body.pack(fill=tk.BOTH)
-            for key, f in self._tab_frames.items():
+            for key, frame in self._tab_frames.items():
                 if key == self._bottom_tab:
-                    f.pack(fill=tk.BOTH, expand=True)
+                    frame.pack(fill=tk.BOTH, expand=True)
                 else:
-                    f.pack_forget()
+                    frame.pack_forget()
             if self._bottom_tab == "charts":
                 self._chart_panel.show()
         else:
             self._bottom_bar.pack(fill=tk.X, pady=(SPACE["xs"], 0))
         self._paint_tabs()
 
-    def _show_results_ui(self, on: bool):
-        if on == self._results_shown:
+    def _show_results_ui(self, shown: bool):
+        if shown == self._results_shown:
             return
-        self._results_shown = on
-        if not on:
+        self._results_shown = shown
+        if not shown:
             self._view_ctrl.place_forget()
         self._layout_results()
         self._layout_sides()
@@ -223,7 +223,7 @@ class BottomMixin:
         panel de abajo se cierra; el ojo del gráfico lo devuelve como estaba."""
         if self._chart_dock or not self._results_shown:
             return
-        hidden = [s for s, h in self._hidden.items() if h]
+        hidden = [side for side, is_hidden in self._hidden.items() if is_hidden]
         slot = hidden[0] if len(hidden) == 1 else "input"
         self._dock_saved = (dict(self._hidden), self._results_visible)
         self._set_hidden({**self._hidden, slot: True})
@@ -250,15 +250,15 @@ class BottomMixin:
         if not self._chart_dock:
             return
         host = self._chart_host
-        hw, hh = host.winfo_width(), host.winfo_height()
-        if hw < 50 or hh < 50:
+        host_width, host_height = host.winfo_width(), host.winfo_height()
+        if host_width < 50 or host_height < 50:
             return
-        w, h = hw, hh
+        width, height = host_width, host_height
         if self.scaler_left.has_image:
-            ih, iw = self.scaler_left.original.shape[:2]
-            k = min(hw / iw, hh / ih)
-            w, h = max(300, min(hw, round(iw * k))), max(220, min(hh, round(ih * k)))
-        self._chart_panel.place(in_=host, relx=0.5, rely=0.5, anchor="center", width=w, height=h)
+            image_height, image_width = self.scaler_left.original.shape[:2]
+            zoom = min(host_width / image_width, host_height / image_height)
+            width, height = max(300, min(host_width, round(image_width * zoom))), max(220, min(host_height, round(image_height * zoom)))
+        self._chart_panel.place(in_=host, relx=0.5, rely=0.5, anchor="center", width=width, height=height)
         self._chart_panel.lift()
 
     def _undock_chart(self):

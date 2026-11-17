@@ -18,10 +18,10 @@ class HistoryMixin:
         """Lo que Ctrl+Z puede devolver: áreas, marcas, fotos de la lista, segmentación
         (espacio, canal, Mín/Máx, Otsu) y parámetros del análisis elegido."""
         import copy
-        snap = {f: copy.deepcopy(getattr(self.project, f)) for f in self._UNDO_FIELDS}
+        snap = {field: copy.deepcopy(getattr(self.project, field)) for field in self._UNDO_FIELDS}
         snap["_seg"] = self._seg_state()
-        cp = getattr(self, "config_panel", None)
-        snap["_params"] = (self._selected_analysis(), cp.get_values(warn=False) if cp else {})
+        config_panel = getattr(self, "config_panel", None)
+        snap["_params"] = (self._selected_analysis(), config_panel.get_values(warn=False) if config_panel else {})
         return snap
 
     def _push_undo(self, what: str, path, snap: dict):
@@ -98,20 +98,20 @@ class HistoryMixin:
 
     def _restore(self, path, state: dict):
         key = self.project.key(path) if path else None
-        marks_changed = any(getattr(self.project, f).get(key) != state[f].get(key) for f in ("excluded", "highlighted"))
+        marks_changed = any(getattr(self.project, field).get(key) != state[field].get(key) for field in ("excluded", "highlighted"))
         # la lista de fotos solo vuelve atrás si se quitó una (agregar fotos no se deshace):
         # las que faltan vuelven a su lugar, las agregadas después se quedan
-        now = [str(p) for p in self.project.images]
-        missing = [(i, p) for i, p in enumerate(state["images"]) if str(p) not in now]
+        now = [str(path) for path in self.project.images]
+        missing = [(i, path) for i, path in enumerate(state["images"]) if str(path) not in now]
         images = list(self.project.images)
-        for i, p in missing:
-            images.insert(min(i, len(images)), p)
+        for i, path in missing:
+            images.insert(min(i, len(images)), path)
         images_changed = bool(missing)
-        changed = {f for f in ("scale", "unit", "image_scale", "max_mpx", "corrections", "metadata")
-                   if getattr(self.project, f) != state[f]}
-        for f in self._UNDO_FIELDS:
-            if f != "images":
-                setattr(self.project, f, state[f])
+        changed = {field for field in ("scale", "unit", "image_scale", "max_mpx", "corrections", "metadata")
+                   if getattr(self.project, field) != state[field]}
+        for field in self._UNDO_FIELDS:
+            if field != "images":
+                setattr(self.project, field, state[field])
         self.project.images = images
         if state["_seg"] != self._seg_state():
             method_changed = state["_seg"].get("method") != self._seg_method
