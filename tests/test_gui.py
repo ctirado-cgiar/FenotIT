@@ -136,8 +136,8 @@ def main(with_sam=False):
     root.report_callback_exception = lambda *exc: ERRORS.append("".join(traceback.format_exception(*exc)))
     w = MainWindow(root)
     flow = Flow(root)
-    objects, image_color, cover = "objects", "image_color", "cover"
-    assert all(key in ANALYSES for key in (objects, image_color, cover))
+    objects, image_color, cover, detection = "objects", "image_color", "cover", "detection"
+    assert all(key in ANALYSES for key in (objects, image_color, cover, detection))
     out = Path(tempfile.mkdtemp())
 
     def result(name=objects, path=None):
@@ -343,34 +343,36 @@ def main(with_sam=False):
             ERRORS.append("Cambiar análisis no muestra las tarjetas")
         w._open_analysis(objects)
 
-    @flow.step("agregar un detector y elegirlo", wait=lambda: result() is not None
-               and result().stats.get("n_objects", 0) > 0, timeout=90)
+    @flow.step("análisis Detección: agregar un detector y analizar",
+               wait=lambda: result(detection) is not None and result(detection).stats.get("n_objects", 0) > 0,
+               timeout=90)
     def _():
-        w._open_analysis(objects)
+        w._open_analysis(detection)
+        if [key for key in w._rtab_labels] != ["det", "analysis"] or w._right_tab != "det":
+            ERRORS.append(f"Detección: pestañas {list(w._rtab_labels)}, abierta {w._right_tab}")
         filedialog.askopenfilename = lambda **_: str(ROOT / "tests" / "data" / "models" / "yolov8_test.onnx")
         w._add_model()
-        if w._seg_method != "model" or w._model_output() != "boxes":
-            ERRORS.append(f"detector: método {w._seg_method}, salida {w._model_output()}")
-        w._select_right_tab("seg")
-        root.update()
+        if not w._detector() or w._detector()["id"] != w._det_model_id:
+            ERRORS.append("Detección: el detector agregado no queda elegido")
+        if any(m["output"] == "boxes" for m in w._mask_models()):
+            ERRORS.append("Segmentar muestra modelos de cajas")
         w._select_right_tab("analysis")
         root.update()
         tips = getattr(w.config_panel, "_reason_tips", {})
         if not tips.get("measure_shape") or not tips["measure_shape"].text:
-            ERRORS.append("detector: Forma no queda en gris con cajas")
-        w._results.get(objects, {}).pop(w.current_image_path, None)
+            ERRORS.append("Detección: Forma no queda en gris con cajas")
         w._run_analysis(False)
 
     @flow.step("ficha del detector (descripción, licencia y clases)")
     def _():
-        dlg = w._open_model_info(w._model_id)              # ya abierta al agregarlo: la trae al frente
+        dlg = w._open_model_info(w._det_model_id)          # ya abierta al agregarlo: la trae al frente
         root.update()
         for key, value in (("description", "Semillas y vainas de frijol"), ("owner", "Alliance"),
                            ("license", "CC BY 4.0"), ("classes", "semilla\nvaina")):
             dlg._widgets[key].delete("1.0", "end")
             dlg._widgets[key].insert("1.0", value)
         dlg._save()
-        m = w._model()
+        m = w._detector()
         if w._det_names != ["semilla", "vaina"] or m["license"] != "CC BY 4.0" or m["owner"] != "Alliance":
             ERRORS.append(f"ficha del modelo: {m}")
         w._open_model_info("mobilesam")                     # de la aplicación: solo lectura
@@ -380,12 +382,26 @@ def main(with_sam=False):
         root.update()
         _close_windows(root)
 
-    @flow.step("volver a MobileSAM")
+    @flow.step("Objetos con detecciones por objeto",
+               wait=lambda: result() is not None and "detections" in result().extra.get("tables", {}), timeout=90)
     def _():
-        w._choose_model("mobilesam")
+        w._open_analysis(objects)
         w._set_seg_method("threshold")
+        w.config_panel._vars["measure_detections"].set(True)
+        root.update()
+        if list(w._rtab_labels) != ["seg", "det", "analysis"]:
+            ERRORS.append(f"Objetos con detecciones: pestañas {list(w._rtab_labels)}")
+        w._results.get(objects, {}).pop(w.current_image_path, None)
+        w._run_analysis(False)
+
+    @flow.step("Objetos sin detecciones")
+    def _():
+        w.config_panel._vars["measure_detections"].set(False)
+        root.update()
+        if "det" in w._rtab_labels:
+            ERRORS.append("la pestaña Detectar sigue sin «Detecciones por objeto»")
         if w.config_panel._reason_tips.get("measure_shape") and w.config_panel._reason_tips["measure_shape"].text:
-            ERRORS.append("Forma sigue en gris sin cajas")
+            ERRORS.append("Forma sigue en gris en Objetos")
 
     if with_sam:
         @flow.step("MobileSAM", wait=lambda: "…" not in w.sam_status.get() and w._sam_labels() is not None,

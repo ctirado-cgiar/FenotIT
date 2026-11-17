@@ -183,8 +183,10 @@ class LayoutMixin:
         self._analysis_cards = tk.Frame(self._choose_tab, bg=bg)
         self._analysis_cards.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["xs"], SPACE["md"]))
         self._seg_tab = tk.Frame(self._rtab_body, bg=bg)
+        self._det_tab = tk.Frame(self._rtab_body, bg=bg)
         self._an_tab = tk.Frame(self._rtab_body, bg=bg)
         self._build_seg_tab(self._seg_tab)
+        self._build_det_tab(self._det_tab)
         self.config_container = tk.Frame(self._an_tab, bg=bg)
         self.config_container.pack(fill=tk.BOTH, expand=True, padx=SPACE["sm"])
         self._right_tab = "choose"
@@ -209,12 +211,12 @@ class LayoutMixin:
             self._rtab_labels[key] = (lbl, line)
 
     def _select_right_tab(self, key: str):
-        """Muestra en el panel derecho las tarjetas («choose») o un paso («seg», «analysis»)."""
+        """Muestra en el panel derecho las tarjetas («choose») o un paso («seg», «det», «analysis»)."""
         if key != "choose" and not getattr(self, "_analysis_chosen", False):
             key = "choose"
         self._right_tab = key
         for w in (self._an_head, self._preset_label, self._rtabs, self._rtab_line, self._choose_tab, self._seg_tab,
-                  self._an_tab):
+                  self._det_tab, self._an_tab):
             w.pack_forget()
         self._rtab_body.pack_forget()
         if key != "choose":
@@ -225,7 +227,8 @@ class LayoutMixin:
                 self._rtabs.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["xs"], 0))
             self._rtab_line.pack(fill=tk.X)
         self._rtab_body.pack(fill=tk.BOTH, expand=True, pady=(SPACE["lg"] if key == "choose" else 0, 0))
-        {"choose": self._choose_tab, "seg": self._seg_tab, "analysis": self._an_tab}[key].pack(fill=tk.BOTH, expand=True)
+        {"choose": self._choose_tab, "seg": self._seg_tab, "det": self._det_tab,
+         "analysis": self._an_tab}[key].pack(fill=tk.BOTH, expand=True)
         for k, (lbl, line) in self._rtab_labels.items():
             on = k == key
             lbl.config(fg=COLORS["accent"] if on else COLORS["text_muted"])

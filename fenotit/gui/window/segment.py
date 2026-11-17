@@ -28,9 +28,9 @@ class SegmentMixin:
                 "min_val": int(self.min_slider.get()), "max_val": int(self.max_slider.get()),
                 "auto": bool(self.auto_var.get()), "refine": self.refine_list.get(),
                 "classes": self.class_list.get(), "detail": self._detail(),
-                "model": {"name": self._model_id, "output": self._model_output(), "mode": self.model_mode.get(),
-                          "grid": self._grid(), "categories": self.category_list.get(),
-                          **self._detector_state()}}
+                "model": {"name": self._model_id, "output": "masks", "mode": self.model_mode.get(),
+                          "grid": self._grid(), "categories": self.category_list.get()},
+                "detector": self._detector_state()}
 
     def _set_seg_state(self, d: dict):
         self.cs_var.set(d.get("color_space", "BGR"))
@@ -47,6 +47,7 @@ class SegmentMixin:
         self.grid_var.set(self._grid_names.get(int(m.get("grid", 16)), self._grid_names[16]))
         self.category_list.set(m.get("categories") or self._default_categories())
         self._on_model_change(quiet=True)
+        self._set_detector_state(d.get("detector") or {})
         if d.get("method") == "model" and ("model" not in self._method_btns or not self._model_id):
             d = dict(d, method="threshold")               # sin el modelo instalado
         self._set_seg_method(d.get("method", "threshold"), quiet=True)
@@ -113,6 +114,12 @@ class SegmentMixin:
         """La segmentación (paso 1) sobre la Entrada, con el zoom actual: umbral al instante;
         por ejemplos, en segundo plano (aprender y clasificar tarda un poco)."""
         if not self.scaler_left.has_image or self.zoom_ctrl is None:
+            return
+        if self._det_preview_on():
+            from fenotit.core import roi as areas
+            img = self._preview_source()
+            inc, exc = areas.masks(self.project.roi_for(self.current_image_path), img.shape[1], img.shape[0])
+            self._detect_preview(img, inc, exc)
             return
         if not self._seg_preview_on():
             self.zoom_ctrl.redraw_with_overlay(overlay_left=None)

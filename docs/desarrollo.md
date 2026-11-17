@@ -109,12 +109,13 @@ no depende de otras mediciones.
 
 ### Cómo agregar un análisis a la interfaz
 
-Un análisis es un **tipo de muestra** (hoy: Objetos, Distancias, Clasificar áreas y Color de
-imagen; después: raíces, conteo con IA). Cada uno es un módulo en `fenotit/core/analysis/` que
-arma su cadena y llama `register(...)` con su esquema de parámetros, sus pasos en el panel
-derecho (`steps`: `"segment"` y/o `"params"`), los métodos de segmentación que admite
-(`seg_methods`) y si usa «Afinar máscara» (`refine`). Ver `objects.py` (dos pasos) y `cover.py`
-(un paso). Se carga desde `ANALYSIS_MODULES` en `registry.py`. En la interfaz, el usuario elige
+Un análisis es un **tipo de muestra** (hoy: Objetos, Detección, Distancias, Clasificar áreas y
+Color de imagen; después: raíces). Cada uno es un módulo en `fenotit/core/analysis/` que arma su
+cadena y llama `register(...)` con su esquema de parámetros, sus pasos en el panel derecho
+(`steps`: `"segment"`, `"detect"` y/o `"params"`), los pasos que aparecen con una casilla
+marcada (`optional_steps`, p. ej. Detectar en Objetos con «Detecciones por objeto»), los métodos
+de segmentación que admite (`seg_methods`) y si trabaja con objetos (`objects`). Ver `objects.py`
+(dos pasos y uno opcional), `detection.py` (Detectar y Medir) y `cover.py` (un paso). Se carga desde `ANALYSIS_MODULES` en `registry.py`. En la interfaz, el usuario elige
 primero el análisis (tarjetas del panel derecho) y luego ve solo sus pasos.
 
 Esquema de parámetros del panel: `type` (`int`, `float`, `bool`, `section`), `default`, `min`, `max`,
@@ -145,8 +146,9 @@ FenotIT/
 │   │   ├── objects/               mask.py (área de análisis y limpieza), label.py, separate.py, filter.py
 │   │   │                          boxes.py (objetos a partir de cajas)
 │   │   ├── measurements/          morphometry.py, shape.py, color.py, count.py, classes.py, distances.py
-│   │   │                          boxes.py (conteo y tamaño con cajas), cover.py
-│   │   ├── analysis/              objects.py, distances.py, cover.py, image_color.py (análisis de la lista)
+│   │   │                          boxes.py (conteo y tamaño con cajas), detections.py
+│   │   │                          (detecciones por objeto), cover.py
+│   │   ├── analysis/              objects.py, detection.py, distances.py, cover.py, image_color.py
 │   │   ├── pipeline/              base.py (contexto y registro de piezas), cache.py, overlay.py, views.py
 │   │   ├── stats/                 análisis posterior (tablas, sin imágenes)
 │   │   ├── export/                CSV, Excel y metadatos

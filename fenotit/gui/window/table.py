@@ -82,7 +82,8 @@ class TableMixin:
         """Nombre ASCII de cada clase → su nombre; el fondo, marcado con "\0" (no se resume)."""
         from fenotit.core.measurements.classes import slug
         out = {}
-        for r in (result.extra.get("tables") or {}).get("classes") or []:
+        tables = result.extra.get("tables") or {}
+        for r in (tables.get("classes") or []) + (tables.get("detections") or []):
             out[slug(r["class"])] = r["class"]
         return out
 

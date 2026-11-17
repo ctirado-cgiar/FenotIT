@@ -65,9 +65,14 @@ class AnalysisDescriptor:
     # Bloque de segmentación que usa ("threshold" = umbral/Otsu compartido; None = no segmenta,
     # p. ej. color de la foto completa). Un modelo de IA tendría su propio bloque.
     segmentation: str | None = "threshold"
-    # Pasos del panel derecho, en orden: "segment" (método de segmentación y afinar máscara)
-    # y "params" (parámetros del análisis).
+    # Pasos del panel derecho, en orden: "segment" (método de segmentación y afinar máscara),
+    # "detect" (detector de cajas) y "params" (parámetros del análisis).
     steps: tuple[str, ...] = ("segment", "params")
+    # Pasos que solo aparecen con una casilla del panel marcada: {paso: parámetro}. Se
+    # muestran antes de "params".
+    optional_steps: dict[str, str] = field(default_factory=dict)
+    # Análisis cuyos textos de parámetros (param.<clave>.*) usa; None = los propios
+    param_texts: str | None = None
     # Métodos de segmentación que admite (None = todos)
     seg_methods: tuple[str, ...] | None = None
     # Trabaja con objetos: muestra «Afinar máscara» y la casilla «Objeto» de las clases
@@ -89,6 +94,8 @@ def register(
     steps: tuple[str, ...] | None = None,
     seg_methods: tuple[str, ...] | None = None,
     objects: bool = True,
+    optional_steps: dict[str, str] | None = None,
+    param_texts: str | None = None,
 ) -> AnalysisDescriptor:
     """Registra un análisis con su clave. Se llama al final de cada módulo de análisis."""
     default_steps = ("segment", "params") if segmentation else ("params",)
@@ -102,6 +109,8 @@ def register(
         steps=tuple(steps) if steps else default_steps,
         seg_methods=tuple(seg_methods) if seg_methods else None,
         objects=objects,
+        optional_steps=dict(optional_steps or {}),
+        param_texts=param_texts,
     )
     ANALYSES[key] = descriptor
     _log.debug("Análisis registrado: %s", key)
@@ -114,7 +123,7 @@ def get(key: str) -> AnalysisDescriptor | None:
 
 # ── Módulos de análisis: cada uno se registra con register() al importarse ─────
 # Orden = orden en el menú Análisis.
-ANALYSIS_MODULES = ("objects", "distances", "cover", "image_color")
+ANALYSIS_MODULES = ("objects", "detection", "distances", "cover", "image_color")
 
 
 def _load_modules():

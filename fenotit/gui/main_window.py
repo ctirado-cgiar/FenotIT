@@ -15,6 +15,7 @@ from fenotit.gui.window.bottom import BottomMixin
 from fenotit.gui.window.calibration import CalibrationMixin
 from fenotit.gui.window.charts import ChartsMixin
 from fenotit.gui.window.common import _assets
+from fenotit.gui.window.detect import DetectMixin
 from fenotit.gui.window.dialogs import DialogsMixin
 from fenotit.gui.window.examples import ExamplesMixin
 from fenotit.gui.window.export import ExportMixin
@@ -64,6 +65,7 @@ class MainWindow(
         ThresholdMixin,
         ExamplesMixin,
         ModelMixin,
+        DetectMixin,
         PresetsMixin,
         TourMixin,
         LayoutMixin,

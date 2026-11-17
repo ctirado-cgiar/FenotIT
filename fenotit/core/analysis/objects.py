@@ -19,12 +19,14 @@ from fenotit.i18n import t
 
 # Vista de cada pieza → carpeta de sus imágenes en la exportación
 STEP_FOLDERS = {"mask": "mask", "distance": "mask", "count": "count", "morphometry": "morphometry",
-                "box_size": "box_size", "shape": "shape", "color": "color", "classes": "classes"}
+                "box_size": "box_size", "shape": "shape", "color": "color", "classes": "classes",
+                "detections": "detections"}
 # Las 2 últimas imágenes quedan en memoria: al cambiar solo una medición no se vuelve a segmentar.
 _CACHE = pipeline.ChainCache(size=2)
 # Vista de cada medición → casilla del panel que la activa
 MEASUREMENTS = {"count": "measure_count", "morphometry": "measure_size", "box_size": "measure_size",
-                "shape": "measure_shape", "color": "measure_color", "classes": "measure_classes"}
+                "shape": "measure_shape", "color": "measure_color", "classes": "measure_classes",
+                "detections": "measure_detections"}
 MEASURED_BY_DEFAULT = ("count", "morphometry", "box_size", "classes")
 # Mediciones que necesitan el contorno de cada objeto (no se calculan con cajas)
 NEEDS_MASKS = ("touching", "measure_shape", "measure_color", "measure_touching")
@@ -34,6 +36,7 @@ SIZE_LIMITS = ("length_min", "length_max", "width_min", "width_max")
 COUNT_LEGEND_BGR = (255, 0, 255)
 SIZE_LEGEND_BGR = (100, 220, 0)
 SHAPE_LEGEND_BGR = (255, 160, 0)
+DETECTION_STEP = "object_detections"
 MIN_LEGEND_PCT = 0.05                 # clases con menos área no van en la leyenda
 SHAPE_LEGEND_POINTS = 80              # puntos del contorno de cada forma dibujada en la leyenda
 
@@ -134,8 +137,18 @@ def build_chain(params: dict) -> list[dict]:
         categories = model["categories"]
         chain.append(_classes_step([category["name"] for category in categories],
                                    [category["color"] for category in categories]))
+    detector = params.get("detector") or {}
+    if params.get("measure_detections") and detector.get("name"):
+        chain.append({"step": DETECTION_STEP, "params": detection_params(detector)})
     chain.append({"step": "count"})
     return chain
+
+
+def detection_params(detector: dict) -> dict:
+    """Parámetros de la pieza object_detections a partir del detector elegido."""
+    return {"model": detector["name"], "conf": float(detector.get("conf", 0.25)),
+            "use": [int(index) for index in detector.get("use") or []],
+            "classes": list(detector.get("classes") or []), "colors": list(detector.get("colors") or [])}
 
 
 def run(image: np.ndarray, params: dict) -> AnalysisResult:
@@ -147,6 +160,8 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
                      roi=roi_mask, exclusions=exclusions)
     result = AnalysisResult()
     steps_run = {step["step"] for step in chain} | ({"classes"} if ctx.tables.get("classes") else set())
+    if DETECTION_STEP in steps_run:
+        steps_run.add("detections")
     chosen = [measurement for measurement, checkbox in MEASUREMENTS.items()
               if params.get(checkbox, measurement in MEASURED_BY_DEFAULT) and measurement in steps_run]
     ctx.image_row().update(_image_info(image, params))
@@ -264,6 +279,12 @@ def _legend_spec(step_key: str, ctx) -> dict | None:
         return {"title": t("step.box_size"), "rows": legend_rows}
     if step_key == "color":
         return {"title": t("legend.image_colors"), "colors": ctx.tables.get("image_colors", [])}
+    if step_key == "detections":
+        image_row = ctx.image_row()
+        legend_rows = [(f"{item['class']}  {image_row.get(item['column'], 0)}",
+                        overlay.hex_to_bgr(item["color"] or overlay.UNNAMED_CLASS_COLOR))
+                       for item in ctx.extra.get("detection_classes", [])]
+        return {"title": t("step.detections"), "rows": legend_rows} if legend_rows else None
     if step_key == "classes":
         legend_rows = []
         for row in ctx.tables.get("classes", []):
@@ -333,6 +354,10 @@ def _view_tables(ctx, color_mode: str = "object") -> dict[str, list[dict]]:
                          if column == "category" or column.endswith("_pct") or "_area_" in column]
         tables["classes"] = [{"object_id": row["object_id"], **{column: row.get(column) for column in class_columns}}
                              for row in object_rows if row.get("status", "ok") != "excluded"]
+    detection_columns = [item["column"] for item in ctx.extra.get("detection_classes", [])]
+    if detection_columns:
+        tables["detections"] = [{"object_id": row["object_id"], **{column: row.get(column, 0) for column in detection_columns}}
+                                for row in object_rows if row.get("status", "ok") != "excluded"]
     if ctx.tables.get("object_colors"):
         # todos juntos: solo los colores comunes (el % de cada objeto va en la exportación)
         tables["color"] = (ctx.tables.get("image_colors", []) if color_mode == "pooled"
@@ -340,39 +365,44 @@ def _view_tables(ctx, color_mode: str = "object") -> dict[str, list[dict]]:
     return tables
 
 
+PARAMS_SCHEMA = [
+    {"key": "hdr_objects", "type": "header"},
+    {"key": "touching", "type": "bool", "default": False},
+    {"key": "exclude_border", "type": "bool", "default": False},
+    {"key": "size_filter", "type": "bool", "default": False},
+    {"key": "length_min", "type": "float", "default": 0,
+     "min": 0, "max": 10_000_000, "step": 1, "unit": "length", "group": "size_filter"},
+    {"key": "length_max", "type": "float", "default": 0,
+     "min": 0, "max": 10_000_000, "step": 1, "unit": "length", "group": "size_filter"},
+    {"key": "width_min", "type": "float", "default": 0,
+     "min": 0, "max": 10_000_000, "step": 1, "unit": "length", "group": "size_filter"},
+    {"key": "width_max", "type": "float", "default": 0,
+     "min": 0, "max": 10_000_000, "step": 1, "unit": "length", "group": "size_filter"},
+    {"key": "hdr_measure", "type": "header"},
+    {"key": "measure_count", "type": "bool", "default": True},
+    {"key": "measure_size", "type": "bool", "default": True},
+    {"key": "measure_touching", "type": "bool",
+     "default": False, "group": "measure_size"},
+    {"key": "measure_shape", "type": "bool", "default": False},
+    {"key": "harmonics", "type": "int", "default": 20, "min": 1, "max": 50,
+     "group": "measure_shape"},
+    {"key": "measure_color", "type": "bool", "default": False},
+    {"key": "color_mode", "type": "choice", "choices": ["object", "pooled"],
+     "default": "object", "group": "measure_color"},
+    {"key": "n_colors", "type": "int", "default": 3, "min": 1, "max": 20,
+     "group": "measure_color"},
+    {"key": "n_colors_auto", "type": "bool", "default": False,
+     "group": "measure_color"},
+    {"key": "measure_classes", "type": "bool", "default": True,
+     "segmentation": "classifier"},
+    {"key": "measure_detections", "type": "bool", "default": False},
+]
+
+
 register(
     key="objects",
     func=run,
     icon="shapes",
-    params_schema=[
-        {"key": "hdr_objects", "type": "header"},
-        {"key": "touching", "type": "bool", "default": False},
-        {"key": "exclude_border", "type": "bool", "default": False},
-        {"key": "size_filter", "type": "bool", "default": False},
-        {"key": "length_min", "type": "float", "default": 0,
-         "min": 0, "max": 10_000_000, "step": 1, "unit": "length", "group": "size_filter"},
-        {"key": "length_max", "type": "float", "default": 0,
-         "min": 0, "max": 10_000_000, "step": 1, "unit": "length", "group": "size_filter"},
-        {"key": "width_min", "type": "float", "default": 0,
-         "min": 0, "max": 10_000_000, "step": 1, "unit": "length", "group": "size_filter"},
-        {"key": "width_max", "type": "float", "default": 0,
-         "min": 0, "max": 10_000_000, "step": 1, "unit": "length", "group": "size_filter"},
-        {"key": "hdr_measure", "type": "header"},
-        {"key": "measure_count", "type": "bool", "default": True},
-        {"key": "measure_size", "type": "bool", "default": True},
-        {"key": "measure_touching", "type": "bool",
-         "default": False, "group": "measure_size"},
-        {"key": "measure_shape", "type": "bool", "default": False},
-        {"key": "harmonics", "type": "int", "default": 20, "min": 1, "max": 50,
-         "group": "measure_shape"},
-        {"key": "measure_color", "type": "bool", "default": False},
-        {"key": "color_mode", "type": "choice", "choices": ["object", "pooled"],
-         "default": "object", "group": "measure_color"},
-        {"key": "n_colors", "type": "int", "default": 3, "min": 1, "max": 20,
-         "group": "measure_color"},
-        {"key": "n_colors_auto", "type": "bool", "default": False,
-         "group": "measure_color"},
-        {"key": "measure_classes", "type": "bool", "default": True,
-         "segmentation": "classifier"},
-],
+    params_schema=PARAMS_SCHEMA,
+    optional_steps={"detect": "measure_detections"},
 )

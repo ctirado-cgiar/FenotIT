@@ -176,3 +176,51 @@ def test_share_package(tmp_path):
     bad.write_bytes(b"no es un zip")
     with pytest.raises(ValueError, match="package"):
         models.add(str(bad))
+
+
+def _detector(model) -> dict:
+    return {"name": model["id"], "conf": 0.25, "use": [], "classes": model["classes"],
+            "colors": ["#2E9E44", "#D62728"]}
+
+
+def test_detection_analysis():
+    from fenotit.core.analysis import detection
+    m = _added("yolov8_test")
+    res = detection.run(scene(), {"detector": _detector(m), "measure_size": True, "mm_per_pixel": 0.1})
+    assert res.stats["n_objects"] == 3 and res.stats["n_seed"] == 2 and res.stats["n_pod"] == 1
+    with pytest.raises(FileNotFoundError):
+        detection.run(scene(), {"detector": {}})
+
+
+def test_detections_per_object():
+    """Cada elipse segmentada recibe la caja que la contiene, con su clase."""
+    from fenotit.core.analysis import objects
+    m = _added("yolov8_test")
+    seg = {"method": "threshold", "color_space": "HSV", "channel": 2, "min_val": 100, "max_val": 255,
+           "refine": [{"op": "fill_holes"}]}
+    res = objects.run(scene(), {"segmentation": seg, "measure_detections": True, "detector": _detector(m)})
+    rows = res.extra["tables"]["objects"]
+    assert len(rows) == 3
+    assert sorted((r["n_seed"], r["n_pod"]) for r in rows) == [(0, 1), (1, 0), (1, 0)]
+    assert res.stats["n_seed"] == 2 and res.stats["mean_seed_per_object"] == pytest.approx(0.667, abs=0.001)
+    assert len(res.extra["tables"]["detections"]) == 3
+
+
+def test_assign_box_whose_center_is_background():
+    """Una caja cuyo centro cae en el fondo va al objeto con más píxeles dentro de ella."""
+    import numpy as np
+    from fenotit.core.measurements.detections import assign
+    labels = np.zeros((100, 100), np.int32)
+    labels[10:40, 10:40] = 1
+    labels[60:90, 60:90] = 2
+    boxes = [{"x0": 20, "y0": 20, "x1": 30, "y1": 30}, {"x0": 35, "y0": 35, "x1": 55, "y1": 55},
+             {"x0": 45, "y0": 0, "x1": 55, "y1": 10}]
+    assert assign(labels, boxes) == [1, 1, 0]
+
+
+def test_detector_saved_as_segmentation_model_moves_to_detector():
+    from fenotit.core.project import Segmentation
+    seg = Segmentation.from_dict({"method": "model", "model": {"name": "bugs", "output": "boxes", "conf": 0.4,
+                                                               "use": [0], "classes": ["bug"]}})
+    assert seg.method == "threshold" and seg.model["name"] == "mobilesam"
+    assert seg.detector == {"name": "bugs", "conf": 0.4, "use": [0], "classes": ["bug"]}

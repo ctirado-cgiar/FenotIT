@@ -139,6 +139,7 @@ class RunMixin:
             p["area_unit"] = getattr(self, "_panel_area_unit", "px")
         p["auto_threshold"] = bool(self.auto_var.get())
         p["segmentation"] = self._seg_params()
+        p["detector"] = self._detector_state()
         info = self._corr_info.get(self.current_image_path)
         p["work_scale"] = round(info.work_k, 6) if info else 1.0
         return p

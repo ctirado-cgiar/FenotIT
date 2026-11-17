@@ -104,7 +104,7 @@ class AnalyzeMixin:
             self.analysis_var.set(_analysis_label(name))
             self._on_analysis_selected(None)
         self._show_panel(self._panel_of("steps"), True)
-        self._select_right_tab(self._step_tab(ANALYSES[name].steps[0]))
+        self._select_right_tab(self._step_tab(self._analysis_steps(name)[0]))
 
     def _choose_analysis(self):
         """Abre el panel derecho en las tarjetas de análisis."""
@@ -114,17 +114,31 @@ class AnalyzeMixin:
     @staticmethod
     def _step_tab(step: str) -> str:
         """Pestaña del panel derecho de cada paso declarado por el análisis."""
-        return {"segment": "seg", "params": "analysis"}[step]
+        return {"segment": "seg", "detect": "det", "params": "analysis"}[step]
 
     def _step_label(self, step: str) -> str:
-        if step == "segment":
-            return t("rtab.segment")
+        if step in ("segment", "detect"):
+            return t(f"rtab.{step}")
         name = self.active_analysis
         return t(f"analysis.{name}.step", t("rtab.analyze")) if name else t("rtab.analyze")
 
+    def _analysis_steps(self, name: str) -> list[str]:
+        """Pasos del análisis: los fijos y los opcionales cuya casilla está marcada (antes de
+        «params»)."""
+        descriptor = ANALYSES[name]
+        steps = list(descriptor.steps)
+        if self.config_panel is not None and self.active_analysis == name:
+            values = self.config_panel.get_values()
+        else:
+            values = self.project.params.get(name, {})
+        for step, checkbox in descriptor.optional_steps.items():
+            if values.get(checkbox) and step not in steps:
+                steps.insert(steps.index("params") if "params" in steps else len(steps), step)
+        return steps
+
     def _steps_after(self, step: str) -> list[str]:
         """Pasos del análisis elegido que siguen a `step`."""
-        steps = list(ANALYSES[self.active_analysis].steps) if self.active_analysis in ANALYSES else []
+        steps = self._analysis_steps(self.active_analysis) if self.active_analysis in ANALYSES else []
         return steps[steps.index(step) + 1:] if step in steps else []
 
     def _render_analysis_steps(self):
@@ -133,7 +147,8 @@ class AnalyzeMixin:
         if name not in ANALYSES:
             return
         self._an_title.config(text=_analysis_label(name))
-        self._render_step_tabs([(self._step_tab(s), self._step_label(s)) for s in ANALYSES[name].steps])
+        steps = self._analysis_steps(name)
+        self._render_step_tabs([(self._step_tab(s), self._step_label(s)) for s in steps])
         allowed = ANALYSES[name].seg_methods
         if allowed and self._seg_method not in allowed:
             self._set_seg_method(allowed[0], quiet=True)
@@ -142,6 +157,13 @@ class AnalyzeMixin:
             self.class_list.show_objects(self._analysis_objects())
         after = self._steps_after("segment")
         self._set_next_step(self._step_label(after[0]) if after else None)
+        after = self._steps_after("detect")
+        self._set_det_next_step(self._step_label(after[0]) if after else None)
+        self._render_detectors()
+        if self._right_tab not in ("choose",) and self._right_tab not in [self._step_tab(s) for s in steps]:
+            self._select_right_tab(self._step_tab(steps[-1]))
+        elif self._right_tab in self._rtab_labels:
+            self._select_right_tab(self._right_tab)
 
     def _show_panel(self, panel, on: bool):
         if on:
@@ -165,6 +187,7 @@ class AnalyzeMixin:
         if name not in ANALYSES:
             return
         self._store_panel_params()
+        self.config_panel = None                              # el panel del análisis anterior
         self.active_analysis = name
         if choose:
             self._analysis_chosen = True
@@ -180,12 +203,15 @@ class AnalyzeMixin:
             self.config_container,
             schema=[i for i in ANALYSES[name].params_schema
                     if i.get("segmentation") in (None, self._seg_method)],
-            colors=COLORS, prefix=name,
+            colors=COLORS, prefix=ANALYSES[name].param_texts or name,
             units=self._unit_labels(self._panel_area_unit))
         self.config_panel.set_values({k: v for k, v in stored.items() if not k.startswith("_")})
         self.config_panel.pack(fill=tk.BOTH, expand=True)
         for var in self.config_panel._vars.values():          # cambios del panel: Ctrl+Z
             var.trace_add("write", lambda *_: self._settings_changed())
+        for checkbox in ANALYSES[name].optional_steps.values():   # pasos que aparecen con una casilla
+            if checkbox in self.config_panel._vars:
+                self.config_panel._vars[checkbox].trace_add("write", lambda *_: self._render_analysis_steps())
         self._update_unavailable()
         self.root.after_idle(self._mark_settled)
         self._show_cached_result()

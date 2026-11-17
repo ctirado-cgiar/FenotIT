@@ -32,6 +32,7 @@ class Segmentation:
     classes: list = field(default_factory=lambda: [dict(c) for c in DEFAULT_CLASSES])
     detail: float = 1.0           # MP de la copia en que se clasifica (por ejemplos)
     model: dict = field(default_factory=lambda: {"name": "mobilesam", "mode": "auto", "grid": 16})
+    detector: dict = field(default_factory=dict)   # detector de cajas (análisis Detección y detecciones por objeto)
 
     @classmethod
     def from_dict(cls, d: dict | None) -> "Segmentation":
@@ -41,6 +42,12 @@ class Segmentation:
         if "refine" not in d:
             d["refine"] = ([{"op": op, "size": int(size), "iter": int(it)}] if op != "none" else []) \
                 + [{"op": "fill_holes"}]
+        model = d.get("model") or {}
+        if "detector" not in d and model.get("output") == "boxes":   # detector guardado como modelo de Segmentar
+            d["detector"] = {key: value for key, value in model.items() if key not in ("output", "mode", "grid")}
+            d["model"] = {"name": "mobilesam", "mode": "auto", "grid": 16}
+            if d.get("method") == "model":
+                d["method"] = "threshold"
         return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
 
     def object_classes(self) -> list[int]:
