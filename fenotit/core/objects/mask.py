@@ -12,7 +12,7 @@ def _fit(mask, shape):
 
 
 @step("roi", "processor", requires=("mask",), provides=("mask",))
-def roi(ctx, p):
+def roi(ctx, params):
     mask = ctx.mask
     if ctx.roi is not None:
         mask = cv2.bitwise_and(mask, _fit(ctx.roi, mask.shape))
@@ -27,12 +27,12 @@ def roi(ctx, p):
     {"key": "open_iterations", "type": "int", "default": 0, "min": 0, "max": 10},
     {"key": "fill_holes", "type": "bool", "default": True},
 ])
-def clean(ctx, p):
+def clean(ctx, params):
     mask = ctx.mask
-    if p["open_iterations"]:
+    if params["open_iterations"]:
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8),
-                                iterations=int(p["open_iterations"]))
-    if p["fill_holes"]:
+                                iterations=int(params["open_iterations"]))
+    if params["fill_holes"]:
         mask = _fill_small_holes(mask)
     ctx.mask = mask
 
@@ -41,19 +41,19 @@ def _fill_small_holes(mask, frac=0.2):
     """Rellena los huecos que miden menos de frac × el área típica de un objeto (mediana de
     las regiones de la máscara que miden al menos el 5 % de la mayor); los huecos más
     grandes se dejan."""
-    n, _, stats, _ = cv2.connectedComponentsWithStats((mask > 0).astype(np.uint8), connectivity=8)
-    if n < 2:
+    n_regions, _, stats, _ = cv2.connectedComponentsWithStats((mask > 0).astype(np.uint8), connectivity=8)
+    if n_regions < 2:
         return mask
     areas = stats[1:, cv2.CC_STAT_AREA]
     typical = float(np.median(areas[areas >= 0.05 * areas.max()]))
     inv = (mask == 0).astype(np.uint8)
-    k, lab, hs, _ = cv2.connectedComponentsWithStats(inv, connectivity=4)
-    h, w = mask.shape
+    n_holes, lab, hole_stats, _ = cv2.connectedComponentsWithStats(inv, connectivity=4)
+    height, width = mask.shape
     out = mask.copy()
-    for i in range(1, k):
-        x, y, bw, bh, a = hs[i]
-        if x == 0 or y == 0 or x + bw == w or y + bh == h:
+    for i in range(1, n_holes):
+        x, y, box_width, box_height, hole_area = hole_stats[i]
+        if x == 0 or y == 0 or x + box_width == width or y + box_height == height:
             continue
-        if a < frac * typical:
+        if hole_area < frac * typical:
             out[lab == i] = 255
     return out

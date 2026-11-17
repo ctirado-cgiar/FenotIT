@@ -35,20 +35,20 @@ def assign(labels: np.ndarray, detections: list[dict]) -> list[int]:
 @step("object_detections", "measurement", requires=("labels",),
       params=[{"key": "model", "default": ""}, {"key": "conf", "default": 0.25}, {"key": "use", "default": []},
               {"key": "classes", "default": []}, {"key": "colors", "default": []}])
-def object_detections(ctx, p):
+def object_detections(ctx, params):
     """Corre el detector en la foto y cuenta, en cada objeto, las cajas de cada clase que le
     corresponden (`assign`; las que no tocan ningún objeto no se cuentan). Tablas: `n_<clase>` por
     objeto; en la foto, el total de cada clase y la media por objeto; tabla `detections`
     con cada caja y su objeto. Vista: la foto atenuada con las cajas del color de su clase."""
     from fenotit.core.pipeline import overlay
     from fenotit.core.segmentation import detect, models
-    model = models.get(p["model"])
+    model = models.get(params["model"])
     if model is None or model["output"] != "boxes":
-        raise FileNotFoundError(f"Detection model not found: {p['model']}")
-    names = list(p.get("classes") or model.get("classes") or [])
-    colors = list(p.get("colors") or [])
-    use = {int(index) for index in p.get("use") or []}
-    found = [detection for detection in detect.run(ctx.image, model, float(p["conf"]))
+        raise FileNotFoundError(f"Detection model not found: {params['model']}")
+    names = list(params.get("classes") or model.get("classes") or [])
+    colors = list(params.get("colors") or [])
+    use = {int(index) for index in params.get("use") or []}
+    found = [detection for detection in detect.run(ctx.image, model, float(params["conf"]))
              if not use or detection["cls"] in use]
     owners = assign(ctx.labels, found)
     counted = [index for index in sorted(use) if index < len(names)] if use else list(range(len(names)))

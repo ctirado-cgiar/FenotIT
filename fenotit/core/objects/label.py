@@ -18,12 +18,12 @@ def _instances(ctx) -> bool:
 @step("label", "processor", requires=("mask",), provides=("labels",), params=[
     {"key": "single", "type": "bool", "default": False},
 ])
-def label(ctx, p):
+def label(ctx, params):
     """Un objeto por región conectada; single = todo lo que quedó en la máscara es un objeto.
     Si la segmentación ya separó los objetos (modelo de IA), se usan esos."""
     if _instances(ctx):
         return
-    if p["single"]:
+    if params["single"]:
         ctx.labels = (ctx.mask > 0).astype(np.int32)
         return
     _, ctx.labels = cv2.connectedComponents((ctx.mask > 0).astype(np.uint8), connectivity=8)
