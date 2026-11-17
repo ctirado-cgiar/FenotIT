@@ -1,10 +1,8 @@
 cff-version: 1.2.0
-message: "Si utilizas este software, por favor cita como se indica a continuación."
+message: "If you use this software, please cite it as below. A paper describing the methods is in preparation."
 type: software
-title: "FenotIT: Phenotypic Color Analysis Tool"
-version: 1.0.0
-doi: 10.5281/zenodo.XXXXXXX
-date-released: 2025-01-20
+title: "FenotIT: Digital Plant Phenotyping Platform"
+version: 1.0.0.dev0
 url: "https://github.com/ctirado-cgiar/FenotIT"
 repository-code: "https://github.com/ctirado-cgiar/FenotIT"
 
@@ -13,44 +11,34 @@ authors:
     given-names: "Cristian"
     email: c.tirado@cgiar.org
     affiliation: "Alliance of Bioversity International and CIAT"
-    orcid: "https://orcid.org/0000-0000-0000-0000"
-    
+
   - family-names: "Aragón"
     given-names: "Jorge"
     affiliation: "Alliance of Bioversity International and CIAT"
-    orcid: "https://orcid.org/0000-0000-0000-0000"
-    
+
   - family-names: "Polanía"
     given-names: "José"
     affiliation: "Alliance of Bioversity International and CIAT"
-    orcid: "https://orcid.org/0000-0000-0000-0000"
 
 contact:
-  - email: c.tirado@cgiar.org
-    name: "Cristian Tirado-Murcia"
+  - family-names: "Tirado-Murcia"
+    given-names: "Cristian"
+    email: c.tirado@cgiar.org
 
 keywords:
-  - phenotyping
+  - plant phenotyping
+  - image analysis
+  - segmentation
+  - morphometry
+  - elliptic Fourier descriptors
   - color analysis
-  - image processing
-  - k-means clustering
-  - plant science
-  - bean breeding
-  - computer vision
-  - agricultural research
-  - fenotipado
-  - análisis de color
+  - seeds
+  - leaves
+  - desktop software
 
 abstract: >
-  FenotIT es una herramienta de escritorio para extracción y análisis de 
-  colores dominantes en imágenes biológicas mediante clustering K-means y 
-  selección interactiva de polígonos. Desarrollada por el Equipo de 
-  Fisiología del Programa de Mejoramiento de Frijol de la Alianza 
-  Bioversity International y CIAT, permite a los investigadores cuantificar 
-  fenotipos de color a través de análisis automatizado y generación de 
-  métricas detalladas (RGB, HEX, luminosidad, porcentajes).
-
-references:
-  - type: generic
-    title: "Paper asociado en preparación"
-    notes: "Para citación actualizada contactar: c.tirado@cgiar.org"
+  FenotIT is desktop software for image-based plant phenotyping. It corrects
+  photos (lens distortion, perspective, color and scale), segments objects such
+  as seeds, pods and leaves, and measures their number, size, outline shape,
+  color and spatial arrangement, for one photo or a batch, without programming.
+  Results are exported as tables with the parameters used.
