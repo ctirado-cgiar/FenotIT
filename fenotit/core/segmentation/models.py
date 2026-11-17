@@ -15,7 +15,7 @@ agrega el usuario (carpeta de datos `models/`). Cada modelo es una carpeta con `
     added: 2026-11-09        # fecha en que se agregó (modelos del usuario)
     file: …                  # archivo original que agregó el usuario
 
-`add(ruta)` guarda un detector (.onnx, .pt convertido a ONNX o paquete .fenotitmodel) en la
+`add(ruta)` guarda un detector (.onnx, .pt convertido a ONNX o paquete .fntm) en la
 carpeta de datos, cifrado para que solo lo abra FenotIT (core/segmentation/vault.py), y
 escribe su `model.yaml` con lo que se lee del archivo (formato, clases, tamaño de entrada);
 `update` cambia el nombre, las clases o la ficha (descripción, propietario, licencia,
@@ -31,7 +31,9 @@ from pathlib import Path
 import yaml
 
 OUTPUTS = ("masks", "boxes")
-PACKAGE = ".fenotitmodel"                          # paquete para compartir un modelo entre equipos con FenotIT
+PACKAGE = ".fntm"                                  # paquete para compartir un modelo entre equipos con FenotIT
+OLD_PACKAGES = (".fenotitmodel",)                  # extensión de versiones anteriores: se lee igual
+ENCRYPTED_FILE = "model.enc"                       # el modelo cifrado dentro de su carpeta y del paquete
 INFO = ("description", "owner", "license", "source", "citation")   # ficha del modelo (propiedad intelectual)
 
 
@@ -119,7 +121,7 @@ def add(path: str, name: str | None = None, classes: list[str] | None = None) ->
     import tempfile
     from fenotit.core.segmentation import convert, detect
     src = original = Path(path)
-    if src.suffix.lower() == PACKAGE:
+    if src.suffix.lower() in (PACKAGE, *OLD_PACKAGES):
         return import_package(str(src))
     converted = {}
     if src.suffix.lower() in (".pt", ".pth"):
@@ -145,10 +147,10 @@ def add(path: str, name: str | None = None, classes: list[str] | None = None) ->
         k += 1
     folder.mkdir(parents=True)
     from fenotit.core.segmentation import vault
-    (folder / "model.fnt").write_bytes(vault.lock(src.read_bytes()))     # solo lo abre FenotIT
+    (folder / ENCRYPTED_FILE).write_bytes(vault.lock(src.read_bytes()))     # solo lo abre FenotIT
     import datetime
     found = info.get("meta") or {}
-    meta = {"name": title, "output": "boxes", "format": info["format"], "files": ["model.fnt"],
+    meta = {"name": title, "output": "boxes", "format": info["format"], "files": [ENCRYPTED_FILE],
             "classes": names, "input": info["input"],
             "description": found.get("description", ""), "owner": found.get("author", ""),
             "license": found.get("license", ""), "source": found.get("docs", ""), "citation": "",
@@ -161,7 +163,7 @@ def add(path: str, name: str | None = None, classes: list[str] | None = None) ->
 
 
 def export_package(model_id: str, dest: str) -> str:
-    """Guarda un modelo agregado por el usuario como paquete `.fenotitmodel` (su model.yaml y
+    """Guarda un modelo agregado por el usuario como paquete `.fntm` (su model.yaml y
     el modelo cifrado) para usarlo en otro equipo con FenotIT."""
     import zipfile
     folder = user_root() / model_id
@@ -175,7 +177,7 @@ def export_package(model_id: str, dest: str) -> str:
 
 
 def import_package(path: str) -> dict:
-    """Agrega un modelo desde un paquete `.fenotitmodel`. ValueError("package") si no es un
+    """Agrega un modelo desde un paquete `.fntm`. ValueError("package") si no es un
     paquete de FenotIT o si se cifró con otra clave."""
     import zipfile
     from fenotit.core.segmentation import vault

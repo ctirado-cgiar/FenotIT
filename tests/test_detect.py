@@ -156,7 +156,7 @@ def test_models_are_locked_to_fenotit(tmp_path):
     m = _added("yolov8_test")
     stored = Path(m["dir"]) / m["files"][0]
     data = stored.read_bytes()
-    assert m["files"] == ["model.fnt"] and vault.is_locked(data)
+    assert m["files"] == ["model.enc"] and vault.is_locked(data)
     assert not list(Path(m["dir"]).glob("*.onnx"))          # sin el .onnx descifrado en el disco
     import onnxruntime as ort
     with pytest.raises(Exception):
@@ -168,11 +168,11 @@ def test_models_are_locked_to_fenotit(tmp_path):
 def test_share_package(tmp_path):
     m = _added("yolov8_test")
     pkg = models.export_package(m["id"], str(tmp_path / "plagas"))
-    assert pkg.endswith(".fenotitmodel")
+    assert pkg.endswith(".fntm")
     m2 = models.add(pkg)
     assert m2["id"] != m["id"] and m2["classes"] == m["classes"] and m2["license"] == m["license"]
     assert len(detect.run(scene(), m2, 0.25)) == 3
-    bad = tmp_path / "otro.fenotitmodel"
+    bad = tmp_path / "otro.fntm"
     bad.write_bytes(b"no es un zip")
     with pytest.raises(ValueError, match="package"):
         models.add(str(bad))

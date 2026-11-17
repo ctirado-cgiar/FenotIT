@@ -199,7 +199,7 @@ class ModelMixin:
         from tkinter import filedialog, messagebox
         from fenotit.core.segmentation import models
         path = filedialog.askopenfilename(parent=self.root, title=t("model.add_title"),
-                                          filetypes=[(t("model.filetype"), "*.onnx *.pt *.pth *.fenotitmodel"),
+                                          filetypes=[(t("model.filetype"), "*.onnx *.pt *.pth *.fntm *.fenotitmodel"),
                                                      ("*", "*")])
         if not path:
             return

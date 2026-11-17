@@ -104,3 +104,19 @@ def test_only_configured_parts_are_offered_and_own_ones_start_unchecked():
     data = preset.from_project(project, "Foto", preset.PARTS, areas=project.roi_for(photo),
                                scale=project.scale_for(photo))
     assert data["scale"]["mm_per_pixel"] == 0.08 and data["areas"][0]["points"][0] == [0.2, 0.2]
+
+
+def test_cautions_name_what_depends_on_one_photo_or_on_a_fixed_setup():
+    project = _source()
+    assert preset.cautions(project) == {}
+    photo = "fotos/01.jpg"
+    project.set_roi(photo, [{"kind": "include", "type": "rect", "points": [[0.2, 0.2], [0.5, 0.5]]}])
+    project.set_scale(photo, Scale(0.08, "two_points"))
+    project.corrections.color.enabled, project.corrections.color.mode = True, "fixed"
+    assert preset.cautions(project, photo) == {"areas": "own_areas", "scale": "own_scale", "corrections": "fixed_card"}
+
+
+def test_old_preset_extension_still_loads(tmp_path):
+    saved = preset.save(preset.from_project(_source(), "Viejo"), tmp_path / "viejo")
+    old = saved.rename(saved.with_suffix(preset.OLD_PRESET_EXTS[0]))
+    assert saved.suffix == ".fntp" and preset.load(old)["name"] == "Viejo"

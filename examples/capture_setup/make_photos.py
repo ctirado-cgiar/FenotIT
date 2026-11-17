@@ -7,7 +7,7 @@ de un tablero de ajedrez, con la misma calibración que usa la aplicación.
 
     python examples/capture_setup/make_photos.py
 
-Escribe photo_1.jpg … photo_3.jpg, capture_setup.fenotitpreset y truth.csv (lo que se mide
+Escribe photo_1.jpg … photo_3.jpg, capture_setup.fntp y truth.csv (lo que se mide
 en el tablero sin cámara, para comparar).
 """
 from __future__ import annotations

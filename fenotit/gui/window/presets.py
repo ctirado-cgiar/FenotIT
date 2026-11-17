@@ -41,7 +41,8 @@ class PresetsMixin:
             messagebox.showinfo(t("preset.save_title"), t("preset.nothing_to_save"), parent=self.root)
             return
         checked = tuple(part for part in preset.suggested(self.project, photo) if part in available)
-        PresetDialog(self.root, self.project.preset.get("name", ""), available, checked, self._write_preset)
+        cautions = {part: t(f"preset.caution.{reason}") for part, reason in preset.cautions(self.project, photo).items()}
+        PresetDialog(self.root, self.project.preset.get("name", ""), available, checked, cautions, self._write_preset)
 
     def _write_preset(self, name: str, description: str, parts: tuple):
         path = filedialog.asksaveasfilename(
@@ -69,7 +70,8 @@ class PresetsMixin:
     def _load_preset(self, path: str | None = None):
         path = path or filedialog.askopenfilename(
             title=t("preset.load_title"), parent=self.root, initialdir=self._preset_folder(),
-            filetypes=[(t("preset.filetype"), f"*{preset.PRESET_EXT}"), (t("common.all_files"), "*.*")])
+            filetypes=[(t("preset.filetype"), " ".join(f"*{ext}" for ext in (preset.PRESET_EXT, *preset.OLD_PRESET_EXTS))),
+                       (t("common.all_files"), "*.*")])
         if not path:
             return
         try:

@@ -1,4 +1,4 @@
-"""Estado de una sesión de trabajo, guardable como carpeta con <carpeta>.fenotit (YAML)."""
+"""Estado de una sesión de trabajo, guardable como carpeta con <carpeta>.fnt (YAML)."""
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
@@ -13,7 +13,8 @@ from fenotit.core.corrections.pipeline import Corrections
 from fenotit.core.roi import from_legacy
 
 PREVIEW = "preview.jpg"
-PROJECT_EXT = ".fenotit"
+PROJECT_EXT = ".fnt"
+OLD_PROJECT_EXTS = (".fenotit",)       # extensiones de versiones anteriores: se leen y al guardar pasan a la actual
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"}
 
 
@@ -217,13 +218,16 @@ class Project:
         self.corrections.save_files(self.folder)
         with open(self.file, "w", encoding="utf-8") as f:
             yaml.safe_dump(self.to_dict(), f, allow_unicode=True, sort_keys=False)
+        for old_ext in OLD_PROJECT_EXTS:
+            self.file.with_suffix(old_ext).unlink(missing_ok=True)
         return self.file
 
     @classmethod
     def load(cls, path: Path | str) -> "Project":
         path = Path(path)
         if path.is_dir():
-            found = sorted(path.glob(f"*{PROJECT_EXT}")) or sorted(path.glob("project.yaml"))
+            found = [file for ext in (PROJECT_EXT, *OLD_PROJECT_EXTS, ".yaml") for file in sorted(
+                path.glob("project.yaml" if ext == ".yaml" else f"*{ext}"))]
             if not found:
                 raise FileNotFoundError(f"No hay un proyecto {PROJECT_EXT} en {path}")
             path = found[0]

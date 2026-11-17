@@ -18,7 +18,7 @@ Developed by Cristian Tirado-Murcia (software development and analysis methods),
 - **Analysis areas and excluded areas** (rectangle or polygon), several per photo, for one photo or all
 - **Scale per photo or for all** (two points, typed value or ArUco markers)
 - **Optional corrections:** lens distortion (chessboard), perspective (ArUco), color card and scale
-- **Projects** (`.fenotit`) that keep images, thresholds, parameters, areas and scale
+- **Projects** (`.fnt`) that keep images, thresholds, parameters, areas and scale
 - **Export** to CSV and Excel, one table per level (object, image), with the result images
 - **Interface in English and Spanish**
 - 100 % local processing, no internet required
@@ -39,7 +39,7 @@ pip install -r requirements.txt
 
 ```bash
 python main.py                      # open the app
-python main.py MyTrial.fenotit      # open a project
+python main.py MyTrial.fnt      # open a project
 python -m fenotit --version
 ```
 

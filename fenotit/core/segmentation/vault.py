@@ -1,4 +1,4 @@
-"""Modelos que solo abre FenotIT: el .onnx se guarda cifrado (`model.fnt`) y se descifra en
+"""Modelos que solo abre FenotIT: el .onnx se guarda cifrado (`model.enc`) y se descifra en
 memoria al cargarlo en ONNX Runtime, sin escribir el archivo descifrado en el disco.
 
 Formato: b"FNTM1" + 16 bytes al azar (nonce) + datos XOR con un flujo SHAKE-256 de

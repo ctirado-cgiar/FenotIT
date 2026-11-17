@@ -261,7 +261,7 @@ def main(with_sam=False):
     @flow.step("guardar y volver a abrir el proyecto",
                wait=lambda: w.current_image_path is not None and w.scaler_left.original is not None)
     def _():
-        filedialog.asksaveasfilename = lambda **_: str(out / "prueba.fenotit")
+        filedialog.asksaveasfilename = lambda **_: str(out / "prueba.fnt")
         w._save_project_as()
         saved = w.project.file
         if not saved or not Path(saved).exists():

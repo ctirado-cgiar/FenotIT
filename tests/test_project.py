@@ -32,7 +32,7 @@ def test_roundtrip():
         assert q.corrections.color.place == p.corrections.color.place
         assert not q.missing_images()
         assert not (q.folder / "calibration").exists() and not (q.folder / "results").exists()   # sin carpetas vacías
-        assert q.file.name == "Ensayo.fenotit" and q.file.exists()
+        assert q.file.name == "Ensayo.fnt" and q.file.exists()
         assert Project.load(q.file).name == "Ensayo"
 
 
@@ -123,12 +123,23 @@ def test_paths_survive_moving(tmp_path):
     p.images = [fotos / "x.jpg"]
     p.metadata = {"file": str(fotos / "datos.csv"), "key_column": "foto"}
     p.save(proj)
-    assert "../../fotos/x.jpg" in proj.joinpath("p.fenotit").read_text(encoding="utf-8")
+    assert "../../fotos/x.jpg" in proj.joinpath("p.fnt").read_text(encoding="utf-8")
     shutil.copytree(tmp_path / "a", tmp_path / "b")                  # todo junto
-    q = Project.load(tmp_path / "b" / "proyectos" / "p" / "p.fenotit")
+    q = Project.load(tmp_path / "b" / "proyectos" / "p" / "p.fnt")
     assert q.images[0] == tmp_path / "b" / "fotos" / "x.jpg" and q.images[0].exists()
     assert Path(q.metadata["file"]).exists()
     alone = tmp_path / "c" / "p"                                      # solo el proyecto
     shutil.copytree(proj, alone)
-    r = Project.load(alone / "p.fenotit")
+    r = Project.load(alone / "p.fnt")
     assert r.images[0].exists() and r.images[0] == fotos / "x.jpg"
+
+
+def test_old_project_extension_opens_and_is_renamed_on_save(tmp_path):
+    from fenotit.core.project import OLD_PROJECT_EXTS
+    project = Project(name="Viejo")
+    new_file = project.save(tmp_path / "Viejo")
+    old_file = new_file.rename(new_file.with_suffix(OLD_PROJECT_EXTS[0]))
+    for opened in (Project.load(old_file), Project.load(tmp_path / "Viejo")):
+        assert opened.folder == tmp_path / "Viejo"
+    opened.save()
+    assert new_file.exists() and not old_file.exists()

@@ -17,7 +17,7 @@ from fenotit.core import units
 from fenotit.core.analysis.registry import ANALYSES
 from fenotit.core.corrections import pipeline as corrections
 from fenotit.core.image_io import load_image
-from fenotit.core.project import PROJECT_EXT, Project, Segmentation
+from fenotit.core.project import OLD_PROJECT_EXTS, PROJECT_EXT, Project, Segmentation
 from fenotit.gui.style.components import button
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 from fenotit.gui.window.common import _on_base, _analysis_label, _analysis_name
@@ -184,7 +184,7 @@ class ProjectMixin:
 
     def _save_project_as(self) -> bool:
         """Nombre y lugar como en cualquier programa; el proyecto es una carpeta con ese
-        nombre (ahí van el .fenotit, calibration/ y results/)."""
+        nombre (ahí van el .fnt, calibration/ y results/)."""
         untitled = self.project.name in ("", t("project.untitled"))
         start = self.project.folder.parent if self.project.folder else (
             Path(self.batch_paths[0]).parent if self.batch_paths else None)
@@ -226,7 +226,8 @@ class ProjectMixin:
             return
         path = filedialog.askopenfilename(
             title=t("project.open_title"),
-            filetypes=[(t("project.filetype"), f"*{PROJECT_EXT}"), (t("common.all_files"), "*.*")])
+            filetypes=[(t("project.filetype"), " ".join(f"*{ext}" for ext in (PROJECT_EXT, *OLD_PROJECT_EXTS))),
+                       (t("common.all_files"), "*.*")])
         if path:
             self.open_project_path(path)
 

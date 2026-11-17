@@ -12,7 +12,7 @@ from pathlib import Path
 import yaml
 
 from fenotit import settings
-from fenotit.core.project import PROJECT_EXT, Project
+from fenotit.core.project import OLD_PROJECT_EXTS, PROJECT_EXT, Project
 
 
 def folder() -> Path:
@@ -41,7 +41,8 @@ def write(project: Project, session: str) -> Path:
 
 def pending() -> list[dict]:
     out = []
-    for p in sorted(folder().glob(f"*{PROJECT_EXT}")) if folder().exists() else []:
+    copies = [p for ext in (PROJECT_EXT, *OLD_PROJECT_EXTS) for p in sorted(folder().glob(f"*{ext}"))]
+    for p in copies if folder().exists() else []:
         try:
             with open(p, encoding="utf-8") as f:
                 info = (yaml.safe_load(f) or {}).get("recovery") or {}

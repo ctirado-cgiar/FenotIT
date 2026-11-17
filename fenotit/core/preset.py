@@ -1,5 +1,5 @@
 """Preset: la configuración de un montaje de captura (correcciones, escala, áreas, segmentación,
-análisis y sus parámetros) en un archivo .fenotitpreset (YAML), para aplicarla a otro proyecto.
+análisis y sus parámetros) en un archivo .fntp (YAML), para aplicarla a otro proyecto.
 De los modelos de IA guarda solo cuál se usó."""
 from __future__ import annotations
 
@@ -14,7 +14,8 @@ from fenotit.core.corrections.pipeline import Corrections
 from fenotit.core.project import Project, Scale, Segmentation
 from fenotit.core.roi import from_legacy
 
-PRESET_EXT = ".fenotitpreset"
+PRESET_EXT = ".fntp"
+OLD_PRESET_EXTS = (".fenotitpreset",)     # extensión de versiones anteriores: se lee igual
 FORMAT = 1
 PARTS = ("corrections", "scale", "areas", "segmentation", "analysis")
 OWN_OF_A_PHOTO = ("scale", "areas")           # partes que una foto puede tener distintas a las demás
@@ -41,6 +42,21 @@ def suggested(project: Project, path=None) -> tuple:
     own = {"scale": bool(path) and project.key(path) in project.image_scale,
            "areas": project.has_own_roi(path)}
     return tuple(part for part in applicable(project, path) if not own.get(part))
+
+
+def cautions(project: Project, path=None) -> dict:
+    """Parte → motivo por el que conviene revisarla antes de guardarla: "own_areas" y
+    "own_scale" si son solo de la foto abierta, "fixed_card" si la tarjeta de color depende
+    de que el montaje no cambie (lugar fijo o foto de referencia)."""
+    found = {}
+    if project.has_own_roi(path):
+        found["areas"] = "own_areas"
+    if path and project.key(path) in project.image_scale:
+        found["scale"] = "own_scale"
+    card = project.corrections.color
+    if card.enabled and (card.mode == "fixed" or card.reference == "photo"):
+        found["corrections"] = "fixed_card"
+    return found
 
 
 def from_project(project: Project, name: str, parts=PARTS, description: str = "",
