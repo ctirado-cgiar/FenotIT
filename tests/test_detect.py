@@ -224,3 +224,11 @@ def test_detector_saved_as_segmentation_model_moves_to_detector():
                                                                "use": [0], "classes": ["bug"]}})
     assert seg.method == "threshold" and seg.model["name"] == "mobilesam"
     assert seg.detector == {"name": "bugs", "conf": 0.4, "use": [0], "classes": ["bug"]}
+
+
+def test_distances_between_detections():
+    from fenotit.core.analysis import distances
+    m = _added("yolov8_test")
+    res = distances.run(scene(), {"from_detector": True, "detector": _detector(m), "mm_per_pixel": 0.1})
+    assert res.stats["n_objects"] == 3
+    assert res.stats["mean_nearest_seed_mm"] == pytest.approx(49.04, abs=0.01)

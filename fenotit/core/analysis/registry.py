@@ -71,6 +71,8 @@ class AnalysisDescriptor:
     # Pasos que solo aparecen con una casilla del panel marcada: {paso: parámetro}. Se
     # muestran antes de "params".
     optional_steps: dict[str, str] = field(default_factory=dict)
+    # Paso que un paso opcional reemplaza cuando aparece: {paso: paso reemplazado}
+    replaced_steps: dict[str, str] = field(default_factory=dict)
     # Análisis cuyos textos de parámetros (param.<clave>.*) usa; None = los propios
     param_texts: str | None = None
     # Métodos de segmentación que admite (None = todos)
@@ -95,6 +97,7 @@ def register(
     seg_methods: tuple[str, ...] | None = None,
     objects: bool = True,
     optional_steps: dict[str, str] | None = None,
+    replaced_steps: dict[str, str] | None = None,
     param_texts: str | None = None,
 ) -> AnalysisDescriptor:
     """Registra un análisis con su clave. Se llama al final de cada módulo de análisis."""
@@ -110,6 +113,7 @@ def register(
         seg_methods=tuple(seg_methods) if seg_methods else None,
         objects=objects,
         optional_steps=dict(optional_steps or {}),
+        replaced_steps=dict(replaced_steps or {}),
         param_texts=param_texts,
     )
     ANALYSES[key] = descriptor

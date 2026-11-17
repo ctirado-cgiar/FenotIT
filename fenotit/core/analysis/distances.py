@@ -1,5 +1,6 @@
-"""Distancias entre objetos: segmenta como "Objetos" y mide distancias euclidianas entre
-vecinos (k más cercanos o red de Voronoi), de borde a borde o de centro a centro."""
+"""Distancias entre objetos: los objetos salen de la segmentación (como en "Objetos") o de un
+modelo de detección, y se miden distancias euclidianas entre vecinos (k más cercanos o red de
+Voronoi), de borde a borde o de centro a centro."""
 from __future__ import annotations
 
 import cv2
@@ -13,7 +14,20 @@ from fenotit.core.units import display, mean_sd
 from fenotit.i18n import t
 
 
+def from_detector(params: dict) -> dict:
+    """Los parámetros con el detector como segmentación de cajas (si se eligió «Objetos de un
+    modelo de detección»)."""
+    if not params.get("from_detector"):
+        return params
+    from fenotit.core.analysis import detection
+    detector = params.get("detector") or {}
+    if not detector.get("name"):
+        raise FileNotFoundError("No detection model chosen")
+    return {**params, "touching": False, "segmentation": detection.segmentation(detector)}
+
+
 def build_chain(params: dict) -> list[dict]:
+    params = from_detector(params)
     return objects.object_chain(params) + [{"step": "distances", "params": {
         "neighbors": params.get("neighbors", "knn"), "k": int(params.get("k", 5)),
         "measure": params.get("measure", "edge_line")}}, {"step": "count"}]
@@ -36,6 +50,7 @@ def run(image: np.ndarray, params: dict) -> AnalysisResult:
     from fenotit.core import roi as areas
     height, width = image.shape[:2]
     roi_mask, exclusions = areas.masks(params.get("roi_shapes"), width, height)
+    params = from_detector(params)
     chain = build_chain(params)
     ctx = objects._CACHE.run(image, chain, mm_per_px=params.get("mm_per_pixel"),
                              unit=params.get("length_unit", "mm"), roi=roi_mask, exclusions=exclusions)
@@ -81,6 +96,7 @@ register(
     icon="ruler",
     params_schema=[
         {"key": "hdr_objects", "type": "header"},
+        {"key": "from_detector", "type": "bool", "default": False},
         {"key": "touching", "type": "bool", "default": False},
         {"key": "exclude_border", "type": "bool", "default": False},
         {"key": "hdr_measure", "type": "header"},
@@ -89,4 +105,6 @@ register(
         {"key": "measure", "type": "choice", "choices": ["edge_line", "edge_nearest", "center"],
          "default": "edge_line"},
     ],
+    optional_steps={"detect": "from_detector"},
+    replaced_steps={"detect": "segment"},
 )

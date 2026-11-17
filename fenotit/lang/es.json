@@ -928,5 +928,7 @@
   "step.detections": "Detecciones",
   "param.objects.measure_detections.label": "Detecciones por objeto",
   "param.objects.measure_detections.tip": "Cuenta, en cada objeto, las cajas de cada clase que encuentra un modelo de detección (p. ej. agujeros por semilla). El modelo se elige en el paso Detectar.",
-  "col.per_object_mean": "por objeto (media)"
+  "col.per_object_mean": "por objeto (media)",
+  "param.distances.from_detector.label": "Objetos de un modelo de detección",
+  "param.distances.from_detector.tip": "Mide las distancias entre las cajas que encuentra un modelo de detección (p. ej. insectos en una trampa). El modelo se elige en el paso Detectar, que reemplaza a Segmentar."
 }

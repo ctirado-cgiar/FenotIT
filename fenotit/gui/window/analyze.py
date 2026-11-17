@@ -134,6 +134,9 @@ class AnalyzeMixin:
         for step, checkbox in descriptor.optional_steps.items():
             if values.get(checkbox) and step not in steps:
                 steps.insert(steps.index("params") if "params" in steps else len(steps), step)
+                replaced = descriptor.replaced_steps.get(step)
+                if replaced in steps:
+                    steps.remove(replaced)
         return steps
 
     def _steps_after(self, step: str) -> list[str]:
@@ -160,6 +163,7 @@ class AnalyzeMixin:
         after = self._steps_after("detect")
         self._set_det_next_step(self._step_label(after[0]) if after else None)
         self._render_detectors()
+        self._update_unavailable()
         if self._right_tab not in ("choose",) and self._right_tab not in [self._step_tab(s) for s in steps]:
             self._select_right_tab(self._step_tab(steps[-1]))
         elif self._right_tab in self._rtab_labels:

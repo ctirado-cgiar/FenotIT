@@ -928,5 +928,7 @@
   "step.detections": "Detections",
   "param.objects.measure_detections.label": "Detections per object",
   "param.objects.measure_detections.tip": "Counts, in each object, the boxes of each class found by a detection model (e.g. holes per seed). The model is chosen in the Detect step.",
-  "col.per_object_mean": "per object (mean)"
+  "col.per_object_mean": "per object (mean)",
+  "param.distances.from_detector.label": "Objects from a detection model",
+  "param.distances.from_detector.tip": "Measures distances between the boxes found by a detection model (e.g. insects on a trap). The model is chosen in the Detect step, which replaces Segment."
 }
