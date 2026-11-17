@@ -1,6 +1,6 @@
 """Fotos de ejemplo de un montaje de captura completo y su preset.
 
-Cada foto simula una bandeja de semillas (fotos de tests/images) sobre un tablero con cuatro
+Cada foto simula una bandeja de semillas (fotos de tests/data/images) sobre un tablero con cuatro
 marcadores ArUco de separación conocida y una tarjeta de color, tomada con una cámara inclinada,
 un lente con distorsión de barril y una luz distinta. El lente se calibra con vistas simuladas
 de un tablero de ajedrez, con la misma calibración que usa la aplicación.
@@ -186,7 +186,7 @@ def truth_rows(project: Project) -> list[dict]:
     rows = []
     (left, top), (right, bottom) = MARKER_CENTERS[0], MARKER_CENTERS[2]
     for index, (tray, _rotation, _gains) in enumerate(SHOTS, 1):
-        flat = board(ROOT / "tests" / "images" / tray)[top:bottom, left:right]
+        flat = board(ROOT / "tests" / "data" / "images" / tray)[top:bottom, left:right]
         result = ANALYSES["objects"].func(flat, analysis_params(project, MM_PER_BOARD_PX))
         measured = [row for row in result.measurements if row.get("length_mm")]
         rows.append({"photo": f"photo_{index}.jpg", "tray": tray, "n_objects": result.stats["n_objects"],
@@ -198,7 +198,7 @@ def truth_rows(project: Project) -> list[dict]:
 
 def main():
     for index, (tray, rotation, gains) in enumerate(SHOTS, 1):
-        photo = light(view_of(board(ROOT / "tests" / "images" / tray), rotation), gains, seed=index)
+        photo = light(view_of(board(ROOT / "tests" / "data" / "images" / tray), rotation), gains, seed=index)
         cv2.imwrite(str(HERE / f"photo_{index}.jpg"), photo, [cv2.IMWRITE_JPEG_QUALITY, 90])
     calibration = calibrate_lens()
     print(f"lente: error {calibration.rms_error:.3f} px con {calibration.n_images_used} vistas")
