@@ -5,8 +5,8 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 
 from fenotit import log
-from fenotit.core.corrections import colorcard as cc
-from fenotit.core.corrections import pipeline as P
+from fenotit.core.corrections import colorcard
+from fenotit.core.corrections import pipeline as corrections_pipeline
 from fenotit.core.corrections.distortion import MAX_PHOTOS as D_MAX
 from fenotit.gui.dialogs.colorcard import edit_values, pick_region, show_detection
 from fenotit.gui.widgets.help import HelpIcon
@@ -21,10 +21,10 @@ from fenotit.i18n import t
 _log = log.get("gui.corrections")
 
 
-def _float_or_none(s: str) -> float | None:
+def _float_or_none(text: str) -> float | None:
     try:
-        v = float(s.replace(",", "."))
-        return v if v > 0 else None
+        value = float(text.replace(",", "."))
+        return value if value > 0 else None
     except ValueError:
         return None
 
@@ -33,10 +33,10 @@ class CorrectionsDialog(BaseDialog):
     """Ventana de una corrección: distorsión del lente, perspectiva o tarjeta de color."""
     SIZES = {"distortion": (760, 640), "perspective": (620, 460), "color": (660, 620)}
 
-    def __init__(self, parent, corrections: P.Corrections, paths=None, current_path=None,
+    def __init__(self, parent, corrections: corrections_pipeline.Corrections, paths=None, current_path=None,
                  aruco_scale: bool = False, on_apply=None, kind: str = "distortion"):
         self._kind = kind
-        self.W, self.H = self.SIZES[kind]
+        self.WIDTH, self.HEIGHT = self.SIZES[kind]
         self.c = copy.deepcopy(corrections)
         self._paths = list(paths or [])
         self._raw_path = current_path
@@ -54,20 +54,20 @@ class CorrectionsDialog(BaseDialog):
 
     def _build_body(self):
         ImagePicker(self.body, self._paths, self._raw_path, self._set_raw).pack(anchor="w", pady=(0, SPACE["md"]))
-        f = tk.Frame(self.body, bg=COLORS["bg_card"])
-        f.pack(fill=tk.BOTH, expand=True)
-        {"distortion": self._tab_distortion, "perspective": self._tab_perspective, "color": self._tab_color}[self._kind](f)
+        frame = tk.Frame(self.body, bg=COLORS["bg_card"])
+        frame.pack(fill=tk.BOTH, expand=True)
+        {"distortion": self._tab_distortion, "perspective": self._tab_perspective, "color": self._tab_color}[self._kind](frame)
         if self._kind == "color":
             self._color_changed()
 
     def _entry_row(self, parent, label, var, width=8):
-        f = tk.Frame(parent, bg=COLORS["bg_card"])
-        f.pack(fill=tk.X, pady=SPACE["xs"])
-        tk.Label(f, text=label, bg=COLORS["bg_card"], fg=COLORS["text"],
+        frame = tk.Frame(parent, bg=COLORS["bg_card"])
+        frame.pack(fill=tk.X, pady=SPACE["xs"])
+        tk.Label(frame, text=label, bg=COLORS["bg_card"], fg=COLORS["text"],
                  font=FONTS["body"], width=34, anchor="w").pack(side=tk.LEFT)
-        tk.Entry(f, textvariable=var, width=width, bg=COLORS["bg_panel"], fg=COLORS["text"],
+        tk.Entry(frame, textvariable=var, width=width, bg=COLORS["bg_panel"], fg=COLORS["text"],
                  relief="solid", bd=1, font=FONTS["mono"]).pack(side=tk.LEFT, padx=SPACE["sm"])
-        return f
+        return frame
 
     def _set_raw(self, path: str):
         self._raw_path, self._raw = path, load_image(path)
@@ -76,7 +76,7 @@ class CorrectionsDialog(BaseDialog):
 
     def _muted(self, parent, text):
         return tk.Label(parent, text=text, bg=COLORS["bg_card"], fg=COLORS["text_muted"],
-                        font=FONTS["small"], justify="left", wraplength=self.W - 70)
+                        font=FONTS["small"], justify="left", wraplength=self.WIDTH - 70)
 
     def _check(self, parent, var, key):
         return tk.Checkbutton(parent, text=t(key), variable=var,
@@ -102,36 +102,36 @@ class CorrectionsDialog(BaseDialog):
     def _status(self, parent):
         var = tk.StringVar()
         tk.Label(parent, textvariable=var, bg=COLORS["bg_card"], fg=COLORS["text_muted"],
-                 font=FONTS["small"], justify="left", wraplength=self.W - 70).pack(anchor="w", pady=(SPACE["md"], 0))
+                 font=FONTS["small"], justify="left", wraplength=self.WIDTH - 70).pack(anchor="w", pady=(SPACE["md"], 0))
         return var
 
     # Distorsión
-    def _tab_distortion(self, f):
+    def _tab_distortion(self, frame):
         from fenotit import settings
         from fenotit.gui.dialogs.chessboard import ChessboardPanel
-        d = self.c.distortion
-        self._d_on = tk.BooleanVar(value=d.enabled)
-        self._enable_row(f, self._d_on, "distortion")
-        self._muted(f, t("board.help", n=D_MAX)).pack(anchor="w", pady=(SPACE["xs"], SPACE["md"]))
+        distortion_cfg = self.c.distortion
+        self._d_on = tk.BooleanVar(value=distortion_cfg.enabled)
+        self._enable_row(frame, self._d_on, "distortion")
+        self._muted(frame, t("board.help", n=D_MAX)).pack(anchor="w", pady=(SPACE["xs"], SPACE["md"]))
         cols, rows = settings.get("board_grid", [7, 6])
 
         def use(res, board_photos=()):
-            self.c.distortion = P.Distortion(True, res.mtx.tolist(), res.dist.tolist(), res.rms_error,
+            self.c.distortion = corrections_pipeline.Distortion(True, res.mtx.tolist(), res.dist.tolist(), res.rms_error,
                                              t("corr.distortion.n_photos", n=res.n_images_used),
                                              list(res.size) if res.size else None, list(board_photos))
             settings.set("board_grid", [int(self._board.cols.get()), int(self._board.rows.get())])
             self._d_on.set(True)
-        self._board = ChessboardPanel(f, cols, rows, on_result=use, project_paths=self._paths,
+        self._board = ChessboardPanel(frame, cols, rows, on_result=use, project_paths=self._paths,
                                       extra=(t("corr.distortion.load_npz"), self._load_npz),
                                       status=self._distortion_text())
         self._board.pack(fill=tk.BOTH, expand=True)
 
     def _distortion_text(self) -> str:
-        d = self.c.distortion
-        if not d.mtx:
+        distortion_cfg = self.c.distortion
+        if not distortion_cfg.mtx:
             return t("corr.distortion.none")
-        rms = f", RMS {d.rms:.3f} px" if d.rms else ""
-        return t("corr.distortion.ready", source=d.source) + rms
+        rms = f", RMS {distortion_cfg.rms:.3f} px" if distortion_cfg.rms else ""
+        return t("corr.distortion.ready", source=distortion_cfg.source) + rms
 
     def _refresh_distortion(self):
         self._board.status.set(self._distortion_text())
@@ -142,7 +142,7 @@ class CorrectionsDialog(BaseDialog):
         if not path:
             return
         try:
-            self.c.distortion = P.load_npz(path)
+            self.c.distortion = corrections_pipeline.load_npz(path)
         except Exception as e:
             _log.exception("No se pudo leer %s", path)
             messagebox.showerror(t("common.error"), str(e), parent=self)
@@ -151,28 +151,28 @@ class CorrectionsDialog(BaseDialog):
         self._refresh_distortion()
 
     # Perspectiva
-    def _tab_perspective(self, f):
-        p = self.c.perspective
-        self._p_on = tk.BooleanVar(value=p.enabled)
-        self._enable_row(f, self._p_on, "perspective")
-        self._muted(f, t("corr.perspective.help")).pack(anchor="w", pady=(SPACE["sm"], SPACE["md"]))
-        self._p_w = tk.StringVar(value="" if p.width_mm is None else f"{p.width_mm:g}")
-        self._p_h = tk.StringVar(value="" if p.height_mm is None else f"{p.height_mm:g}")
-        self._p_m = tk.StringVar(value=str(p.margin_px))
-        self._entry_row(f, t("corr.perspective.width"), self._p_w)
-        self._entry_row(f, t("corr.perspective.height"), self._p_h)
-        self._entry_row(f, t("corr.perspective.margin"), self._p_m)
+    def _tab_perspective(self, frame):
+        perspective_cfg = self.c.perspective
+        self._p_on = tk.BooleanVar(value=perspective_cfg.enabled)
+        self._enable_row(frame, self._p_on, "perspective")
+        self._muted(frame, t("corr.perspective.help")).pack(anchor="w", pady=(SPACE["sm"], SPACE["md"]))
+        self._p_w = tk.StringVar(value="" if perspective_cfg.width_mm is None else f"{perspective_cfg.width_mm:g}")
+        self._p_h = tk.StringVar(value="" if perspective_cfg.height_mm is None else f"{perspective_cfg.height_mm:g}")
+        self._p_m = tk.StringVar(value=str(perspective_cfg.margin_px))
+        self._entry_row(frame, t("corr.perspective.width"), self._p_w)
+        self._entry_row(frame, t("corr.perspective.height"), self._p_h)
+        self._entry_row(frame, t("corr.perspective.margin"), self._p_m)
         self._p_scale = tk.BooleanVar(value=self._aruco_scale)
-        self._check(f, self._p_scale, "corr.perspective.use_scale").pack(anchor="w", pady=(SPACE["md"], 0))
-        self._button(f, "corr.verify", self._verify_aruco).pack(anchor="w", pady=SPACE["md"])
-        self._p_status = self._status(f)
+        self._check(frame, self._p_scale, "corr.perspective.use_scale").pack(anchor="w", pady=(SPACE["md"], 0))
+        self._button(frame, "corr.verify", self._verify_aruco).pack(anchor="w", pady=SPACE["md"])
+        self._p_status = self._status(frame)
 
-    def _perspective_cfg(self) -> P.Perspective:
+    def _perspective_cfg(self) -> corrections_pipeline.Perspective:
         try:
             margin = max(0, int(self._p_m.get()))
         except ValueError:
             margin = 20
-        return P.Perspective(self._p_on.get(), margin,
+        return corrections_pipeline.Perspective(self._p_on.get(), margin,
                              _float_or_none(self._p_w.get()), _float_or_none(self._p_h.get()))
 
     def _base_image(self, upto: str):
@@ -180,12 +180,12 @@ class CorrectionsDialog(BaseDialog):
         ventana con lo que muestra; las de otras ventanas, como están guardadas."""
         if self._raw is None:
             return None
-        c = P.Corrections(distortion=copy.deepcopy(self.c.distortion))
+        corrections = corrections_pipeline.Corrections(distortion=copy.deepcopy(self.c.distortion))
         if self._kind == "distortion":
-            c.distortion.enabled = self._d_on.get()
+            corrections.distortion.enabled = self._d_on.get()
         if upto == "color":
-            c.perspective = self._perspective_cfg() if self._kind == "perspective" else copy.deepcopy(self.c.perspective)
-        return P.apply(self._raw, c)[0]
+            corrections.perspective = self._perspective_cfg() if self._kind == "perspective" else copy.deepcopy(self.c.perspective)
+        return corrections_pipeline.apply(self._raw, corrections)[0]
 
     def _verify_aruco(self):
         img = self._base_image("perspective")
@@ -198,7 +198,7 @@ class CorrectionsDialog(BaseDialog):
             self._p_status.set(t("corr.perspective.missing", n=len(found), ids=missing))
             return
         cfg = self._perspective_cfg()
-        _, mm_per_px, _ = P.rectify(img, cfg)
+        _, mm_per_px, _ = corrections_pipeline.rectify(img, cfg)
         msg = t("corr.perspective.ok")
         if mm_per_px:
             msg += "\n" + t("status.scale", scale=f"{mm_per_px:.6f} mm/px")
@@ -206,15 +206,15 @@ class CorrectionsDialog(BaseDialog):
         self._p_on.set(True)                     # probarla y que funcione = usarla
 
     # Color
-    def _tab_color(self, f):
+    def _tab_color(self, frame):
         col = self.c.color
         bg = COLORS["bg_card"]
         self._c_on = tk.BooleanVar(value=col.enabled)
-        self._enable_row(f, self._c_on, "color")
-        self._muted(f, t("corr.color.help")).pack(anchor="w", pady=(SPACE["sm"], SPACE["md"]))
+        self._enable_row(frame, self._c_on, "color")
+        self._muted(frame, t("corr.color.help")).pack(anchor="w", pady=(SPACE["sm"], SPACE["md"]))
 
         def radios(title, var, options, cmd=None):
-            box = tk.Frame(f, bg=bg)
+            box = tk.Frame(frame, bg=bg)
             box.pack(fill=tk.X, pady=(SPACE["sm"], 0))
             tk.Label(box, text=title, bg=bg, fg=COLORS["text"], font=FONTS["body_bold"],
                      width=14, anchor="nw").pack(side=tk.LEFT, anchor="n")
@@ -222,12 +222,12 @@ class CorrectionsDialog(BaseDialog):
             col_f.pack(side=tk.LEFT, fill=tk.X)
             rows = {}
             for value, label in options:
-                r = tk.Frame(col_f, bg=bg)
-                r.pack(fill=tk.X)
-                tk.Radiobutton(r, text=label, variable=var, value=value, command=cmd, bg=bg, fg=COLORS["text"],
+                option_row = tk.Frame(col_f, bg=bg)
+                option_row.pack(fill=tk.X)
+                tk.Radiobutton(option_row, text=label, variable=var, value=value, command=cmd, bg=bg, fg=COLORS["text"],
                                selectcolor=COLORS["bg_panel"], activebackground=bg,
                                font=FONTS["body"]).pack(side=tk.LEFT)
-                rows[value] = r
+                rows[value] = option_row
             return rows
 
         self._c_card = tk.StringVar(value=col.card)
@@ -235,13 +235,13 @@ class CorrectionsDialog(BaseDialog):
             ("colorchecker24", t("corr.color.card24")), ("custom", t("corr.color.custom")),
             ("white", t("corr.color.white"))], self._color_changed)
         self._c_rows, self._c_cols = tk.StringVar(value=str(col.rows)), tk.StringVar(value=str(col.cols))
-        cr = cards["custom"]
+        custom_card = cards["custom"]
         for i, var in enumerate((self._c_rows, self._c_cols)):
             if i:
-                tk.Label(cr, text="×", bg=bg, fg=COLORS["text_muted"]).pack(side=tk.LEFT)
-            tk.Entry(cr, textvariable=var, width=3, justify="center", bg=COLORS["bg_panel"], relief="solid",
+                tk.Label(custom_card, text="×", bg=bg, fg=COLORS["text_muted"]).pack(side=tk.LEFT)
+            tk.Entry(custom_card, textvariable=var, width=3, justify="center", bg=COLORS["bg_panel"], relief="solid",
                      bd=1, font=FONTS["mono"]).pack(side=tk.LEFT, padx=SPACE["xs"])
-        self._small(cr, "corr.color.values", self._edit_values).pack(side=tk.LEFT, padx=SPACE["md"])
+        self._small(custom_card, "corr.color.values", self._edit_values).pack(side=tk.LEFT, padx=SPACE["md"])
         self._small(cards["white"], "corr.color.mark_area", self._mark_area).pack(side=tk.LEFT, padx=SPACE["md"])
 
         self._c_ref = tk.StringVar(value=col.reference)
@@ -254,46 +254,46 @@ class CorrectionsDialog(BaseDialog):
             ("per_image", t("corr.color.mode.per_image")), ("fixed", t("corr.color.mode.fixed"))],
             self._color_changed)
 
-        self._button(f, "corr.color.detect", self._detect_card).pack(anchor="w", pady=(SPACE["lg"], 0))
-        self._c_status = self._status(f)
+        self._button(frame, "corr.color.detect", self._detect_card).pack(anchor="w", pady=(SPACE["lg"], 0))
+        self._c_status = self._status(frame)
         self._color_changed()
 
-    def _color_cfg(self) -> P.ColorCard:
-        c = copy.deepcopy(self.c.color)
-        c.enabled = self._c_on.get()
-        c.card, c.reference, c.mode = self._c_card.get(), self._c_ref.get(), self._c_mode.get()
+    def _color_cfg(self) -> corrections_pipeline.ColorCard:
+        color_cfg = copy.deepcopy(self.c.color)
+        color_cfg.enabled = self._c_on.get()
+        color_cfg.card, color_cfg.reference, color_cfg.mode = self._c_card.get(), self._c_ref.get(), self._c_mode.get()
         try:
-            c.rows, c.cols = max(2, int(self._c_rows.get())), max(2, int(self._c_cols.get()))
+            color_cfg.rows, color_cfg.cols = max(2, int(self._c_rows.get())), max(2, int(self._c_cols.get()))
         except ValueError:
             pass
-        if c.card == "white":
-            c.mode = "fixed"
-        return c
+        if color_cfg.card == "white":
+            color_cfg.mode = "fixed"
+        return color_cfg
 
     def _color_changed(self):
-        c = self._color_cfg()
-        white = c.card == "white"
+        color_cfg = self._color_cfg()
+        white = color_cfg.card == "white"
         for row in self._mode_rows.values():
-            for w in row.winfo_children():
-                w.config(state="disabled" if white else "normal")
+            for widget in row.winfo_children():
+                widget.config(state="disabled" if white else "normal")
         notes = []
-        if c.card == "custom" and c.reference == "values":
-            ok = c.values and len(c.values) == c.rows * c.cols
-            notes.append(t("corr.color.values_ok", n=len(c.values)) if ok else t("corr.color.values_missing"))
+        if color_cfg.card == "custom" and color_cfg.reference == "values":
+            ok = color_cfg.values and len(color_cfg.values) == color_cfg.rows * color_cfg.cols
+            notes.append(t("corr.color.values_ok", n=len(color_cfg.values)) if ok else t("corr.color.values_missing"))
         if white:
-            notes.append(t("corr.color.area_ok") if c.region else t("corr.color.area_missing"))
-        if c.reference == "photo":
-            notes.append(t("corr.color.ref_ok", name=c.target_photo) if c.target else t("corr.color.ref_missing"))
-        if c.mode == "fixed" and not white:
-            notes.append(t("corr.color.place_ok") if c.place else t("corr.color.place_missing"))
+            notes.append(t("corr.color.area_ok") if color_cfg.region else t("corr.color.area_missing"))
+        if color_cfg.reference == "photo":
+            notes.append(t("corr.color.ref_ok", name=color_cfg.target_photo) if color_cfg.target else t("corr.color.ref_missing"))
+        if color_cfg.mode == "fixed" and not white:
+            notes.append(t("corr.color.place_ok") if color_cfg.place else t("corr.color.place_missing"))
         self._c_status.set("\n".join(notes))
 
     def _edit_values(self):
-        c = self._color_cfg()
-        old = c.values if c.values and len(c.values) == c.rows * c.cols else None
-        vals = edit_values(self, c.rows, c.cols, old)
+        color_cfg = self._color_cfg()
+        old = color_cfg.values if color_cfg.values and len(color_cfg.values) == color_cfg.rows * color_cfg.cols else None
+        vals = edit_values(self, color_cfg.rows, color_cfg.cols, old)
         if vals:
-            self.c.color.values, self.c.color.rows, self.c.color.cols = vals, c.rows, c.cols
+            self.c.color.values, self.c.color.rows, self.c.color.cols = vals, color_cfg.rows, color_cfg.cols
             self._c_card.set("custom")
             self._c_on.set(True)
             self._color_changed()
@@ -303,9 +303,9 @@ class CorrectionsDialog(BaseDialog):
         if img is None:
             self._c_status.set(t("corr.no_image"))
             return
-        r = pick_region(self, img, self.c.color.region)
-        if r:
-            self.c.color.region = r
+        region = pick_region(self, img, self.c.color.region)
+        if region:
+            self.c.color.region = region
             if self.c.color.card != "white":
                 self.c.color.target = None             # la referencia medida era de otra tarjeta
             self._c_card.set("white")
@@ -317,9 +317,9 @@ class CorrectionsDialog(BaseDialog):
         if img is None:
             self._c_status.set(t("corr.no_image"))
             return
-        c = self._color_cfg()
+        color_cfg = self._color_cfg()
         try:
-            self.c.color.target = cc.measure_reference(img, c)
+            self.c.color.target = colorcard.measure_reference(img, color_cfg)
         except ValueError as e:
             self._c_status.set(t("corr.color.incomplete_short") if str(e) == "card incomplete"
                                else t("corr.color.not_found"))
@@ -334,41 +334,41 @@ class CorrectionsDialog(BaseDialog):
         if img is None:
             self._c_status.set(t("corr.no_image"))
             return
-        c = self._color_cfg()
+        color_cfg = self._color_cfg()
         self._c_status.set(t("corr.color.detecting"))
         self.update_idletasks()
-        if c.card == "white":
-            if not c.region:
+        if color_cfg.card == "white":
+            if not color_cfg.region:
                 self._c_status.set(t("corr.color.area_missing"))
                 return
-            fixed, info = cc.white_balance(img, c)
+            fixed, info = colorcard.white_balance(img, color_cfg)
             show_detection(self, None, img, fixed, t("corr.color.white_done", gains=", ".join(
-                f"{g:.2f}" for g in info.get("gains", []))))
+                f"{gain:.2f}" for gain in info.get("gains", []))))
             self._color_changed()
             return
-        rows, cols = c.grid()
-        card = cc.detect(img, rows, cols)
+        rows, cols = color_cfg.grid()
+        card = colorcard.detect(img, rows, cols)
         if card is None:
             self._c_status.set(t("corr.color.not_found"))
             return
         self.c.color.place = {**card.to_dict(), "size": [img.shape[1], img.shape[0]]}
         self._c_on.set(True)
         try:
-            fixed, info = cc.correct(img, card, cc.reference_of(c))
+            fixed, info = colorcard.correct(img, card, colorcard.reference_of(color_cfg))
         except Exception as e:
             _log.exception("Tarjeta de color")
             fixed, info = None, {"error": str(e)}
         if fixed is None:
             reason = t("corr.color.incomplete", n=info.get("visible", 0), total=rows * cols) \
                 if info.get("error") == "card incomplete" else t("corr.color.no_fit")
-            show_detection(self, cc.preview(img, card), img, None,
+            show_detection(self, colorcard.preview(img, card), img, None,
                            t("corr.color.found_only", found=card.found, n=rows * cols) + "\n" + reason)
             self._color_changed()
             return
         text = t("corr.color.found", found=card.found, n=rows * cols, err=f"{info['mean_error_rgb']:.1f}")
         if info["dropped"]:
             text += "\n" + t("corr.color.dropped", chips=", ".join(str(i + 1) for i in info["dropped"]))
-        show_detection(self, cc.preview(img, card, info["dropped"], info["turns"]), img, fixed, text)
+        show_detection(self, colorcard.preview(img, card, info["dropped"], info["turns"]), img, fixed, text)
         self._color_changed()
 
     # ── Aplicar ───────────────────────────────────────────────────────────────

@@ -25,7 +25,7 @@ def _assets() -> Path:
 
 
 class BaseDialog(tk.Toplevel):
-    W, H = 560, 480
+    WIDTH, HEIGHT = 560, 480
 
     def _fit_content(self):
         """Ensancha la ventana si su contenido no cabe en el ancho inicial (letra grande o
@@ -34,22 +34,22 @@ class BaseDialog(tk.Toplevel):
             return
         self.update_idletasks()
         need = self.body.winfo_reqwidth() + 2 * SPACE["xxl"]
-        w = self.winfo_width() if self.winfo_width() > 1 else self.W
-        if need > w:
-            sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
-            h = self.winfo_height() if self.winfo_height() > 1 else self.H
-            w = min(need, sw - 40)
-            self.geometry(f"{w}x{h}+{max(0, (sw - w) // 2)}+{max(0, (sh - h) // 2)}")
+        width = self.winfo_width() if self.winfo_width() > 1 else self.WIDTH
+        if need > width:
+            screen_width, screen_height = self.winfo_screenwidth(), self.winfo_screenheight()
+            height = self.winfo_height() if self.winfo_height() > 1 else self.HEIGHT
+            width = min(need, screen_width - 40)
+            self.geometry(f"{width}x{height}+{max(0, (screen_width - width) // 2)}+{max(0, (screen_height - height) // 2)}")
 
     def __init__(self, parent, title: str):
         super().__init__(parent)
         self.title(title)
         self.configure(bg=COLORS["bg_card"])
         self.resizable(True, True)
-        sw = self.winfo_screenwidth()
-        sh = self.winfo_screenheight()
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
         self.geometry(
-            f"{self.W}x{self.H}+{(sw-self.W)//2}+{(sh-self.H)//2}")
+            f"{self.WIDTH}x{self.HEIGHT}+{(screen_width-self.WIDTH)//2}+{(screen_height-self.HEIGHT)//2}")
         try:
             self.iconbitmap(str(_assets() / "logo.ico"))
         except Exception:
@@ -112,28 +112,28 @@ class BaseDialog(tk.Toplevel):
     def _hide_progress(self):
         self._prog_bar.pack_forget()
 
-    def _lbl(self, parent, text, **kw):
+    def _lbl(self, parent, text, **kwargs):
         return tk.Label(parent, text=text,
                         bg=COLORS["bg_card"], fg=COLORS["text"],
-                        font=FONTS["body"], **kw)
+                        font=FONTS["body"], **kwargs)
 
     def _entry_row(self, parent, label, var, width=8):
-        f = tk.Frame(parent, bg=COLORS["bg_card"])
-        f.pack(fill=tk.X, pady=SPACE["xs"])
-        tk.Label(f, text=label, bg=COLORS["bg_card"],
+        frame = tk.Frame(parent, bg=COLORS["bg_card"])
+        frame.pack(fill=tk.X, pady=SPACE["xs"])
+        tk.Label(frame, text=label, bg=COLORS["bg_card"],
                  fg=COLORS["text"], font=FONTS["body"],
                  width=22, anchor="w").pack(side=tk.LEFT)
-        tk.Entry(f, textvariable=var, width=width,
+        tk.Entry(frame, textvariable=var, width=width,
                  bg=COLORS["bg_panel"], fg=COLORS["text"],
                  relief="solid", bd=1,
                  font=FONTS["mono"]).pack(side=tk.LEFT, padx=SPACE["sm"])
-        return f
+        return frame
 
 
 # ── Calibración de escala ─────────────────────────────────────────────────────
 
 class ScaleDialog(BaseDialog):
-    W, H = 760, 640
+    WIDTH, HEIGHT = 760, 640
     RESIZABLE = True
 
     def __init__(self, parent,
@@ -159,22 +159,22 @@ class ScaleDialog(BaseDialog):
             self._load_image(current_image)
 
     def _build_body(self):
-        b = self.body
+        body = self.body
 
-        self._lbl(b,
+        self._lbl(body,
             t("scale.help"),
             justify="left", wraplength=500).pack(anchor="w", pady=(0, SPACE["md"]))
 
         self._cur_var = tk.StringVar()
-        self._cur_lbl = tk.Label(b, textvariable=self._cur_var, bg=COLORS["accent_light"], fg=COLORS["accent"],
+        self._cur_lbl = tk.Label(body, textvariable=self._cur_var, bg=COLORS["accent_light"], fg=COLORS["accent"],
                                  font=FONTS["body_bold"], anchor="w", padx=SPACE["md"], pady=SPACE["sm"])
         from fenotit.gui.widgets.basic import ImagePicker
-        self._picker = ImagePicker(b, self._paths, self._path, self._pick_image)
+        self._picker = ImagePicker(body, self._paths, self._path, self._pick_image)
         self._picker.pack(anchor="w", pady=SPACE["xs"])
 
-        bar = tk.Frame(b, bg=COLORS["bg_card"])
+        bar = tk.Frame(body, bg=COLORS["bg_card"])
         bar.pack(fill=tk.X, pady=SPACE["xs"])
-        self._canvas = ZoomableCanvas(b, bg=COLORS["bg_card"], highlightthickness=1,
+        self._canvas = ZoomableCanvas(body, bg=COLORS["bg_card"], highlightthickness=1,
                                       highlightbackground=COLORS["border"], cursor="crosshair",
                                       on_click=self._on_click, on_overlay=self._draw_points)
         from fenotit.gui.canvas.loupe import Loupe
@@ -185,13 +185,13 @@ class ScaleDialog(BaseDialog):
         self._canvas.pack(fill=tk.BOTH, expand=True, pady=SPACE["sm"])
 
         self._pts_label = tk.Label(
-            b, text=t("scale.step2"),
+            body, text=t("scale.step2"),
             bg=COLORS["bg_card"], fg=COLORS["text_muted"],
             font=FONTS["small"], anchor="w")
         self._pts_label.pack(fill=tk.X)
 
         # Paso 3: distancia real + unidad (DESPUÉS de marcar puntos)
-        step3 = tk.Frame(b, bg=COLORS["bg_card"])
+        step3 = tk.Frame(body, bg=COLORS["bg_card"])
         step3.pack(fill=tk.X, pady=(SPACE["md"], SPACE["xs"]))
         tk.Label(step3,
                  text=t("scale.step3"),
@@ -216,7 +216,7 @@ class ScaleDialog(BaseDialog):
 
         # Resultado
         self._result_var = tk.StringVar(value="—")
-        tk.Label(b, textvariable=self._result_var,
+        tk.Label(body, textvariable=self._result_var,
                  bg=COLORS["bg_card"], fg=COLORS["accent"],
                  font=FONTS["body_bold"], anchor="w").pack(fill=tk.X)
 
@@ -224,7 +224,7 @@ class ScaleDialog(BaseDialog):
         button(parent, text=t("common.close"), command=self.destroy, kind="secondary").pack(side=tk.RIGHT, padx=SPACE["xs"])
         button(parent, text=t("scale.clear_points"), command=self._clear_points, kind="quiet").pack(side=tk.RIGHT, padx=SPACE["xs"])
         for key, scope, bold in (("scale.apply_all", "all", False), ("scale.apply_image", "image", True)):
-            button(parent, text=t(key), command=lambda sc=scope: self._apply(sc), kind="primary" if bold else "secondary").pack(side=tk.RIGHT, padx=SPACE["xs"])
+            button(parent, text=t(key), command=lambda scale=scope: self._apply(scale), kind="primary" if bold else "secondary").pack(side=tk.RIGHT, padx=SPACE["xs"])
 
     def _pick_image(self, path: str):
         try:
@@ -264,23 +264,23 @@ class ScaleDialog(BaseDialog):
     def _redraw(self):
         self._canvas._redraw()
 
-    def _draw_points(self, c):
+    def _draw_points(self, canvas):
         """Puntos y línea a tamaño fijo de pantalla, con halo (se ven con cualquier zoom)."""
-        pts = [c.to_screen(*p) for p in self._points]
+        pts = [canvas.to_screen(*point) for point in self._points]
         if len(pts) == 2:
-            c.create_line(*pts[0], *pts[1], fill=COLORS["white"], width=5)
-            c.create_line(*pts[0], *pts[1], fill=COLORS["scale_line"], width=2)
+            canvas.create_line(*pts[0], *pts[1], fill=COLORS["white"], width=5)
+            canvas.create_line(*pts[0], *pts[1], fill=COLORS["scale_line"], width=2)
         for i, (x, y) in enumerate(pts):
             fill = (COLORS["scale_point_1"], COLORS["scale_point_2"])[i]
-            c.create_oval(x - 7, y - 7, x + 7, y + 7, fill=fill, outline=COLORS["white"], width=2)
-            c.create_text(x + 16, y - 10, text=str(i + 1), fill=COLORS["black"], font=FONTS["title"])
-            c.create_text(x + 15, y - 11, text=str(i + 1), fill=COLORS["white"], font=FONTS["title"])
+            canvas.create_oval(x - 7, y - 7, x + 7, y + 7, fill=fill, outline=COLORS["white"], width=2)
+            canvas.create_text(x + 16, y - 10, text=str(i + 1), fill=COLORS["black"], font=FONTS["title"])
+            canvas.create_text(x + 15, y - 11, text=str(i + 1), fill=COLORS["white"], font=FONTS["title"])
         if len(pts) == 2 and self._scale_result:
-            mx, my = (pts[0][0] + pts[1][0]) / 2, (pts[0][1] + pts[1][1]) / 2
+            margin_x, margin_y = (pts[0][0] + pts[1][0]) / 2, (pts[0][1] + pts[1][1]) / 2
             label = f"{self._dist_var.get():.1f} {self._unit_var.get()}"
-            tid = c.create_text(mx, my - 14, text=label, fill=COLORS["scale_label"], font=FONTS["topbar"])
-            x0, y0, x1, y1 = c.bbox(tid)
-            c.tag_lower(c.create_rectangle(x0 - 4, y0 - 2, x1 + 4, y1 + 2, fill=COLORS["white"], outline=""), tid)
+            tid = canvas.create_text(margin_x, margin_y - 14, text=label, fill=COLORS["scale_label"], font=FONTS["topbar"])
+            x0, y0, x1, y1 = canvas.bbox(tid)
+            canvas.tag_lower(canvas.create_rectangle(x0 - 4, y0 - 2, x1 + 4, y1 + 2, fill=COLORS["white"], outline=""), tid)
 
     def _on_click(self, x, y):
         if self._img_full is None:
@@ -291,10 +291,10 @@ class ScaleDialog(BaseDialog):
             self._result_var.set("—")
         self._points.append((x, y))
         if len(self._points) == 2:
-            p1, p2 = self._points
-            dist_px = ((p2[0]-p1[0])**2 + (p2[1]-p1[1])**2)**0.5
+            start, end = self._points
+            dist_px = ((end[0]-start[0])**2 + (end[1]-start[1])**2)**0.5
             self._pts_label.config(
-                text=t("scale.two_points", p1=p1, p2=p2, d=f"{dist_px:.1f}"))
+                text=t("scale.two_points", p1=start, p2=end, d=f"{dist_px:.1f}"))
         else:
             self._pts_label.config(text=t("scale.one_point", p1=self._points[0]))
         self._redraw()

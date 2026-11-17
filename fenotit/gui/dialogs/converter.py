@@ -15,16 +15,16 @@ _log = log.get("gui.converter")
 
 class ConverterDialog(BaseDialog):
     """`on_ready()` se llama cuando el conversor queda instalado."""
-    W, H = 500, 330
+    WIDTH, HEIGHT = 500, 330
 
     def __init__(self, parent, on_ready=None):
         self._on_ready = on_ready
         self._cancel = threading.Event()
         self._busy = False
         super().__init__(parent, t("conv.title"))
-        bg, wrap = COLORS["bg_card"], self.W - 70
-        from fenotit.core.segmentation import converter_setup as cs
-        tk.Label(self.body, text=t("conv.intro", gb=cs.SIZE_GB), bg=bg, fg=COLORS["text"], font=FONTS["small"],
+        bg, wrap = COLORS["bg_card"], self.WIDTH - 70
+        from fenotit.core.segmentation import converter_setup
+        tk.Label(self.body, text=t("conv.intro", gb=converter_setup.SIZE_GB), bg=bg, fg=COLORS["text"], font=FONTS["small"],
                  justify="left", wraplength=wrap, anchor="w").pack(fill=tk.X)
         tk.Label(self.body, text=t("conv.license"), bg=bg, fg=COLORS["text_muted"], font=FONTS["small"],
                  justify="left", wraplength=wrap, anchor="w").pack(fill=tk.X, pady=(SPACE["md"], 0))
@@ -46,50 +46,50 @@ class ConverterDialog(BaseDialog):
         self._main.pack(side=tk.RIGHT, padx=(0, SPACE["md"]))
 
     def _refresh(self):
-        from fenotit.core.segmentation import converter_setup as cs
+        from fenotit.core.segmentation import converter_setup
         if self._busy:
             self.state.set(t("conv.installing"))
             self._main.config(text=t("common.cancel"))
-        elif cs.installed():
-            self.state.set(t("conv.ready", gb=f"{cs.size_mb() / 1000:.1f}"))
+        elif converter_setup.installed():
+            self.state.set(t("conv.ready", gb=f"{converter_setup.size_mb() / 1000:.1f}"))
             self._main.config(text=t("conv.uninstall"))
         else:
             self.state.set(t("conv.not_installed"))
             self._main.config(text=t("conv.install"))
 
     def _main_action(self):
-        from fenotit.core.segmentation import converter_setup as cs
+        from fenotit.core.segmentation import converter_setup
         if self._busy:
             self._cancel.set()
             self.line.set(t("conv.cancelling"))
-        elif cs.installed():
+        elif converter_setup.installed():
             from tkinter import messagebox
             if messagebox.askyesno(t("conv.title"), t("conv.uninstall_q"), parent=self):
-                cs.uninstall()
+                converter_setup.uninstall()
                 self.line.set("")
                 self._refresh()
         else:
             self._start()
 
     def _start(self):
-        from fenotit.core.segmentation import converter_setup as cs
+        from fenotit.core.segmentation import converter_setup
         self._busy = True
         self._cancel.clear()
         self.bar.pack(fill=tk.X, pady=(0, SPACE["sm"]), before=self._line)
         self.bar.start(12)
         self._refresh()
 
-        def post(fn):
+        def post(func):
             try:
-                self.after(0, fn)
+                self.after(0, func)
             except (tk.TclError, RuntimeError):            # la ventana ya se cerró
                 pass
 
         def work():
             try:
-                cs.install(lambda text: post(lambda: self.line.set(text[:160])), self._cancel)
+                converter_setup.install(lambda text: post(lambda: self.line.set(text[:160])), self._cancel)
                 post(lambda: self._finished(None))
-            except cs.Cancelled:
+            except converter_setup.Cancelled:
                 post(lambda: self._finished(t("conv.cancelled")))
             except Exception as e:
                 _log.exception("Instalar conversor")

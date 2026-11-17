@@ -10,7 +10,7 @@ import numpy as np
 from PIL import Image, ImageTk
 
 from fenotit import log
-from fenotit.core.stats import colors as cs
+from fenotit.core.stats import colors as color_stats
 from fenotit.gui.charts.panels import MPL_OK, MPL_STYLE, _message, _save
 from fenotit.gui.widgets.help import HelpIcon
 from fenotit.gui.style.components import button
@@ -59,7 +59,7 @@ class Color3DWindow(tk.Toplevel):
         self.data = {"image": current, "batch": batch}
         self.on_goto, self.thumb = on_goto, thumb
         self._fig = self._ax = self._canvas = None
-        self._pts: list[cs.ColorPoint] = []
+        self._pts: list[color_stats.ColorPoint] = []
         self._sizes = np.zeros(0)
         self._view = None
         self._picked = None
@@ -97,7 +97,7 @@ class Color3DWindow(tk.Toplevel):
                                font=FONTS["small"]).pack(side=tk.LEFT)
         label(top, t("c3d.space") + ":", (14, 2))
         self.space = tk.StringVar(value="Lab")
-        combo(top, self.space, list(cs.SPACES), 6).bind("<<ComboboxSelected>>", lambda event: self._space_changed())
+        combo(top, self.space, list(color_stats.SPACES), 6).bind("<<ComboboxSelected>>", lambda event: self._space_changed())
         self._dims_label = tk.Label(top, text=t("c3d.view") + ":", bg=bg, fg=COLORS["text_muted"], font=FONTS["small"])
         self.dims = tk.StringVar(value="3d")           # 3D o, en Lab, el plano a*·b* (para figuras)
         self.dims_bar = tk.Frame(top, bg=bg)
@@ -197,7 +197,7 @@ class Color3DWindow(tk.Toplevel):
                           self._ax.get_zlim3d(), self._drawn_space)
         levels = [self._per_levels().get(self.per.get(), "images")]
         space = self.space.get()
-        pts = cs.points(self.data[self.scope.get()], levels, space)
+        pts = color_stats.points(self.data[self.scope.get()], levels, space)
         self._pts, self._picked = pts, None
         self._drawn_space = space
         self.info.pack_forget()
@@ -238,7 +238,7 @@ class Color3DWindow(tk.Toplevel):
         xyz = np.array([point.xyz for point in pts])
         coords = xyz if three else xyz[:, list(self._plane())]
         kwargs = {"depthshade": False} if three else {}
-        for level in cs.LEVELS:
+        for level in color_stats.LEVELS:
             idx = [i for i, point in enumerate(pts) if point.level == level]
             if not idx:
                 continue
@@ -264,7 +264,7 @@ class Color3DWindow(tk.Toplevel):
                     axes.annotate(text, where[id(point)], xytext=(np.sqrt(size[id(point)]) / 2 + 2, 0),
                                 textcoords="offset points", va="center", fontsize=6, color=COLORS["text"],
                                 zorder=10, path_effects=halo)
-        names = cs.SPACES[space]
+        names = color_stats.SPACES[space]
         if three:
             axes.set_xlabel(names[0])
             axes.set_ylabel(names[1])

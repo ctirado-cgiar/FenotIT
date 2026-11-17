@@ -55,20 +55,20 @@ def zoom_bar(parent, canvas, colors: dict, extra=()):
 
     def act(func):
         return lambda: (func(), canvas.focus_set())
-    for name, func_value, tip in (("zoom_in", canvas.zoom_in, f"{t('view.zoom_in')}  (Ctrl++)"),
+    for name, action, tip in (("zoom_in", canvas.zoom_in, f"{t('view.zoom_in')}  (Ctrl++)"),
                           ("zoom_out", canvas.zoom_out, f"{t('view.zoom_out')}  (Ctrl+−)"),
                           ("fit", canvas.fit, f"{t('view.zoom_fit')}  (Ctrl+0)")):
-        IconButton(parent, name, act(func_value), tip, **kwargs).pack(side=tk.LEFT, padx=1)
+        IconButton(parent, name, act(action), tip, **kwargs).pack(side=tk.LEFT, padx=1)
     pct = tk.Label(parent, text="", bg=colors["bg_card"], fg=colors["text_muted"], font=FONTS["small"],
                    width=6, cursor="hand2")
     pct.pack(side=tk.LEFT, padx=(SPACE["sm"], SPACE["md"]))
     pct.bind("<Button-1>", lambda event: act(canvas.actual_size)())
     Tooltip(pct, f"{t('view.zoom_100')}  (Ctrl+1)")
     canvas.on_zoom = lambda percent: pct.config(text=f"{percent}%")
-    for seq, func_value in (("plus", canvas.zoom_in), ("equal", canvas.zoom_in), ("KP_Add", canvas.zoom_in),
+    for seq, action in (("plus", canvas.zoom_in), ("equal", canvas.zoom_in), ("KP_Add", canvas.zoom_in),
                     ("minus", canvas.zoom_out), ("KP_Subtract", canvas.zoom_out),
                     ("Key-0", canvas.fit), ("KP_0", canvas.fit), ("Key-1", canvas.actual_size)):
-        top.bind(f"<Control-{seq}>", lambda event, func=func_value: (func(), "break")[1])
+        top.bind(f"<Control-{seq}>", lambda event, func=action: (func(), "break")[1])
     return pct
 
 

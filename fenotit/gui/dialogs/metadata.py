@@ -20,9 +20,9 @@ PREVIEW_ROWS = 8
 WARN = COLORS["warning_text"]
 
 
-def _short(items: list[str], n: int = 4) -> str:
-    s = ", ".join(items[:n])
-    return s + (f" … (+{len(items) - n})" if len(items) > n else "")
+def _short(items: list[str], limit: int = 4) -> str:
+    text = ", ".join(items[:limit])
+    return text + (f" … (+{len(items) - limit})" if len(items) > limit else "")
 
 
 class MetadataDialog(tk.Toplevel):
@@ -63,13 +63,13 @@ class MetadataDialog(tk.Toplevel):
         self.key = tk.StringVar(value=current.get("key_column", ""))
         self._key_cb = ttk.Combobox(krow, textvariable=self.key, state="readonly", width=24, font=FONTS["small"])
         self._key_cb.pack(side=tk.LEFT)
-        self._key_cb.bind("<<ComboboxSelected>>", lambda e: self._check())
+        self._key_cb.bind("<<ComboboxSelected>>", lambda event: self._check())
         HelpIcon(krow, t("meta.key"), t("meta.key_help"), bg=bg).pack(side=tk.LEFT, padx=(SPACE["md"], 0))
 
-        pf = tk.Frame(body, bg=bg)
-        pf.pack(fill=tk.BOTH, expand=True, pady=(SPACE["lg"], 0))
-        self.tree = ttk.Treeview(pf, show="headings", height=PREVIEW_ROWS, selectmode="none")
-        xsb = ttk.Scrollbar(pf, orient="horizontal", command=self.tree.xview)
+        frame = tk.Frame(body, bg=bg)
+        frame.pack(fill=tk.BOTH, expand=True, pady=(SPACE["lg"], 0))
+        self.tree = ttk.Treeview(frame, show="headings", height=PREVIEW_ROWS, selectmode="none")
+        xsb = ttk.Scrollbar(frame, orient="horizontal", command=self.tree.xview)
         self.tree.configure(xscrollcommand=xsb.set)
         xsb.pack(side=tk.BOTTOM, fill=tk.X)
         self.tree.pack(fill=tk.BOTH, expand=True)
@@ -88,18 +88,18 @@ class MetadataDialog(tk.Toplevel):
         button(btns, text=t("common.cancel"), command=self.destroy, kind="secondary").pack(side=tk.RIGHT)
         if current.get("file"):
             button(btns, text=t("meta.remove"), command=self._remove, kind="quiet").pack(side=tk.LEFT)
-        self.bind("<Escape>", lambda e: self.destroy())
+        self.bind("<Escape>", lambda event: self.destroy())
 
         if current.get("file"):
             self._read(current["file"], current.get("key_column"))
         else:
             self._check()
         self.update_idletasks()
-        px, py = parent.winfo_rootx(), parent.winfo_rooty()
-        pw, ph = parent.winfo_width(), parent.winfo_height()
-        w, h = max(self.winfo_reqwidth(), 560), self.winfo_reqheight()
-        self.minsize(w, 0)
-        self.geometry(f"+{px + (pw - w) // 2}+{py + max(0, (ph - h) // 3)}")      # el alto sigue al contenido
+        pixel_x, pixel_y = parent.winfo_rootx(), parent.winfo_rooty()
+        panel_width, panel_height = parent.winfo_width(), parent.winfo_height()
+        width, height = max(self.winfo_reqwidth(), 560), self.winfo_reqheight()
+        self.minsize(width, 0)
+        self.geometry(f"+{pixel_x + (panel_width - width) // 2}+{pixel_y + max(0, (panel_height - height) // 3)}")      # el alto sigue al contenido
 
     def _pick(self):
         start = Path(self.file.get()).parent if self.file.get() else None
@@ -134,11 +134,11 @@ class MetadataDialog(tk.Toplevel):
     def _fill_preview(self):
         self.tree.delete(*self.tree.get_children())
         self.tree["columns"] = self.cols
-        for c in self.cols:
-            self.tree.heading(c, text=c, anchor="w")
-            self.tree.column(c, width=max(70, min(160, 9 * len(c) + 20)), stretch=False, anchor="w")
-        for r in self.rows[:PREVIEW_ROWS]:
-            self.tree.insert("", "end", values=["" if r.get(c) is None else r.get(c) for c in self.cols])
+        for column in self.cols:
+            self.tree.heading(column, text=column, anchor="w")
+            self.tree.column(column, width=max(70, min(160, 9 * len(column) + 20)), stretch=False, anchor="w")
+        for row in self.rows[:PREVIEW_ROWS]:
+            self.tree.insert("", "end", values=["" if row.get(column) is None else row.get(column) for column in self.cols])
 
     def _check(self):
         if not self.rows or not self.key.get():
@@ -147,19 +147,19 @@ class MetadataDialog(tk.Toplevel):
             self.warn.configure(text="")
             self._apply_btn.configure(state="disabled")
             return
-        m = metadata.match(self.names, self.rows, self.key.get())
-        n = len(m.by_image)
-        self.summary.configure(text=t("meta.matched", n=n, total=len(self.names), rows=len(self.rows)),
-                               fg=COLORS["text"] if n else WARN)
+        match = metadata.match(self.names, self.rows, self.key.get())
+        n_matched = len(match.by_image)
+        self.summary.configure(text=t("meta.matched", n=n_matched, total=len(self.names), rows=len(self.rows)),
+                               fg=COLORS["text"] if n_matched else WARN)
         lines = []
-        if m.images_without_row:
-            lines.append(t("meta.no_row", n=len(m.images_without_row), items=_short(m.images_without_row)))
-        if m.rows_without_image:
-            lines.append(t("meta.no_image", n=len(m.rows_without_image), items=_short(m.rows_without_image)))
-        if m.duplicated_keys:
-            lines.append(t("meta.duplicated", n=len(m.duplicated_keys), items=_short(m.duplicated_keys)))
+        if match.images_without_row:
+            lines.append(t("meta.no_row", n=len(match.images_without_row), items=_short(match.images_without_row)))
+        if match.rows_without_image:
+            lines.append(t("meta.no_image", n=len(match.rows_without_image), items=_short(match.rows_without_image)))
+        if match.duplicated_keys:
+            lines.append(t("meta.duplicated", n=len(match.duplicated_keys), items=_short(match.duplicated_keys)))
         self.warn.configure(text="\n".join(lines))
-        self._apply_btn.configure(state="normal" if n else "disabled")
+        self._apply_btn.configure(state="normal" if n_matched else "disabled")
 
     def _apply(self):
         self.on_apply(self.file.get(), self.key.get())

@@ -3,7 +3,7 @@ derecha "Nuevo proyecto" (al tocarlo: agregar fotos o carpeta), "Abrir proyecto"
 recientes con la miniatura de su último resultado (o de su primera foto). Se pone encima de Entrada/Resultado."""
 from __future__ import annotations
 
-import datetime as dt
+import datetime
 import tkinter as tk
 from pathlib import Path
 
@@ -235,7 +235,7 @@ class StartScreen(tk.Frame):
             pic.config(image=thumb)
         pic.place(x=7, y=7, width=_THUMB[0], height=_THUMB[1])
         try:
-            when = dt.datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d")
+            when = datetime.datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d")
         except OSError:
             when = ""
         texts = [tk.Label(card, text=path.stem, bg=colors["bg_card"], fg=colors["accent"], font=FONTS["topbar"],

@@ -15,23 +15,23 @@ REQUIRED = ("name", "description", "owner", "license")
 class ModelInfoDialog(BaseDialog):
     """`on_save(cambios)` guarda; devuelve None o el texto de un error. Sin `on_save`, solo
     lectura. `on_share(ventana)` guarda el modelo como paquete para otro equipo."""
-    W, H = 520, 640
+    WIDTH, HEIGHT = 520, 640
 
     def __init__(self, parent, model: dict, on_save=None, on_share=None):
         self._model, self._on_save, self._on_share = model, on_save, on_share
         super().__init__(parent, t("minfo.title"))
         bg = COLORS["bg_card"]
-        wrap = self.W - 70
+        wrap = self.WIDTH - 70
         facts = [("type", t(f"model.out.{model['output']}", n=len(model["classes"]))),
                  ("format", model.get("format", "").upper()), ("added", model.get("added", "")),
                  ("converted", model.get("tool", "").capitalize())]
         grid = tk.Frame(self.body, bg=bg)
         grid.pack(fill=tk.X, pady=(0, SPACE["sm"]))
-        for r, (key, value) in enumerate((k, v) for k, v in facts if v):
+        for row, (key, value) in enumerate((key, value) for key, value in facts if value):
             tk.Label(grid, text=t(f"minfo.{key}"), bg=bg, fg=COLORS["text_muted"], font=FONTS["small"],
-                     anchor="w").grid(row=r, column=0, sticky="w", padx=(0, SPACE["lg"]))
+                     anchor="w").grid(row=row, column=0, sticky="w", padx=(0, SPACE["lg"]))
             tk.Label(grid, text=value, bg=bg, fg=COLORS["text"], font=FONTS["small"], anchor="w").grid(
-                row=r, column=1, sticky="w")
+                row=row, column=1, sticky="w")
         self._widgets = {}
         for key, lines in FIELDS + ((("classes", 4),) if model["output"] == "boxes" else ()):
             mark = " *" if on_save and key in REQUIRED else ""
@@ -57,8 +57,8 @@ class ModelInfoDialog(BaseDialog):
                                anchor="w", justify="left", wraplength=wrap)
         self._error.pack(fill=tk.X, pady=(SPACE["sm"], 0))
         self.update_idletasks()                           # alto según el contenido, dentro de la pantalla
-        h = min(self.winfo_reqheight(), self.winfo_screenheight() - 80)
-        self.geometry(f"{self.W}x{h}+{(self.winfo_screenwidth() - self.W) // 2}+{max(0, (self.winfo_screenheight() - h) // 2 - 20)}")
+        height = min(self.winfo_reqheight(), self.winfo_screenheight() - 80)
+        self.geometry(f"{self.WIDTH}x{height}+{(self.winfo_screenwidth() - self.WIDTH) // 2}+{max(0, (self.winfo_screenheight() - height) // 2 - 20)}")
 
     def _build_buttons(self, parent):
         if self._on_share:
@@ -72,21 +72,21 @@ class ModelInfoDialog(BaseDialog):
             button(parent, text=t("common.close"), command=self.destroy, kind="secondary").pack(side=tk.RIGHT)
 
     def values(self) -> dict:
-        out = {k: w.get("1.0", "end").strip() for k, w in self._widgets.items()}
+        out = {key: value.get("1.0", "end").strip() for key, value in self._widgets.items()}
         if "classes" in out:
-            out["classes"] = [ln.strip() for ln in out["classes"].splitlines() if ln.strip()]
+            out["classes"] = [line.strip() for line in out["classes"].splitlines() if line.strip()]
         return out
 
     def _save(self):
-        v = self.values()
-        empty = [t(f"minfo.{k}") for k in REQUIRED if not v.get(k)]
+        values = self.values()
+        empty = [t(f"minfo.{key}") for key in REQUIRED if not values.get(key)]
         if empty:
             self._error.config(text=t("minfo.required", fields=", ".join(empty)))
             return
-        if "classes" in v and len(v["classes"]) != len(self._model["classes"]):
-            self._error.config(text=t("det.names_count", got=len(v["classes"]), n=len(self._model["classes"])))
+        if "classes" in values and len(values["classes"]) != len(self._model["classes"]):
+            self._error.config(text=t("det.names_count", got=len(values["classes"]), n=len(self._model["classes"])))
             return
-        err = self._on_save(v)
+        err = self._on_save(values)
         if err:
             self._error.config(text=err)
             return

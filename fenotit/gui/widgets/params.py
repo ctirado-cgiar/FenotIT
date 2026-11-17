@@ -221,7 +221,7 @@ class ConfigPanel(tk.Frame):
                 def up():
                     try:
                         cur = variable.get()
-                        new_value  = cur + increment
+                        new_value = cur + increment
                         if maximum is not None:
                             new_value = min(new_value, maximum)
                         variable.set(round(new_value, 4) if isinstance(increment, float) else int(new_value))
@@ -233,7 +233,7 @@ class ConfigPanel(tk.Frame):
                 def dn():
                     try:
                         cur = variable.get()
-                        new_value  = cur - increment
+                        new_value = cur - increment
                         if minimum is not None:
                             new_value = max(new_value, minimum)
                         variable.set(round(new_value, 4) if isinstance(increment, float) else int(new_value))

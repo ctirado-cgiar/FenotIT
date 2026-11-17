@@ -81,9 +81,9 @@ class ExportDialog(tk.Toplevel):
 
         section(t("export.analyses"))
         self.chosen: dict[str, tk.BooleanVar] = {}
-        for name, label, n in analyses:
+        for name, label, n_images in analyses:
             var = self.chosen[name] = tk.BooleanVar(value=True)
-            tk.Checkbutton(body, variable=var, text=f"{label} ({t('export.n_images_one' if n == 1 else 'export.n_images', n=n)})", bg=bg,
+            tk.Checkbutton(body, variable=var, text=f"{label} ({t('export.n_images_one' if n_images == 1 else 'export.n_images', n=n_images)})", bg=bg,
                            fg=COLORS["text"], selectcolor=COLORS["bg_panel"], activebackground=bg,
                            font=FONTS["body"], anchor="w").pack(fill=tk.X)
 
@@ -114,23 +114,23 @@ class ExportDialog(tk.Toplevel):
         self._go.pack(side=tk.RIGHT)
         self._open = button(btns, text=t("export.open_folder"), command=lambda: open_folder(getattr(self, "_done_folder", None) or self.folder.get()), bg=bg, kind="link")
         self.protocol("WM_DELETE_WINDOW", self._on_close)
-        self.bind("<Escape>", lambda e: self._on_close())
+        self.bind("<Escape>", lambda event: self._on_close())
 
         self.update_idletasks()
-        w, h = self.winfo_reqwidth(), self.winfo_reqheight()
-        px, py = parent.winfo_rootx(), parent.winfo_rooty()
-        pw, ph = parent.winfo_width(), parent.winfo_height()
-        self.geometry(f"+{px + (pw - w) // 2}+{py + max(0, (ph - h) // 3)}")
+        width, height = self.winfo_reqwidth(), self.winfo_reqheight()
+        pixel_x, pixel_y = parent.winfo_rootx(), parent.winfo_rooty()
+        panel_width, panel_height = parent.winfo_width(), parent.winfo_height()
+        self.geometry(f"+{pixel_x + (panel_width - width) // 2}+{pixel_y + max(0, (panel_height - height) // 3)}")
         self.grab_set()
 
     def _pick(self):
-        d = filedialog.askdirectory(title=t("export.folder"), parent=self, initialdir=self.folder.get() or None)
-        if d:
-            self.folder.set(d)
+        folder = filedialog.askdirectory(title=t("export.folder"), parent=self, initialdir=self.folder.get() or None)
+        if folder:
+            self.folder.set(folder)
 
     def _start(self):
         folder = self.folder.get().strip()
-        names = [n for n, v in self.chosen.items() if v.get()]
+        names = [key for key, value in self.chosen.items() if value.get()]
         if not folder:
             self.msg.set(t("export.no_folder"))
             return
@@ -149,12 +149,12 @@ class ExportDialog(tk.Toplevel):
         self._run(folder, names, self.excel.get(), self.views.get(), self, self.scope.get(), self.stamp.get())
 
     # llamados por la ventana principal (hilo principal)
-    def progress(self, i: int, n: int, text: str):
+    def progress(self, i: int, total: int, text: str):
         if not self.winfo_exists():
             return
         if not self._bar.winfo_ismapped():
             self._bar.pack(fill=tk.X, pady=(SPACE["lg"], 0), before=self._msg_lbl)
-        self._bar.config(maximum=max(n, 1), value=i)
+        self._bar.config(maximum=max(total, 1), value=i)
         self.msg.set(text)
 
     def finished(self, text: str, ok: bool = True, folder: str | None = None):

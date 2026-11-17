@@ -16,7 +16,7 @@ import numpy as np
 from PIL import Image, ImageOps, ImageTk
 
 from fenotit import log
-from fenotit.core.corrections import distortion as D
+from fenotit.core.corrections import distortion
 from fenotit.core.project import IMAGE_EXTS
 from fenotit.gui.style.components import button
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
@@ -37,8 +37,8 @@ class ChessboardPanel(tk.Frame):
         self.paths: list[str] = []
         self.project_paths = list(project_paths or [])
         self.from_project: set[str] = set()         # fotos del tablero que estaban entre las fotos cargadas
-        self._dets: dict[tuple, D.Detection] = {}     # (foto, columnas, filas) -> detección
-        self._result: D.CalibrationResult | None = None
+        self._dets: dict[tuple, distortion.Detection] = {}     # (foto, columnas, filas) -> detección
+        self._result: distortion.CalibrationResult | None = None
         self._cancel = threading.Event()
         self._busy = False
         self._photo = None
@@ -72,10 +72,10 @@ class ChessboardPanel(tk.Frame):
         mid.pack(fill=tk.BOTH, expand=True, pady=(SPACE["md"], 0))
         left = tk.Frame(mid, bg=bg)
         left.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        sb = ttk.Scrollbar(left, orient="vertical")
+        scrollbar = ttk.Scrollbar(left, orient="vertical")
         self.tree = ttk.Treeview(left, columns=("state", "error"), show="tree headings", height=8,
-                                 yscrollcommand=sb.set, selectmode="extended")
-        sb.config(command=self.tree.yview)
+                                 yscrollcommand=scrollbar.set, selectmode="extended")
+        scrollbar.config(command=self.tree.yview)
         self.tree.heading("#0", text=t("board.col_photo"), anchor="w")
         self.tree.heading("state", text=t("board.col_board"), anchor="center")
         self.tree.heading("error", text=t("board.col_error"), anchor="e")
@@ -84,10 +84,10 @@ class ChessboardPanel(tk.Frame):
         self.tree.column("error", width=70, anchor="e", stretch=False)
         self.tree.tag_configure("bad", foreground=COLORS["error"])
         self.tree.tag_configure("warn", foreground=COLORS["warning"])
-        sb.pack(side=tk.RIGHT, fill=tk.Y)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.tree.pack(fill=tk.BOTH, expand=True)
-        self.tree.bind("<<TreeviewSelect>>", lambda e: self._show_selected())
-        self.tree.bind("<Delete>", lambda e: self._remove())
+        self.tree.bind("<<TreeviewSelect>>", lambda event: self._show_selected())
+        self.tree.bind("<Delete>", lambda event: self._remove())
         self._empty = tk.Label(left, text=t("board.empty"), bg=COLORS["bg_panel"], fg=COLORS["text_muted"],
                                font=FONTS["small"])
 
@@ -108,13 +108,13 @@ class ChessboardPanel(tk.Frame):
         self._status_lbl = tk.Label(bottom, textvariable=self.status, bg=bg, fg=COLORS["text"],
                                     font=FONTS["small"], anchor="w", justify="left", wraplength=620)
         self._status_lbl.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        self.bind("<Destroy>", lambda e: self._cancel.set() if e.widget is self else None)
+        self.bind("<Destroy>", lambda event: self._cancel.set() if event.widget is self else None)
         self._refresh()
 
-    def _ui(self, fn):
+    def _ui(self, func):
         """Desde el hilo de trabajo: a la interfaz, si la ventana sigue abierta."""
         try:
-            self.after(0, fn)
+            self.after(0, func)
         except (tk.TclError, RuntimeError):
             self._cancel.set()
 
@@ -125,24 +125,24 @@ class ChessboardPanel(tk.Frame):
 
     def _grid(self) -> tuple[int, int] | None:
         try:
-            c, r = int(self.cols.get()), int(self.rows.get())
+            cols, rows = int(self.cols.get()), int(self.rows.get())
         except ValueError:
             return None
-        return (c, r) if c >= 2 and r >= 2 else None
+        return (cols, rows) if cols >= 2 and rows >= 2 else None
 
     def _add(self):
-        exts = " ".join(f"*{e}" for e in sorted(IMAGE_EXTS))
+        exts = " ".join(f"*{event}" for event in sorted(IMAGE_EXTS))
         files = filedialog.askopenfilenames(title=t("board.add"), parent=self,
                                             filetypes=[(t("common.images"), exts)])
         if not files:
             return
         self._scan_note = None
-        chosen = list(dict.fromkeys(self.paths + [str(Path(f)) for f in files]))
-        self.paths = D.spread(chosen, D.MAX_PHOTOS)
+        chosen = list(dict.fromkeys(self.paths + [str(Path(file)) for file in files]))
+        self.paths = distortion.spread(chosen, distortion.MAX_PHOTOS)
         self._result = None
         self._refresh()
-        if len(chosen) > D.MAX_PHOTOS:
-            self.status.set(t("board.too_many", n=len(chosen), max=D.MAX_PHOTOS))
+        if len(chosen) > distortion.MAX_PHOTOS:
+            self.status.set(t("board.too_many", n=len(chosen), max=distortion.MAX_PHOTOS))
         else:
             self.status.set(t("board.n_photos", n=len(self.paths)))
         if self.paths:
@@ -153,7 +153,7 @@ class ChessboardPanel(tk.Frame):
             return
         sel = set(self.tree.selection())
         if sel:
-            self.paths = [p for p in self.paths if p not in sel]
+            self.paths = [path for path in self.paths if path not in sel]
             self._result = None
             self._refresh()
             self.status.set(t("board.n_photos", n=len(self.paths)))
@@ -163,20 +163,20 @@ class ChessboardPanel(tk.Frame):
         grid = self._grid()
         sel = self.tree.selection()
         self.tree.delete(*self.tree.get_children())
-        errs = [d.error_px for d in (self._result.detections if self._result else []) if d.error_px]
+        errs = [detection.error_px for detection in (self._result.detections if self._result else []) if detection.error_px]
         high = max(2.5 * float(np.median(errs)), 0.5) if errs else None     # bajo 0.5 px todo está bien
-        for p in self.paths:
-            d = self._dets.get((p, *grid)) if grid else None
+        for path in self.paths:
+            detection = self._dets.get((path, *grid)) if grid else None
             state, err, tag = "—", "", ()
-            if d is not None:
-                state = "✓" if d.found else "✗"
-                tag = () if d.found else ("bad",)
-                if d.error_px is not None and self._result is not None:
-                    err = f"{d.error_px:.2f} px"
-                    if high and d.error_px > high:
+            if detection is not None:
+                state = "✓" if detection.found else "✗"
+                tag = () if detection.found else ("bad",)
+                if detection.error_px is not None and self._result is not None:
+                    err = f"{detection.error_px:.2f} px"
+                    if high and detection.error_px > high:
                         state, tag = "⚠", ("warn",)
-            self.tree.insert("", "end", iid=p, text=Path(p).name, values=(state, err), tags=tag)
-        keep = [s for s in sel if self.tree.exists(s)]
+            self.tree.insert("", "end", iid=path, text=Path(path).name, values=(state, err), tags=tag)
+        keep = [item for item in sel if self.tree.exists(item)]
         if keep:
             self.tree.selection_set(keep)
         self._empty.place(relx=0.5, rely=0.45, anchor="center") if not self.paths else self._empty.place_forget()
@@ -189,34 +189,34 @@ class ChessboardPanel(tk.Frame):
         self.caption.set(caption)
         if bgr is None:
             return
-        im = Image.fromarray(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB))
-        im.thumbnail(PREVIEW)
-        self._photo = ImageTk.PhotoImage(im)
+        picture = Image.fromarray(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB))
+        picture.thumbnail(PREVIEW)
+        self._photo = ImageTk.PhotoImage(picture)
         self.canvas.create_image(PREVIEW[0] // 2, PREVIEW[1] // 2, image=self._photo)
 
     def _show_selected(self):
         sel = self.tree.selection()
         if not sel or self._busy:
             return
-        p = sel[0]
+        path = sel[0]
         grid = self._grid()
-        d = self._dets.get((p, *grid)) if grid else None
-        if d is not None and d.preview is not None:
-            note = t("board.found") if d.found else t("board.not_found")
-            if d.error_px is not None and self._result is not None:
-                note += f", {d.error_px:.2f} px"
-            self._show(d.preview, f"{Path(p).name} — {note}")
+        detection = self._dets.get((path, *grid)) if grid else None
+        if detection is not None and detection.preview is not None:
+            note = t("board.found") if detection.found else t("board.not_found")
+            if detection.error_px is not None and self._result is not None:
+                note += f", {detection.error_px:.2f} px"
+            self._show(detection.preview, f"{Path(path).name} — {note}")
             return
         try:
-            with Image.open(p) as im:
-                im.draft("RGB", (PREVIEW[0] * 2, PREVIEW[1] * 2))
-                im = ImageOps.exif_transpose(im).convert("RGB")
-                im.thumbnail(PREVIEW)
-                bgr = cv2.cvtColor(np.asarray(im), cv2.COLOR_RGB2BGR)
+            with Image.open(path) as file:
+                file.draft("RGB", (PREVIEW[0] * 2, PREVIEW[1] * 2))
+                file = ImageOps.exif_transpose(file).convert("RGB")
+                file.thumbnail(PREVIEW)
+                bgr = cv2.cvtColor(np.asarray(file), cv2.COLOR_RGB2BGR)
         except Exception:
-            _log.debug("miniatura %s", p, exc_info=True)
+            _log.debug("miniatura %s", path, exc_info=True)
             bgr = None
-        self._show(bgr, Path(p).name)
+        self._show(bgr, Path(path).name)
 
     # ── calibrar ──────────────────────────────────────────────────────────────
 
@@ -243,31 +243,31 @@ class ChessboardPanel(tk.Frame):
             found = []
             workers = max(1, min((os.cpu_count() or 2) - 1, 6))
             with ThreadPoolExecutor(workers) as pool:
-                futures = {pool.submit(D.has_board, p, *grid): p for p in paths}
-                for k, fut in enumerate(futures, 1):
+                futures = {pool.submit(distortion.has_board, path, *grid): path for path in paths}
+                for done_count, fut in enumerate(futures, 1):
                     if self._cancel.is_set():
-                        for f in futures:
-                            f.cancel()
+                        for future in futures:
+                            future.cancel()
                         break
                     try:
                         if fut.result():
                             found.append(futures[fut])
                     except Exception:
                         _log.debug("revisión rápida", exc_info=True)
-                    if k % 5 == 0 or k == len(paths):
-                        self._ui(lambda k=k: (self.bar.config(value=k),
-                                              self.status.set(t("board.checking", i=k, n=len(paths)))))
+                    if done_count % 5 == 0 or done_count == len(paths):
+                        self._ui(lambda done_count=done_count: (self.bar.config(value=done_count),
+                                              self.status.set(t("board.checking", i=done_count, n=len(paths)))))
             self._ui(lambda: self._scan_done(found, len(paths)))
         threading.Thread(target=work, daemon=True).start()
 
-    def _scan_done(self, found: list[str], n: int):
+    def _scan_done(self, found: list[str], total: int):
         self._busy = False
         if self._cancel.is_set():
             self._finish(t("board.cancelled"))
             return
         self.from_project = set(found)
-        self.paths = D.spread(found, D.MAX_PHOTOS)
-        self._scan_note = t("board.scan_found", found=len(found), n=n)
+        self.paths = distortion.spread(found, distortion.MAX_PHOTOS)
+        self._scan_note = t("board.scan_found", found=len(found), n=total)
         self._refresh()
         if len(self.paths) < 3:
             self._finish(self._scan_note)
@@ -287,19 +287,19 @@ class ChessboardPanel(tk.Frame):
         self._cancel_btn.pack(side=tk.RIGHT, padx=(SPACE["md"], 0), before=self._status_lbl)
         self.bar.pack(side=tk.RIGHT, before=self._status_lbl)
         paths = list(self.paths)
-        todo = [p for p in paths if (p, *grid) not in self._dets]
-        n, done = len(paths), len(paths) - len(todo)
-        self.bar.config(maximum=n, value=done)
-        self.status.set(t("board.reading", i=done, n=n))
+        todo = [path for path in paths if (path, *grid) not in self._dets]
+        total, done = len(paths), len(paths) - len(todo)
+        self.bar.config(maximum=total, value=done)
+        self.status.set(t("board.reading", i=done, n=total))
 
         def work():
             workers = max(1, min((os.cpu_count() or 2) - 1, 4))     # OpenCV suelta el GIL
             with ThreadPoolExecutor(workers) as pool:
-                futures = [pool.submit(D.detect, p, *grid) for p in todo]
-                for k, fut in enumerate(futures, done + 1):
+                futures = [pool.submit(distortion.detect, path, *grid) for path in todo]
+                for done_count, fut in enumerate(futures, done + 1):
                     if self._cancel.is_set():
-                        for f in futures:
-                            f.cancel()
+                        for future in futures:
+                            future.cancel()
                         break
                     try:
                         det = fut.result()
@@ -307,18 +307,18 @@ class ChessboardPanel(tk.Frame):
                         _log.exception("Tablero")
                         continue
                     self._dets[(det.path, *grid)] = det          # antes de calibrar (no esperar a la interfaz)
-                    self._ui(lambda det=det, k=k: self._on_detection(det, grid, k, n))
+                    self._ui(lambda det=det, done_count=done_count: self._on_detection(det, grid, done_count, total))
             if self._cancel.is_set():
                 self._ui(lambda: self._finish(t("board.cancelled")))
                 return
             use = paths
             if keep_found:
-                found = [p for p in paths if (p, *grid) in self._dets and self._dets[(p, *grid)].found]
-                use = D.spread(found, D.MAX_PHOTOS)
+                found = [path for path in paths if (path, *grid) in self._dets and self._dets[(path, *grid)].found]
+                use = distortion.spread(found, distortion.MAX_PHOTOS)
                 self._ui(lambda: self._keep(use, found, len(paths)))
             self._ui(lambda: self.status.set(t("board.solving")))
             try:
-                res = D.solve([self._dets[(p, *grid)] for p in use if (p, *grid) in self._dets], *grid)
+                res = distortion.solve([self._dets[(path, *grid)] for path in use if (path, *grid) in self._dets], *grid)
             except Exception as e:
                 _log.exception("Calibración")
                 msg = t("board.error", error=e)
@@ -327,15 +327,15 @@ class ChessboardPanel(tk.Frame):
             self._ui(lambda: self._solved(res))
         threading.Thread(target=work, daemon=True).start()
 
-    def _keep(self, use: list[str], found: list[str], n: int):
+    def _keep(self, use: list[str], found: list[str], total: int):
         """Tras buscar entre las fotos cargadas: quedan las del tablero (hasta el máximo)."""
         self.paths = use
         self.from_project = set(found)
         self._refresh()
-        self._scan_note = t("board.scan_found", found=len(found), n=n)
+        self._scan_note = t("board.scan_found", found=len(found), n=total)
         self.status.set(self._scan_note)
 
-    def _on_detection(self, det: D.Detection, grid, k: int, n: int):
+    def _on_detection(self, det: distortion.Detection, grid, done_count: int, total: int):
         if not self.winfo_exists():
             return
         if self.tree.exists(det.path):
@@ -343,10 +343,10 @@ class ChessboardPanel(tk.Frame):
             self.tree.see(det.path)
         self._show(det.preview, f"{Path(det.path).name} — "
                                 f"{t('board.found') if det.found else t('board.not_found')}")
-        self.bar.config(value=k)
-        self.status.set(t("board.reading", i=k, n=n))
+        self.bar.config(value=done_count)
+        self.status.set(t("board.reading", i=done_count, n=total))
 
-    def _solved(self, res: D.CalibrationResult):
+    def _solved(self, res: distortion.CalibrationResult):
         if not self.winfo_exists():
             return
         self._result = res if res.success else None

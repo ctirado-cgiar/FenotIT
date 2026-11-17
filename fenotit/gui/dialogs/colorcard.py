@@ -16,12 +16,12 @@ from fenotit.i18n import t
 
 
 def _window(parent, title: str) -> tk.Toplevel:
-    w = tk.Toplevel(parent)
-    w.title(title)
-    w.configure(bg=COLORS["bg_card"])
-    w.transient(parent)
-    tk.Frame(w, bg=COLORS["accent"], height=4).pack(fill=tk.X)
-    return w
+    window = tk.Toplevel(parent)
+    window.title(title)
+    window.configure(bg=COLORS["bg_card"])
+    window.transient(parent)
+    tk.Frame(window, bg=COLORS["accent"], height=4).pack(fill=tk.X)
+    return window
 
 
 def _buttons(win, ok, ok_text=None):
@@ -34,27 +34,27 @@ def _buttons(win, ok, ok_text=None):
 
 def _center(win, parent):
     win.update_idletasks()
-    w, h = win.winfo_reqwidth(), win.winfo_reqheight()
-    win.geometry(f"+{parent.winfo_rootx() + max(0, (parent.winfo_width() - w) // 2)}"
-                 f"+{parent.winfo_rooty() + max(0, (parent.winfo_height() - h) // 4)}")
+    width, height = win.winfo_reqwidth(), win.winfo_reqheight()
+    win.geometry(f"+{parent.winfo_rootx() + max(0, (parent.winfo_width() - width) // 2)}"
+                 f"+{parent.winfo_rooty() + max(0, (parent.winfo_height() - height) // 4)}")
 
 
 def pick_region(parent, image: np.ndarray, region=None):
     """Dos clics = esquinas del área blanca o gris. Devuelve [x0, y0, x1, y1] (0-1) o None."""
     win = _window(parent, t("card.white_title"))
-    h, w = image.shape[:2]
-    pts = [] if not region else [(region[0] * w, region[1] * h), (region[2] * w, region[3] * h)]
+    height, width = image.shape[:2]
+    pts = [] if not region else [(region[0] * width, region[1] * height), (region[2] * width, region[3] * height)]
     out = {}
     tk.Label(win, text=t("card.white_hint"), bg=COLORS["bg_card"], fg=COLORS["text_muted"],
              font=FONTS["small"], anchor="w").pack(fill=tk.X, padx=SPACE["xl"], pady=(SPACE["md"], SPACE["sm"]))
 
-    def draw(c):
+    def draw(canvas):
         if not pts:
             return
-        a = c.to_screen(*pts[0])
-        b = c.to_screen(*pts[-1])
-        c.create_rectangle(*a, *b, outline=COLORS["white"], width=4)
-        c.create_rectangle(*a, *b, outline=COLORS["accent"], width=2)
+        start = canvas.to_screen(*pts[0])
+        end = canvas.to_screen(*pts[-1])
+        canvas.create_rectangle(*start, *end, outline=COLORS["white"], width=4)
+        canvas.create_rectangle(*start, *end, outline=COLORS["accent"], width=2)
 
     def click(x, y):
         if len(pts) >= 2:
@@ -68,7 +68,7 @@ def pick_region(parent, image: np.ndarray, region=None):
     def ok():
         if len(pts) == 2 and abs(pts[0][0] - pts[1][0]) > 2 and abs(pts[0][1] - pts[1][1]) > 2:
             (x0, y0), (x1, y1) = pts
-            out["r"] = [min(x0, x1) / w, min(y0, y1) / h, max(x0, x1) / w, max(y0, y1) / h]
+            out["r"] = [min(x0, x1) / width, min(y0, y1) / height, max(x0, x1) / width, max(y0, y1) / height]
             win.destroy()
     _buttons(win, ok)
     canvas.pack(fill=tk.BOTH, expand=True, padx=SPACE["xl"])
@@ -82,7 +82,7 @@ def pick_region(parent, image: np.ndarray, region=None):
 _NUM = re.compile(r"#?[0-9a-fA-F]{6}|\d+(?:[.,]\d+)?")
 
 
-def parse_values(text: str, n: int) -> list | None:
+def parse_values(text: str, count: int) -> list | None:
     """Una línea por cuadrito: «R G B», «R,G,B», «R;G;B» o «#RRGGBB»."""
     vals = []
     for line in text.splitlines():
@@ -91,52 +91,52 @@ def parse_values(text: str, n: int) -> list | None:
             continue
         hexm = re.search(r"#([0-9a-fA-F]{6})", line)
         if hexm:
-            hx = hexm.group(1)
-            vals.append([int(hx[i:i + 2], 16) for i in (0, 2, 4)])
+            hex_digits = hexm.group(1)
+            vals.append([int(hex_digits[i:i + 2], 16) for i in (0, 2, 4)])
             continue
         nums = [float(x.replace(",", ".")) for x in re.findall(r"\d+(?:[.,]\d+)?", line)]
         if len(nums) >= 3:
             vals.append(nums[-3:])
-    if len(vals) != n or any(not 0 <= v <= 255 for c in vals for v in c):
+    if len(vals) != count or any(not 0 <= value <= 255 for color in vals for value in color):
         return None
     return vals
 
 
 def edit_values(parent, rows: int, cols: int, values=None):
     """Colores de referencia de una tarjeta propia (de la marca), fila por fila."""
-    n = rows * cols
+    count = rows * cols
     win = _window(parent, t("card.values_title"))
     out = {}
-    tk.Label(win, text=t("card.values_hint", n=n, rows=rows, cols=cols), bg=COLORS["bg_card"],
+    tk.Label(win, text=t("card.values_hint", n=count, rows=rows, cols=cols), bg=COLORS["bg_card"],
              fg=COLORS["text_muted"], font=FONTS["small"], justify="left", wraplength=460,
              anchor="w").pack(fill=tk.X, padx=SPACE["xl"], pady=(SPACE["md"], SPACE["sm"]))
     body = tk.Frame(win, bg=COLORS["bg_card"])
     body.pack(fill=tk.BOTH, expand=True, padx=SPACE["xl"])
-    txt = tk.Text(body, width=22, height=min(max(n, 6), 24), font=FONTS["mono"], relief="solid", bd=1)
+    txt = tk.Text(body, width=22, height=min(max(count, 6), 24), font=FONTS["mono"], relief="solid", bd=1)
     txt.pack(side=tk.LEFT, fill=tk.Y)
     if values:
-        txt.insert("1.0", "\n".join(" ".join(f"{v:g}" for v in c) for c in values))
-    sw = tk.Canvas(body, width=cols * 34 + 4, height=rows * 34 + 4, bg=COLORS["bg_card"], highlightthickness=0)
-    sw.pack(side=tk.LEFT, padx=(SPACE["lg"], 0), anchor="n")
+        txt.insert("1.0", "\n".join(" ".join(f"{value:g}" for value in color) for color in values))
+    canvas = tk.Canvas(body, width=cols * 34 + 4, height=rows * 34 + 4, bg=COLORS["bg_card"], highlightthickness=0)
+    canvas.pack(side=tk.LEFT, padx=(SPACE["lg"], 0), anchor="n")
     msg = tk.StringVar()
     tk.Label(win, textvariable=msg, bg=COLORS["bg_card"], fg=COLORS["warning"], font=FONTS["small"],
              anchor="w").pack(fill=tk.X, padx=SPACE["xl"], pady=(SPACE["md"], 0))
 
     def refresh(_=None):
-        sw.delete("all")
-        vals = parse_values(txt.get("1.0", "end"), n)
-        lines = [ln for ln in txt.get("1.0", "end").splitlines() if ln.strip()]
-        msg.set("" if vals else t("card.values_count", got=len(lines), n=n))
-        for k, c in enumerate(vals or []):
-            r, q = divmod(k, cols)
-            sw.create_rectangle(4 + q * 34, 4 + r * 34, 34 + q * 34, 34 + r * 34, outline=COLORS["text_faint"],
-                                fill="#%02x%02x%02x" % tuple(int(round(v)) for v in c))
+        canvas.delete("all")
+        vals = parse_values(txt.get("1.0", "end"), count)
+        lines = [line for line in txt.get("1.0", "end").splitlines() if line.strip()]
+        msg.set("" if vals else t("card.values_count", got=len(lines), n=count))
+        for index, color in enumerate(vals or []):
+            row, column = divmod(index, cols)
+            canvas.create_rectangle(4 + column * 34, 4 + row * 34, 34 + column * 34, 34 + row * 34, outline=COLORS["text_faint"],
+                                fill="#%02x%02x%02x" % tuple(int(round(value)) for value in color))
     txt.bind("<KeyRelease>", refresh)
-    txt.bind("<<Paste>>", lambda e: win.after(10, refresh))
+    txt.bind("<<Paste>>", lambda event: win.after(10, refresh))
     refresh()
 
     def ok():
-        vals = parse_values(txt.get("1.0", "end"), n)
+        vals = parse_values(txt.get("1.0", "end"), count)
         if vals:
             out["v"] = vals
             win.destroy()
@@ -155,14 +155,14 @@ def show_detection(parent, crop: np.ndarray | None, before: np.ndarray, after: n
     win._imgs = []
 
     def put(img, caption, side):
-        f = tk.Frame(row, bg=COLORS["bg_card"])
-        f.pack(side=tk.LEFT, padx=SPACE["md"], anchor="n")
-        im = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-        im.thumbnail((side, side))
-        ph = ImageTk.PhotoImage(im)
-        win._imgs.append(ph)
-        tk.Label(f, image=ph, bg=COLORS["bg_card"]).pack()
-        tk.Label(f, text=caption, bg=COLORS["bg_card"], fg=COLORS["text_muted"], font=FONTS["small"]).pack()
+        frame = tk.Frame(row, bg=COLORS["bg_card"])
+        frame.pack(side=tk.LEFT, padx=SPACE["md"], anchor="n")
+        picture = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        picture.thumbnail((side, side))
+        image = ImageTk.PhotoImage(picture)
+        win._imgs.append(image)
+        tk.Label(frame, image=image, bg=COLORS["bg_card"]).pack()
+        tk.Label(frame, text=caption, bg=COLORS["bg_card"], fg=COLORS["text_muted"], font=FONTS["small"]).pack()
     if crop is not None:
         put(crop, t("card.found_chips"), 300)
     put(before, t("card.before"), 300)
@@ -170,8 +170,8 @@ def show_detection(parent, crop: np.ndarray | None, before: np.ndarray, after: n
         put(after, t("card.after"), 300)
     tk.Label(win, text=text, bg=COLORS["bg_card"], fg=COLORS["text"], font=FONTS["body"], justify="left",
              wraplength=900, anchor="w").pack(fill=tk.X, padx=SPACE["xxl"], pady=(SPACE["sm"], 0))
-    r = tk.Frame(win, bg=COLORS["bg_card"])
-    r.pack(fill=tk.X, padx=SPACE["xl"], pady=SPACE["lg"])
-    button(r, text=t("common.close"), command=win.destroy, kind="primary").pack(side=tk.RIGHT)
-    win.bind("<Escape>", lambda e: win.destroy())
+    frame = tk.Frame(win, bg=COLORS["bg_card"])
+    frame.pack(fill=tk.X, padx=SPACE["xl"], pady=SPACE["lg"])
+    button(frame, text=t("common.close"), command=win.destroy, kind="primary").pack(side=tk.RIGHT)
+    win.bind("<Escape>", lambda event: win.destroy())
     _center(win, parent)

@@ -56,28 +56,28 @@ def show(root: tk.Misc, max_mpx: float | None, on_ok: Callable[[dict], None]) ->
 
     def combo(values, current, width=26):
         var = tk.StringVar(value=current)
-        cb = ttk.Combobox(body, textvariable=var, values=values, state="readonly", width=width)
-        return var, cb
+        combo_box = ttk.Combobox(body, textvariable=var, values=values, state="readonly", width=width)
+        return var, combo_box
 
     langs = i18n.available()
     section("prefs.general")
-    lang_var, cb = combo(list(langs.values()), langs.get(i18n.current(), ""))
-    line("prefs.language", cb)
+    lang_var, combo_box = combo(list(langs.values()), langs.get(i18n.current(), ""))
+    line("prefs.language", combo_box)
     name_key = "name" if i18n.current() == "es" else "name_en"
-    themes = {k: info.get(name_key) or info.get("name") or k for k, info in theme.available().items()}
-    theme_var, cb = combo(list(themes.values()), themes.get(settings.get("theme") or theme.DEFAULT, ""))
-    line("prefs.theme", cb, "prefs.theme_help")
+    themes = {name: info.get(name_key) or info.get("name") or name for name, info in theme.available().items()}
+    theme_var, combo_box = combo(list(themes.values()), themes.get(settings.get("theme") or theme.DEFAULT, ""))
+    line("prefs.theme", combo_box, "prefs.theme_help")
 
     section("prefs.images")
-    res_names = {v: t(k) for v, k in WORK_RES}
+    res_names = {option: t(name) for option, name in WORK_RES}
     cur = str(max_mpx or 0)
-    res_var, cb = combo(list(res_names.values()), res_names.get(cur, res_names["50.0"]), 34)
-    line("workres.title", cb, "prefs.workres_help")
+    res_var, combo_box = combo(list(res_names.values()), res_names.get(cur, res_names["50.0"]), 34)
+    line("workres.title", combo_box, "prefs.workres_help")
     cpus = max(1, (os.cpu_count() or 2) - 1)
-    work_names = [t("prefs.auto")] + [str(n) for n in range(1, cpus + 1)]
-    w = int(get("workers") or 0)
-    work_var, cb = combo(work_names, work_names[w] if 0 < w <= cpus else work_names[0], 10)
-    line("prefs.workers", cb, "prefs.workers_help")
+    work_names = [t("prefs.auto")] + [str(value) for value in range(1, cpus + 1)]
+    workers = int(get("workers") or 0)
+    work_var, combo_box = combo(work_names, work_names[workers] if 0 < workers <= cpus else work_names[0], 10)
+    line("prefs.workers", combo_box, "prefs.workers_help")
 
     section("prefs.results")
     table_var = tk.BooleanVar(value=bool(get("show_table_on_run")))
@@ -85,16 +85,16 @@ def show(root: tk.Misc, max_mpx: float | None, on_ok: Callable[[dict], None]) ->
                                             selectcolor=COLORS["bg_panel"]), "prefs.show_table_help")
 
     section("prefs.saving")
-    names = [t("prefs.autosave_off")] + [t("prefs.every_min", n=n) for n in AUTOSAVE[1:]]
-    a = int(get("autosave_min") or 0)
-    save_var, cb = combo(names, names[AUTOSAVE.index(a)] if a in AUTOSAVE else names[3], 16)
-    line("prefs.autosave", cb, "prefs.autosave_help")
+    names = [t("prefs.autosave_off")] + [t("prefs.every_min", n=value) for value in AUTOSAVE[1:]]
+    autosave = int(get("autosave_min") or 0)
+    save_var, combo_box = combo(names, names[AUTOSAVE.index(autosave)] if autosave in AUTOSAVE else names[3], 16)
+    line("prefs.autosave", combo_box, "prefs.autosave_help")
 
     def ok():
-        code = next((c for c, n in langs.items() if n == lang_var.get()), i18n.current())
-        res = next(v for v, n in res_names.items() if n == res_var.get())
+        code = next((name for name, value in langs.items() if value == lang_var.get()), i18n.current())
+        res = next(option for option, value in res_names.items() if value == res_var.get())
         values = {"language": code,
-                  "theme": next((k for k, n in themes.items() if n == theme_var.get()), theme.DEFAULT),
+                  "theme": next((theme_key for theme_key, value in themes.items() if value == theme_var.get()), theme.DEFAULT),
                   "max_mpx": float(res) or None,
                   "workers": work_names.index(work_var.get()),
                   "show_table_on_run": bool(table_var.get()),
@@ -106,7 +106,7 @@ def show(root: tk.Misc, max_mpx: float | None, on_ok: Callable[[dict], None]) ->
     btns.pack(fill=tk.X, padx=SPACE["xxl"], pady=(SPACE["lg"], SPACE["lg"]))
     button(btns, text=t("common.cancel"), command=win.destroy, kind="secondary").pack(side=tk.RIGHT, padx=(SPACE["md"], 0))
     button(btns, text=t("common.ok"), command=ok, kind="primary").pack(side=tk.RIGHT)
-    win.bind("<Escape>", lambda e: win.destroy())
+    win.bind("<Escape>", lambda event: win.destroy())
     win.update_idletasks()
     win.geometry(f"+{root.winfo_rootx() + (root.winfo_width() - win.winfo_reqwidth()) // 2}"
                  f"+{root.winfo_rooty() + (root.winfo_height() - win.winfo_reqheight()) // 3}")

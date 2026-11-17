@@ -13,7 +13,7 @@ from fenotit.i18n import t
 from fenotit.gui.style.components import button, divider, section as heading
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE, font as theme_font
 
-_W = 460
+_WIDTH = 460
 _TEXT, _MUTED, _SOFT = COLORS["text"], COLORS["text_muted"], COLORS["text_faint"]
 AUTHOR = "Cristian Tirado-Murcia"
 EMAIL = "c.tirado@cgiar.org"
@@ -31,9 +31,9 @@ def show(root: tk.Tk, logo: Path, system_info: str):
         pass
 
     tk.Frame(win, bg=BLUE, height=4).pack(fill=tk.X)
-    head = tk.Canvas(win, bg=COLORS["bg_card"], width=_W, height=118, highlightthickness=0)
+    head = tk.Canvas(win, bg=COLORS["bg_card"], width=_WIDTH, height=118, highlightthickness=0)
     head.pack(fill=tk.X)
-    pixel_dissolve(head, _W, 118, 16,
+    pixel_dissolve(head, _WIDTH, 118, 16,
                    lambda x, y: max(0.0, (x - 0.62) / 0.38 * 1.1 - y * 0.9) if x > 0.62 else 0.0, seed=4, gap=2)
     try:
         img = Image.open(logo).convert("RGBA").resize((64, 64), Image.LANCZOS)
@@ -47,7 +47,7 @@ def show(root: tk.Tk, logo: Path, system_info: str):
     body = tk.Frame(win, bg=COLORS["bg_card"])
     body.pack(fill=tk.BOTH, expand=True, padx=SPACE["xxl"], pady=(0, SPACE["xl"]))
 
-    def label(text, size=9, color=_TEXT, style="", pady=(0, 0), wrap=_W - 56):
+    def label(text, size=9, color=_TEXT, style="", pady=(0, 0), wrap=_WIDTH - 56):
         font = theme_font(size, style)
         tk.Label(body, text=text, bg=COLORS["bg_card"], fg=color, font=font, justify="left", anchor="w",
                  wraplength=wrap).pack(fill=tk.X, pady=pady)
@@ -79,14 +79,14 @@ def show(root: tk.Tk, logo: Path, system_info: str):
         win.clipboard_append(f"{APP_NAME}\n{system_info}")
         btn.config(text=t("about.copied"))
         win.after(1500, lambda: btn.winfo_exists() and btn.config(text=t("about.copy_info")))
-    cp = button(buttons, text=t("about.copy_info"), kind="link", bg=COLORS["bg_card"], fg=_MUTED, padx=0)
-    cp.config(command=lambda: copy(cp))
-    cp.pack(side=tk.LEFT)
+    button_widget = button(buttons, text=t("about.copy_info"), kind="link", bg=COLORS["bg_card"], fg=_MUTED, padx=0)
+    button_widget.config(command=lambda: copy(button_widget))
+    button_widget.pack(side=tk.LEFT)
     button(buttons, text=t("common.close"), command=win.destroy, kind="primary", padx=SPACE["xl"], pady=SPACE["sm"]).pack(side=tk.RIGHT)
-    win.bind("<Escape>", lambda e: win.destroy())
+    win.bind("<Escape>", lambda event: win.destroy())
 
     win.update_idletasks()
-    w, h = max(_W, win.winfo_reqwidth()), win.winfo_reqheight()
-    sw, sh = win.winfo_screenwidth(), win.winfo_screenheight()
-    win.geometry(f"{w}x{min(h, sh - 80)}+{(sw - w) // 2}+{(sh - h) // 2}")
+    width, height = max(_WIDTH, win.winfo_reqwidth()), win.winfo_reqheight()
+    screen_width, screen_height = win.winfo_screenwidth(), win.winfo_screenheight()
+    win.geometry(f"{width}x{min(height, screen_height - 80)}+{(screen_width - width) // 2}+{(screen_height - height) // 2}")
     return win

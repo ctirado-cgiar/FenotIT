@@ -13,7 +13,7 @@ class PresetDialog(BaseDialog):
     """`on_save(nombre, descripción, partes)` recibe lo elegido al pulsar Guardar.
     `available`: partes que el proyecto tiene configuradas; `checked`: las que empiezan marcadas;
     `cautions`: parte → aviso que se muestra mientras esa parte esté marcada."""
-    W, H = 440, 410
+    WIDTH, HEIGHT = 440, 410
 
     def __init__(self, parent, name: str, available: tuple, checked: tuple, cautions: dict, on_save):
         self._on_save = on_save
@@ -44,7 +44,7 @@ class PresetDialog(BaseDialog):
                            activebackground=bg, selectcolor=COLORS["bg_card"], font=FONTS["body"],
                            anchor="w", command=self._show_cautions).pack(fill=tk.X)
         self._caution = tk.Label(self.body, text="", bg=bg, fg=COLORS["warning"], font=small, anchor="w",
-                                 justify=tk.LEFT, wraplength=self.W - 2 * SPACE["xl"])
+                                 justify=tk.LEFT, wraplength=self.WIDTH - 2 * SPACE["xl"])
         self._caution.pack(fill=tk.X, pady=(SPACE["sm"], 0))
         self._show_cautions()
         self._error = tk.Label(self.body, text="", bg=bg, fg=COLORS["warning"], font=small, anchor="w")
@@ -64,7 +64,7 @@ class PresetDialog(BaseDialog):
                                             if part in self._cautions))
         self.update_idletasks()
         shown = self._caution.winfo_reqheight() if self._caution.cget("text") else 0
-        self.geometry(f"{max(self.winfo_width(), self.W)}x{self.H + shown}")
+        self.geometry(f"{max(self.winfo_width(), self.WIDTH)}x{self.HEIGHT + shown}")
 
     def chosen_parts(self) -> tuple:
         return tuple(part for part, variable in self.part_vars.items() if variable.get())
