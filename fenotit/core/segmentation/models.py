@@ -44,7 +44,7 @@ def roots() -> list[Path]:
     frozen = getattr(sys, "frozen", False)
     out = [Path(getattr(sys, "_MEIPASS", "")) if frozen else None, Path(sys.executable).parent if frozen else None,
            here.parents[3], settings.data_dir()]
-    return [r / "models" for r in out if r is not None]
+    return [root / "models" for root in out if root is not None]
 
 
 def user_root() -> Path:
@@ -53,11 +53,11 @@ def user_root() -> Path:
 
 
 def _read(folder: Path) -> dict | None:
-    f = folder / "model.yaml"
-    if not f.exists():
+    yaml_file = folder / "model.yaml"
+    if not yaml_file.exists():
         return None
     try:
-        info = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
+        info = yaml.safe_load(yaml_file.read_text(encoding="utf-8")) or {}
     except (OSError, yaml.YAMLError):
         return None
     files = [str(x) for x in info.get("files") or []]
@@ -65,8 +65,8 @@ def _read(folder: Path) -> dict | None:
         return None
     return {"id": folder.name, "dir": str(folder), "name": str(info.get("name") or folder.name),
             "output": info["output"], "format": str(info.get("format", "")), "files": files,
-            "classes": [str(c) for c in info.get("classes") or []], "input": int(info.get("input") or 640),
-            **{k: str(info.get(k) or "") for k in INFO}, "added": str(info.get("added") or ""),
+            "classes": [str(class_name) for class_name in info.get("classes") or []], "input": int(info.get("input") or 640),
+            **{key: str(info.get(key) or "") for key in INFO}, "added": str(info.get("added") or ""),
             "file": str(info.get("file") or ""), "tool": str(info.get("tool") or "")}
 
 
@@ -80,7 +80,7 @@ def available() -> list[dict]:
     for root in roots():
         if not root.is_dir():
             continue
-        for folder in sorted(p for p in root.iterdir() if p.is_dir()):
+        for folder in sorted(path for path in root.iterdir() if path.is_dir()):
             info = _read(folder)
             if info and info["id"] not in seen:
                 seen.add(info["id"])
@@ -89,26 +89,26 @@ def available() -> list[dict]:
 
 
 def get(model_id: str) -> dict | None:
-    return next((m for m in available() if m["id"] == model_id), None)
+    return next((model for model in available() if model["id"] == model_id), None)
 
 
 def _slug(text: str) -> str:
-    s = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
-    return s or "model"
+    slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+    return slug or "model"
 
 
 def _names_from_yaml(onnx_path: Path) -> list[str]:
     """Clases de un `data.yaml` junto al modelo (exportaciones de Roboflow y Ultralytics)."""
-    for f in (onnx_path.with_name("data.yaml"), onnx_path.parent.parent / "data.yaml"):
-        if f.exists():
+    for candidate in (onnx_path.with_name("data.yaml"), onnx_path.parent.parent / "data.yaml"):
+        if candidate.exists():
             try:
-                names = (yaml.safe_load(f.read_text(encoding="utf-8")) or {}).get("names")
+                names = (yaml.safe_load(candidate.read_text(encoding="utf-8")) or {}).get("names")
             except (OSError, yaml.YAMLError):
                 continue
             if isinstance(names, dict):
-                return [str(names[k]) for k in sorted(names)]
+                return [str(names[key]) for key in sorted(names)]
             if isinstance(names, list):
-                return [str(n) for n in names]
+                return [str(name) for name in names]
     return []
 
 
@@ -134,17 +134,17 @@ def add(path: str, name: str | None = None, classes: list[str] | None = None) ->
         info["input"] = int(converted["input"])
     names = list(classes or []) or info["classes"] or list(converted.get("classes") or []) \
         or _names_from_yaml(original)
-    n = info["n_classes"] or len(names)
-    if info["format"] == "detr" and names and n == len(names) + 1:
-        n -= 1                                # índice 0 reservado (exportaciones de Roboflow)
-    if len(names) != n:
-        names = (names + [f"class_{i + 1}" for i in range(len(names), n)])[:n]
+    class_count = info["n_classes"] or len(names)
+    if info["format"] == "detr" and names and class_count == len(names) + 1:
+        class_count -= 1                                # índice 0 reservado (exportaciones de Roboflow)
+    if len(names) != class_count:
+        names = (names + [f"class_{i + 1}" for i in range(len(names), class_count)])[:class_count]
     title = name or original.stem
     folder = user_root() / _slug(title)
-    k = 2
+    number = 2
     while folder.exists():
-        folder = user_root() / f"{_slug(title)}-{k}"
-        k += 1
+        folder = user_root() / f"{_slug(title)}-{number}"
+        number += 1
     folder.mkdir(parents=True)
     from fenotit.core.segmentation import vault
     (folder / ENCRYPTED_FILE).write_bytes(vault.lock(src.read_bytes()))     # solo lo abre FenotIT
@@ -171,8 +171,8 @@ def export_package(model_id: str, dest: str) -> str:
     if out.suffix.lower() != PACKAGE:
         out = out.with_name(out.name + PACKAGE)
     with zipfile.ZipFile(out, "w", zipfile.ZIP_STORED) as z:
-        for f in ["model.yaml"] + list((_read(folder) or {}).get("files") or []):
-            z.write(folder / f, f)
+        for file_name in ["model.yaml"] + list((_read(folder) or {}).get("files") or []):
+            z.write(folder / file_name, file_name)
     return str(out)
 
 
@@ -190,8 +190,8 @@ def import_package(path: str) -> dict:
         if "model.yaml" not in names:
             raise ValueError("package")
         meta = yaml.safe_load(z.read("model.yaml")) or {}
-        files = [str(f) for f in meta.get("files") or []]
-        if not files or any(f not in names or "/" in f or "\\" in f or f.startswith(".") for f in files):
+        files = [str(file_name) for file_name in meta.get("files") or []]
+        if not files or any(file_name not in names or "/" in file_name or "\\" in file_name or file_name.startswith(".") for file_name in files):
             raise ValueError("package")
         try:
             vault.unlock(z.read(files[0]))
@@ -199,36 +199,36 @@ def import_package(path: str) -> dict:
             raise ValueError("package")
         title = str(meta.get("name") or Path(path).stem)
         folder = user_root() / _slug(title)
-        k = 2
+        number = 2
         while folder.exists():
-            folder = user_root() / f"{_slug(title)}-{k}"
-            k += 1
+            folder = user_root() / f"{_slug(title)}-{number}"
+            number += 1
         folder.mkdir(parents=True)
-        for f in ["model.yaml"] + files:
-            (folder / f).write_bytes(z.read(f))
+        for file_name in ["model.yaml"] + files:
+            (folder / file_name).write_bytes(z.read(file_name))
     return _read(folder)
 
 
 def generic_names(model: dict) -> bool:
     """Las clases no tienen nombre propio (class_1, class_2…)."""
-    return all(c == f"class_{i + 1}" for i, c in enumerate(model["classes"]))
+    return all(class_name == f"class_{i + 1}" for i, class_name in enumerate(model["classes"]))
 
 
 def update(model_id: str, **changes) -> dict:
     """Cambia el nombre, las clases (mismo número que da el modelo) o la ficha (INFO) de un
     modelo agregado por el usuario."""
     folder = user_root() / model_id
-    f = folder / "model.yaml"
-    meta = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
+    yaml_file = folder / "model.yaml"
+    meta = yaml.safe_load(yaml_file.read_text(encoding="utf-8")) or {}
     if "classes" in changes:
-        names = [str(n).strip() for n in changes["classes"]]
+        names = [str(name).strip() for name in changes["classes"]]
         if len(names) != len(meta.get("classes") or []):
             raise ValueError("count")
         meta["classes"] = names
     for key in ("name",) + INFO:
         if key in changes:
             meta[key] = str(changes[key]).strip()
-    f.write_text(yaml.safe_dump(meta, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    yaml_file.write_text(yaml.safe_dump(meta, allow_unicode=True, sort_keys=False), encoding="utf-8")
     return _read(folder)
 
 
@@ -239,7 +239,7 @@ def is_user(model: dict) -> bool:
 
 def missing_info(model: dict) -> list[str]:
     """Campos obligatorios de la ficha que están vacíos (descripción, propietario, licencia)."""
-    return [k for k in ("description", "owner", "license") if not model.get(k)]
+    return [key for key in ("description", "owner", "license") if not model.get(key)]
 
 
 def remove(model_id: str) -> bool:

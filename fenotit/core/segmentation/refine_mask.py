@@ -26,23 +26,23 @@ def _kernel(size: int):
     return cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (size, size))
 
 
-def refine_op(mask: np.ndarray, op: str, size: int = 3, iterations: int = 1) -> np.ndarray:
-    it = max(1, int(iterations))
-    if op in ("erode", "dilate", "open", "close"):
+def refine_op(mask: np.ndarray, operation: str, size: int = 3, iterations: int = 1) -> np.ndarray:
+    repeats = max(1, int(iterations))
+    if operation in ("erode", "dilate", "open", "close"):
         code = {"erode": cv2.MORPH_ERODE, "dilate": cv2.MORPH_DILATE,
-                "open": cv2.MORPH_OPEN, "close": cv2.MORPH_CLOSE}[op]
-        return cv2.morphologyEx(mask, code, _kernel(size), iterations=it)
-    if op == "open_rec":
-        seed = cv2.erode(mask, _kernel(size), iterations=it)
+                "open": cv2.MORPH_OPEN, "close": cv2.MORPH_CLOSE}[operation]
+        return cv2.morphologyEx(mask, code, _kernel(size), iterations=repeats)
+    if operation == "open_rec":
+        seed = cv2.erode(mask, _kernel(size), iterations=repeats)
         return reconstruct(seed, mask)
-    if op == "fill_holes":
+    if operation == "fill_holes":
         from fenotit.core.objects.mask import _fill_small_holes
         return _fill_small_holes(mask)
-    if op == "median":
-        k = max(3, int(size) | 1)
+    if operation == "median":
+        kernel_size = max(3, int(size) | 1)
         out = mask
-        for _ in range(it):
-            out = cv2.medianBlur(out, min(k, 255))
+        for _ in range(repeats):
+            out = cv2.medianBlur(out, min(kernel_size, 255))
         return out
     return mask
 
@@ -50,8 +50,8 @@ def refine_op(mask: np.ndarray, op: str, size: int = 3, iterations: int = 1) -> 
 def reconstruct(seed: np.ndarray, mask: np.ndarray) -> np.ndarray:
     """Reconstrucción morfológica por dilatación, rápida: se quedan las componentes de la
     máscara que tocan alguna semilla (equivale a dilatar hasta estabilizar)."""
-    n, lab = cv2.connectedComponents((mask > 0).astype(np.uint8), connectivity=8)
-    keep = np.zeros(n, bool)
+    n_parts, lab = cv2.connectedComponents((mask > 0).astype(np.uint8), connectivity=8)
+    keep = np.zeros(n_parts, bool)
     keep[np.unique(lab[seed > 0])] = True
     keep[0] = False
     return keep[lab].astype(np.uint8) * 255
@@ -59,18 +59,18 @@ def reconstruct(seed: np.ndarray, mask: np.ndarray) -> np.ndarray:
 
 def refine(mask: np.ndarray, ops: list[dict] | None, scale: float = 1.0) -> np.ndarray:
     """Aplica las operaciones en orden. `scale` < 1 en la vista previa reducida."""
-    for o in ops or []:
-        op = o.get("op")
-        if op not in REFINE_OPS:
+    for entry in ops or []:
+        operation = entry.get("op")
+        if operation not in REFINE_OPS:
             continue
-        size = max(1, round(int(o.get("size", 3)) * scale)) if REFINE_OPS[op]["size"] else 0
-        mask = refine_op(mask, op, size, int(o.get("iter", 1)))
+        size = max(1, round(int(entry.get("size", 3)) * scale)) if REFINE_OPS[operation]["size"] else 0
+        mask = refine_op(mask, operation, size, int(entry.get("iter", 1)))
     return mask
 
 
 @step("refine", "processor", requires=("mask",), provides=("mask",), params=[
     {"key": "ops", "type": "list", "default": []},
 ])
-def refine_step(ctx, p):
+def refine_step(ctx, params):
     """Afinar máscara: operaciones morfológicas en el orden que eligió el usuario."""
-    ctx.mask = refine(ctx.mask, p["ops"])
+    ctx.mask = refine(ctx.mask, params["ops"])

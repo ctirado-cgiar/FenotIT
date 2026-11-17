@@ -31,12 +31,12 @@ def model_dir() -> Path | None:
     roots = [Path(getattr(sys, "_MEIPASS", "")) if getattr(sys, "frozen", False) else None,
              Path(sys.executable).parent if getattr(sys, "frozen", False) else None,
              here.parents[3], settings.data_dir()]
-    for r in roots:
-        if r is None:
+    for root in roots:
+        if root is None:
             continue
-        d = r / "models" / "mobilesam"
-        if all((d / f).exists() for f in FILES):
-            return d
+        folder = root / "models" / "mobilesam"
+        if all((folder / file_name).exists() for file_name in FILES):
+            return folder
     return None
 
 
@@ -55,23 +55,23 @@ _EMB: "OrderedDict[str, tuple]" = OrderedDict()
 def _sessions():
     if not _SESSIONS:
         import onnxruntime as ort
-        d = model_dir()
-        if d is None:
+        folder = model_dir()
+        if folder is None:
             raise FileNotFoundError("MobileSAM model files not found (models/mobilesam)")
         opts = ort.SessionOptions()
         opts.log_severity_level = 3
         opts.enable_cpu_mem_arena = False             # sin la reserva de ORT: ~1 GB menos
-        _SESSIONS["enc"] = ort.InferenceSession(str(d / FILES[0]), opts, providers=["CPUExecutionProvider"])
-        _SESSIONS["dec"] = ort.InferenceSession(str(d / FILES[1]), opts, providers=["CPUExecutionProvider"])
+        _SESSIONS["enc"] = ort.InferenceSession(str(folder / FILES[0]), opts, providers=["CPUExecutionProvider"])
+        _SESSIONS["dec"] = ort.InferenceSession(str(folder / FILES[1]), opts, providers=["CPUExecutionProvider"])
     return _SESSIONS["enc"], _SESSIONS["dec"]
 
 
 def _key(img: np.ndarray) -> str:
     import hashlib
-    h = hashlib.blake2b(digest_size=12)
-    h.update(str(img.shape).encode())
-    h.update(np.ascontiguousarray(img[::5, ::5]).tobytes())
-    return h.hexdigest()
+    hasher = hashlib.blake2b(digest_size=12)
+    hasher.update(str(img.shape).encode())
+    hasher.update(np.ascontiguousarray(img[::5, ::5]).tobytes())
+    return hasher.hexdigest()
 
 
 def embed(img: np.ndarray):
@@ -81,14 +81,14 @@ def embed(img: np.ndarray):
         _EMB.move_to_end(key)
         return _EMB[key]
     enc, _ = _sessions()
-    h, w = img.shape[:2]
-    k = SIZE / max(h, w)
-    nh, nw = int(h * k + 0.5), int(w * k + 0.5)
-    rgb = cv2.cvtColor(cv2.resize(img, (nw, nh), interpolation=cv2.INTER_AREA), cv2.COLOR_BGR2RGB)
+    height, width = img.shape[:2]
+    enc_scale = SIZE / max(height, width)
+    new_height, new_width = int(height * enc_scale + 0.5), int(width * enc_scale + 0.5)
+    rgb = cv2.cvtColor(cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_AREA), cv2.COLOR_BGR2RGB)
     x = np.zeros((SIZE, SIZE, 3), np.float32)
-    x[:nh, :nw] = (rgb.astype(np.float32) - MEAN) / STD
+    x[:new_height, :new_width] = (rgb.astype(np.float32) - MEAN) / STD
     emb = enc.run(None, {"image": x.transpose(2, 0, 1)[None]})[0]
-    out = (emb, k, (h, w), (nh, nw))
+    out = (emb, enc_scale, (height, width), (new_height, new_width))
     _EMB[key] = out
     while len(_EMB) > 6:
         _EMB.popitem(last=False)
@@ -111,20 +111,20 @@ def _upscale(low: np.ndarray, pre: tuple, orig: tuple) -> np.ndarray:
 def from_points(img: np.ndarray, points: list) -> np.ndarray:
     """Objetos por clics: points = [[x, y, positivo], ...] en coordenadas 0-1. Cada clic
     positivo es un objeto; los negativos (fondo) se agregan a todos. Devuelve etiquetas."""
-    emb, k, orig, pre = embed(img)
-    h, w = orig
-    pos = [(x * w * k, y * h * k) for x, y, p in points if p]
-    neg = [(x * w * k, y * h * k) for x, y, p in points if not p]
+    emb, enc_scale, orig, pre = embed(img)
+    height, width = orig
+    pos = [(x * width * enc_scale, y * height * enc_scale) for x, y, positive in points if positive]
+    neg = [(x * width * enc_scale, y * height * enc_scale) for x, y, positive in points if not positive]
     labels = np.zeros(orig, np.int32)
     if not pos:
         return labels
-    coords = np.array([[p] + neg + [(0, 0)] for p in pos], np.float32)
+    coords = np.array([[point] + neg + [(0, 0)] for point in pos], np.float32)
     lab = np.array([[1] + [0] * len(neg) + [-1] for _ in pos], np.float32)
     masks, iou = _decode(emb, coords, lab)
     for i in range(len(pos)):
         j = 1 + int(np.argmax(iou[i, 1:])) if not neg else 0      # un clic: la mejor de 3
-        m = _upscale(masks[i, j], pre, orig)
-        labels[m & (labels == 0)] = i + 1
+        mask = _upscale(masks[i, j], pre, orig)
+        labels[mask & (labels == 0)] = i + 1
     return labels
 
 
@@ -135,28 +135,28 @@ def from_boxes(img: np.ndarray, boxes: list, batch: int = 16) -> np.ndarray:
     labels = np.zeros(img.shape[:2], np.int32)
     if not len(boxes):
         return labels
-    emb, k, orig, pre = embed(img)
-    h, w = orig
+    emb, enc_scale, orig, pre = embed(img)
+    height, width = orig
     masks = []
-    for i0 in range(0, len(boxes), batch):
-        part = boxes[i0:i0 + batch]
-        coords = np.array([[[x0 * k, y0 * k], [x1 * k, y1 * k]] for x0, y0, x1, y1 in part], np.float32)
+    for start in range(0, len(boxes), batch):
+        part = boxes[start:start + batch]
+        coords = np.array([[[x0 * enc_scale, y0 * enc_scale], [x1 * enc_scale, y1 * enc_scale]] for x0, y0, x1, y1 in part], np.float32)
         lab = np.tile(np.array([[2, 3]], np.float32), (len(part), 1))
         low, _ = _decode(emb, coords, lab)
         masks += [low[i, 0] for i in range(len(part))]
     order = sorted(range(len(boxes)), key=lambda i: -(boxes[i][2] - boxes[i][0]) * (boxes[i][3] - boxes[i][1]))
     for i in order:
         x0, y0, x1, y1 = boxes[i]
-        mx, my = 0.05 * (x1 - x0), 0.05 * (y1 - y0)
-        X0, Y0 = max(0, int(x0 - mx)), max(0, int(y0 - my))
-        X1, Y1 = min(w, int(np.ceil(x1 + mx))), min(h, int(np.ceil(y1 + my)))
-        if X1 <= X0 or Y1 <= Y0:
+        margin_x, margin_y = 0.05 * (x1 - x0), 0.05 * (y1 - y0)
+        left, top = max(0, int(x0 - margin_x)), max(0, int(y0 - margin_y))
+        right, bottom = min(width, int(np.ceil(x1 + margin_x))), min(height, int(np.ceil(y1 + margin_y)))
+        if right <= left or bottom <= top:
             continue
         big = cv2.resize(masks[i], (SIZE, SIZE), interpolation=cv2.INTER_LINEAR)
-        py0, px0 = int(Y0 * k), int(X0 * k)
-        py1, px1 = max(py0 + 1, int(np.ceil(Y1 * k))), max(px0 + 1, int(np.ceil(X1 * k)))
-        m = cv2.resize(big[py0:py1, px0:px1], (X1 - X0, Y1 - Y0), interpolation=cv2.INTER_LINEAR) > 0
-        labels[Y0:Y1, X0:X1][m] = i + 1
+        py0, px0 = int(top * enc_scale), int(left * enc_scale)
+        py1, px1 = max(py0 + 1, int(np.ceil(bottom * enc_scale))), max(px0 + 1, int(np.ceil(right * enc_scale)))
+        mask = cv2.resize(big[py0:py1, px0:px1], (right - left, bottom - top), interpolation=cv2.INTER_LINEAR) > 0
+        labels[top:bottom, left:right][mask] = i + 1
     return labels
 
 
@@ -168,18 +168,18 @@ def _seeds(img: np.ndarray, pre: tuple, grid: int, max_seeds: int = 600) -> np.n
     distinguen de su entorno (color Lab frente a un fondo muy suavizado: semillas, hojas,
     lesiones, terrones…), luego una cuadrícula gruesa para lo grande y lo poco contrastado."""
     lo_h, lo_w = int(round(pre[0] / 4)), int(round(pre[1] / 4))
-    sm = cv2.resize(img, (lo_w * 2, lo_h * 2), interpolation=cv2.INTER_AREA)
-    lab = cv2.cvtColor(sm, cv2.COLOR_BGR2LAB).astype(np.float32)
-    bg = cv2.GaussianBlur(lab, (0, 0), max(lo_w, lo_h) / 8)
-    d = cv2.GaussianBlur(np.sqrt(((lab - bg) ** 2).sum(2)), (0, 0), 1.5)
-    peak = (d == cv2.dilate(d, np.ones((7, 7), np.uint8))) & (d > max(6.0, float(np.percentile(d, 60))))
-    ys, xs = np.nonzero(peak)
-    order = np.argsort(-d[ys, xs])[:max_seeds]
-    seeds = np.stack([xs[order] * 2 + 1, ys[order] * 2 + 1], 1).astype(np.float32).reshape(-1, 2)
-    xs = (np.arange(grid) + 0.5) / grid
-    g = np.array([(x * pre[1], y * pre[0]) for y in xs for x in xs], np.float32)
-    g = g[np.random.default_rng(134).permutation(len(g))]
-    return np.concatenate([seeds, g])
+    small = cv2.resize(img, (lo_w * 2, lo_h * 2), interpolation=cv2.INTER_AREA)
+    lab = cv2.cvtColor(small, cv2.COLOR_BGR2LAB).astype(np.float32)
+    background = cv2.GaussianBlur(lab, (0, 0), max(lo_w, lo_h) / 8)
+    contrast = cv2.GaussianBlur(np.sqrt(((lab - background) ** 2).sum(2)), (0, 0), 1.5)
+    peak = (contrast == cv2.dilate(contrast, np.ones((7, 7), np.uint8))) & (contrast > max(6.0, float(np.percentile(contrast, 60))))
+    peak_y, peak_x = np.nonzero(peak)
+    order = np.argsort(-contrast[peak_y, peak_x])[:max_seeds]
+    seeds = np.stack([peak_x[order] * 2 + 1, peak_y[order] * 2 + 1], 1).astype(np.float32).reshape(-1, 2)
+    steps = (np.arange(grid) + 0.5) / grid
+    grid_points = np.array([(x * pre[1], y * pre[0]) for y in steps for x in steps], np.float32)
+    grid_points = grid_points[np.random.default_rng(134).permutation(len(grid_points))]
+    return np.concatenate([seeds, grid_points])
 
 
 def _proposals(img, box, frame, grid, min_iou, min_stability, batch, inner_edges):
@@ -188,79 +188,79 @@ def _proposals(img, box, frame, grid, min_iou, min_stability, batch, inner_edges
     un borde interior del recorte (objeto cortado) se descartan."""
     x0, y0, x1, y1 = box
     crop = img[y0:y1, x0:x1]
-    emb, k, orig, pre = embed(crop)
+    emb, enc_scale, orig, pre = embed(crop)
     lo_h, lo_w = int(round(pre[0] / 4)), int(round(pre[1] / 4))
-    H, W = img.shape[:2]
-    fy, fx = frame[0] / H, frame[1] / W
-    fx0, fy0 = int(round(x0 * fx)), int(round(y0 * fy))
-    fw, fh = max(1, int(round(x1 * fx)) - fx0), max(1, int(round(y1 * fy)) - fy0)
+    height, width = img.shape[:2]
+    scale_y, scale_x = frame[0] / height, frame[1] / width
+    fx0, fy0 = int(round(x0 * scale_x)), int(round(y0 * scale_y))
+    frame_width, frame_height = max(1, int(round(x1 * scale_x)) - fx0), max(1, int(round(y1 * scale_y)) - fy0)
     pts = _seeds(crop, pre, grid)
     covered = np.zeros((lo_h, lo_w), bool)
-    out, found, i0 = [], [], 0
-    while i0 < len(pts):
-        p = []
-        while i0 < len(pts) and len(p) < batch:       # se saltan los puntos que ya caen en una región
-            x, y = pts[i0]
-            i0 += 1
+    out, found, cursor = [], [], 0
+    while cursor < len(pts):
+        batch_points = []
+        while cursor < len(pts) and len(batch_points) < batch:       # se saltan los puntos que ya caen en una región
+            x, y = pts[cursor]
+            cursor += 1
             if not covered[min(int(y / 4), lo_h - 1), min(int(x / 4), lo_w - 1)]:
-                p.append((x, y))
-        if not p:
+                batch_points.append((x, y))
+        if not batch_points:
             break
-        p = np.array(p, np.float32)
-        coords = np.concatenate([p[:, None, :], np.zeros((len(p), 1, 2), np.float32)], axis=1)
-        lab = np.tile(np.array([[1, -1]], np.float32), (len(p), 1))
+        batch_points = np.array(batch_points, np.float32)
+        coords = np.concatenate([batch_points[:, None, :], np.zeros((len(batch_points), 1, 2), np.float32)], axis=1)
+        lab = np.tile(np.array([[1, -1]], np.float32), (len(batch_points), 1))
         masks, iou = _decode(emb, coords, lab)
-        for i in range(len(p)):
+        for i in range(len(batch_points)):
             for j in (1, 2, 3):
                 if iou[i, j] < min_iou:
                     continue
-                lg = masks[i, j][:lo_h, :lo_w]
-                hi, lo = (lg > 1.0).sum(), (lg > -1.0).sum()
-                if lo == 0 or hi / lo < min_stability:
+                logits = masks[i, j][:lo_h, :lo_w]
+                strict, loose = (logits > 1.0).sum(), (logits > -1.0).sum()
+                if loose == 0 or strict / loose < min_stability:
                     continue
-                m = lg > 0
-                if m.sum() < 4:
+                mask = logits > 0
+                if mask.sum() < 4:
                     continue
-                if _touches(m, inner_edges):
+                if _touches(mask, inner_edges):
                     continue
-                if m.sum() < 0.25 * m.size:           # las enormes (fondo) abarcan objetos: no tapan puntos
-                    covered |= cv2.erode(m.astype(np.uint8), np.ones((3, 3), np.uint8)) > 0
-                score = float(iou[i, j]) * float(hi / lo)
-                r = _box(m)
-                dup = next((n for n, c in enumerate(found) if _iou(r, c[1]) > 0.85), None)
+                if mask.sum() < 0.25 * mask.size:           # las enormes (fondo) abarcan objetos: no tapan puntos
+                    covered |= cv2.erode(mask.astype(np.uint8), np.ones((3, 3), np.uint8)) > 0
+                score = float(iou[i, j]) * float(strict / loose)
+                region = _box(mask)
+                dup = next((index for index, entry in enumerate(found) if _iou(region, entry[1]) > 0.85), None)
                 if dup is None:
-                    found.append((score, r, lg.copy()))
+                    found.append((score, region, logits.copy()))
                 elif score > found[dup][0]:           # repetida: queda la mejor
-                    found[dup] = (score, r, lg.copy())
-    for score, _, lg in found:                         # al marco común
-        big = cv2.resize(lg, (fw, fh), interpolation=cv2.INTER_LINEAR) > 0
-        r = _box(big)
-        if r is not None:
-            out.append((score, (fy0 + r[0], fx0 + r[1], r[2])))
+                    found[dup] = (score, region, logits.copy())
+    for score, _, logits in found:                         # al marco común
+        big = cv2.resize(logits, (frame_width, frame_height), interpolation=cv2.INTER_LINEAR) > 0
+        region = _box(big)
+        if region is not None:
+            out.append((score, (fy0 + region[0], fx0 + region[1], region[2])))
     return out
 
 
-def _box(m: np.ndarray):
-    ys, xs = np.nonzero(m)
-    if not len(ys):
+def _box(mask: np.ndarray):
+    pixel_y, pixel_x = np.nonzero(mask)
+    if not len(pixel_y):
         return None
-    return (int(ys.min()), int(xs.min()), m[ys.min():ys.max() + 1, xs.min():xs.max() + 1])
+    return (int(pixel_y.min()), int(pixel_x.min()), mask[pixel_y.min():pixel_y.max() + 1, pixel_x.min():pixel_x.max() + 1])
 
 
-def _touches(m: np.ndarray, edges) -> bool:
-    side = {"top": m[0], "bottom": m[-1], "left": m[:, 0], "right": m[:, -1]}
-    return any(side[e].any() for e in edges)
+def _touches(mask: np.ndarray, edges) -> bool:
+    side = {"top": mask[0], "bottom": mask[-1], "left": mask[:, 0], "right": mask[:, -1]}
+    return any(side[edge].any() for edge in edges)
 
 
-def _iou(a, b) -> float:
-    ay, ax, am = a
-    by, bx, bm = b
-    y0, x0 = max(ay, by), max(ax, bx)
-    y1, x1 = min(ay + am.shape[0], by + bm.shape[0]), min(ax + am.shape[1], bx + bm.shape[1])
+def _iou(region_a, region_b) -> float:
+    top_a, left_a, mask_a = region_a
+    top_b, left_b, mask_b = region_b
+    y0, x0 = max(top_a, top_b), max(left_a, left_b)
+    y1, x1 = min(top_a + mask_a.shape[0], top_b + mask_b.shape[0]), min(left_a + mask_a.shape[1], left_b + mask_b.shape[1])
     if y1 <= y0 or x1 <= x0:
         return 0.0
-    inter = (am[y0 - ay:y1 - ay, x0 - ax:x1 - ax] & bm[y0 - by:y1 - by, x0 - bx:x1 - bx]).sum()
-    return inter / (am.sum() + bm.sum() - inter)
+    inter = (mask_a[y0 - top_a:y1 - top_a, x0 - left_a:x1 - left_a] & mask_b[y0 - top_b:y1 - top_b, x0 - left_b:x1 - left_b]).sum()
+    return inter / (mask_a.sum() + mask_b.sum() - inter)
 
 
 def automatic(img: np.ndarray, grid: int = 16, detail: int = 1, min_iou: float = 0.86,
@@ -273,31 +273,31 @@ def automatic(img: np.ndarray, grid: int = 16, detail: int = 1, min_iou: float =
     analizados a mayor resolución. Devuelve
     etiquetas; las regiones pequeñas quedan encima de las grandes y lo que no cubrió
     ninguna propuesta forma regiones propias."""
-    H, W = img.shape[:2]
-    f = min(1.0, WORK / max(H, W))
-    frame = (max(1, int(round(H * f))), max(1, int(round(W * f))))
-    boxes = [((0, 0, W, H), ())]
+    height, width = img.shape[:2]
+    factor = min(1.0, WORK / max(height, width))
+    frame = (max(1, int(round(height * factor))), max(1, int(round(width * factor))))
+    boxes = [((0, 0, width, height), ())]
     if detail >= 2:
-        ox, oy = int(W * 0.1), int(H * 0.1)
-        xs, ys = (0, W // 2 - ox, W // 2 + ox, W), (0, H // 2 - oy, H // 2 + oy, H)
-        for r in range(2):
-            for c in range(2):
-                edges = (("bottom",) if r == 0 else ("top",)) + (("right",) if c == 0 else ("left",))
-                boxes.append(((xs[2 * c], ys[2 * r], xs[2 * c + 1], ys[2 * r + 1]), edges))
+        overlap_x, overlap_y = int(width * 0.1), int(height * 0.1)
+        cuts_x, cuts_y = (0, width // 2 - overlap_x, width // 2 + overlap_x, width), (0, height // 2 - overlap_y, height // 2 + overlap_y, height)
+        for row in range(2):
+            for col in range(2):
+                edges = (("bottom",) if row == 0 else ("top",)) + (("right",) if col == 0 else ("left",))
+                boxes.append(((cuts_x[2 * col], cuts_y[2 * row], cuts_x[2 * col + 1], cuts_y[2 * row + 1]), edges))
     cands = []
     for box, edges in boxes:
         cands += _proposals(img, box, frame, grid, min_iou, min_stability, batch, edges)
-    cands.sort(key=lambda c: -c[0])
+    cands.sort(key=lambda candidate: -candidate[0])
     kept = []
-    for _, r in cands:                                # sin repetidos (IoU de máscaras)
-        if all(_iou(r, q) <= max_iou for q in kept):
-            kept.append(r)
-    labels = np.zeros((H, W), np.int32)
-    for n, (y, x, m) in enumerate(sorted(kept, key=lambda r: -r[2].sum()), 1):
-        Y0, X0 = int(y / f), int(x / f)
-        Y1, X1 = min(H, int((y + m.shape[0]) / f + 0.5)), min(W, int((x + m.shape[1]) / f + 0.5))
-        big = cv2.resize(m.astype(np.float32), (X1 - X0, Y1 - Y0), interpolation=cv2.INTER_LINEAR) > 0.5
-        labels[Y0:Y1, X0:X1][big] = n
+    for _, region in cands:                           # sin repetidos (IoU de máscaras)
+        if all(_iou(region, other) <= max_iou for other in kept):
+            kept.append(region)
+    labels = np.zeros((height, width), np.int32)
+    for label_id, (y, x, mask) in enumerate(sorted(kept, key=lambda region: -region[2].sum()), 1):
+        top, left = int(y / factor), int(x / factor)
+        bottom, right = min(height, int((y + mask.shape[0]) / factor + 0.5)), min(width, int((x + mask.shape[1]) / factor + 0.5))
+        big = cv2.resize(mask.astype(np.float32), (right - left, bottom - top), interpolation=cv2.INTER_LINEAR) > 0.5
+        labels[top:bottom, left:right][big] = label_id
     return _relabel(_rest(labels))
 
 
@@ -305,15 +305,15 @@ def _rest(labels: np.ndarray) -> np.ndarray:
     """Lo que ninguna propuesta cubrió (p. ej. hojas muy finas) pasa a ser regiones
     también, una por zona continua; se descartan solo las franjas delgadas que quedan
     entre regiones vecinas (apertura de ~1/512 del lado mayor)."""
-    r = max(1, int(round(max(labels.shape) / 512)))
-    k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * r + 1, 2 * r + 1))
-    free = cv2.morphologyEx((labels == 0).astype(np.uint8), cv2.MORPH_OPEN, k)
-    n, cc, st, _ = cv2.connectedComponentsWithStats(free)
-    out, m = labels.copy(), int(labels.max())
-    for i in range(1, n):
-        if st[i, 4] >= (4 * r) ** 2:
-            m += 1
-            out[cc == i] = m
+    radius = max(1, int(round(max(labels.shape) / 512)))
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * radius + 1, 2 * radius + 1))
+    free = cv2.morphologyEx((labels == 0).astype(np.uint8), cv2.MORPH_OPEN, kernel)
+    n_free, free_labels, free_stats, _ = cv2.connectedComponentsWithStats(free)
+    out, last_id = labels.copy(), int(labels.max())
+    for i in range(1, n_free):
+        if free_stats[i, 4] >= (4 * radius) ** 2:
+            last_id += 1
+            out[free_labels == i] = last_id
     return out
 
 
@@ -322,14 +322,14 @@ def categorize(labels: np.ndarray, default: int = 1, picks: list | None = None) 
     `default`; cada clic [x, y, categoría] (0-1) pone esa categoría a la región que está
     en ese punto (la de encima: la más pequeña). Si hay varios clics en la misma región,
     vale el último."""
-    n = int(labels.max())
-    cats = np.full(n + 1, int(default), np.int32)
+    n_regions = int(labels.max())
+    cats = np.full(n_regions + 1, int(default), np.int32)
     cats[0] = 0
-    h, w = labels.shape[:2]
-    for x, y, c in picks or []:
-        i = int(labels[min(h - 1, max(0, int(y * h))), min(w - 1, max(0, int(x * w)))])
+    height, width = labels.shape[:2]
+    for x, y, category in picks or []:
+        i = int(labels[min(height - 1, max(0, int(y * height))), min(width - 1, max(0, int(x * width)))])
         if i:
-            cats[i] = int(c)
+            cats[i] = int(category)
     return cats
 
 
@@ -358,28 +358,28 @@ from fenotit.core.pipeline.base import BACKGROUND_COLOR, step  # noqa: E402
     {"key": "own", "type": "bool", "default": True},
     {"key": "learn", "type": "dict", "default": {}},
 ])
-def model_segment(ctx, p):
+def model_segment(ctx, params):
     """Segmentación con un modelo de IA (MobileSAM). Cada objeto sale ya separado: las
     etiquetas quedan en ctx.extra["instances"] y el paso de objetos las respeta.
     Automático: cada región tiene una categoría (default, o la que le dio el usuario con un
     clic, picks; o, en fotos sin clics, la que aprende `learn` de las otras); las de
     categoría 0 no se usan. ctx.classes = categoría de cada píxel."""
     from fenotit.core.segmentation import sam
-    if p["mode"] == "points":
-        labels = sam.from_points(ctx.image, list(p["points"] or []))
+    if params["mode"] == "points":
+        labels = sam.from_points(ctx.image, list(params["points"] or []))
     else:
-        labels = sam.automatic(ctx.image, grid=int(p["grid"]))
-        learn = p.get("learn") or {}
-        if not p.get("own", True) and learn.get("samples"):
+        labels = sam.automatic(ctx.image, grid=int(params["grid"]))
+        learn = params.get("learn") or {}
+        if not params.get("own", True) and learn.get("samples"):
             # foto sin clics: categorías aprendidas de las regiones que el usuario clasificó en otras
             from fenotit.core.segmentation import regions
             cats = regions.predict(regions.load(learn["samples"], learn["hash"]), ctx.image, labels)
         else:
-            cats = sam.categorize(labels, int(p["default"]), list(p["picks"] or []))
-        if p["categories"]:
+            cats = sam.categorize(labels, int(params["default"]), list(params["picks"] or []))
+        if params["categories"]:
             ctx.classes = cats[labels].astype(np.int32)
-            ctx.extra["class_names"] = list(p["categories"])
-            ctx.extra["class_colors"] = [BACKGROUND_COLOR] + list(p["colors"])
+            ctx.extra["class_names"] = list(params["categories"])
+            ctx.extra["class_colors"] = [BACKGROUND_COLOR] + list(params["colors"])
         labels = np.where(cats[labels] > 0, labels, 0)
     ctx.extra["instances"] = labels
     ctx.mask = (labels > 0).astype(np.uint8) * 255

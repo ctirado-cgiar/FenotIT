@@ -30,13 +30,13 @@ MAX_SAMPLES_PER_CLASS = 6000
 
 
 def work_scale(shape, detail_mpx: float) -> float:
-    h, w = shape[:2]
-    return min(1.0, (detail_mpx * 1e6 / (h * w)) ** 0.5) if detail_mpx else 1.0
+    height, width = shape[:2]
+    return min(1.0, (detail_mpx * 1e6 / (height * width)) ** 0.5) if detail_mpx else 1.0
 
 
 def work_copy(img: np.ndarray, detail_mpx: float) -> np.ndarray:
-    k = work_scale(img.shape, detail_mpx)
-    return img if k >= 1 else cv2.resize(img, None, fx=k, fy=k, interpolation=cv2.INTER_AREA)
+    factor = work_scale(img.shape, detail_mpx)
+    return img if factor >= 1 else cv2.resize(img, None, fx=factor, fy=factor, interpolation=cv2.INTER_AREA)
 
 
 def features(img: np.ndarray) -> np.ndarray:
@@ -45,65 +45,65 @@ def features(img: np.ndarray) -> np.ndarray:
     lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB).astype(np.float32)
     sat = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)[..., 1].astype(np.float32)
     out = [lab, sat[..., None]]
-    for s in SIGMAS:
-        b = cv2.GaussianBlur(lab, (0, 0), s)
-        g = b[..., 0]
-        gx, gy = cv2.Sobel(g, cv2.CV_32F, 1, 0), cv2.Sobel(g, cv2.CV_32F, 0, 1)
-        out += [b, cv2.magnitude(gx, gy)[..., None], cv2.Laplacian(g, cv2.CV_32F)[..., None]]
+    for sigma in SIGMAS:
+        blurred = cv2.GaussianBlur(lab, (0, 0), sigma)
+        lightness = blurred[..., 0]
+        grad_x, grad_y = cv2.Sobel(lightness, cv2.CV_32F, 1, 0), cv2.Sobel(lightness, cv2.CV_32F, 0, 1)
+        out += [blurred, cv2.magnitude(grad_x, grad_y)[..., None], cv2.Laplacian(lightness, cv2.CV_32F)[..., None]]
     return np.concatenate(out, axis=-1)
 
 
 def rasterize(strokes: list[dict], shape) -> np.ndarray:
     """Trazos (coordenadas 0-1, ancho relativo al ancho de la foto) → mapa de etiquetas
     (0 = sin pintar, clase + 1 donde se pintó). El último trazo manda."""
-    h, w = shape[:2]
-    lab = np.zeros((h, w), np.uint8)
-    for s in strokes or []:
-        pts = np.asarray(s.get("pts") or [], np.float64)
+    image_height, image_width = shape[:2]
+    lab = np.zeros((image_height, image_width), np.uint8)
+    for stroke in strokes or []:
+        pts = np.asarray(stroke.get("pts") or [], np.float64)
         if not len(pts):
             continue
-        pts = np.round(pts * [w - 1, h - 1]).astype(np.int32)
-        width = max(1, int(round(float(s.get("w", 0.01)) * w)))
-        c = int(s["c"]) + 1
+        pts = np.round(pts * [image_width - 1, image_height - 1]).astype(np.int32)
+        width = max(1, int(round(float(stroke.get("w", 0.01)) * image_width)))
+        class_value = int(stroke["c"]) + 1
         if len(pts) == 1:
-            cv2.circle(lab, tuple(pts[0]), max(1, width // 2), c, -1)
+            cv2.circle(lab, tuple(pts[0]), max(1, width // 2), class_value, -1)
         else:
-            cv2.polylines(lab, [pts.reshape(-1, 1, 2)], False, c, width, lineType=cv2.LINE_8)
+            cv2.polylines(lab, [pts.reshape(-1, 1, 2)], False, class_value, width, lineType=cv2.LINE_8)
     return lab
 
 
 def samples(feat: np.ndarray, strokes: list[dict]) -> tuple[np.ndarray, np.ndarray]:
     lab = rasterize(strokes, feat.shape)
-    m = lab > 0
-    return feat[m], (lab[m] - 1).astype(np.int16)
+    painted = lab > 0
+    return feat[painted], (lab[painted] - 1).astype(np.int16)
 
 
-def balance(X: np.ndarray, y: np.ndarray, seed: int = 0) -> tuple[np.ndarray, np.ndarray]:
+def balance(feature_rows: np.ndarray, y: np.ndarray, seed: int = 0) -> tuple[np.ndarray, np.ndarray]:
     """A lo más MAX_SAMPLES_PER_CLASS por clase (un trazo enorme no tapa a los demás)."""
     rng = np.random.default_rng(seed)
     keep = []
-    for c in np.unique(y):
-        idx = np.flatnonzero(y == c)
+    for class_value in np.unique(y):
+        idx = np.flatnonzero(y == class_value)
         if len(idx) > MAX_SAMPLES_PER_CLASS:
             idx = np.sort(rng.choice(idx, MAX_SAMPLES_PER_CLASS, replace=False))
         keep.append(idx)
     keep = np.concatenate(keep) if keep else np.zeros(0, int)
-    return X[keep], y[keep]
+    return feature_rows[keep], y[keep]
 
 
-def fingerprint(X: np.ndarray, y: np.ndarray) -> str:
-    h = hashlib.blake2b(digest_size=12)
-    h.update(np.ascontiguousarray(X).tobytes())
-    h.update(np.ascontiguousarray(y).tobytes())
-    return h.hexdigest()
+def fingerprint(feature_rows: np.ndarray, y: np.ndarray) -> str:
+    hasher = hashlib.blake2b(digest_size=12)
+    hasher.update(np.ascontiguousarray(feature_rows).tobytes())
+    hasher.update(np.ascontiguousarray(y).tobytes())
+    return hasher.hexdigest()
 
 
-def store(X: np.ndarray, y: np.ndarray, folder: Path) -> tuple[str, str]:
-    key = fingerprint(X, y)
+def store(feature_rows: np.ndarray, y: np.ndarray, folder: Path) -> tuple[str, str]:
+    key = fingerprint(feature_rows, y)
     path = Path(folder) / f"examples_{key}.npz"
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
-        np.savez_compressed(path, X=X.astype(np.float32), y=y.astype(np.int16))
+        np.savez_compressed(path, X=feature_rows.astype(np.float32), y=y.astype(np.int16))
     return str(path), key
 
 
@@ -115,12 +115,12 @@ def _forest():
     return RandomForestClassifier(TREES, max_depth=DEPTH, n_jobs=-1, random_state=0, class_weight="balanced")
 
 
-def train(X: np.ndarray, y: np.ndarray, key: str | None = None):
+def train(feature_rows: np.ndarray, y: np.ndarray, key: str | None = None):
     """Los dos bosques (contexto y local); guarda los 3 últimos pares en memoria."""
-    key = key or fingerprint(X, y)
+    key = key or fingerprint(feature_rows, y)
     model = _MODELS.get(key)
     if model is None:
-        model = (_forest().fit(X, y), _forest().fit(X[:, :LOCAL], y))
+        model = (_forest().fit(feature_rows, y), _forest().fit(feature_rows[:, :LOCAL], y))
         _MODELS[key] = model
         while len(_MODELS) > 3:
             _MODELS.popitem(last=False)
@@ -132,9 +132,9 @@ def load_model(path: str, key: str):
     if key in _MODELS:
         _MODELS.move_to_end(key)
         return _MODELS[key]
-    with np.load(path) as d:
-        X, y = d["X"], d["y"]
-    return train(X, y, key)
+    with np.load(path) as data:
+        feature_rows, y = data["X"], data["y"]
+    return train(feature_rows, y, key)
 
 
 def predict(model, feat: np.ndarray, out_shape=None, region: np.ndarray | None = None) -> np.ndarray:
@@ -142,27 +142,27 @@ def predict(model, feat: np.ndarray, out_shape=None, region: np.ndarray | None =
     antes de elegir la clase (bordes suaves, sin escalones). `region` (en el tamaño de
     `feat`) limita el cálculo al área de análisis."""
     ctx_model, local = model
-    h, w = feat.shape[:2]
+    height, width = feat.shape[:2]
     flat = feat.reshape(-1, feat.shape[-1])
     classes = ctx_model.classes_
     idx = np.flatnonzero(region.reshape(-1)) if region is not None and region.any() and not region.all() else None
-    prob = np.zeros((h * w, len(classes)), np.float32)
+    prob = np.zeros((height * width, len(classes)), np.float32)
     prob[:, 0] = 1.0
     if idx is None:
         prob[:] = ctx_model.predict_proba(flat)
     else:
         prob[idx] = ctx_model.predict_proba(flat[idx])
     # franja de los bordes: decide el modelo local
-    first = classes[np.argmax(prob, axis=1)].reshape(h, w).astype(np.uint8)
+    first = classes[np.argmax(prob, axis=1)].reshape(height, width).astype(np.uint8)
     edge = cv2.morphologyEx(first, cv2.MORPH_GRADIENT, np.ones((3, 3), np.uint8)) > 0
     band = cv2.dilate(edge.astype(np.uint8), cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * BAND + 1,) * 2))
     if region is not None:
         band &= region.astype(np.uint8)
-    b = np.flatnonzero(band.reshape(-1))
-    if len(b):
-        prob[b] = local.predict_proba(flat[b, :LOCAL])
-    prob = prob.reshape(h, w, len(classes))
-    if out_shape is not None and (out_shape[0], out_shape[1]) != (h, w):
+    band_index = np.flatnonzero(band.reshape(-1))
+    if len(band_index):
+        prob[band_index] = local.predict_proba(flat[band_index, :LOCAL])
+    prob = prob.reshape(height, width, len(classes))
+    if out_shape is not None and (out_shape[0], out_shape[1]) != (height, width):
         prob = np.dstack([cv2.resize(prob[..., i], (out_shape[1], out_shape[0]), interpolation=cv2.INTER_LINEAR)
                           for i in range(len(classes))]) if len(classes) > 1 else \
             cv2.resize(prob, (out_shape[1], out_shape[0]))[..., None]
@@ -173,8 +173,8 @@ def colorize(class_map: np.ndarray, colors: list[str]) -> np.ndarray:
     """Mapa de clases pintado con el color de cada clase (BGR)."""
     lut = np.zeros((256, 3), np.uint8)
     for i, hexcol in enumerate(colors):
-        h = hexcol.lstrip("#")
-        lut[i] = (int(h[4:6], 16), int(h[2:4], 16), int(h[0:2], 16))
+        hex_digits = hexcol.lstrip("#")
+        lut[i] = (int(hex_digits[4:6], 16), int(hex_digits[2:4], 16), int(hex_digits[0:2], 16))
     return lut[class_map]
 
 
@@ -190,23 +190,22 @@ from fenotit.core.pipeline.base import step  # noqa: E402
     {"key": "colors", "type": "list", "default": []},
     {"key": "detail", "type": "float", "default": 1.0},
 ])
-def classify(ctx, p):
+def classify(ctx, params):
     """Segmentación por ejemplos: cada píxel recibe la clase que el bosque aleatorio
     aprendió de los trazos; la máscara = las clases marcadas como objeto."""
-    from fenotit.core.segmentation import classifier as C
-    if not p["samples"]:
+    if not params["samples"]:
         raise ValueError("no examples: paint at least two classes")
-    model = C.load_model(p["samples"], p["hash"])
-    small = C.work_copy(ctx.image, float(p["detail"]))
+    model = load_model(params["samples"], params["hash"])
+    small = work_copy(ctx.image, float(params["detail"]))
     full = ctx.analysis_region(ctx.image.shape)
     region = None if full is None else cv2.resize(full, (small.shape[1], small.shape[0]),
                                                   interpolation=cv2.INTER_NEAREST) > 0
-    classes = C.predict(model, C.features(small), ctx.image.shape, region)
+    classes = predict(model, features(small), ctx.image.shape, region)
     if full is not None:
         classes[full == 0] = 0
     ctx.classes = classes
-    ctx.mask = np.isin(classes, [int(c) for c in p["objects"]]).astype(np.uint8) * 255
+    ctx.mask = np.isin(classes, [int(class_id) for class_id in params["objects"]]).astype(np.uint8) * 255
     ctx.images["mask"] = ctx.mask
-    if p["colors"]:
-        ctx.images["classes"] = C.colorize(classes, list(p["colors"]))
-    ctx.extra["class_colors"] = list(p["colors"])
+    if params["colors"]:
+        ctx.images["classes"] = colorize(classes, list(params["colors"]))
+    ctx.extra["class_colors"] = list(params["colors"])

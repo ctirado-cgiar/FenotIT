@@ -57,31 +57,31 @@ _FOUND: dict = {}
 
 def tools() -> list[str]:
     """Herramientas de conversión instaladas en ese Python."""
-    py = python()
-    if not py:
+    interpreter = python()
+    if not interpreter:
         return []
-    if py == sys.executable:
+    if interpreter == sys.executable:
         return [name for name in TOOLS if importlib.util.find_spec(name) is not None]
-    if py not in _FOUND or not _FOUND[py]:
+    if interpreter not in _FOUND or not _FOUND[interpreter]:
         code = "import importlib.util as u;print(','.join(n for n in %r if u.find_spec(n)))" % (TOOLS,)
         try:
-            out = subprocess.run([py, "-c", code], capture_output=True, text=True, timeout=60).stdout.strip()
+            out = subprocess.run([interpreter, "-c", code], capture_output=True, text=True, timeout=60).stdout.strip()
         except (OSError, subprocess.SubprocessError):
             out = ""
-        _FOUND[py] = [n for n in out.split(",") if n]
-    return _FOUND[py]
+        _FOUND[interpreter] = [name for name in out.split(",") if name]
+    return _FOUND[interpreter]
 
 
-def to_onnx(pt: str, out_dir: str, timeout: int = 1800) -> dict:
+def to_onnx(checkpoint: str, out_dir: str, timeout: int = 1800) -> dict:
     """Convierte `pt` y deja `model.onnx` en `out_dir`. Devuelve {"onnx", "classes", "input",
     "tool"}. RuntimeError con el motivo si ninguna herramienta pudo convertirlo."""
     Path(out_dir).mkdir(parents=True, exist_ok=True)
-    py = python()
-    if not py:
+    interpreter = python()
+    if not interpreter:
         raise RuntimeError("no Python with ultralytics or rfdetr")
-    proc = subprocess.run([py, _script(), str(pt), str(out_dir)],
+    proc = subprocess.run([interpreter, _script(), str(checkpoint), str(out_dir)],
                           capture_output=True, text=True, timeout=timeout, cwd=str(out_dir))
-    lines = [ln for ln in proc.stdout.splitlines() if ln.startswith("{")]
+    lines = [line for line in proc.stdout.splitlines() if line.startswith("{")]
     if not lines:
         tail = (proc.stderr or proc.stdout).strip().splitlines()[-3:]
         raise RuntimeError("\n".join(tail) or f"exit code {proc.returncode}")
@@ -99,13 +99,13 @@ def _move(src: Path, out_dir: Path) -> str:
     return str(dst)
 
 
-def _ultralytics(pt: Path, out_dir: Path) -> dict:
+def _ultralytics(checkpoint: Path, out_dir: Path) -> dict:
     import shutil
     from ultralytics import YOLO
-    work = out_dir / pt.name                          # la exportación queda junto a los pesos: en la copia
-    copied = work.resolve() != pt.resolve()
+    work = out_dir / checkpoint.name                          # la exportación queda junto a los pesos: en la copia
+    copied = work.resolve() != checkpoint.resolve()
     if copied:
-        shutil.copyfile(pt, work)
+        shutil.copyfile(checkpoint, work)
     try:
         model = YOLO(str(work))
         if model.task != "detect":
@@ -114,7 +114,7 @@ def _ultralytics(pt: Path, out_dir: Path) -> dict:
         size = int(size[0] if isinstance(size, (list, tuple)) else size)
         path = model.export(format="onnx", imgsz=size, opset=17, dynamic=False, simplify=False)
         names = model.names
-        classes = [str(names[k]) for k in sorted(names)] if isinstance(names, dict) else [str(n) for n in names]
+        classes = [str(names[key]) for key in sorted(names)] if isinstance(names, dict) else [str(name) for name in names]
         onnx = _move(Path(path), out_dir)
     finally:
         if copied:
@@ -122,21 +122,21 @@ def _ultralytics(pt: Path, out_dir: Path) -> dict:
     return {"onnx": onnx, "classes": classes, "input": size, "tool": "ultralytics"}
 
 
-def _rfdetr(pt: Path, out_dir: Path) -> dict:
+def _rfdetr(checkpoint: Path, out_dir: Path) -> dict:
     import rfdetr
     import torch
-    pt = pt.resolve()
-    ckpt = torch.load(str(pt), map_location="cpu", weights_only=False)
+    checkpoint = checkpoint.resolve()
+    ckpt = torch.load(str(checkpoint), map_location="cpu", weights_only=False)
     args = ckpt.get("args") if isinstance(ckpt, dict) else None
     classes = list(getattr(args, "class_names", None) or [])
     errors = []
     loaders = []
     if hasattr(rfdetr.RFDETR, "from_checkpoint"):     # elige la variante según el checkpoint
-        loaders.append(("from_checkpoint", lambda: rfdetr.RFDETR.from_checkpoint(str(pt), trust_checkpoint=True)))
+        loaders.append(("from_checkpoint", lambda: rfdetr.RFDETR.from_checkpoint(str(checkpoint), trust_checkpoint=True)))
     for name in ("RFDETRBase", "RFDETRMedium", "RFDETRSmall", "RFDETRNano", "RFDETRLarge"):
         cls = getattr(rfdetr, name, None)
         if cls is not None:
-            loaders.append((name, lambda cls=cls: cls(pretrain_weights=str(pt),
+            loaders.append((name, lambda cls=cls: cls(pretrain_weights=str(checkpoint),
                                                        **({"num_classes": len(classes)} if classes else {}))))
     for name, load in loaders:
         try:
@@ -145,21 +145,21 @@ def _rfdetr(pt: Path, out_dir: Path) -> dict:
         except Exception as e:                         # otra variante del modelo
             errors.append(f"{name}: {e}")
             continue
-        found = sorted(out_dir.glob("*.onnx"), key=lambda p: p.stat().st_mtime)
+        found = sorted(out_dir.glob("*.onnx"), key=lambda path: path.stat().st_mtime)
         if found:
             size = int(getattr(model.model, "resolution", 0) or getattr(args, "resolution", 0) or 560)
             return {"onnx": _move(found[-1], out_dir), "classes": classes, "input": size, "tool": "rfdetr"}
     raise ValueError("; ".join(errors) or "no RF-DETR class could load the weights")
 
 
-def _main(pt: str, out_dir: str):
-    pt_path, out = Path(pt), Path(out_dir)
+def _main(checkpoint: str, out_dir: str):
+    pt_path, out = Path(checkpoint), Path(out_dir)
     errors = []
-    for name, fn in (("ultralytics", _ultralytics), ("rfdetr", _rfdetr)):
+    for name, convert_with in (("ultralytics", _ultralytics), ("rfdetr", _rfdetr)):
         if importlib.util.find_spec(name) is None:
             continue
         try:
-            print(json.dumps(fn(pt_path, out)), flush=True)
+            print(json.dumps(convert_with(pt_path, out)), flush=True)
             return
         except Exception as e:
             errors.append(f"{name}: {e}")

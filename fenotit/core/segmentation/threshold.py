@@ -18,15 +18,15 @@ _CHANNEL = {"key": "channel", "type": "int", "default": 0, "min": 0, "max": 2}
     {"key": "min_val", "type": "int", "default": 0, "min": 0, "max": 255},
     {"key": "max_val", "type": "int", "default": 255, "min": 0, "max": 255},
 ])
-def threshold(ctx, p):
-    ch = colorspaces.channel(ctx.image, p["color_space"], p["channel"])
-    mask = ((ch >= int(p["min_val"])) & (ch <= int(p["max_val"]))).astype(np.uint8) * 255
+def threshold(ctx, params):
+    channel = colorspaces.channel(ctx.image, params["color_space"], params["channel"])
+    mask = ((channel >= int(params["min_val"])) & (channel <= int(params["max_val"]))).astype(np.uint8) * 255
     ctx.mask = mask
     ctx.images["mask"] = mask
 
 
 @step("whole", "segmenter", provides=("mask",))
-def whole(ctx, p):
+def whole(ctx, params):
     """Toda la imagen (luego "roi" aplica el área de análisis y las exclusiones)."""
     ctx.mask = np.full(ctx.image.shape[:2], 255, np.uint8)
 
@@ -36,18 +36,18 @@ def whole(ctx, p):
     {"key": "invert", "type": "bool", "default": False},
     {"key": "auto_polarity", "type": "bool", "default": True},
 ])
-def otsu(ctx, p):
+def otsu(ctx, params):
     """Umbral automático (Otsu) calculado solo con los píxeles del área de análisis, sin
     las zonas excluidas (si las hay). auto_polarity: si la máscara cubre la mayor parte
     del borde de esa zona (o de la foto), se invierte: el fondo suele tocar el borde, los
     objetos no."""
-    ch = colorspaces.channel(ctx.image, p["color_space"], p["channel"])
-    region = ctx.analysis_region(ch.shape)
-    vals = ch[region > 0] if region is not None and region.any() else ch.ravel()
+    channel = colorspaces.channel(ctx.image, params["color_space"], params["channel"])
+    region = ctx.analysis_region(channel.shape)
+    vals = channel[region > 0] if region is not None and region.any() else channel.ravel()
     t, _ = cv2.threshold(vals.reshape(-1, 1), 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
-    inverted = bool(p["invert"])
-    mask = ((ch > t) != inverted).astype(np.uint8) * 255
-    if p["auto_polarity"]:
+    inverted = bool(params["invert"])
+    mask = ((channel > t) != inverted).astype(np.uint8) * 255
+    if params["auto_polarity"]:
         if region is not None and region.any():
             edge = (region > 0) & (cv2.erode(region, np.ones((3, 3), np.uint8)) == 0)
             border = mask[edge]

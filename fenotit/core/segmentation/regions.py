@@ -22,44 +22,44 @@ NAMES = ("L", "a", "b", "sd_L", "sd_a", "sd_b", "texture", "log_area", "compactn
 
 def features(img: np.ndarray, labels: np.ndarray) -> np.ndarray:
     """Una fila por región (etiqueta 1..n; las que no existen quedan en NaN)."""
-    k = min(1.0, SIDE / max(img.shape[:2]))
-    if k < 1:
-        img = cv2.resize(img, None, fx=k, fy=k, interpolation=cv2.INTER_AREA)
+    shrink = min(1.0, SIDE / max(img.shape[:2]))
+    if shrink < 1:
+        img = cv2.resize(img, None, fx=shrink, fy=shrink, interpolation=cv2.INTER_AREA)
         labels = cv2.resize(labels.astype(np.int32), (img.shape[1], img.shape[0]),
                             interpolation=cv2.INTER_NEAREST)
     lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB).astype(np.float32)
-    g = cv2.GaussianBlur(lab[..., 0], (0, 0), 1.0)
-    grad = cv2.magnitude(cv2.Sobel(g, cv2.CV_32F, 1, 0), cv2.Sobel(g, cv2.CV_32F, 0, 1))
-    h, w = labels.shape
-    n = int(labels.max())
-    X = np.full((n, len(NAMES)), np.nan, np.float32)
-    for i, sl in enumerate(find_objects(labels), 1):
-        if sl is None:
+    lightness = cv2.GaussianBlur(lab[..., 0], (0, 0), 1.0)
+    grad = cv2.magnitude(cv2.Sobel(lightness, cv2.CV_32F, 1, 0), cv2.Sobel(lightness, cv2.CV_32F, 0, 1))
+    height, width = labels.shape
+    n_regions = int(labels.max())
+    feature_rows = np.full((n_regions, len(NAMES)), np.nan, np.float32)
+    for i, bounds in enumerate(find_objects(labels), 1):
+        if bounds is None:
             continue
-        m = labels[sl] == i
-        a = int(m.sum())
-        if a == 0:
+        mask = labels[bounds] == i
+        area = int(mask.sum())
+        if area == 0:
             continue
-        px = lab[sl][m]
-        cnts, _ = cv2.findContours(m.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-        c = max(cnts, key=cv2.contourArea)
-        per = cv2.arcLength(c, True)
-        hull = cv2.contourArea(cv2.convexHull(c))
-        (_, _), (rw, rh), _ = cv2.minAreaRect(c)
-        bh, bw = m.shape
-        X[i - 1] = (*px.mean(0), *px.std(0), grad[sl][m].mean(), np.log10(a / (h * w)),
-                    4 * np.pi * a / max(per * per, 1), a / max(hull, 1), a / (bh * bw),
-                    min(rw, rh) / max(rw, rh, 1e-6),
-                    float(sl[0].start == 0 or sl[1].start == 0 or sl[0].stop == h or sl[1].stop == w))
-    return X
+        pixels = lab[bounds][mask]
+        cnts, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        contour = max(cnts, key=cv2.contourArea)
+        per = cv2.arcLength(contour, True)
+        hull = cv2.contourArea(cv2.convexHull(contour))
+        (_, _), (rect_width, rect_height), _ = cv2.minAreaRect(contour)
+        box_height, box_width = mask.shape
+        feature_rows[i - 1] = (*pixels.mean(0), *pixels.std(0), grad[bounds][mask].mean(), np.log10(area / (height * width)),
+                    4 * np.pi * area / max(per * per, 1), area / max(hull, 1), area / (box_height * box_width),
+                    min(rect_width, rect_height) / max(rect_width, rect_height, 1e-6),
+                    float(bounds[0].start == 0 or bounds[1].start == 0 or bounds[0].stop == height or bounds[1].stop == width))
+    return feature_rows
 
 
 def examples(img: np.ndarray, labels: np.ndarray, cats: np.ndarray):
     """Rasgos y categoría de cada región de una foto clasificada por el usuario."""
-    X = features(img, labels)
-    y = np.asarray(cats[1:len(X) + 1], np.int16)
-    ok = ~np.isnan(X).any(1)
-    return X[ok], y[ok]
+    feature_rows = features(img, labels)
+    y = np.asarray(cats[1:len(feature_rows) + 1], np.int16)
+    ok = ~np.isnan(feature_rows).any(1)
+    return feature_rows[ok], y[ok]
 
 
 class _OneCategory:
@@ -68,8 +68,8 @@ class _OneCategory:
     def __init__(self, category: int):
         self.category = int(category)
 
-    def predict(self, X: np.ndarray) -> np.ndarray:
-        return np.full(len(X), self.category, np.int32)
+    def predict(self, feature_rows: np.ndarray) -> np.ndarray:
+        return np.full(len(feature_rows), self.category, np.int32)
 
 
 # modelos entrenados en esta sesión (los 3 últimos), por huella de los ejemplos
@@ -82,7 +82,7 @@ def _cached(key: str):
     return _MODELS.get(key)
 
 
-def train(X: np.ndarray, y: np.ndarray, key: str):
+def train(feature_rows: np.ndarray, y: np.ndarray, key: str):
     """Bosque aleatorio entrenado con los ejemplos (X, y); `key` = su huella."""
     model = _cached(key)
     if model is not None:
@@ -92,7 +92,7 @@ def train(X: np.ndarray, y: np.ndarray, key: str):
     else:
         from sklearn.ensemble import RandomForestClassifier
         model = RandomForestClassifier(200, min_samples_leaf=1, n_jobs=-1, random_state=0,
-                                       class_weight="balanced").fit(X, y)
+                                       class_weight="balanced").fit(feature_rows, y)
     _MODELS[key] = model
     while len(_MODELS) > 3:
         _MODELS.popitem(last=False)
@@ -104,18 +104,18 @@ def load(path: str, key: str):
     model = _cached(key)
     if model is not None:
         return model
-    with np.load(path) as d:
-        return train(d["X"], d["y"], key)
+    with np.load(path) as data:
+        return train(data["X"], data["y"], key)
 
 
 def predict(model, img: np.ndarray, labels: np.ndarray) -> np.ndarray:
     """Categoría de cada región (índice = etiqueta; 0 = sin usar)."""
-    n = int(labels.max())
-    cats = np.zeros(n + 1, np.int32)
-    if n == 0:
+    n_regions = int(labels.max())
+    cats = np.zeros(n_regions + 1, np.int32)
+    if n_regions == 0:
         return cats
-    X = features(img, labels)
-    ok = ~np.isnan(X).any(1)
+    feature_rows = features(img, labels)
+    ok = ~np.isnan(feature_rows).any(1)
     if ok.any():
-        cats[1:][ok] = model.predict(X[ok])
+        cats[1:][ok] = model.predict(feature_rows[ok])
     return cats

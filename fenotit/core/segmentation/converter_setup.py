@@ -31,11 +31,11 @@ def env_dir() -> Path:
 
 
 def env_python() -> Path:
-    d = env_dir()
+    folder = env_dir()
     if sys.platform.startswith("win"):
-        embedded = d / "python.exe"
-        return embedded if embedded.exists() else d / "Scripts" / "python.exe"
-    return d / "bin" / "python"
+        embedded = folder / "python.exe"
+        return embedded if embedded.exists() else folder / "Scripts" / "python.exe"
+    return folder / "bin" / "python"
 
 
 def installed() -> bool:
@@ -43,10 +43,10 @@ def installed() -> bool:
 
 
 def size_mb() -> float:
-    d = env_dir()
-    if not d.exists():
+    folder = env_dir()
+    if not folder.exists():
         return 0.0
-    return sum(f.stat().st_size for f in d.rglob("*") if f.is_file()) / 1e6
+    return sum(file.stat().st_size for file in folder.rglob("*") if file.is_file()) / 1e6
 
 
 def uninstall():
@@ -75,27 +75,27 @@ def _run(cmd: list[str], log: Callable[[str], None], cancel: threading.Event):
 def _download(url: str, dest: Path, log: Callable[[str], None], cancel: threading.Event):
     import urllib.request
     log(url)
-    with urllib.request.urlopen(url, timeout=60) as r, open(dest, "wb") as f:
-        while chunk := r.read(1 << 16):
+    with urllib.request.urlopen(url, timeout=60) as response, open(dest, "wb") as out_file:
+        while chunk := response.read(1 << 16):
             if cancel.is_set():
                 raise Cancelled()
-            f.write(chunk)
+            out_file.write(chunk)
 
 
 def _embedded_python(log, cancel):
     """Python embebible de python.org con pip (Windows, aplicación instalada)."""
-    d = env_dir()
-    zip_path = d / "python.zip"
+    folder = env_dir()
+    zip_path = folder / "python.zip"
     _download(EMBED_URL, zip_path, log, cancel)
     with zipfile.ZipFile(zip_path) as z:
-        z.extractall(d)
+        z.extractall(folder)
     zip_path.unlink()
-    for pth in d.glob("python*._pth"):              # habilita site-packages
+    for pth in folder.glob("python*._pth"):              # habilita site-packages
         text = pth.read_text().replace("#import site", "import site")
         if "Lib\\site-packages" not in text:
             text += "\nLib\\site-packages\n"
         pth.write_text(text)
-    get_pip = d / "get-pip.py"
+    get_pip = folder / "get-pip.py"
     _download(GET_PIP_URL, get_pip, log, cancel)
     _run([str(env_python()), str(get_pip), "--no-warn-script-location"], log, cancel)
     get_pip.unlink()
@@ -105,10 +105,10 @@ def install(log: Callable[[str], None] = print, cancel: threading.Event | None =
     """Crea el Python privado e instala PyTorch para CPU (si ese índice no responde, el de
     PyPI), Ultralytics y onnx. Al terminar deja la marca `ready`."""
     cancel = cancel or threading.Event()
-    d = env_dir()
-    if d.exists() and not installed():
-        shutil.rmtree(d, ignore_errors=True)        # instalación anterior incompleta
-    d.mkdir(parents=True, exist_ok=True)
+    folder = env_dir()
+    if folder.exists() and not installed():
+        shutil.rmtree(folder, ignore_errors=True)        # instalación anterior incompleta
+    folder.mkdir(parents=True, exist_ok=True)
     try:
         if not env_python().exists():
             if getattr(sys, "frozen", False):
@@ -116,17 +116,17 @@ def install(log: Callable[[str], None] = print, cancel: threading.Event | None =
                     raise RuntimeError("automatic install is only available on Windows")
                 _embedded_python(log, cancel)
             else:
-                _run([sys.executable, "-m", "venv", str(d)], log, cancel)
-        py = str(env_python())
-        pip = [py, "-m", "pip", "install", "--disable-pip-version-check", "--no-warn-script-location"]
-        _run([py, "-m", "pip", "install", "--disable-pip-version-check", "--upgrade", "pip"], log, cancel)
+                _run([sys.executable, "-m", "venv", str(folder)], log, cancel)
+        interpreter = str(env_python())
+        pip = [interpreter, "-m", "pip", "install", "--disable-pip-version-check", "--no-warn-script-location"]
+        _run([interpreter, "-m", "pip", "install", "--disable-pip-version-check", "--upgrade", "pip"], log, cancel)
         try:
             _run(pip + ["torch", "torchvision", "--index-url", TORCH_CPU], log, cancel)
         except RuntimeError:
             log("PyPI")
             _run(pip + ["torch", "torchvision"], log, cancel)
         _run(pip + PACKAGES, log, cancel)
-        (d / "ready").write_text("ok", encoding="utf-8")
+        (folder / "ready").write_text("ok", encoding="utf-8")
     except Cancelled:
-        shutil.rmtree(d, ignore_errors=True)
+        shutil.rmtree(folder, ignore_errors=True)
         raise

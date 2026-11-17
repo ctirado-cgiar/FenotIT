@@ -24,8 +24,8 @@ __all__ = ["DEFAULT_REFINE", "METHODS", "REFINE_OPS", "boxes_only", "chain", "fr
 
 def boxes_only(seg: dict) -> bool:
     """La segmentación da cajas (detector sin pasar las cajas a máscaras)."""
-    m = seg.get("model") or {}
-    return seg.get("method") == "model" and m.get("output") == "boxes" and not m.get("to_masks")
+    model = seg.get("model") or {}
+    return seg.get("method") == "model" and model.get("output") == "boxes" and not model.get("to_masks")
 
 
 def from_legacy(params: dict) -> dict:
@@ -43,29 +43,29 @@ def chain(seg: dict) -> list[dict]:
     """Piezas de segmentación (sin roi): segmentador y, si hay, afinar máscara."""
     method = seg.get("method", "threshold")
     if method == "classifier":
-        c = seg.get("classifier") or {}
-        steps = [{"step": "classify", "params": {"samples": c.get("samples", ""), "hash": c.get("hash", ""),
-                                                 "objects": list(c.get("objects", [1])),
-                                                 "colors": list(c.get("colors", [])),
-                                                 "detail": float(c.get("detail", 1.0))}}]
+        classifier_cfg = seg.get("classifier") or {}
+        steps = [{"step": "classify", "params": {"samples": classifier_cfg.get("samples", ""), "hash": classifier_cfg.get("hash", ""),
+                                                 "objects": list(classifier_cfg.get("objects", [1])),
+                                                 "colors": list(classifier_cfg.get("colors", [])),
+                                                 "detail": float(classifier_cfg.get("detail", 1.0))}}]
     elif method == "model" and (seg.get("model") or {}).get("output") == "boxes":
-        m = seg["model"]
-        steps = [{"step": "detect", "params": {"model": m.get("name", ""), "conf": float(m.get("conf", 0.25)),
-                                               "use": [int(c) for c in m.get("use") or []],
-                                               "to_masks": bool(m.get("to_masks")),
-                                               "colors": list(m.get("colors") or [])}}]
+        model = seg["model"]
+        steps = [{"step": "detect", "params": {"model": model.get("name", ""), "conf": float(model.get("conf", 0.25)),
+                                               "use": [int(classifier_cfg) for classifier_cfg in model.get("use") or []],
+                                               "to_masks": bool(model.get("to_masks")),
+                                               "colors": list(model.get("colors") or [])}}]
     elif method == "model":
-        m = seg.get("model") or {}
-        steps = [{"step": "model_segment", "params": {"model": m.get("name", "mobilesam"),
-                                                      "mode": m.get("mode", "auto"),
-                                                      "grid": int(m.get("grid", 16)),
-                                                      "points": list(m.get("points") or []),
-                                                      "categories": [c["name"] for c in m.get("categories") or []],
-                                                      "colors": [c["color"] for c in m.get("categories") or []],
-                                                      "default": int(m.get("default", 1)),
-                                                      "picks": list(m.get("picks") or []),
-                                                      "own": bool(m.get("own", True)),
-                                                      "learn": dict(m.get("learn") or {})}}]
+        model = seg.get("model") or {}
+        steps = [{"step": "model_segment", "params": {"model": model.get("name", "mobilesam"),
+                                                      "mode": model.get("mode", "auto"),
+                                                      "grid": int(model.get("grid", 16)),
+                                                      "points": list(model.get("points") or []),
+                                                      "categories": [classifier_cfg["name"] for classifier_cfg in model.get("categories") or []],
+                                                      "colors": [classifier_cfg["color"] for classifier_cfg in model.get("categories") or []],
+                                                      "default": int(model.get("default", 1)),
+                                                      "picks": list(model.get("picks") or []),
+                                                      "own": bool(model.get("own", True)),
+                                                      "learn": dict(model.get("learn") or {})}}]
     elif seg.get("auto"):
         steps = [{"step": "otsu", "params": {"color_space": seg.get("color_space", "BGR"),
                                              "channel": int(seg.get("channel", 0))}}]
