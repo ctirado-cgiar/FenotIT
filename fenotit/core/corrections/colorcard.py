@@ -43,43 +43,43 @@ class Card:
                 "chip": round(float(self.chip), 1), "found": self.found}
 
     @classmethod
-    def from_dict(cls, d: dict) -> "Card":
-        return cls(d["rows"], d["cols"], np.array(d["centers"], float), d["chip"], d.get("found", 0))
+    def from_dict(cls, data: dict) -> "Card":
+        return cls(data["rows"], data["cols"], np.array(data["centers"], float), data["chip"], data.get("found", 0))
 
 
 def _candidates(small: np.ndarray):
     """Zonas lisas rodeadas de bordes, casi cuadradas: (cx, cy, área, lado)."""
     blur = cv2.GaussianBlur(small, (3, 3), 0)
     edges = np.zeros(small.shape[:2], np.uint8)
-    for ch in cv2.split(cv2.cvtColor(blur, cv2.COLOR_BGR2LAB)):
-        edges |= cv2.Canny(ch, 20, 50)
+    for channel in cv2.split(cv2.cvtColor(blur, cv2.COLOR_BGR2LAB)):
+        edges |= cv2.Canny(channel, 20, 50)
     edges = cv2.dilate(edges, np.ones((3, 3), np.uint8))
-    n, lab, st, _ = cv2.connectedComponentsWithStats((edges == 0).astype(np.uint8), connectivity=4)
+    n_regions, lab, region_stats, _ = cv2.connectedComponentsWithStats((edges == 0).astype(np.uint8), connectivity=4)
     out = []
-    for i in range(1, n):
-        x, y, bw, bh, a = st[i]
-        if a < 40 or a > 0.01 * edges.size or max(bw, bh) > 2.5 * max(1, min(bw, bh)):
+    for i in range(1, n_regions):
+        x, y, box_width, box_height, area = region_stats[i]
+        if area < 40 or area > 0.01 * edges.size or max(box_width, box_height) > 2.5 * max(1, min(box_width, box_height)):
             continue
-        cs, _ = cv2.findContours((lab[y:y + bh, x:x + bw] == i).astype(np.uint8), cv2.RETR_EXTERNAL,
+        contours, _ = cv2.findContours((lab[y:y + box_height, x:x + box_width] == i).astype(np.uint8), cv2.RETR_EXTERNAL,
                                  cv2.CHAIN_APPROX_SIMPLE)
-        (cx, cy), (rw, rh), _ = cv2.minAreaRect(cs[0])
-        if min(rw, rh) == 0 or max(rw, rh) / min(rw, rh) > 1.35 or a / (rw * rh) < 0.85:
+        (cx, cy), (rect_width, rect_height), _ = cv2.minAreaRect(contours[0])
+        if min(rect_width, rect_height) == 0 or max(rect_width, rect_height) / min(rect_width, rect_height) > 1.35 or area / (rect_width * rect_height) < 0.85:
             continue
-        out.append((cx + x, cy + y, a, (rw + rh) / 2))
+        out.append((cx + x, cy + y, area, (rect_width + rect_height) / 2))
     return np.array(out, float).reshape(-1, 4)
 
 
-def _cluster(c: np.ndarray, pitch: float) -> np.ndarray:
+def _cluster(candidates: np.ndarray, pitch: float) -> np.ndarray:
     """El grupo más grande de cuadritos vecinos (la tarjeta)."""
-    pts = c[:, :2]
-    d = np.linalg.norm(pts[:, None] - pts[None], axis=2)
-    near = d < 1.7 * pitch
+    pts = candidates[:, :2]
+    distances = np.linalg.norm(pts[:, None] - pts[None], axis=2)
+    near = distances < 1.7 * pitch
     seen, best = set(), []
-    for s in range(len(pts)):
-        if s in seen:
+    for start in range(len(pts)):
+        if start in seen:
             continue
-        group, todo = [], [s]
-        seen.add(s)
+        group, todo = [], [start]
+        seen.add(start)
         while todo:
             i = todo.pop()
             group.append(i)
@@ -89,81 +89,81 @@ def _cluster(c: np.ndarray, pitch: float) -> np.ndarray:
                     todo.append(j)
         if len(group) > len(best):
             best = group
-    return c[sorted(best)]
+    return candidates[sorted(best)]
 
 
 def _grid_indices(pts: np.ndarray, pitch: float):
     """Índices (i, j) de cada punto en la cuadrícula, sin importar el giro."""
-    d = pts[:, None] - pts[None]
-    dist = np.linalg.norm(d, axis=2)
+    offsets = pts[:, None] - pts[None]
+    dist = np.linalg.norm(offsets, axis=2)
     np.fill_diagonal(dist, np.inf)
-    nn = d[np.arange(len(pts)), dist.argmin(1)]
-    ang = np.arctan2(nn[:, 1], nn[:, 0])
+    nearest_offset = offsets[np.arange(len(pts)), dist.argmin(1)]
+    ang = np.arctan2(nearest_offset[:, 1], nearest_offset[:, 0])
     theta = np.angle(np.exp(4j * ang).mean()) / 4               # dirección de la cuadrícula (mód. 90°)
     rot = np.array([[np.cos(theta), np.sin(theta)], [-np.sin(theta), np.cos(theta)]])
-    uv = (pts - pts.mean(0)) @ rot.T
-    idx = np.zeros_like(uv)
+    rotated = (pts - pts.mean(0)) @ rot.T
+    idx = np.zeros_like(rotated)
     for axis in (0, 1):
-        v = uv[:, axis]
-        p = pitch
-        a = v.min()
+        coords = rotated[:, axis]
+        spacing = pitch
+        origin = coords.min()
         for _ in range(3):                                      # paso y origen por mínimos cuadrados
-            k = np.round((v - a) / p)
-            if np.ptp(k) > 0:
-                p, a = np.polyfit(k, v, 1)
+            steps = np.round((coords - origin) / spacing)
+            if np.ptp(steps) > 0:
+                spacing, origin = np.polyfit(steps, coords, 1)
             else:
                 break
-        idx[:, axis] = np.round((v - a) / p)
+        idx[:, axis] = np.round((coords - origin) / spacing)
     idx -= idx.min(0)
     return idx.astype(int)
 
 
 def detect(image: np.ndarray, rows: int = 4, cols: int = 6) -> Card | None:
     """La tarjeta de rows × cols cuadritos (en cualquier giro) o None."""
-    h, w = image.shape[:2]
-    k = min(1.0, DETECT_SIDE / max(h, w))
-    small = cv2.resize(image, None, fx=k, fy=k, interpolation=cv2.INTER_AREA) if k < 1 else image
-    c = _candidates(small)
-    if len(c) < 4:
+    height, width = image.shape[:2]
+    shrink = min(1.0, DETECT_SIDE / max(height, width))
+    small = cv2.resize(image, None, fx=shrink, fy=shrink, interpolation=cv2.INTER_AREA) if shrink < 1 else image
+    candidates = _candidates(small)
+    if len(candidates) < 4:
         return None
-    side = np.median(c[:, 3])
-    c = c[(c[:, 3] > 0.6 * side) & (c[:, 3] < 1.6 * side)]
-    if len(c) < 4:
+    side = np.median(candidates[:, 3])
+    candidates = candidates[(candidates[:, 3] > 0.6 * side) & (candidates[:, 3] < 1.6 * side)]
+    if len(candidates) < 4:
         return None
-    pts = c[:, :2]
+    pts = candidates[:, :2]
     dist = np.linalg.norm(pts[:, None] - pts[None], axis=2)
     np.fill_diagonal(dist, np.inf)
     pitch = float(np.median(dist.min(1)))
-    c = _cluster(c, pitch)
+    candidates = _cluster(candidates, pitch)
     need = max(4, int(0.5 * rows * cols))
-    if len(c) < need:
+    if len(candidates) < need:
         return None
-    idx = _grid_indices(c[:, :2], pitch)
-    gr, gc = idx[:, 1].max() + 1, idx[:, 0].max() + 1           # filas (v) y columnas (u) vistas
-    if sorted((gr, gc)) != sorted((rows, cols)):
+    idx = _grid_indices(candidates[:, :2], pitch)
+    grid_rows, grid_cols = idx[:, 1].max() + 1, idx[:, 0].max() + 1           # filas (v) y columnas (u) vistas
+    if sorted((grid_rows, grid_cols)) != sorted((rows, cols)):
         return None
     if len({tuple(i) for i in idx}) < len(idx):                  # dos puntos en la misma celda
         return None
-    H, inl = cv2.findHomography(idx.astype(np.float32), c[:, :2].astype(np.float32), cv2.RANSAC, 0.25 * pitch)
-    if H is None:
+    homography, inl = cv2.findHomography(idx.astype(np.float32), candidates[:, :2].astype(np.float32), cv2.RANSAC, 0.25 * pitch)
+    if homography is None:
         return None
-    jj, ii = np.mgrid[0:gr, 0:gc]
-    grid = np.stack([ii, jj], -1).reshape(-1, 1, 2).astype(np.float32)
-    centers = cv2.perspectiveTransform(grid, H).reshape(gr, gc, 2) / k
-    return Card(int(gr), int(gc), centers, float(np.median(c[:, 3])) / k, len(c))
+    grid_y, grid_x = np.mgrid[0:grid_rows, 0:grid_cols]
+    grid = np.stack([grid_x, grid_y], -1).reshape(-1, 1, 2).astype(np.float32)
+    centers = cv2.perspectiveTransform(grid, homography).reshape(grid_rows, grid_cols, 2) / shrink
+    return Card(int(grid_rows), int(grid_cols), centers, float(np.median(candidates[:, 3])) / shrink, len(candidates))
 
 
 def measure(image: np.ndarray, card: Card, frac: float = 0.4) -> np.ndarray:
     """Color medio (RGB 0-1) del centro de cada cuadrito: (filas, cols, 3). Un cuadrito
     que no queda entero dentro de la foto (tarjeta cortada por el borde) queda en NaN."""
-    r = max(1, int(card.chip * frac / 2))
-    h, w = image.shape[:2]
+    half = max(1, int(card.chip * frac / 2))
+    height, width = image.shape[:2]
     out = np.full((card.rows, card.cols, 3), np.nan)
     for j in range(card.rows):
         for i in range(card.cols):
             x, y = card.centers[j, i].round().astype(int)
-            if r <= x < w - r and r <= y < h - r:
-                out[j, i] = image[y - r:y + r + 1, x - r:x + r + 1].reshape(-1, 3).mean(0)[::-1] / 255.0
+            if half <= x < width - half and half <= y < height - half:
+                out[j, i] = image[y - half:y + half + 1, x - half:x + half + 1].reshape(-1, 3).mean(0)[::-1] / 255.0
     return out
 
 
@@ -173,27 +173,27 @@ def visible(measured: np.ndarray) -> int:
 
 
 def _affine(src: np.ndarray, dst: np.ndarray) -> np.ndarray:
-    S = np.hstack([src.reshape(-1, 3), np.ones((src.size // 3, 1))])
-    return np.linalg.pinv(S) @ dst.reshape(-1, 3)                    # (4, 3)
+    source_matrix = np.hstack([src.reshape(-1, 3), np.ones((src.size // 3, 1))])
+    return np.linalg.pinv(source_matrix) @ dst.reshape(-1, 3)                    # (4, 3)
 
 
 def _fit_error(src, dst) -> float:
     src, dst = src.reshape(-1, 3), dst.reshape(-1, 3)
     ok = np.isfinite(src).all(1)
-    A = _affine(src[ok], dst[ok])
-    S = np.hstack([src[ok], np.ones((int(ok.sum()), 1))])
-    return float(np.abs(S @ A - dst[ok]).mean())
+    affine = _affine(src[ok], dst[ok])
+    source_matrix = np.hstack([src[ok], np.ones((int(ok.sum()), 1))])
+    return float(np.abs(source_matrix @ affine - dst[ok]).mean())
 
 
 def orient(measured: np.ndarray, reference: np.ndarray) -> tuple[np.ndarray, int]:
     """Gira la medición (0, 90, 180, 270°) a la forma de la referencia; elige la que mejor
     ajusta. Devuelve (medición girada, vueltas)."""
-    options = [(np.rot90(measured, k), k) for k in range(4)]
-    options = [(m, k) for m, k in options if m.shape == reference.shape]
+    options = [(np.rot90(measured, turns), turns) for turns in range(4)]
+    options = [(rotated, turns) for rotated, turns in options if rotated.shape == reference.shape]
     if not options:
         raise ValueError(f"card {measured.shape[0]}x{measured.shape[1]} does not match reference "
                          f"{reference.shape[0]}x{reference.shape[1]}")
-    return min(options, key=lambda o: _fit_error(o[0], reference))
+    return min(options, key=lambda option: _fit_error(option[0], reference))
 
 
 MAX_MISSING = 4                                    # cuadritos que pueden faltar (fuera de la foto)
@@ -202,31 +202,31 @@ MAX_MISSING = 4                                    # cuadritos que pueden faltar
 def matrix(src: np.ndarray, reference: np.ndarray, max_drop: int = 4) -> tuple[np.ndarray, list[int]]:
     """Matriz afín (4×3) que lleva los colores medidos a la referencia (RGB 0-1). Los
     cuadritos que no ajustan (reflejo, sombra, tapados) se dejan fuera: hasta max_drop."""
-    S, T = src.reshape(-1, 3), reference.reshape(-1, 3)
-    keep = np.isfinite(S).all(1)
+    source, target = src.reshape(-1, 3), reference.reshape(-1, 3)
+    keep = np.isfinite(source).all(1)
     dropped: list[int] = list(np.nonzero(~keep)[0])
     for _ in range(max_drop):
-        A = _affine(S[keep], T[keep])
-        res = np.linalg.norm(np.hstack([S, np.ones((len(S), 1))]) @ A - T, axis=1)
+        affine = _affine(source[keep], target[keep])
+        res = np.linalg.norm(np.hstack([source, np.ones((len(source), 1))]) @ affine - target, axis=1)
         res[~keep] = 0
         worst = int(res.argmax())
         if res[worst] <= max(3 * np.median(res[keep]), 0.08):
             break
         keep[worst] = False
         dropped.append(worst)
-    return _affine(S[keep], T[keep]), sorted(int(i) for i in dropped)
+    return _affine(source[keep], target[keep]), sorted(int(i) for i in dropped)
 
 
-def apply_matrix(image: np.ndarray, A: np.ndarray) -> np.ndarray:
+def apply_matrix(image: np.ndarray, affine: np.ndarray) -> np.ndarray:
     """Aplica la corrección afín a una foto BGR uint8, por bloques de filas."""
-    h, w = image.shape[:2]
+    height, width = image.shape[:2]
     out = np.empty_like(image)
     flat_in, flat_out = image.reshape(-1, 3), out.reshape(-1, 3)
-    M, b = A[:3, ::-1][::-1].astype(np.float32), A[3, ::-1].astype(np.float32)     # en orden BGR
+    linear, offset = affine[:3, ::-1][::-1].astype(np.float32), affine[3, ::-1].astype(np.float32)     # en orden BGR
     step = 1 << 20
-    for s in range(0, h * w, step):
-        px = flat_in[s:s + step].astype(np.float32) / 255.0
-        flat_out[s:s + step] = np.clip((px @ M + b) * 255.0, 0, 255).astype(np.uint8)
+    for start in range(0, height * width, step):
+        pixels = flat_in[start:start + step].astype(np.float32) / 255.0
+        flat_out[start:start + step] = np.clip((pixels @ linear + offset) * 255.0, 0, 255).astype(np.uint8)
     return out
 
 
@@ -240,13 +240,13 @@ def correct(image: np.ndarray, card: Card | None = None, reference: np.ndarray =
         return None, {"error": "card incomplete", "card": card, "visible": visible(measured),
                       "chips": card.rows * card.cols}
     src, turns = orient(measured, reference)
-    A, dropped = matrix(src, reference)
-    fixed = apply_matrix(image, A)
+    affine, dropped = matrix(src, reference)
+    fixed = apply_matrix(image, affine)
     after = np.rot90(measure(fixed, card), turns).reshape(-1, 3)
     ok = np.ones(len(after), bool)
     ok[dropped] = False
     err = float(np.abs(after[ok] - reference.reshape(-1, 3)[ok]).mean() * 255)
-    return fixed, {"card": card, "turns": turns, "matrix": A, "found": card.found,
+    return fixed, {"card": card, "turns": turns, "matrix": affine, "found": card.found,
                    "chips": card.rows * card.cols, "dropped": dropped, "mean_error_rgb": round(err, 2)}
 
 
@@ -271,18 +271,18 @@ def place_card(cfg, image: np.ndarray) -> Card | None:
     rows, cols = cfg.grid()
     if cfg.mode == "fixed" and cfg.place:
         card = Card.from_dict(cfg.place)
-        w0, h0 = cfg.place.get("size", (image.shape[1], image.shape[0]))
-        k = np.array([image.shape[1] / w0, image.shape[0] / h0])
-        card.centers = card.centers * k
-        card.chip *= float(k.mean())
+        saved_width, saved_height = cfg.place.get("size", (image.shape[1], image.shape[0]))
+        factor = np.array([image.shape[1] / saved_width, image.shape[0] / saved_height])
+        card.centers = card.centers * factor
+        card.chip *= float(factor.mean())
         return card
     return detect(image, rows, cols)
 
 
 def region_mean(image: np.ndarray, region) -> np.ndarray:
-    h, w = image.shape[:2]
+    height, width = image.shape[:2]
     x0, y0, x1, y1 = region
-    patch = image[int(min(y0, y1) * h):int(max(y0, y1) * h) + 1, int(min(x0, x1) * w):int(max(x0, x1) * w) + 1]
+    patch = image[int(min(y0, y1) * height):int(max(y0, y1) * height) + 1, int(min(x0, x1) * width):int(max(x0, x1) * width) + 1]
     if patch.size == 0:
         raise ValueError("empty white/gray area")
     return patch.reshape(-1, 3).mean(0)[::-1] / 255.0          # RGB 0-1
@@ -293,14 +293,14 @@ def white_balance(image: np.ndarray, cfg) -> tuple[np.ndarray | None, dict]:
     brillo) o igual a la de la foto de referencia."""
     if not cfg.region:
         return None, {"error": "no white/gray area marked"}
-    m = region_mean(image, cfg.region)
+    measured = region_mean(image, cfg.region)
     if cfg.reference == "photo" and cfg.target:
         goal = np.array(cfg.target, float).reshape(-1)[:3]
     else:
-        goal = np.full(3, m.mean())
-    gains = goal / np.maximum(m, 1e-3)
-    A = np.vstack([np.diag(gains), np.zeros(3)])
-    return apply_matrix(image, A), {"gains": gains.round(4).tolist(), "measured": m.round(4).tolist()}
+        goal = np.full(3, measured.mean())
+    gains = goal / np.maximum(measured, 1e-3)
+    affine = np.vstack([np.diag(gains), np.zeros(3)])
+    return apply_matrix(image, affine), {"gains": gains.round(4).tolist(), "measured": measured.round(4).tolist()}
 
 
 def apply_config(image: np.ndarray, cfg) -> tuple[np.ndarray | None, dict]:
@@ -321,14 +321,14 @@ def measure_reference(image: np.ndarray, cfg) -> list:
     card = place_card(cfg, image)
     if card is None:
         raise ValueError("card not found")
-    m = measure(image, card)
-    if visible(m) < m.shape[0] * m.shape[1]:
+    measured = measure(image, card)
+    if visible(measured) < measured.shape[0] * measured.shape[1]:
         raise ValueError("card incomplete")
     if cfg.card == "colorchecker24":
-        m, _ = orient(m, COLORCHECKER24)
-    elif m.shape[:2] != (cfg.rows, cfg.cols):
-        m = np.rot90(m)
-    return m.round(5).tolist()
+        measured, _ = orient(measured, COLORCHECKER24)
+    elif measured.shape[:2] != (cfg.rows, cfg.cols):
+        measured = np.rot90(measured)
+    return measured.round(5).tolist()
 
 
 def preview(image: np.ndarray, card: Card, dropped=(), turns: int = 0, side: int = 520) -> np.ndarray:
@@ -338,20 +338,20 @@ def preview(image: np.ndarray, card: Card, dropped=(), turns: int = 0, side: int
     x0, y0 = np.maximum(pts.min(0) - pad, 0).astype(int)
     x1, y1 = np.minimum(pts.max(0) + pad, [image.shape[1], image.shape[0]]).astype(int)
     crop = image[y0:y1, x0:x1].copy()
-    k = side / max(crop.shape[:2])
-    crop = cv2.resize(crop, None, fx=k, fy=k, interpolation=cv2.INTER_AREA)
+    zoom = side / max(crop.shape[:2])
+    crop = cv2.resize(crop, None, fx=zoom, fy=zoom, interpolation=cv2.INTER_AREA)
     order = np.rot90(np.arange(card.rows * card.cols).reshape(card.rows, card.cols), turns).reshape(-1)
-    number = {int(g): n for n, g in enumerate(order)}                # cuadrícula vista -> nº en la referencia
-    r = max(3, int(card.chip * k * 0.2))
-    for g, (x, y) in enumerate(pts):
-        cx, cy = int((x - x0) * k), int((y - y0) * k)
-        n = number.get(g, g)
-        bad = n in dropped
-        cv2.circle(crop, (cx, cy), r, (0, 0, 255) if bad else (255, 255, 255), 2, cv2.LINE_AA)
+    number = {int(grid_index): reference_index for reference_index, grid_index in enumerate(order)}                # cuadrícula vista -> nº en la referencia
+    radius = max(3, int(card.chip * zoom * 0.2))
+    for grid_index, (x, y) in enumerate(pts):
+        cx, cy = int((x - x0) * zoom), int((y - y0) * zoom)
+        reference_index = number.get(grid_index, grid_index)
+        bad = reference_index in dropped
+        cv2.circle(crop, (cx, cy), radius, (0, 0, 255) if bad else (255, 255, 255), 2, cv2.LINE_AA)
         if bad:
-            cv2.line(crop, (cx - r, cy - r), (cx + r, cy + r), (0, 0, 255), 2, cv2.LINE_AA)
-        cv2.putText(crop, str(n + 1), (cx - r, cy - r - 3), cv2.FONT_HERSHEY_SIMPLEX, max(0.35, r / 22),
+            cv2.line(crop, (cx - radius, cy - radius), (cx + radius, cy + radius), (0, 0, 255), 2, cv2.LINE_AA)
+        cv2.putText(crop, str(reference_index + 1), (cx - radius, cy - radius - 3), cv2.FONT_HERSHEY_SIMPLEX, max(0.35, radius / 22),
                     (255, 255, 255), 2, cv2.LINE_AA)
-        cv2.putText(crop, str(n + 1), (cx - r, cy - r - 3), cv2.FONT_HERSHEY_SIMPLEX, max(0.35, r / 22),
+        cv2.putText(crop, str(reference_index + 1), (cx - radius, cy - radius - 3), cv2.FONT_HERSHEY_SIMPLEX, max(0.35, radius / 22),
                     (0, 0, 0), 1, cv2.LINE_AA)
     return crop

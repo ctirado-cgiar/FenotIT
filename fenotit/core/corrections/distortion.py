@@ -47,11 +47,11 @@ class CalibrationResult:
     size: tuple[int, int] | None = None     # (ancho, alto) de las fotos usadas
 
 
-def spread(paths: list[str], n: int = MAX_PHOTOS) -> list[str]:
+def spread(paths: list[str], count: int = MAX_PHOTOS) -> list[str]:
     """Hasta n fotos repartidas a lo largo de la lista (no solo las primeras)."""
-    if len(paths) <= n:
+    if len(paths) <= count:
         return list(paths)
-    idx = np.linspace(0, len(paths) - 1, n).round().astype(int)
+    idx = np.linspace(0, len(paths) - 1, count).round().astype(int)
     return [paths[i] for i in dict.fromkeys(idx)]
 
 
@@ -65,8 +65,8 @@ def has_board(path: str, cols: int, rows: int) -> bool:
     reducido (1/2, 1/4 u 1/8) y solo se busca, sin afinar esquinas."""
     try:
         from PIL import Image
-        with Image.open(path) as im:
-            side = max(im.size)
+        with Image.open(path) as picture:
+            side = max(picture.size)
         data = np.frombuffer(Path(path).read_bytes(), np.uint8)
     except Exception:
         return False
@@ -75,9 +75,9 @@ def has_board(path: str, cols: int, rows: int) -> bool:
     gray = cv2.imdecode(data, flag)
     if gray is None:
         return False
-    k = QUICK_SIDE / max(gray.shape)
-    if k < 1:                                   # en fotos sin tablero la búsqueda tarda más con el tamaño
-        gray = cv2.resize(gray, None, fx=k, fy=k, interpolation=cv2.INTER_AREA)
+    shrink = QUICK_SIDE / max(gray.shape)
+    if shrink < 1:                                   # en fotos sin tablero la búsqueda tarda más con el tamaño
+        gray = cv2.resize(gray, None, fx=shrink, fy=shrink, interpolation=cv2.INTER_AREA)
     flags = cv2.CALIB_CB_ADAPTIVE_THRESH | cv2.CALIB_CB_NORMALIZE_IMAGE | cv2.CALIB_CB_FAST_CHECK
     found, _ = cv2.findChessboardCorners(gray, (cols, rows), flags)
     return bool(found)
@@ -91,43 +91,43 @@ def detect(path: str, cols: int, rows: int, preview_side: int = 360) -> Detectio
     if img is None:
         return Detection(path, False)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    h, w = gray.shape
-    k = min(1.0, DETECT_SIDE / max(h, w))
-    small = cv2.resize(gray, None, fx=k, fy=k, interpolation=cv2.INTER_AREA) if k < 1 else gray
+    height, width = gray.shape
+    shrink = min(1.0, DETECT_SIDE / max(height, width))
+    small = cv2.resize(gray, None, fx=shrink, fy=shrink, interpolation=cv2.INTER_AREA) if shrink < 1 else gray
     flags = cv2.CALIB_CB_ADAPTIVE_THRESH | cv2.CALIB_CB_NORMALIZE_IMAGE | cv2.CALIB_CB_FAST_CHECK
     found, corners = cv2.findChessboardCorners(small, (cols, rows), flags)
     if found:
-        corners = (corners / k).astype(np.float32)
-        win = max(5, int(round(5 / k)))
+        corners = (corners / shrink).astype(np.float32)
+        win = max(5, int(round(5 / shrink)))
         crit = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
         corners = cv2.cornerSubPix(gray, corners, (win, win), (-1, -1), crit)
-    kp = preview_side / max(h, w)
-    prev = cv2.resize(img, None, fx=kp, fy=kp, interpolation=cv2.INTER_AREA)
+    preview_scale = preview_side / max(height, width)
+    prev = cv2.resize(img, None, fx=preview_scale, fy=preview_scale, interpolation=cv2.INTER_AREA)
     if found:
-        cv2.drawChessboardCorners(prev, (cols, rows), corners * kp, True)
-    return Detection(path, bool(found), corners if found else None, (h, w), prev)
+        cv2.drawChessboardCorners(prev, (cols, rows), corners * preview_scale, True)
+    return Detection(path, bool(found), corners if found else None, (height, width), prev)
 
 
 def solve(detections: list[Detection], cols: int, rows: int) -> CalibrationResult:
-    used = [d for d in detections if d.found]
+    used = [detection for detection in detections if detection.found]
     total = len(detections)
     if len(used) < 3:
         return CalibrationResult(False, n_images_used=len(used), n_images_total=total, detections=detections,
                                  message=f"Board found in {len(used)} of {total} photos (need 3).")
-    sizes = {d.shape for d in used}
+    sizes = {detection.shape for detection in used}
     if len(sizes) > 1:
-        size = max(sizes, key=lambda s: sum(d.shape == s for d in used))
-        used = [d for d in used if d.shape == size]
+        size = max(sizes, key=lambda shape: sum(detection.shape == shape for detection in used))
+        used = [detection for detection in used if detection.shape == size]
     objp = np.zeros((rows * cols, 3), np.float32)
     objp[:, :2] = np.mgrid[0:cols, 0:rows].T.reshape(-1, 2)
-    h, w = used[0].shape
-    rms, mtx, dist, rvecs, tvecs = cv2.calibrateCamera([objp] * len(used), [d.corners for d in used],
-                                                       (w, h), None, None)
-    for d, rv, tv in zip(used, rvecs, tvecs):
-        proj, _ = cv2.projectPoints(objp, rv, tv, mtx, dist)
-        d.error_px = float(np.sqrt(np.mean(np.sum((proj - d.corners) ** 2, axis=2))))
+    height, width = used[0].shape
+    rms, mtx, dist, rvecs, tvecs = cv2.calibrateCamera([objp] * len(used), [detection.corners for detection in used],
+                                                       (width, height), None, None)
+    for detection, rvec, tvec in zip(used, rvecs, tvecs):
+        proj, _ = cv2.projectPoints(objp, rvec, tvec, mtx, dist)
+        detection.error_px = float(np.sqrt(np.mean(np.sum((proj - detection.corners) ** 2, axis=2))))
     return CalibrationResult(True, mtx, dist, round(float(rms), 4), len(used), total,
-                             f"RMS {rms:.4f} px", detections, (w, h))
+                             f"RMS {rms:.4f} px", detections, (width, height))
 
 
 def calibrate(images: list[str], inner_cols: int = 7, inner_rows: int = 6,
@@ -148,5 +148,5 @@ def calibrate(images: list[str], inner_cols: int = 7, inner_rows: int = 6,
 def calibrate_from_folder(folder: str, inner_cols: int = 7, inner_rows: int = 6,
                           output_params_dir: str | None = None, progress_cb=None) -> CalibrationResult:
     exts = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"}
-    files = sorted(str(p) for p in Path(folder).iterdir() if p.suffix.lower() in exts)
+    files = sorted(str(path) for path in Path(folder).iterdir() if path.suffix.lower() in exts)
     return calibrate(files, inner_cols, inner_rows, output_params_dir, progress_cb)

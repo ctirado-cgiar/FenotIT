@@ -49,7 +49,7 @@ def detect_aruco_corners(image: np.ndarray) -> dict[int, np.ndarray]:
     for i, marker_id in enumerate(ids.flatten()):
         if 0 <= marker_id <= 3:
             # Centro del marcador
-            c = corners[i][0]
-            result[int(marker_id)] = c.mean(axis=0)  # [x, y]
+            marker_corners = corners[i][0]
+            result[int(marker_id)] = marker_corners.mean(axis=0)  # [x, y]
 
     return result

@@ -47,9 +47,9 @@ class ColorCard:
     region: list | None = None        # white: [x0, y0, x1, y1] (0-1) del área blanca o gris
 
     @classmethod
-    def from_dict(cls, d: dict) -> "ColorCard":
+    def from_dict(cls, data: dict) -> "ColorCard":
         known = cls.__dataclass_fields__
-        return cls(**{k: v for k, v in (d or {}).items() if k in known})   # proyectos viejos (pos, radius, mask)
+        return cls(**{key: value for key, value in (data or {}).items() if key in known})   # proyectos viejos (pos, radius, mask)
 
     def grid(self) -> tuple[int, int]:
         return (4, 6) if self.card == "colorchecker24" else (int(self.rows), int(self.cols))
@@ -62,7 +62,7 @@ class Corrections:
     color: ColorCard = field(default_factory=ColorCard)
 
     def active(self) -> list[str]:
-        return [n for n in ("distortion", "perspective", "color") if getattr(self, n).enabled]
+        return [name for name in ("distortion", "perspective", "color") if getattr(self, name).enabled]
 
     def to_dict(self) -> dict:
         return {"distortion": asdict(self.distortion),
@@ -70,11 +70,11 @@ class Corrections:
                 "color": asdict(self.color)}
 
     @classmethod
-    def from_dict(cls, d: dict | None, folder: Path | None = None) -> "Corrections":
-        d = d or {}
-        return cls(Distortion(**d.get("distortion", {})),
-                   Perspective(**d.get("perspective", {})),
-                   ColorCard.from_dict(d.get("color", {})))
+    def from_dict(cls, data: dict | None, folder: Path | None = None) -> "Corrections":
+        data = data or {}
+        return cls(Distortion(**data.get("distortion", {})),
+                   Perspective(**data.get("perspective", {})),
+                   ColorCard.from_dict(data.get("color", {})))
 
     def save_files(self, folder: Path) -> None:
         """Todo va en el YAML del proyecto."""
@@ -95,14 +95,14 @@ class CorrectionInfo:
 def to_working(image: np.ndarray, info: CorrectionInfo, max_mpx: float | None) -> np.ndarray:
     """Después de las correcciones (hechas en la foto completa), la foto para analizar: si
     pasa de max_mpx megapíxeles se reduce. La escala de ArUco se ajusta al nuevo tamaño."""
-    h, w = image.shape[:2]
-    if not max_mpx or h * w <= max_mpx * 1e6:
+    height, width = image.shape[:2]
+    if not max_mpx or height * width <= max_mpx * 1e6:
         return image
-    k = (max_mpx * 1e6 / (h * w)) ** 0.5
-    info.work_k = k
+    factor = (max_mpx * 1e6 / (height * width)) ** 0.5
+    info.work_k = factor
     if info.mm_per_px:
-        info.mm_per_px /= k
-    return cv2.resize(image, (max(1, round(w * k)), max(1, round(h * k))), interpolation=cv2.INTER_AREA)
+        info.mm_per_px /= factor
+    return cv2.resize(image, (max(1, round(width * factor)), max(1, round(height * factor))), interpolation=cv2.INTER_AREA)
 
 
 # ── Distorsión ────────────────────────────────────────────────────────────────
@@ -112,26 +112,26 @@ def load_npz(path: str | Path) -> Distortion:
     return Distortion(True, data["mtx"].tolist(), data["dist"].tolist(), None, Path(path).name)
 
 
-def camera_matrix(cfg: Distortion, w: int, h: int) -> np.ndarray:
+def camera_matrix(cfg: Distortion, width: int, height: int) -> np.ndarray:
     """La matriz de la cámara vale para el tamaño de las fotos del tablero. Otra resolución
     con la misma proporción (p. ej. la cámara en 50 MP y en 200 MP) se escala; otra
     proporción (recortada o girada) no se puede corregir con esta calibración."""
     mtx = np.array(cfg.mtx, dtype=np.float64)
-    if not cfg.size or tuple(cfg.size) == (w, h):
+    if not cfg.size or tuple(cfg.size) == (width, height):
         return mtx
-    cw, ch = cfg.size
-    if abs(w / h - cw / ch) > 0.01:
-        raise ValueError(f"calibration made for {cw}x{ch} photos, this one is {w}x{h}")
-    k = np.diag([w / cw, h / ch, 1.0])
-    return k @ mtx
+    calib_width, calib_height = cfg.size
+    if abs(width / height - calib_width / calib_height) > 0.01:
+        raise ValueError(f"calibration made for {calib_width}x{calib_height} photos, this one is {width}x{height}")
+    scaling = np.diag([width / calib_width, height / calib_height, 1.0])
+    return scaling @ mtx
 
 
 def undistort(image: np.ndarray, cfg: Distortion) -> np.ndarray:
-    h, w = image.shape[:2]
-    mtx, dist = camera_matrix(cfg, w, h), np.array(cfg.dist, dtype=np.float64)
-    new_mtx, (x, y, rw, rh) = cv2.getOptimalNewCameraMatrix(mtx, dist, (w, h), 1, (w, h))
+    height, width = image.shape[:2]
+    mtx, dist = camera_matrix(cfg, width, height), np.array(cfg.dist, dtype=np.float64)
+    new_mtx, (x, y, roi_width, roi_height) = cv2.getOptimalNewCameraMatrix(mtx, dist, (width, height), 1, (width, height))
     out = cv2.undistort(image, mtx, dist, None, new_mtx)
-    return out[y:y + rh, x:x + rw] if rw > 0 and rh > 0 else out
+    return out[y:y + roi_height, x:x + roi_width] if roi_width > 0 and roi_height > 0 else out
 
 
 # ── Perspectiva ───────────────────────────────────────────────────────────────
@@ -142,9 +142,9 @@ def rectify(image: np.ndarray, cfg: Perspective) -> tuple[np.ndarray | None, flo
     missing = [i for i in range(4) if i not in centers]
     if missing:
         return None, None, f"missing ArUco IDs {missing}"
-    tl, tr, br, bl = (np.asarray(centers[i], dtype=np.float64) for i in range(4))
-    w_px = (np.linalg.norm(tr - tl) + np.linalg.norm(br - bl)) / 2
-    h_px = (np.linalg.norm(bl - tl) + np.linalg.norm(br - tr)) / 2
+    top_left, top_right, bottom_right, bottom_left = (np.asarray(centers[i], dtype=np.float64) for i in range(4))
+    w_px = (np.linalg.norm(top_right - top_left) + np.linalg.norm(bottom_right - bottom_left)) / 2
+    h_px = (np.linalg.norm(bottom_left - top_left) + np.linalg.norm(bottom_right - top_right)) / 2
 
     mm_per_px = None
     if cfg.width_mm and cfg.height_mm:
@@ -152,11 +152,11 @@ def rectify(image: np.ndarray, cfg: Perspective) -> tuple[np.ndarray | None, flo
         w_px, h_px = cfg.width_mm * px_per_mm, cfg.height_mm * px_per_mm
         mm_per_px = 1 / px_per_mm
 
-    m = cfg.margin_px
-    dst = np.float32([[m, m], [m + w_px, m], [m + w_px, m + h_px], [m, m + h_px]])
-    M = cv2.getPerspectiveTransform(np.float32([tl, tr, br, bl]), dst)
-    size = (int(round(w_px + 2 * m)), int(round(h_px + 2 * m)))
-    out = cv2.warpPerspective(image, M, size, flags=cv2.INTER_LINEAR,
+    margin = cfg.margin_px
+    dst = np.float32([[margin, margin], [margin + w_px, margin], [margin + w_px, margin + h_px], [margin, margin + h_px]])
+    transform = cv2.getPerspectiveTransform(np.float32([top_left, top_right, bottom_right, bottom_left]), dst)
+    size = (int(round(w_px + 2 * margin)), int(round(h_px + 2 * margin)))
+    out = cv2.warpPerspective(image, transform, size, flags=cv2.INTER_LINEAR,
                               borderMode=cv2.BORDER_CONSTANT, borderValue=(255, 255, 255))
     return out, mm_per_px, ""
 
@@ -165,8 +165,8 @@ def rectify(image: np.ndarray, cfg: Perspective) -> tuple[np.ndarray | None, flo
 
 def color_correct(image: np.ndarray, cfg: ColorCard) -> tuple[np.ndarray | None, dict]:
     """Corrección de color con la tarjeta (core.corrections.colorcard)."""
-    from fenotit.core.corrections import colorcard as cc
-    return cc.apply_config(image, cfg)
+    from fenotit.core.corrections import colorcard
+    return colorcard.apply_config(image, cfg)
 
 
 # ── Pipeline ──────────────────────────────────────────────────────────────────
@@ -209,6 +209,6 @@ def apply(image: np.ndarray, corr: Corrections) -> tuple[np.ndarray, CorrectionI
             _log.exception("Corrección de color falló")
             info.warnings.append(f"color: {e}")
 
-    for w in info.warnings:
-        _log.warning(w)
+    for warning in info.warnings:
+        _log.warning(warning)
     return out, info
