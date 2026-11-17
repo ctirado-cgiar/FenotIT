@@ -30,7 +30,7 @@ Each object is represented by its centroid. Two definitions of neighbor are avai
 | Center to center | Euclidean distance between centroids |
 
 The center-to-center distance is always exported as well. A pair whose segment crosses a
-third object is flagged (`crosses_object = 1`) and not drawn.
+third object is flagged (`crosses_object = 1`); the view draws the other pairs.
 
 ## 7.3 Per object and per photo
 
@@ -64,9 +64,9 @@ $$z = \frac{\bar d - \bar d_{\text{random}}}{0.26136 \, \sqrt{A} \, / \, n}$$
 
 The pattern differs from random at the 5 % level when $z$ is below −1.96 or above 1.96.
 
-The index has no edge correction (Donnelly, 1978): objects near the edge of the area find
-their nearest neighbor farther away than objects in the middle, which raises $R$ slightly when
-there are few objects. An analysis area drawn closely around the objects keeps this effect
+Objects near the edge of the area find their nearest neighbor farther away than objects in
+the middle (edge effect; Donnelly, 1978), which raises $R$ slightly when there are few
+objects. An analysis area drawn closely around the objects keeps this effect
 small.
 
 ## 7.5 Objects with classes

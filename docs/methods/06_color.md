@@ -17,8 +17,7 @@ interpolation of the camera sensor. A ring is removed from the edge of each obje
 with a 3 × 3 square; its width in pixels is 1.5 % of the square root of the object area,
 rounded and kept between 1 and 3 px. The width of the mixed edge depends on the blur, which
 spans 1 to 3 px, more than on the object size, so the ring stays thin on large leaves. When
-fewer than 20 pixels remain, the whole object is used. Manually excluded objects are not
-measured.
+fewer than 20 pixels remain, the whole object is used.
 
 ## 6.2 Mean color
 

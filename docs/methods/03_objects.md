@@ -33,8 +33,8 @@ thickness of the object (Figure 3.1c).
 **Markers.** The markers are the peaks of the distance that are at least $d$ pixels apart. The
 spacing $d$ is about the typical object radius: a first search with peaks 5 px apart gives the
 distance value at each peak, and $d$ is 0.9 times the median of those values (at least 3 px). A
-peak is kept only if its value is at least 0.2 times the highest value in its own region, so a
-large object elsewhere in the photo does not hide the peaks of thin objects.
+peak is kept only if its value is at least 0.2 times the highest value in its own region, so thin
+objects keep their peaks next to a large object elsewhere in the photo.
 
 **Watershed.** Starting from the markers, each pixel of the region is assigned to the marker it
 reaches first when the distance map is flooded from its peaks downwards (Figure 3.1d).
@@ -43,15 +43,16 @@ reaches first when the distance map is flooded from its peaks downwards (Figure 
 pixels (Otsu threshold on L\* inside the mask) that touch the background and are either large
 (at least 0.1 times the typical area) or line shaped (square of the longest bounding-box side
 divided by the area ≥ 4) are treated as shadows between objects. The distance is computed
-without them, and parts separated by a shadow are never joined again.
+with these pixels as background, and parts separated by a shadow stay separate.
 
 **Joining parts.** The watershed tends to cut elongated or curved objects in several parts. Two
 neighboring parts are joined when any of these holds:
 
-- *No narrowing between them.* Along their common boundary, the distance to the background
-  stays at least 0.9 times the peak distance of the thinner part.
-- *No notches.* Two touching objects leave a notch (a concavity of the outline) at both ends
-  of the line where they touch; a cut through a single object does not. FenotIT measures how
+- *Wide boundary.* Along their common boundary, the distance to the background stays at
+  least 0.9 times the peak distance of the thinner part.
+- *Shallow end of the cut.* Two touching objects leave a notch (a concavity of the outline) at
+  both ends of the line where they touch, while a cut through a single object has a smooth
+  outline at its ends. FenotIT measures how
   deep each end of the cut lies inside the convex hull of the two parts together. If one end is
   shallower than 0.2 times the typical radius (at least 2 px) and the connection is wide (at
   least 0.6 times the peak distance of the thinner part), the parts are joined.
@@ -74,21 +75,22 @@ The cut with the highest score is made if both parts have a solidity of at least
 least 0.03 above the solidity of the whole object. Up to three cuts are made one after another.
 
 **Flag.** Objects that come from a split region carry `touching = 1`. They are counted, and by
-default they are left out of the size and shape measurements (section 4), since part of their
-outline is a cut.
+default the size and shape measurements (section 4) use the isolated objects, since part of
+the outline of a touching object is a cut; the option "Measure touching objects" includes
+them.
 
 ## 3.3 Filters
 
 - **Noise.** Objects smaller than 0.01 % of the photo and smaller than 5 % of the typical object
-  are removed. The typical object area is the median weighted by area, so many specks of noise
-  do not lower it. Both limits are relative, so the rule gives the same result at any
+  are removed. The typical object area is the median weighted by area, so it reflects the
+  real objects even among many specks of noise. Both limits are relative, so the rule gives the same result at any
   resolution.
 - **Border.** Objects that touch the edge of the photo are cut by it; they can be excluded
   (option "Exclude objects on the border").
 - **Size.** Optional minimum and maximum length and width (section 4), in the unit of the scale;
   0 means no limit.
-- **Manual exclusion.** An object excluded by the user in the inspector keeps its number but is
-  neither counted nor measured (`status = excluded`). The choice is stored as a point in
+- **Manual exclusion.** An object excluded by the user in the inspector keeps its number, is
+  drawn in gray and has `status = excluded`; counts and measurements cover the other objects. The choice is stored as a point in
   relative coordinates and applied again each time the photo is analyzed.
 
 ## 3.4 Numbering

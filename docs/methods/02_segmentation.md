@@ -37,8 +37,7 @@ two groups are most different, that is, where
 $$\text{(share of group 1)} \times \text{(share of group 2)} \times (\text{mean of group 1} - \text{mean of group 2})^2$$
 
 is largest. When analysis areas are drawn, the histogram contains only the pixels inside them
-(without the excluded zones), so the background outside the working surface does not shift the
-threshold. Objects can be the lighter or the darker group; FenotIT takes as background the group
+(minus the excluded zones), so the threshold depends on the working surface only. Objects can be the lighter or the darker group; FenotIT takes as background the group
 that covers most of the border of the analysis area (or of the photo), since objects rarely
 cover the border. The threshold found for each photo is exported as `otsu_threshold`.
 
@@ -50,8 +49,8 @@ group on the right; Otsu's threshold (99) falls between them.*
 
 ## 2.4 Segmentation by examples (pixel classifier)
 
-When no single channel separates objects from background (leaves with lesions, mottled seeds,
-uneven backgrounds), the user paints a few brush strokes of each class on the photo: background
+When objects and background share values in every channel (leaves with lesions, mottled
+seeds, uneven backgrounds), the user paints a few brush strokes of each class on the photo: background
 and one or more object classes, for example healthy tissue and lesion. A random forest
 (Breiman, 2001) learns from the painted pixels and classifies every pixel of the photo, in the
 manner of ilastik (Berg et al., 2019).
@@ -71,12 +70,12 @@ weighted by their number of examples, and at most 6000 painted pixels per class 
 **Resolution.** The classification runs on a copy of 1 megapixel by default (0.5 or 2 can be
 chosen); the class probabilities are enlarged to the full photo before each pixel takes the
 class of highest probability, which keeps the edges smooth. Strokes painted on several photos
-are pooled into one training set, and photos without strokes are classified with it.
+are pooled into one training set, and the other photos are classified with it.
 
 The mask contains the classes marked as objects. Each object then reports the area and share of
 each of its classes (`<class>_pct`, `<class>_area_<unit>2`), and each photo the totals.
 
-**Example: banana leaves.** Thirteen photos of banana leaves at different stages (Figure 2.3)
+**Example: banana leaves.** Thirteen photos of different leaves of the same banana plant (Figure 2.3)
 were segmented with four classes painted on two of them: the background and the three colors of
 the leaf, green, dark and yellow (three to five short strokes per class). The red card in each photo measures 100 mm in
 height; its height was 487.7 px (485.5 to 494.8 px in the 12 photos where it was found), which
@@ -102,13 +101,13 @@ gives a scale of 0.205 mm/px for all photos. Results are in cm and cm²:
 
 *Figure 2.3. Banana leaves segmented by examples. (a–c) Three leaves and their class map (the
 leaf colors green, dark and yellow; background in blue), with the leaf area and the length and width of the
-smallest enclosing rectangle. (d) Share of each color (bars) and leaf area (line) in the 13
-photos, in order of capture.*
+smallest enclosing rectangle. (d) Share of each color (bars) and leaf area (points) in the 13
+photos.*
 
 ## 2.5 Regions from MobileSAM
 
 MobileSAM (Zhang et al., 2023), a compact version of Segment Anything (Kirillov et al., 2023),
-cuts the photo into regions without training. FenotIT runs it on the CPU with ONNX Runtime. The
+cuts the photo into regions with a model trained on general images. FenotIT runs it on the CPU with ONNX Runtime. The
 photo is encoded once at 1024 px on its longest side, and the decoder is asked for the region
 under a set of points:
 
@@ -117,18 +116,18 @@ under a set of points:
   lesions;
 - points on a regular grid (16 × 16 by default) for large or low-contrast regions.
 
-A point that falls inside a region already accepted is skipped. For each point the decoder
+The decoder is asked only for points outside the regions already accepted. For each point the decoder
 returns three candidate regions with a predicted quality; a region is kept when its predicted
 quality is at least 0.86 and its outline is stable (its area changes by less than 8 % when the
 decision limit of the decoder is moved up and down). When two regions overlap by more than 70 %,
 the better one is kept; a region inside another (a lesion on a leaf) is kept as well. Pixels not
-covered by any region form regions of their own. All regions are shown to the user, without
-filters by size or position.
+covered by any region form regions of their own. All regions are shown to the user, of any size
+and position.
 
 The user gives each region a category (for example plant, weed and soil): all regions start in
-one category, a click assigns the selected category and a second click leaves the region out.
-In photos without clicks, each region is classified by a random forest (200 trees) trained on the
-regions classified in other photos, with features that do not depend on the resolution: mean
+one category, a click assigns the selected category and a second click marks the region as unused.
+In the other photos, each region is classified by a random forest (200 trees) trained on the
+regions classified in other photos, with features independent of the resolution: mean
 and standard deviation of L\*, a\* and b\*, mean lightness gradient, area as a fraction of the
 photo (logarithm), compactness, solidity, extent, elongation and contact with the photo border.
 With two or more categories, each object reports its category and each photo the number, area
@@ -149,7 +148,7 @@ of a chosen diameter in pixels and can be repeated:
 |---|---|
 | Erosion | Shrinks objects; removes specks and thin bridges |
 | Dilation | Grows objects; joins nearby parts |
-| Opening (erosion, then dilation) | Removes specks and thin protrusions without shrinking large objects |
+| Opening (erosion, then dilation) | Removes specks and thin protrusions and keeps the size of large objects |
 | Closing (dilation, then erosion) | Fills cracks and small gaps |
 | Opening by reconstruction | Removes objects smaller than the disk and leaves the outline of the others untouched |
 | Fill holes | Fills holes inside objects (see below) |
@@ -157,16 +156,16 @@ of a chosen diameter in pixels and can be repeated:
 
 **Filling holes.** A hole (background enclosed by an object, such as a bright hilum) is filled
 when its area is less than 0.2 times the typical object area, taken as the median area of the
-regions of the mask that measure at least 5 % of the largest. Larger holes are left as they are,
-because they are usually background enclosed by a ring of touching objects. Holes that reach the
-border of the photo are never filled. By default the list contains only "Fill holes".
+regions of the mask that measure at least 5 % of the largest. Larger holes stay as background:
+they are usually the background enclosed by a ring of touching objects. Holes that reach the
+border of the photo also stay as background. By default the list contains only "Fill holes".
 
 ## 2.8 Area classification
 
 The *Classify areas* analysis classifies every pixel of the analysis area with the pixel
-classifier of section 2.4 and reports the share and area of each class, without separating
-objects. For a class with $n$ pixels, out of $N$ classified pixels in the analysis area
-(excluded zones removed), the share is $100\,n/N$ % and the area is $n$ times the area of one
-pixel (the scale squared; px² without a scale). The output has one row per class (`class`,
+classifier of section 2.4 and reports the share and area of each class over the whole analysis
+area. For a class with $n$ pixels, out of $N$ classified pixels in the analysis area
+(outside the excluded zones), the share is $100\,n/N$ % and the area is $n$ times the area of one
+pixel (the scale squared, or 1 px²). The output has one row per class (`class`,
 `pct`, `area_<unit>2`) and, per photo, `<class>_pct`, `<class>_area_<unit>2` and
 `analyzed_area_<unit>2`.

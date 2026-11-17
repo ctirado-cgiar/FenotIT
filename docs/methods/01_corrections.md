@@ -6,10 +6,10 @@ changed):
 
 **lens distortion → perspective → color → scale → working resolution**
 
-When an active correction cannot be applied to a photo (the ArUco markers or the color card
-are not found, or the photo has a different aspect ratio than the calibration), the photo is
-skipped and exported with `status = skipped`. A data set therefore contains only photos that
-received the same corrections.
+A photo is analyzed when every active correction applies to it: the ArUco markers and the
+color card are found, and the photo has the aspect ratio of the lens calibration. The other
+photos are exported with `status = skipped`, so all analyzed photos received the same
+corrections.
 
 ## 1.1 Lens distortion
 
@@ -20,7 +20,7 @@ and tangential distortion terms of Brown (1966). The model has two parts:
   image point where the optical axis falls ($c_x$, $c_y$);
 - five *distortion coefficients*: three radial ($k_1$, $k_2$, $k_3$), which bend straight lines
   more and more towards the edges of the frame, and two tangential ($p_1$, $p_2$), which
-  appear when the lens is not exactly parallel to the sensor.
+  appear when the lens is slightly tilted relative to the sensor.
 
 A point at position $(x, y)$ relative to the optical center (in units of the focal length),
 at distance $r$ from it ($r^2 = x^2 + y^2$), appears in the photo at
@@ -39,13 +39,13 @@ photos and larger than 0.5 px. When more than 40 photos are given, 40 are taken 
 **Correction.** Each photo is remapped so that straight lines become straight, keeping all
 source pixels (OpenCV's optimal camera matrix with $\alpha = 1$) and cropping to the valid
 region. These are the same settings as the calibration scripts used by the Bean Physiology
-team, so their calibration files (`.npz`) load unchanged. A calibration made at one
+team, so their calibration files (`.npz`) load directly. A calibration made at one
 resolution is applied to photos of another resolution with the same aspect ratio by scaling
 the focal lengths and the optical center by the ratio of widths and heights.
 
 **Result on real photos.** Figure 1.1 uses the nine chessboard photos taken in the capture box
-of the bean seed photos (4040 × 3040 px, 7 × 6 inner corners). Each photo was left out in turn,
-the camera was calibrated with the other eight, and the left-out photo was corrected. On a
+of the bean seed photos (4040 × 3040 px, 7 × 6 inner corners). Each photo was corrected
+with a calibration made from the other eight. On a
 flat board the corners of each row and column lie on a straight line, so the distance from
 each corner to the line fitted through its row or column measures the remaining distortion.
 
@@ -65,7 +65,7 @@ corners of the frame extend the zone where the model is fitted to data.
 *Figure 1.1. Lens calibration in the capture box of the bean seed photos. (a) Inner corners
 found on one chessboard photo. (b) For each photo, the RMS distance of its corners to the
 straight line through their row or column, in the original photo (gray) and after the
-correction calibrated without that photo (blue).*
+correction calibrated with the other eight photos (blue).*
 
 ## 1.2 Perspective (ArUco markers)
 
@@ -78,7 +78,7 @@ interpolation, so the surface looks as if photographed from straight above.
 
 The size of the target rectangle keeps the real proportions of the surface:
 
-- **Without measurements**, the width of the rectangle is the mean length, in pixels, of the
+- **With the marker positions only**, the width of the rectangle is the mean length, in pixels, of the
   top and bottom sides of the quadrilateral, and its height the mean length of the left and
   right sides.
 - **With the real distances** between the markers (ID 0 to ID 1 for the width, ID 0 to ID 3 for
@@ -96,7 +96,7 @@ of at most 1.35, filling at least 85 % of their bounding box). The largest group
 spaced like a grid is the card. The direction of the grid is taken from the directions between
 neighboring patches, which gives the row and column of each patch at any rotation of the card.
 A homography from the row and column numbers to the image (RANSAC, tolerance a quarter of the
-patch spacing) places the patches that were not found as candidates; in Figure 1.2a, 23
+patch spacing) places the remaining patches; in Figure 1.2a, 23
 patches were found directly and one was placed by the grid.
 
 **Measuring.** The color of each patch is the mean of its central 40 %, away from the edges.
@@ -110,10 +110,10 @@ from 0 to 1:
 $$\begin{pmatrix} R' & G' & B' \end{pmatrix} = \begin{pmatrix} R & G & B & 1 \end{pmatrix} M$$
 
 where $M$ is a table of 4 × 3 numbers fitted by least squares so that the measured patches
-come as close as possible to their reference values. A patch with glare or shadow does not fit
-the others; FenotIT leaves out, one at a time and at most four, the patch farthest from its
-reference while that distance is more than three times the median distance and more than
-0.08. The reference is one of: the published values of the 24-patch ColorChecker (McCamy et
+come as close as possible to their reference values. Patches with glare or shadow are handled by
+refitting: while the patch farthest from its reference is more than three times the median
+distance away and more than 0.08, the fit is repeated with the other patches (up to four
+times). The reference is one of: the published values of the 24-patch ColorChecker (McCamy et
 al., 1976), the values given by the card maker, or the colors of the card in a reference photo
 (all photos are then matched to that photo).
 
@@ -123,11 +123,10 @@ makes the marked area neutral (or equal to the reference photo).
 **Result on real photos.** The color difference between each patch and its reference was
 measured with CIEDE2000 (ΔE₀₀; Sharma et al., 2005), the CIE formula that weights differences
 in lightness, chroma and hue as they are perceived. A ΔE₀₀ near 1 is the smallest difference
-noticed side by side; values from 2 to 10 are differences seen at a glance. To measure each
-patch with a correction that did not use it, the correction was fitted 24 times, each time
-without one patch (leave-one-out).
+noticed side by side; values from 2 to 10 are differences seen at a glance. Each patch was
+evaluated with a correction fitted to the other 23 patches (cross-validation).
 
-| Card | Before | After (leave-one-out) | Largest, before → after | Gray patches 19–24, after |
+| Card | Before | After (cross-validated) | Largest, before → after | Gray patches 19–24, after |
 |---|---|---|---|---|
 | Durango seed box | 9.9 | 4.1 | 18.2 → 9.4 | 6.4 |
 | Drought seed box | 10.0 | 3.9 | 16.7 → 8.9 | 6.0 |
@@ -138,12 +137,13 @@ patches improve the most. The white and the two lightest grays (patches 19 to 21
 difference similar to or larger than before (Figure 1.2d). The camera's tone curve explains it:
 in the Durango box the white patch was recorded at 85 % of full scale and the next gray at 78 %,
 while their reference values are 95 % and 78 %. The camera compresses the light tones, and a
-linear correction cannot follow that curve: fitted to the whole card, it matches the colored
-patches and the middle grays and leaves the extremes off. Models with squared or root terms, and
-a tone curve fitted to the six grays before the linear correction, gave mean differences of 4.2
-to 4.7 in the same leave-one-out test, no better than the linear model. In the seed boxes the
-glare rule left out the cyan and the white (patches 18 and 19), and in the drought box also the
-black (patch 24).
+linear correction follows a straight line: fitted to the whole card, it matches the colored
+patches and the middle grays, and the white and the black keep part of their difference. Models
+with squared or root terms, and a tone curve fitted to the six grays before the linear
+correction, gave mean differences of 4.2 to 4.7 in the same test, against 4.1 for the linear
+model. In the seed boxes the glare rule refitted the correction with the other patches when it
+reached the cyan and the white (patches 18 and 19), and in the drought box also the black
+(patch 24).
 
 ![Color card](../img/colorcard.png)
 
@@ -151,7 +151,7 @@ black (patch 24).
 in the order of the reference. (b, c) Each square shows the reference color around and the
 photographed color in the center, before and after the correction; the number under each
 square is ΔE₀₀. (d) ΔE₀₀ of each patch before (gray) and after (blue) the correction, each
-patch corrected with a fit that did not include it.*
+patch corrected with a fit to the other 23 patches.*
 
 ## 1.4 Scale
 
@@ -162,7 +162,7 @@ chosen). For each photo it comes from the first available source:
    that distance divided by the distance in pixels between the two points.
 2. **ArUco markers** with real distances (section 1.2).
 3. **The scale for all photos**, set with two points or typed.
-4. **No scale**: results stay in pixels.
+4. **Pixels**: with no scale source, results are given in pixels.
 
 ## 1.5 Working resolution
 

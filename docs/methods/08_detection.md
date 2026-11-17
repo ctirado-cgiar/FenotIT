@@ -31,7 +31,7 @@ class names that Ultralytics stores in the metadata, or the `data.yaml` of the t
 Models in PyTorch format (`.pt`) are converted to ONNX by FenotIT with the tool that trained
 them: Ultralytics (export with opset 17 at the training image size) or RF-DETR (loaded from the
 checkpoint and exported). The conversion runs in a separate Python environment that FenotIT
-can install with one button; Ultralytics and RF-DETR are not part of FenotIT.
+can install with one button; Ultralytics and RF-DETR live in that environment, apart from FenotIT.
 
 Each model has a record with its name, description, owner, license, source and citation, filled
 in when it is added and exported with the results (`model_*` in `metadata.csv`). Models are
@@ -70,7 +70,7 @@ assigns each box to an object of the mask:
 
 - to the object that contains the center of the box;
 - if the center falls on the background, to the object with the most pixels inside the box;
-- if no object pixel falls inside the box, to no object, and the box is not counted.
+- if no object pixel falls inside the box, the box stays unassigned.
 
 Each object reports the number of boxes of each class (`n_<class>`); each photo reports the
 total of the assigned boxes per class (`n_<class>`) and the mean per object (`mean_<class>_per_object`). The table

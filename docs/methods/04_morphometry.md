@@ -60,7 +60,7 @@ used by ImageJ (Schneider et al., 2012) and CellProfiler (Stirling et al., 2021)
 
 | Column | Meaning |
 |---|---|
-| `n_objects` | Objects counted (manually excluded objects are not counted) |
+| `n_objects` | Objects counted (status ok or highlighted) |
 | `n_touching` | Objects that come from a split region |
 | `n_measured` | Objects with size and shape measurements |
 | `n_excluded_manual`, `n_highlighted` | Objects excluded or highlighted in the inspector |

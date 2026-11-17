@@ -34,7 +34,7 @@ $$x(t) = \sum_{n=1}^{N} \left( a_n \cos\frac{2\pi n t}{T} + b_n \sin\frac{2\pi n
 y(t) = \sum_{n=1}^{N} \left( c_n \cos\frac{2\pi n t}{T} + d_n \sin\frac{2\pi n t}{T} \right)$$
 
 around the centroid of the outline. An outline needs at least $2N + 2$ points to be described
-with $N$ harmonics; objects with fewer points are not described.
+with $N$ harmonics; objects with fewer points have empty coefficients.
 
 ## 5.2 Removing position, size, rotation and starting point
 

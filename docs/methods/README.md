@@ -9,8 +9,8 @@ which calls FenotIT's own functions, so each picture shows what the software com
 python docs/make_figures.py      # regenerates docs/img/*.png
 ```
 
-The script expects the example photos in `tests/data/` (folders `Cgiar_*`); figures whose photos
-are missing are left out. The detection figure also needs the detection model installed and its
+The script expects the example photos in `tests/data/` (folders `Cgiar_*`); it draws the figures whose
+photos are present. The detection figure also needs the detection model installed and its
 id in the variable `FENOTIT_DOCS_DETECTOR`.
 
 ## Processing chain
