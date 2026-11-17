@@ -137,7 +137,7 @@ def run(img: np.ndarray, model: dict, conf: float = 0.25, iou: float = 0.5) -> l
     rgb_src = cv2.cvtColor(img if img.ndim == 3 else cv2.cvtColor(img, cv2.COLOR_GRAY2BGR), cv2.COLOR_BGR2RGB)
     name = sess.get_inputs()[0].name
     if fmt == "detr":
-        x = cv2.resize(rgb_src, (size, size), interpolation=cv2.INTER_AREA).astype(np.float32) / 255
+        x = cv2.resize(rgb_src, (size, size), interpolation=cv2.INTER_LINEAR).astype(np.float32) / 255
         x = ((x - MEAN) / STD).transpose(2, 0, 1)[None]
         outs = sess.run(None, {name: x})
         boxes = next(o for o in outs if o.ndim == 3 and o.shape[2] == 4)[0]

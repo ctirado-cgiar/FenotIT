@@ -103,35 +103,44 @@ def _ultralytics(pt: Path, out_dir: Path) -> dict:
     import shutil
     from ultralytics import YOLO
     work = out_dir / pt.name                          # la exportación queda junto a los pesos: en la copia
-    if work.resolve() != pt.resolve():
-        shutil.copy2(pt, work)
-    model = YOLO(str(work))
-    if model.task != "detect":
-        raise ValueError(f"task: {model.task} (only detection models give boxes)")
-    size = model.overrides.get("imgsz") or 640
-    size = int(size[0] if isinstance(size, (list, tuple)) else size)
-    path = model.export(format="onnx", imgsz=size, opset=17, dynamic=False, simplify=False)
-    names = model.names
-    classes = [str(names[k]) for k in sorted(names)] if isinstance(names, dict) else [str(n) for n in names]
-    onnx = _move(Path(path), out_dir)
-    if work != pt:
-        work.unlink(missing_ok=True)
+    copied = work.resolve() != pt.resolve()
+    if copied:
+        shutil.copyfile(pt, work)
+    try:
+        model = YOLO(str(work))
+        if model.task != "detect":
+            raise ValueError(f"task: {model.task} (only detection models give boxes)")
+        size = model.overrides.get("imgsz") or 640
+        size = int(size[0] if isinstance(size, (list, tuple)) else size)
+        path = model.export(format="onnx", imgsz=size, opset=17, dynamic=False, simplify=False)
+        names = model.names
+        classes = [str(names[k]) for k in sorted(names)] if isinstance(names, dict) else [str(n) for n in names]
+        onnx = _move(Path(path), out_dir)
+    finally:
+        if copied:
+            work.unlink(missing_ok=True)
     return {"onnx": onnx, "classes": classes, "input": size, "tool": "ultralytics"}
 
 
 def _rfdetr(pt: Path, out_dir: Path) -> dict:
     import rfdetr
     import torch
+    pt = pt.resolve()
     ckpt = torch.load(str(pt), map_location="cpu", weights_only=False)
     args = ckpt.get("args") if isinstance(ckpt, dict) else None
     classes = list(getattr(args, "class_names", None) or [])
     errors = []
+    loaders = []
+    if hasattr(rfdetr.RFDETR, "from_checkpoint"):     # elige la variante según el checkpoint
+        loaders.append(("from_checkpoint", lambda: rfdetr.RFDETR.from_checkpoint(str(pt), trust_checkpoint=True)))
     for name in ("RFDETRBase", "RFDETRMedium", "RFDETRSmall", "RFDETRNano", "RFDETRLarge"):
         cls = getattr(rfdetr, name, None)
-        if cls is None:
-            continue
+        if cls is not None:
+            loaders.append((name, lambda cls=cls: cls(pretrain_weights=str(pt),
+                                                       **({"num_classes": len(classes)} if classes else {}))))
+    for name, load in loaders:
         try:
-            model = cls(pretrain_weights=str(pt), **({"num_classes": len(classes)} if classes else {}))
+            model = load()
             model.export(output_dir=str(out_dir))
         except Exception as e:                         # otra variante del modelo
             errors.append(f"{name}: {e}")
