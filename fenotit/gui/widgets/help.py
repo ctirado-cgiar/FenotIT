@@ -21,23 +21,23 @@ class HelpIcon(tk.Canvas):
         super().__init__(parent, width=SIZE, height=SIZE, bg=bg, highlightthickness=0, cursor="hand2")
         self.title, self.text = title, text
         self._paint(False)
-        self.bind("<Enter>", lambda e: self._paint(True))
-        self.bind("<Leave>", lambda e: self._paint(False))
-        self.bind("<Button-1>", lambda e: help_popup(self, self.title, self.text))
+        self.bind("<Enter>", lambda event: self._paint(True))
+        self.bind("<Leave>", lambda event: self._paint(False))
+        self.bind("<Button-1>", lambda event: help_popup(self, self.title, self.text))
         Tooltip(self, short)
 
     def _paint(self, hover: bool):
         self.delete("all")
-        c = COLORS["accent"] if hover else COLORS["help_icon"]
-        self.create_oval(1, 1, SIZE - 2, SIZE - 2, outline=c, fill=c if hover else self.cget("bg"), width=1)
-        self.create_text(SIZE / 2 - 0.5, SIZE / 2, text="?", fill=COLORS["white"] if hover else c,
+        color = COLORS["accent"] if hover else COLORS["help_icon"]
+        self.create_oval(1, 1, SIZE - 2, SIZE - 2, outline=color, fill=color if hover else self.cget("bg"), width=1)
+        self.create_text(SIZE / 2 - 0.5, SIZE / 2, text="?", fill=COLORS["white"] if hover else color,
                          font=FONTS["tiny_bold"])
 
 
 def first_sentence(text: str, limit: int = 90) -> str:
-    s = text.strip().split("\n")[0]
-    s = s.split(". ")[0].rstrip(".") + "."
-    return s if len(s) <= limit else s[:limit - 1].rsplit(" ", 1)[0] + "…"
+    line = text.strip().split("\n")[0]
+    line = line.split(". ")[0].rstrip(".") + "."
+    return line if len(line) <= limit else line[:limit - 1].rsplit(" ", 1)[0] + "…"
 
 
 _open: list = []
@@ -45,39 +45,39 @@ _open: list = []
 
 def help_popup(widget, title: str, text: str):
     """Recuadro pequeño junto al "?": título, texto y Cerrar (Esc o clic fuera también)."""
-    for w in _open:
-        if w.winfo_exists():
-            w.destroy()
+    for popup in _open:
+        if popup.winfo_exists():
+            popup.destroy()
     _open.clear()
-    tw = tk.Toplevel(widget)
-    tw.wm_overrideredirect(True)
-    tw.configure(bg=COLORS["border"])
-    tw.attributes("-topmost", True)
-    inner = tk.Frame(tw, bg=COLORS["bg_card"], padx=SPACE["lg"], pady=SPACE["md"])
+    window = tk.Toplevel(widget)
+    window.wm_overrideredirect(True)
+    window.configure(bg=COLORS["border"])
+    window.attributes("-topmost", True)
+    inner = tk.Frame(window, bg=COLORS["bg_card"], padx=SPACE["lg"], pady=SPACE["md"])
     inner.pack(padx=1, pady=1)
     tk.Label(inner, text=title, bg=COLORS["bg_card"], fg=COLORS["accent"],
              font=FONTS["body_bold"]).pack(anchor="w")
     tk.Label(inner, text=text, bg=COLORS["bg_card"], fg=COLORS["text"], font=FONTS["small"],
              justify="left", wraplength=300).pack(anchor="w", pady=(SPACE["sm"], 0))
-    button(inner, text=t("common.close"), command=tw.destroy, kind="secondary", size="small").pack(anchor="e", pady=(SPACE["md"], 0))
-    tw.update_idletasks()
-    w, h = tw.winfo_reqwidth(), tw.winfo_reqheight()
-    sw, sh = tw.winfo_screenwidth(), tw.winfo_screenheight()
+    button(inner, text=t("common.close"), command=window.destroy, kind="secondary", size="small").pack(anchor="e", pady=(SPACE["md"], 0))
+    window.update_idletasks()
+    width, height = window.winfo_reqwidth(), window.winfo_reqheight()
+    screen_width, screen_height = window.winfo_screenwidth(), window.winfo_screenheight()
     x, y = widget.winfo_rootx() + 22, widget.winfo_rooty() + 2
-    if x + w > sw - 20:
-        x = widget.winfo_rootx() - w - 6
-    y = min(y, sh - h - 40)
-    tw.wm_geometry(f"+{max(10, x)}+{max(10, y)}")
-    tw.bind("<Escape>", lambda e: tw.destroy())
+    if x + width > screen_width - 20:
+        x = widget.winfo_rootx() - width - 6
+    y = min(y, screen_height - height - 40)
+    window.wm_geometry(f"+{max(10, x)}+{max(10, y)}")
+    window.bind("<Escape>", lambda event: window.destroy())
 
-    def lost(_e):
+    def lost(_event):
         def check():
-            if tw.winfo_exists():
-                f = tw.focus_get()
-                if f is None or not str(f).startswith(str(tw)):
-                    tw.destroy()
-        tw.after(150, check)
-    tw.bind("<FocusOut>", lost)
-    tw.focus_force()
-    _open.append(tw)
-    return tw
+            if window.winfo_exists():
+                focused = window.focus_get()
+                if focused is None or not str(focused).startswith(str(window)):
+                    window.destroy()
+        window.after(150, check)
+    window.bind("<FocusOut>", lost)
+    window.focus_force()
+    _open.append(window)
+    return window

@@ -34,17 +34,17 @@ class ConfigPanel(tk.Frame):
     def _build(self, schema):
         canvas = tk.Canvas(self, bg=self.colors["bg_panel"],
                            highlightthickness=0)
-        sb = ttk.Scrollbar(self, orient="vertical",
+        scrollbar = ttk.Scrollbar(self, orient="vertical",
                            command=canvas.yview)
 
         def scrolled(first, last):
             """La barra aparece solo si el contenido no cabe."""
-            sb.set(first, last)
+            scrollbar.set(first, last)
             need = float(first) > 0 or float(last) < 1
-            if need and not sb.winfo_ismapped():
-                sb.pack(side=tk.RIGHT, fill=tk.Y, before=canvas)
-            elif not need and sb.winfo_ismapped():
-                sb.pack_forget()
+            if need and not scrollbar.winfo_ismapped():
+                scrollbar.pack(side=tk.RIGHT, fill=tk.Y, before=canvas)
+            elif not need and scrollbar.winfo_ismapped():
+                scrollbar.pack_forget()
         canvas.configure(yscrollcommand=scrolled)
 
         self.inner = tk.Frame(canvas, bg=self.colors["bg_panel"])
@@ -52,16 +52,16 @@ class ConfigPanel(tk.Frame):
                                       anchor="nw")
 
         self.inner.bind("<Configure>",
-            lambda e=None: canvas.configure(
+            lambda event=None: canvas.configure(
                 scrollregion=canvas.bbox("all")))
         canvas.bind("<Configure>",
-            lambda e=None: canvas.itemconfig(win_id, width=e.width))
+            lambda event=None: canvas.itemconfig(win_id, width=event.width))
 
-        def _enter(e): canvas.bind_all(
+        def _enter(event): canvas.bind_all(
             "<MouseWheel>",
-            lambda e=None: canvas.yview_scroll(
-                int(-1*(e.delta/120)), "units"))
-        def _leave(e): canvas.unbind_all("<MouseWheel>")
+            lambda event=None: canvas.yview_scroll(
+                int(-1*(event.delta/120)), "units"))
+        def _leave(event): canvas.unbind_all("<MouseWheel>")
         canvas.bind("<Enter>", _enter)
         canvas.bind("<Leave>", _leave)
 
@@ -80,7 +80,7 @@ class ConfigPanel(tk.Frame):
         self._rows: dict[str, tk.Frame] = {}
         self._arrows: dict[str, tk.Label] = {}
         self._children = {i["group"] for i in schema if i.get("group")}
-        self._open = {g: False for g in self._children}
+        self._open = {group: False for group in self._children}
         for item in schema:
             self._add_param(self.inner, item)
             self._rows[item["key"]] = self._last_row
@@ -148,7 +148,7 @@ class ConfigPanel(tk.Frame):
         if typ == "section":
             lbl = tk.Label(hdr, text=label, bg=self.colors["bg_panel"], fg=self.colors["text"],
                            font=FONTS["small"], anchor="w", cursor="hand2")
-            lbl.bind("<Button-1>", lambda e=None, k=key: self._toggle_group(k))
+            lbl.bind("<Button-1>", lambda event=None, name=key: self._toggle_group(name))
         elif typ == "bool":
             var = tk.BooleanVar(value=bool(default))
             lbl = tk.Checkbutton(hdr, variable=var, text=label,
@@ -174,7 +174,7 @@ class ConfigPanel(tk.Frame):
             arrow = tk.Label(hdr, image=self._tune_icons[False], bg=self.colors["bg_panel"], cursor="hand2",
                              padx=SPACE["sm"], pady=1)
             arrow.pack(side=tk.LEFT, padx=(SPACE["sm"], 0))
-            arrow.bind("<Button-1>", lambda e=None, k=key: self._toggle_group(k))
+            arrow.bind("<Button-1>", lambda event=None, name=key: self._toggle_group(name))
             from fenotit.gui.widgets.toolbar import Tooltip
             Tooltip(arrow, t("panel.options"))
             self._arrows[key] = arrow
@@ -187,14 +187,14 @@ class ConfigPanel(tk.Frame):
         elif typ == "choice":
             # Lista de opciones: se guarda la clave, se muestra el texto traducido
             var = tk.StringVar(value=str(default))
-            labels = {c: t(f"param.{self._prefix}.{key}.{c}", c) for c in item["choices"]}
+            labels = {choice: t(f"param.{self._prefix}.{key}.{choice}", choice) for choice in item["choices"]}
             shown = tk.StringVar(value=labels.get(str(default), str(default)))
             combo = ttk.Combobox(row, textvariable=shown, values=list(labels.values()),
                                  state="readonly", width=30, font=FONTS["small"])
             combo.pack(anchor="w", pady=(1, 0))
-            combo.bind("<<ComboboxSelected>>", lambda e=None, v=var, sv=shown, lb=labels: v.set(
-                next(k for k, l in lb.items() if l == sv.get())))
-            var.trace_add("write", lambda *_, v=var, sv=shown, lb=labels: sv.set(lb.get(v.get(), v.get())))
+            combo.bind("<<ComboboxSelected>>", lambda event=None, variable=var, shown_var=shown, choice_labels=labels: variable.set(
+                next(name for name, value in choice_labels.items() if value == shown_var.get())))
+            var.trace_add("write", lambda *_, variable=var, shown_var=shown, choice_labels=labels: shown_var.set(choice_labels.get(variable.get(), variable.get())))
         else:
             # Entrada de texto + botones ▲▼
             var = tk.DoubleVar(value=float(default)) \
@@ -217,26 +217,26 @@ class ConfigPanel(tk.Frame):
 
             step = item.get("step", 0.1 if typ == "float" else 1)
 
-            def make_up(v=var, s=step, mn=vmin, mx=vmax):
+            def make_up(variable=var, increment=step, minimum=vmin, maximum=vmax):
                 def up():
                     try:
-                        cur = v.get()
-                        nv  = cur + s
-                        if mx is not None:
-                            nv = min(nv, mx)
-                        v.set(round(nv, 4) if isinstance(s, float) else int(nv))
+                        cur = variable.get()
+                        new_value  = cur + increment
+                        if maximum is not None:
+                            new_value = min(new_value, maximum)
+                        variable.set(round(new_value, 4) if isinstance(increment, float) else int(new_value))
                     except Exception:
                         _log.debug("ignorado", exc_info=True)
                 return up
 
-            def make_dn(v=var, s=step, mn=vmin, mx=vmax):
+            def make_dn(variable=var, increment=step, minimum=vmin, maximum=vmax):
                 def dn():
                     try:
-                        cur = v.get()
-                        nv  = cur - s
-                        if mn is not None:
-                            nv = max(nv, mn)
-                        v.set(round(nv, 4) if isinstance(s, float) else int(nv))
+                        cur = variable.get()
+                        new_value  = cur - increment
+                        if minimum is not None:
+                            new_value = max(new_value, minimum)
+                        variable.set(round(new_value, 4) if isinstance(increment, float) else int(new_value))
                     except Exception:
                         _log.debug("ignorado", exc_info=True)
                 return dn
@@ -266,18 +266,18 @@ class ConfigPanel(tk.Frame):
 
     def get_values(self, warn: bool = True) -> dict[str, Any]:
         out = {}
-        for k, v in self._vars.items():
+        for key, value in self._vars.items():
             try:
-                out[k] = v.get()
+                out[key] = value.get()
             except Exception:
                 if warn:
-                    _log.warning("Valor inválido en '%s'; se usa el valor por defecto", k)
+                    _log.warning("Valor inválido en '%s'; se usa el valor por defecto", key)
         return out
 
     def set_values(self, values: dict[str, Any]):
-        for k, v in (values or {}).items():
-            if k in self._vars:
+        for key, value in (values or {}).items():
+            if key in self._vars:
                 try:
-                    self._vars[k].set(v)
+                    self._vars[key].set(value)
                 except Exception:
-                    _log.warning("No se pudo restaurar '%s' = %r", k, v)
+                    _log.warning("No se pudo restaurar '%s' = %r", key, value)

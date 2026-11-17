@@ -10,16 +10,16 @@ from fenotit.i18n import t
 
 class Sub:
     """Submenú que se arma al abrirlo (p. ej. Recientes)."""
-    def __init__(self, fn):
-        self.fn = fn
+    def __init__(self, func):
+        self.fn = func
 
 
 class DropMenu(tk.Frame):
     """Botón de la barra superior. `items` = lista de elementos del menú, o una función que
     se ejecuta al tocarlo (sin menú)."""
-    def __init__(self, parent, text, items, colors, arrow_only=False, **kw):
+    def __init__(self, parent, text, items, colors, arrow_only=False, **kwargs):
         bg = COLORS["bg_card"] if arrow_only else colors["bg_topbar"]
-        super().__init__(parent, bg=bg, **kw)
+        super().__init__(parent, bg=bg, **kwargs)
         self.colors = colors
         self.items  = items
         self._popup = None
@@ -53,54 +53,54 @@ class DropMenu(tk.Frame):
         self._popup = popup
         self._subs: list[tk.Toplevel] = []
         popup.update_idletasks()
-        pw = popup.winfo_reqwidth()
+        panel_width = popup.winfo_reqwidth()
         top = self.winfo_toplevel()
         right = top.winfo_rootx() + top.winfo_width()
-        if self._arrow_only or x + pw > right - 4:          # el de ▼ junto al borde derecho se abre hacia la izquierda
-            x = self.winfo_rootx() + self.winfo_width() - pw
-        x = max(top.winfo_rootx() + 4, min(x, right - pw - 4))
+        if self._arrow_only or x + panel_width > right - 4:          # el de ▼ junto al borde derecho se abre hacia la izquierda
+            x = self.winfo_rootx() + self.winfo_width() - panel_width
+        x = max(top.winfo_rootx() + 4, min(x, right - panel_width - 4))
         popup.wm_geometry(f"+{x}+{y}")
-        popup.bind("<FocusOut>", lambda e: self.after(150, self._maybe_close))
+        popup.bind("<FocusOut>", lambda event: self.after(150, self._maybe_close))
         popup.focus_set()
 
     def _family(self):
-        return [w for w in [self._popup, *getattr(self, "_subs", [])] if w is not None]
+        return [widget for widget in [self._popup, *getattr(self, "_subs", [])] if widget is not None]
 
     def _maybe_close(self):
         """Se cierra al perder el foco, salvo que el foco esté en uno de sus submenús."""
         try:
-            f = self.focus_get()
+            focused = self.focus_get()
         except (KeyError, tk.TclError):
-            f = None
+            focused = None
         fam = self._family()
-        if f is not None and any(str(f).startswith(str(w)) for w in fam):
+        if focused is not None and any(str(focused).startswith(str(widget)) for widget in fam):
             return
         self._close()
 
     def _close(self):
-        for w in reversed(self._family()):
+        for widget in reversed(self._family()):
             try:
-                w.destroy()
+                widget.destroy()
             except tk.TclError:
                 pass
         self._popup, self._subs = None, []
 
     def _close_subs(self, level: int):
         """Cierra los submenús desde `level` (0 = todos)."""
-        for w in self._subs[level:]:
+        for widget in self._subs[level:]:
             try:
-                w.destroy()
+                widget.destroy()
             except tk.TclError:
                 pass
         del self._subs[level:]
 
     def _panel(self, master, items, level: int = 0) -> tk.Toplevel:
-        c = self.colors
+        colors = self.colors
         popup = tk.Toplevel(master)
         popup.wm_overrideredirect(True)
-        popup.configure(bg=c["border"])
+        popup.configure(bg=colors["border"])
         popup.attributes("-topmost", True)
-        inner = tk.Frame(popup, bg=c["bg_card"], padx=1, pady=1)
+        inner = tk.Frame(popup, bg=colors["bg_card"], padx=1, pady=1)
         inner.pack(padx=1, pady=1)
         for item in items:
             if item is None:
@@ -110,15 +110,15 @@ class DropMenu(tk.Frame):
             label = (label() if callable(label) else label).strip()
             sub = cmd if isinstance(cmd, (list, tuple, Sub)) else None
             disabled = bool(rest and rest[0] is True)
-            shortcut = "▸" if sub else next((r for r in rest if isinstance(r, str)), "")
-            row = tk.Frame(inner, bg=c["bg_card"])
+            shortcut = "▸" if sub else next((part for part in rest if isinstance(part, str)), "")
+            row = tk.Frame(inner, bg=colors["bg_card"])
             row.pack(fill=tk.X)
-            lbl = tk.Label(row, text=f"  {label}   ", bg=c["bg_card"],
-                           fg=c["text_muted"] if disabled else c["text"],
+            lbl = tk.Label(row, text=f"  {label}   ", bg=colors["bg_card"],
+                           fg=colors["text_muted"] if disabled else colors["text"],
                            font=FONTS["body"], anchor="w", pady=SPACE["sm"], padx=SPACE["sm"])
             lbl.pack(fill=tk.X)
             if shortcut:
-                tk.Label(row, text=shortcut, bg=c["bg_card"], fg=c["text_muted"],
+                tk.Label(row, text=shortcut, bg=colors["bg_card"], fg=colors["text_muted"],
                          font=FONTS["small"], padx=SPACE["md"]).place(relx=1.0, rely=0.5, anchor="e")
                 lbl.config(text=f"  {label}" + " " * (len(shortcut) + 10))
             if disabled:
@@ -127,17 +127,17 @@ class DropMenu(tk.Frame):
         return popup
 
     def _bind_row(self, row, cmd, sub, level):
-        c = self.colors
+        colors = self.colors
 
         def paint(color):
-            for w in [row] + list(row.winfo_children()):
+            for widget in [row] + list(row.winfo_children()):
                 try:
-                    w.config(bg=color)
+                    widget.config(bg=color)
                 except tk.TclError:
                     pass
 
-        def enter(e):
-            paint(c["accent_light"])
+        def enter(event):
+            paint(colors["accent_light"])
             self._close_subs(level)
             if sub:
                 items = sub.fn() if isinstance(sub, Sub) else sub
@@ -150,13 +150,13 @@ class DropMenu(tk.Frame):
                 child.wm_geometry(f"+{x}+{y}")
                 self._subs.append(child)
 
-        def click(e):
+        def click(event):
             if sub:
                 return
             self._close()
             cmd()
 
-        for w in [row] + list(row.winfo_children()):
-            w.bind("<Enter>", enter)
-            w.bind("<Leave>", lambda e: paint(c["bg_card"]))
-            w.bind("<Button-1>", click)
+        for widget in [row] + list(row.winfo_children()):
+            widget.bind("<Enter>", enter)
+            widget.bind("<Leave>", lambda event: paint(colors["bg_card"]))
+            widget.bind("<Button-1>", click)

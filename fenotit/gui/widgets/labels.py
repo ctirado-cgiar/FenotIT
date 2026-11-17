@@ -18,9 +18,9 @@ def column(col: str, aliases: dict | None = None) -> str:
         return "EFD " + col[4:]
     unit = ""
     base = col
-    m = _UNIT_RE.match(col)
-    if m and m.group("base") not in ("mm_per",):
-        base, unit = m.group("base"), _UNITS[m.group("unit")] + ("²" if m.group("sq") else "")
+    unit_match = _UNIT_RE.match(col)
+    if unit_match and unit_match.group("base") not in ("mm_per",):
+        base, unit = unit_match.group("base"), _UNITS[unit_match.group("unit")] + ("²" if unit_match.group("sq") else "")
     elif col.endswith("_pct"):
         base, unit = col[:-4], "%"
     elif col == "pct":

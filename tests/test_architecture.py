@@ -205,7 +205,7 @@ if __name__ == "__main__":
 READABLE_PACKAGES = ("fenotit/core",)
 # Nombres cortos admitidos: coordenadas, índices de bucles y `t` (traducción).
 SHORT_NAMES = {"x", "y", "z", "i", "j", "x0", "y0", "x1", "y1", "dx", "dy", "cx", "cy", "ok", "id", "by", "t", "_",
-               "bg", "fg"}   # bg y fg: nombres de opciones de tkinter
+               "bg", "fg", "to"}   # bg, fg, to: nombres de opciones de tkinter
 
 
 def test_readable_names():

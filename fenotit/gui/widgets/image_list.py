@@ -28,11 +28,11 @@ MARKS = {"board": ("▦", COLORS["text_faint"]), "done": ("✓", COLORS["success
 
 def _read_thumb(path: str) -> Image.Image | None:
     try:
-        with Image.open(path) as im:
-            im.draft("RGB", (THUMB * 2, THUMB * 2))          # JPEG: decodifica en pequeño
-            im = ImageOps.exif_transpose(im).convert("RGB")
-            im.thumbnail((THUMB, THUMB))
-            return im
+        with Image.open(path) as picture:
+            picture.draft("RGB", (THUMB * 2, THUMB * 2))          # JPEG: decodifica en pequeño
+            picture = ImageOps.exif_transpose(picture).convert("RGB")
+            picture.thumbnail((THUMB, THUMB))
+            return picture
     except Exception:
         _log.debug("miniatura: %s", path, exc_info=True)
         return None
@@ -50,21 +50,21 @@ class _ThumbLoader:
 
     def request(self, paths, first: bool = False):
         with self._lock:
-            for p in (reversed(paths) if first else paths):
-                if p in self._todo:
-                    self._todo.remove(p)
-                (self._todo.appendleft if first else self._todo.append)(p)
+            for path in (reversed(paths) if first else paths):
+                if path in self._todo:
+                    self._todo.remove(path)
+                (self._todo.appendleft if first else self._todo.append)(path)
         self._wake.set()
 
     def _run(self):
         while True:
             self._wake.wait()
             with self._lock:
-                p = self._todo.popleft() if self._todo else None
-                if p is None:
+                path = self._todo.popleft() if self._todo else None
+                if path is None:
                     self._wake.clear()
                     continue
-            self.done.put((p, _read_thumb(p)))
+            self.done.put((path, _read_thumb(path)))
 
 
 class ImageList(tk.Frame):
@@ -87,73 +87,73 @@ class ImageList(tk.Frame):
         self.max_height = max_height or (lambda: int(self.master.winfo_height() * MAX_SHARE))
         self._build()
         self.pack_propagate(False)
-        parent.bind("<Configure>", lambda e: self._schedule_fit(), add="+")
+        parent.bind("<Configure>", lambda event: self._schedule_fit(), add="+")
         self._poll()
 
     # ── interfaz ──────────────────────────────────────────────────────────────
 
     def _build(self):
-        c = self.c
-        top = self._top = tk.Frame(self, bg=c["bg_panel"])
+        colors = self.c
+        top = self._top = tk.Frame(self, bg=colors["bg_panel"])
         top.pack(fill=tk.X, padx=SPACE["md"], pady=(SPACE["xs"], SPACE["sm"]))
-        kw = dict(bg=c["bg_panel"], hover=c["btn_hover"], active=c["accent_light"], size=14, color=c["accent"])
-        self._btn = {m: IconButton(top, m, lambda m=m: self.set_mode(m), t(f"images.view_{m}"), **kw)
-                     for m in ("grid", "list")}
-        for b in self._btn.values():                   # primero los botones: el buscador toma lo que sobra
-            b.pack(side=tk.RIGHT, padx=(SPACE["xs"], 0))
-        box = self._box = tk.Frame(top, bg=c["bg_card"], highlightthickness=1, highlightbackground=c["border"],
-                       highlightcolor=c["accent"])
+        kwargs = dict(bg=colors["bg_panel"], hover=colors["btn_hover"], active=colors["accent_light"], size=14, color=colors["accent"])
+        self._btn = {mode: IconButton(top, mode, lambda mode=mode: self.set_mode(mode), t(f"images.view_{mode}"), **kwargs)
+                     for mode in ("grid", "list")}
+        for button_widget in self._btn.values():                   # primero los botones: el buscador toma lo que sobra
+            button_widget.pack(side=tk.RIGHT, padx=(SPACE["xs"], 0))
+        box = self._box = tk.Frame(top, bg=colors["bg_card"], highlightthickness=1, highlightbackground=colors["border"],
+                       highlightcolor=colors["accent"])
         self.query = tk.StringVar()
-        self._entry = tk.Entry(box, textvariable=self.query, bd=0, relief="flat", bg=c["bg_card"],
-                               fg=c["text"], font=self.f["small"], insertwidth=1, width=6)
+        self._entry = tk.Entry(box, textvariable=self.query, bd=0, relief="flat", bg=colors["bg_card"],
+                               fg=colors["text"], font=self.f["small"], insertwidth=1, width=6)
         self._entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(SPACE["md"], 0), ipady=3)
-        self._clear = tk.Label(box, text="×", bg=c["bg_card"], fg=c["text_muted"], cursor="hand2",
+        self._clear = tk.Label(box, text="×", bg=colors["bg_card"], fg=colors["text_muted"], cursor="hand2",
                                font=FONTS["large"])
-        self._clear.bind("<Button-1>", lambda e: (self.query.set(""), self._entry.focus_set()))
+        self._clear.bind("<Button-1>", lambda tk_event: (self.query.set(""), self._entry.focus_set()))
         self._placeholder(True)
-        self._entry.bind("<FocusIn>", lambda e: self._placeholder(False))
-        self._entry.bind("<FocusOut>", lambda e: self._placeholder(not self.query.get()))
-        self._entry.bind("<Escape>", lambda e: (self.query.set(""), self.focus_set()))
+        self._entry.bind("<FocusIn>", lambda tk_event: self._placeholder(False))
+        self._entry.bind("<FocusOut>", lambda tk_event: self._placeholder(not self.query.get()))
+        self._entry.bind("<Escape>", lambda tk_event: (self.query.set(""), self.focus_set()))
         self.query.trace_add("write", lambda *_: self._filter())
 
-        self._body = tk.Frame(self, bg=c["bg_panel"])
+        self._body = tk.Frame(self, bg=colors["bg_panel"])
         self._body.pack(fill=tk.BOTH, expand=True, padx=SPACE["md"], pady=(0, SPACE["sm"]))
-        sb = ttk.Scrollbar(self._body, orient="vertical")
-        self._sb = sb
-        self.listbox = tk.Listbox(self._body, bg=c["bg_card"], fg=c["text"], font=self.f["small"],
-                                  selectbackground=c["bg_table_sel"], selectforeground=COLORS["text"], borderwidth=1,
-                                  relief="flat", highlightthickness=1, highlightcolor=c["border"],
-                                  highlightbackground=c["border"], activestyle="none", exportselection=False)
+        scrollbar = ttk.Scrollbar(self._body, orient="vertical")
+        self._sb = scrollbar
+        self.listbox = tk.Listbox(self._body, bg=colors["bg_card"], fg=colors["text"], font=self.f["small"],
+                                  selectbackground=colors["bg_table_sel"], selectforeground=COLORS["text"], borderwidth=1,
+                                  relief="flat", highlightthickness=1, highlightcolor=colors["border"],
+                                  highlightbackground=colors["border"], activestyle="none", exportselection=False)
         self.listbox.bind("<<ListboxSelect>>", self._on_list_select)
         self._touched = 0.0                       # el usuario movió la lista (no seguir el lote)
-        for ev in ("<MouseWheel>", "<Button-4>", "<Button-5>", "<Button-1>"):
-            self.listbox.bind(ev, self._touch, add="+")
-        self.grid = tk.Canvas(self._body, bg=c["bg_card"], highlightthickness=1,
-                              highlightbackground=c["border"], yscrollincrement=16)
-        self.grid.bind("<Configure>", lambda e: (self._draw_grid(), self._schedule_fit()))
+        for event in ("<MouseWheel>", "<Button-4>", "<Button-5>", "<Button-1>"):
+            self.listbox.bind(event, self._touch, add="+")
+        self.grid = tk.Canvas(self._body, bg=colors["bg_card"], highlightthickness=1,
+                              highlightbackground=colors["border"], yscrollincrement=16)
+        self.grid.bind("<Configure>", lambda tk_event: (self._draw_grid(), self._schedule_fit()))
         self.grid.bind("<Button-1>", self._on_grid_click)
         self.grid.bind("<Motion>", self._hover)
-        self.grid.bind("<Leave>", lambda e: self._tip_hide())
-        for w in (self.grid,):
-            w.bind("<MouseWheel>", self._wheel)
-            w.bind("<Button-4>", lambda e: self._scroll(-3))
-            w.bind("<Button-5>", lambda e: self._scroll(3))
-        for w in (self.listbox, self.grid):
-            w.bind("<Delete>", lambda e: (self.on_delete(), "break")[1])
-        self._empty = tk.Label(self._body, text=t("images.no_match"), bg=c["bg_card"], fg=c["text_muted"],
+        self.grid.bind("<Leave>", lambda tk_event: self._tip_hide())
+        for widget in (self.grid,):
+            widget.bind("<MouseWheel>", self._wheel)
+            widget.bind("<Button-4>", lambda tk_event: self._scroll(-3))
+            widget.bind("<Button-5>", lambda tk_event: self._scroll(3))
+        for widget in (self.listbox, self.grid):
+            widget.bind("<Delete>", lambda tk_event: (self.on_delete(), "break")[1])
+        self._empty = tk.Label(self._body, text=t("images.no_match"), bg=colors["bg_card"], fg=colors["text_muted"],
                                font=self.f["small"])
         self._show_mode()
 
-    def _placeholder(self, on: bool):
-        c = self.c
-        if on and not self.query.get():
+    def _placeholder(self, active: bool):
+        colors = self.c
+        if active and not self.query.get():
             self._ph = True                       # antes de escribir: el buscador lo ignora
-            self._entry.config(fg=c["text_muted"])
+            self._entry.config(fg=colors["text_muted"])
             self._entry.insert(0, t("images.search"))
         elif getattr(self, "_ph", False):
             self._entry.delete(0, tk.END)
             self._ph = False
-            self._entry.config(fg=c["text"])
+            self._entry.config(fg=colors["text"])
 
     def set_mode(self, mode: str):
         self.mode = mode
@@ -162,16 +162,16 @@ class ImageList(tk.Frame):
             self.on_mode(mode)
 
     def _show_mode(self):
-        for m, b in self._btn.items():
-            b.select(m == self.mode)
-        for w in (self.listbox, self.grid, self._sb, self._empty):
-            w.pack_forget()
-            w.place_forget()
+        for key, value in self._btn.items():
+            value.select(key == self.mode)
+        for widget in (self.listbox, self.grid, self._sb, self._empty):
+            widget.pack_forget()
+            widget.place_forget()
         self._scroll_on = False
         if self.mode == "list":
             self.listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
             self.listbox.config(yscrollcommand=self._sb.set)
-            self._sb.config(command=lambda *a: (self._touch(), self.listbox.yview(*a)))
+            self._sb.config(command=lambda *scroll_args: (self._touch(), self.listbox.yview(*scroll_args)))
             self._fill_list()
         else:
             self.grid.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -194,55 +194,55 @@ class ImageList(tk.Frame):
         if self.mode == "grid":
             return THUMB + 8
         if not getattr(self, "_lb_row", None):          # lo que Tk suma por cada fila
-            lb, h0 = self.listbox, int(self.listbox.cget("height"))
-            lb.config(height=1)
-            r1 = lb.winfo_reqheight()
-            lb.config(height=2)
-            self._lb_row = lb.winfo_reqheight() - r1
-            lb.config(height=h0)
+            listbox, saved_height = self.listbox, int(self.listbox.cget("height"))
+            listbox.config(height=1)
+            one_row = listbox.winfo_reqheight()
+            listbox.config(height=2)
+            self._lb_row = listbox.winfo_reqheight() - one_row
+            listbox.config(height=saved_height)
         return self._lb_row
 
     def _fit(self):
         """Alto justo para las fotos que hay (sin barra ni buscador si no hacen falta),
         hasta MAX_SHARE del panel; desde ahí, barra de desplazamiento."""
         self._fit_job = None
-        n = len(self.paths)
+        count = len(self.paths)
         searching = bool(self._query())
-        if n >= SEARCH_FROM or searching:
+        if count >= SEARCH_FROM or searching:
             if not self._box.winfo_ismapped():
                 self._box.pack(side=tk.LEFT, fill=tk.X, expand=True)
         elif self._box.winfo_ismapped():
             self._box.pack_forget()
         self._top.update_idletasks()                 # el alto del encabezado cambia con el buscador
-        rh = self._row_height()
+        row_height = self._row_height()
         if self.mode == "grid":
-            w = (self.winfo_width() or 200) - 12
-            cols = max(1, (w - 4) // (THUMB + 8))
-            rows = (max(n, 1) + cols - 1) // cols
-            content = rows * rh + 6
+            width = (self.winfo_width() or 200) - 12
+            cols = max(1, (width - 4) // (THUMB + 8))
+            rows = (max(count, 1) + cols - 1) // cols
+            content = rows * row_height + 6
         else:
-            if int(self.listbox.cget("height")) != max(n, 1):
-                self.listbox.config(height=max(n, 1))
+            if int(self.listbox.cget("height")) != max(count, 1):
+                self.listbox.config(height=max(count, 1))
             content = self.listbox.winfo_reqheight()             # Tk mide las filas exactas
         head = self._top.winfo_reqheight() + 6 + 4
         min_rows = self.min_rows() if callable(getattr(self, "min_rows", None)) else MIN_ROWS
-        floor = head + (min_rows if n >= min_rows else 1) * rh + 6
+        floor = head + (min_rows if count >= min_rows else 1) * row_height + 6
         limit = max(floor, self.max_height())
         want = head + content
         scroll = want > limit
         if scroll:                                   # filas enteras, sin una cortada abajo
-            extra = content - rows * rh if self.mode == "grid" else content - max(n, 1) * rh
-            h = head + extra + max(1, (limit - head - extra) // rh) * rh
+            extra = content - rows * row_height if self.mode == "grid" else content - max(count, 1) * row_height
+            height = head + extra + max(1, (limit - head - extra) // row_height) * row_height
         else:
-            h = want
+            height = want
         if scroll != self._scroll_on:
             self._scroll_on = scroll
             if scroll:
                 self._sb.pack(side=tk.RIGHT, fill=tk.Y, before=self.listbox if self.mode == "list" else self.grid)
             else:
                 self._sb.pack_forget()
-        if int(self.cget("height")) != h:
-            self.config(height=h)
+        if int(self.cget("height")) != height:
+            self.config(height=height)
             self.after_idle(lambda: self.set_current(self.current))
 
     # ── datos ─────────────────────────────────────────────────────────────────
@@ -258,11 +258,11 @@ class ImageList(tk.Frame):
                 if moved:
                     self._see(current)
             return
-        new = [p for p in paths if p not in self._thumbs]
+        new = [path for path in paths if path not in self._thumbs]
         self.paths, self.marks, self.current = list(paths), dict(marks), current
-        for p in list(self._thumbs):
-            if p not in self.paths:
-                del self._thumbs[p]
+        for path in list(self._thumbs):
+            if path not in self.paths:
+                del self._thumbs[path]
         if new:
             self._loader.request(new)
         self._filter()
@@ -289,19 +289,19 @@ class ImageList(tk.Frame):
             return None
         if index not in self.visible:
             return self.visible[0]
-        k = self.visible.index(index) + delta
-        return self.visible[k] if 0 <= k < len(self.visible) else None
+        position = self.visible.index(index) + delta
+        return self.visible[position] if 0 <= position < len(self.visible) else None
 
     def _query(self) -> str:
         return "" if getattr(self, "_ph", False) else self.query.get().strip().lower()
 
     def _filter(self):
-        q = self._query()
-        terms = q.split()
-        extra = self.search_text or (lambda p: "")
-        self.visible = [i for i, p in enumerate(self.paths)
-                        if all(s in f"{Path(p).name} {extra(p)}".lower() for s in terms)]
-        self._clear.pack(side=tk.RIGHT, padx=(0, SPACE["sm"])) if q else self._clear.pack_forget()
+        other = self._query()
+        terms = other.split()
+        extra = self.search_text or (lambda path: "")
+        self.visible = [i for i, path in enumerate(self.paths)
+                        if all(term in f"{Path(path).name} {extra(path)}".lower() for term in terms)]
+        self._clear.pack(side=tk.RIGHT, padx=(0, SPACE["sm"])) if other else self._clear.pack_forget()
         if self.mode == "list":
             self._fill_list()
         else:
@@ -318,23 +318,23 @@ class ImageList(tk.Frame):
     # ── lista ─────────────────────────────────────────────────────────────────
 
     def _fill_list(self, keep_view: bool = False):
-        lb = self.listbox
-        top = lb.yview()[0]
-        lb.delete(0, tk.END)
+        label = self.listbox
+        top = label.yview()[0]
+        label.delete(0, tk.END)
         for row, i in enumerate(self.visible):
-            p = self.paths[i]
-            sym, color = MARKS.get(self.marks.get(p, ""), ("", None))
-            lb.insert(tk.END, f"{sym or ' '}  {Path(p).name}")
-            if color and self.marks.get(p) in ("error", "pending", "board"):
-                lb.itemconfig(row, fg=color)
+            path = self.paths[i]
+            sym, color = MARKS.get(self.marks.get(path, ""), ("", None))
+            label.insert(tk.END, f"{sym or ' '}  {Path(path).name}")
+            if color and self.marks.get(path) in ("error", "pending", "board"):
+                label.itemconfig(row, fg=color)
         if keep_view:
             if self.current in self.visible:
-                lb.selection_set(self.visible.index(self.current))
-            lb.yview_moveto(top)
+                label.selection_set(self.visible.index(self.current))
+            label.yview_moveto(top)
         else:
             self.set_current(self.current)
 
-    def _on_list_select(self, _e):
+    def _on_list_select(self, _event):
         sel = self.listbox.curselection()
         if sel and sel[0] < len(self.visible) and self.visible[sel[0]] != self.current:
             self.on_select(self.visible[sel[0]])
@@ -342,53 +342,53 @@ class ImageList(tk.Frame):
     # ── cuadrícula ────────────────────────────────────────────────────────────
 
     def _cell(self):
-        w = max(self.grid.winfo_width() - 4, THUMB + 8)
-        cols = max(1, w // (THUMB + 8))
-        cw = w // cols
-        return cols, cw, THUMB + 8
+        width = max(self.grid.winfo_width() - 4, THUMB + 8)
+        cols = max(1, width // (THUMB + 8))
+        canvas_width = width // cols
+        return cols, canvas_width, THUMB + 8
 
     def _draw_grid(self):
-        g = self.grid
+        grid = self.grid
         if self.mode != "grid":
             return
-        g.delete("all")
-        cols, cw, ch = self._cell()
-        c = self.c
-        self._layout = (cols, cw, ch)
-        for k, i in enumerate(self.visible):
-            p = self.paths[i]
-            x0, y0 = (k % cols) * cw + 2, (k // cols) * ch + 2
+        grid.delete("all")
+        cols, canvas_width, canvas_height = self._cell()
+        colors = self.c
+        self._layout = (cols, canvas_width, canvas_height)
+        for position, i in enumerate(self.visible):
+            path = self.paths[i]
+            x0, y0 = (position % cols) * canvas_width + 2, (position // cols) * canvas_height + 2
             sel = i == self.current
-            g.create_rectangle(x0 + 2, y0 + 2, x0 + cw - 2, y0 + ch - 2, width=2 if sel else 0,
-                               outline=c["accent"], fill=c["accent_light"] if sel else c["bg_card"],
+            grid.create_rectangle(x0 + 2, y0 + 2, x0 + canvas_width - 2, y0 + canvas_height - 2, width=2 if sel else 0,
+                               outline=colors["accent"], fill=colors["accent_light"] if sel else colors["bg_card"],
                                tags=(f"cell{i}",))
-            cx = x0 + cw // 2
-            thumb = self._thumbs.get(p)
+            cx = x0 + canvas_width // 2
+            thumb = self._thumbs.get(path)
             if thumb:
-                g.create_image(cx, y0 + 4 + THUMB // 2, image=thumb, tags=(f"img{i}",))
+                grid.create_image(cx, y0 + 4 + THUMB // 2, image=thumb, tags=(f"img{i}",))
             else:
-                g.create_rectangle(cx - THUMB // 2 + 2, y0 + 8, cx + THUMB // 2 - 2, y0 + THUMB,
+                grid.create_rectangle(cx - THUMB // 2 + 2, y0 + 8, cx + THUMB // 2 - 2, y0 + THUMB,
                                    fill=COLORS["placeholder"], width=0, tags=(f"img{i}",))
-            mark = self.marks.get(p)
+            mark = self.marks.get(path)
             if mark in MARKS:
                 sym, color = MARKS[mark]
-                bx, by = x0 + cw - 10, y0 + 9
-                g.create_oval(bx - 6, by - 6, bx + 6, by + 6, fill=color, outline=COLORS["white"], width=1.5,
+                box_x, by = x0 + canvas_width - 10, y0 + 9
+                grid.create_oval(box_x - 6, by - 6, box_x + 6, by + 6, fill=color, outline=COLORS["white"], width=1.5,
                               tags=("badge",))
-                g.create_text(bx, by, text=sym, fill=COLORS["white"], font=FONTS["tiny_bold"], tags=("badge",))
+                grid.create_text(box_x, by, text=sym, fill=COLORS["white"], font=FONTS["tiny_bold"], tags=("badge",))
         rows = (len(self.visible) + cols - 1) // cols
-        g.config(scrollregion=(0, 0, cols * cw, max(rows * ch + 4, 1)))
+        grid.config(scrollregion=(0, 0, cols * canvas_width, max(rows * canvas_height + 4, 1)))
         self._request_visible()
 
-    def _index_at(self, e) -> int | None:
-        cols, cw, ch = self._cell()
-        x, y = self.grid.canvasx(e.x), self.grid.canvasy(e.y)
-        k = int(y // ch) * cols + int(x // cw)
-        return self.visible[k] if x // cw < cols and 0 <= k < len(self.visible) else None
+    def _index_at(self, event) -> int | None:
+        cols, canvas_width, canvas_height = self._cell()
+        x, y = self.grid.canvasx(event.x), self.grid.canvasy(event.y)
+        position = int(y // canvas_height) * cols + int(x // canvas_width)
+        return self.visible[position] if x // canvas_width < cols and 0 <= position < len(self.visible) else None
 
-    def _hover(self, e):
+    def _hover(self, event):
         """El nombre de la foto aparece al pasar el mouse (en la cuadrícula no hay espacio)."""
-        i = self._index_at(e)
+        i = self._index_at(event)
         if i is None:
             self._tip_hide()
             return
@@ -401,7 +401,7 @@ class ImageList(tk.Frame):
                                      font=FONTS["small"], padx=SPACE["md"], pady=SPACE["xs"])
             self._tip_lbl.pack()
         self._tip_lbl.config(text=name)
-        tip.wm_geometry(f"+{e.x_root + 12}+{e.y_root + 14}")
+        tip.wm_geometry(f"+{event.x_root + 12}+{event.y_root + 14}")
 
     def _tip_hide(self):
         if getattr(self, "_tip", None) is not None:
@@ -421,7 +421,7 @@ class ImageList(tk.Frame):
         if self.mode == "list":
             self.listbox.see(self.visible.index(index))
         else:
-            cols, _, ch = self._cell()
+            cols, _, canvas_height = self._cell()
             rows = max(1, (len(self.visible) + cols - 1) // cols)
             row = self.visible.index(index) // cols
             top, bottom = self.grid.yview()
@@ -438,16 +438,16 @@ class ImageList(tk.Frame):
         self.grid.yview_scroll(units, "units")
         self._request_visible()
 
-    def _wheel(self, e):
+    def _wheel(self, event):
         self._touch()
-        self._scroll(-int(e.delta / 40) or (-1 if e.delta > 0 else 1))
+        self._scroll(-int(event.delta / 40) or (-1 if event.delta > 0 else 1))
 
     def _visible_range(self):
-        cols, _, ch = self._cell()
+        cols, _, canvas_height = self._cell()
         top, bottom = self.grid.yview()
-        total = max(1, (len(self.visible) + cols - 1) // cols) * ch
-        r0, r1 = int(top * total // ch), int(bottom * total // ch) + 1
-        return self.visible[r0 * cols:(r1 + 1) * cols]
+        total = max(1, (len(self.visible) + cols - 1) // cols) * canvas_height
+        first_row, last_row = int(top * total // canvas_height), int(bottom * total // canvas_height) + 1
+        return self.visible[first_row * cols:(last_row + 1) * cols]
 
     def _request_visible(self):
         want = [self.paths[i] for i in self._visible_range() if self.paths[i] not in self._thumbs]
@@ -460,17 +460,17 @@ class ImageList(tk.Frame):
             return
         if index not in self.visible:
             return
-        cols, _, ch = self._cell()
+        cols, _, canvas_height = self._cell()
         row = self.visible.index(index) // cols
         rows = max(1, (len(self.visible) + cols - 1) // cols)
         top, bottom = self.grid.yview()
-        if not (top * rows * ch <= row * ch and (row + 1) * ch <= bottom * rows * ch):
+        if not (top * rows * canvas_height <= row * canvas_height and (row + 1) * canvas_height <= bottom * rows * canvas_height):
             self.grid.yview_moveto(max(0.0, row / rows - 0.1))
             self._request_visible()
 
-    def _on_grid_click(self, e):
+    def _on_grid_click(self, event):
         self.grid.focus_set()
-        i = self._index_at(e)
+        i = self._index_at(event)
         if i is not None and i != self.current:
             self.on_select(i)
 
@@ -478,11 +478,11 @@ class ImageList(tk.Frame):
         """Pasa al canvas las miniaturas que ya leyó el hilo."""
         try:
             while True:
-                p, im = self._loader.done.get_nowait()
-                if p in self.paths:
-                    self._thumbs[p] = ImageTk.PhotoImage(im) if im else None
-                    if self.mode == "grid" and im:
-                        self._place_thumb(self.paths.index(p))
+                path, picture = self._loader.done.get_nowait()
+                if path in self.paths:
+                    self._thumbs[path] = ImageTk.PhotoImage(picture) if picture else None
+                    if self.mode == "grid" and picture:
+                        self._place_thumb(self.paths.index(path))
         except queue.Empty:
             pass
         self.after(120, self._poll)
@@ -491,10 +491,10 @@ class ImageList(tk.Frame):
         """Pone una miniatura recién leída sin redibujar toda la cuadrícula."""
         if i not in self.visible or not getattr(self, "_layout", None):
             return
-        cols, cw, ch = self._layout
-        k = self.visible.index(i)
-        x0, y0 = (k % cols) * cw + 2, (k // cols) * ch + 2
+        cols, canvas_width, canvas_height = self._layout
+        position = self.visible.index(i)
+        x0, y0 = (position % cols) * canvas_width + 2, (position // cols) * canvas_height + 2
         self.grid.delete(f"img{i}")
-        self.grid.create_image(x0 + cw // 2, y0 + 4 + THUMB // 2, image=self._thumbs[self.paths[i]],
+        self.grid.create_image(x0 + canvas_width // 2, y0 + 4 + THUMB // 2, image=self._thumbs[self.paths[i]],
                                tags=(f"img{i}",))
         self.grid.tag_raise("badge")

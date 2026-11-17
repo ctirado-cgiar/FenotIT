@@ -24,21 +24,21 @@ class ImagePicker(tk.Frame):
         self._combo.bind("<<ComboboxSelected>>", self._selected)
         self._refresh(current)
 
-    def _label(self, i: int, p: str) -> str:
-        return f"{i + 1}. {Path(p).name}"
+    def _label(self, i: int, path: str) -> str:
+        return f"{i + 1}. {Path(path).name}"
 
     def _refresh(self, current: str | None):
-        self._combo["values"] = [self._label(i, p) for i, p in enumerate(self._paths)] + [self._other]
+        self._combo["values"] = [self._label(i, path) for i, path in enumerate(self._paths)] + [self._other]
         if current in self._paths:
             self._combo.current(self._paths.index(current))
         else:
             self._var.set("")
         self._last = self._var.get()
 
-    def _selected(self, _e=None):
+    def _selected(self, _event=None):
         idx = self._combo.current()
         if idx == len(self._paths):
-            exts = " ".join(f"*{e}" for e in sorted(IMAGE_EXTS))
+            exts = " ".join(f"*{event}" for event in sorted(IMAGE_EXTS))
             path = filedialog.askopenfilename(
                 parent=self, filetypes=[(t("common.images"), exts), (t("common.all_files"), "*.*")])
             if not path:
