@@ -41,23 +41,23 @@ class Tour:
 
     # ── navegación ────────────────────────────────────────────────────────────
 
-    def start(self, at: str | None = None):
+    def start(self, start_key: str | None = None):
         """at = clave del paso donde empezar (el que corresponde a lo que el usuario ya hizo);
         Anterior sigue llevando a los pasos de antes."""
         self._build()
-        keys = [s.key for s in self.steps]
-        self.i = keys.index(at) - 1 if at in keys else -1
+        keys = [step.key for step in self.steps]
+        self.i = keys.index(start_key) - 1 if start_key in keys else -1
         self._go(+1)
 
-    def _go(self, d: int):
-        i = self.i + d
+    def _go(self, direction: int):
+        i = self.i + direction
         while 0 <= i < len(self.steps):
-            s = self.steps[i]
-            if s.when is None or _safe(s.when, False):
+            step = self.steps[i]
+            if step.when is None or _safe(step.when, False):
                 break
-            i += d
+            i += direction
         if not 0 <= i < len(self.steps):
-            if d > 0:
+            if direction > 0:
                 self.close()
             return
         self.i = i
@@ -73,9 +73,9 @@ class Tour:
             except tk.TclError:
                 pass
         self._binds = []
-        for w in self._windows() if self._pop else []:
+        for widget in self._windows() if self._pop else []:
             try:
-                w.destroy()
+                widget.destroy()
             except tk.TclError:
                 pass
         self._shades, self._ring, self._pop = [], [], None
@@ -85,16 +85,16 @@ class Tour:
     # ── ventanas ──────────────────────────────────────────────────────────────
 
     def _overlay(self, color: str, alpha: float) -> tk.Toplevel:
-        w = tk.Toplevel(self.root)
-        w.overrideredirect(True)
-        w.configure(bg=color)
-        w.transient(self.root)
+        window = tk.Toplevel(self.root)
+        window.overrideredirect(True)
+        window.configure(bg=color)
+        window.transient(self.root)
         try:
-            w.attributes("-alpha", alpha)
+            window.attributes("-alpha", alpha)
         except tk.TclError:
             pass
-        w.bind("<Button-1>", lambda e: "break")              # fuera del hueco no se hace clic
-        return w
+        window.bind("<Button-1>", lambda event: "break")              # fuera del hueco no se hace clic
+        return window
 
     def _build(self):
         self._shades = [self._overlay(COLORS["black"], DIM) for _ in range(4)]
@@ -115,7 +115,7 @@ class Tour:
         self._title.pack(side=tk.LEFT, fill=tk.X, expand=True)
         x = tk.Label(top, text="✕", bg=COLORS["bg_card"], fg=COLORS["text_muted"], cursor="hand2", font=FONTS["small"])
         x.pack(side=tk.RIGHT, anchor="n")
-        x.bind("<Button-1>", lambda e: self.close())
+        x.bind("<Button-1>", lambda event: self.close())
         self._text = tk.Label(body, bg=COLORS["bg_card"], fg=COLORS["text"], font=FONTS["body"], justify="left",
                               anchor="w", wraplength=WIDTH - 28)
         self._text.pack(fill=tk.X, pady=(SPACE["md"], SPACE["lg"]))
@@ -127,18 +127,18 @@ class Tour:
         self._next.pack(side=tk.RIGHT)
         self._prev = button(bar, text=t("tour.prev"), command=lambda: self._go(-1), kind="secondary", size="small", pady=SPACE["sm"])
         self._prev.pack(side=tk.RIGHT, padx=(0, SPACE["md"]))
-        for k, f in (("<Escape>", lambda e: self.close()), ("<Right>", lambda e: self._go(+1)),
-                     ("<Left>", lambda e: self._go(-1)), ("<Return>", lambda e: self._go(+1))):
-            pop.bind(k, f)
+        for sequence, handler in (("<Escape>", lambda event: self.close()), ("<Right>", lambda event: self._go(+1)),
+                     ("<Left>", lambda event: self._go(-1)), ("<Return>", lambda event: self._go(+1))):
+            pop.bind(sequence, handler)
         self._pop = pop
         # la ventana principal no debe tapar el recorrido: al hacer clic en ella (en el hueco o
         # fuera de la app y volver) se suben de nuevo; al minimizarla se esconden con ella
-        for seq, fn in (("<Configure>", lambda e: e.widget is self.root and self._place()),
-                        ("<FocusIn>", lambda e: self._raise()),
-                        ("<ButtonRelease-1>", lambda e: self._raise()),
-                        ("<Unmap>", lambda e: e.widget is self.root and self._hide(True)),
-                        ("<Map>", lambda e: e.widget is self.root and self._hide(False))):
-            self._binds.append((seq, self.root.bind(seq, fn, add="+")))
+        for seq, func in (("<Configure>", lambda event: event.widget is self.root and self._place()),
+                        ("<FocusIn>", lambda event: self._raise()),
+                        ("<ButtonRelease-1>", lambda event: self._raise()),
+                        ("<Unmap>", lambda event: event.widget is self.root and self._hide(True)),
+                        ("<Map>", lambda event: event.widget is self.root and self._hide(False))):
+            self._binds.append((seq, self.root.bind(seq, func, add="+")))
 
     def _windows(self):
         return self._shades + self._ring + [self._glass] + ([self._pop] if self._pop else [])
@@ -150,16 +150,16 @@ class Tour:
 
         def go():
             self._raising = False
-            for w in self._windows():
-                if w.winfo_exists():
-                    w.lift()
+            for widget in self._windows():
+                if widget.winfo_exists():
+                    widget.lift()
         self.root.after(10, go)
 
     def _hide(self, hidden: bool):
         if self._pop is None:
             return
-        for w in self._windows():
-            w.withdraw() if hidden else w.deiconify()
+        for widget in self._windows():
+            widget.withdraw() if hidden else widget.deiconify()
         if not hidden:
             self._raise()
             self.root.after(30, self._place)
@@ -167,82 +167,82 @@ class Tour:
     # ── dibujo ────────────────────────────────────────────────────────────────
 
     def _show(self):
-        s = self.steps[self.i]
-        shown = [k for k, st in enumerate(self.steps) if st.when is None or _safe(st.when, False)]
+        step = self.steps[self.i]
+        shown = [index for index, state in enumerate(self.steps) if state.when is None or _safe(state.when, False)]
         pos = shown.index(self.i) + 1 if self.i in shown else 1
-        self._title.config(text=s.title)
-        self._text.config(text=s.text)
+        self._title.config(text=step.title)
+        self._text.config(text=step.text)
         self._count.config(text=t("tour.count", i=pos, n=len(shown)))
         last = pos == len(shown)
         self._next.config(text=t("tour.done") if last else t("tour.next"))
         self._prev.config(state=tk.NORMAL if pos > 1 else tk.DISABLED)
-        for w in self._windows():
-            w.lift()
+        for widget in self._windows():
+            widget.lift()
         self._pop.update_idletasks()
         self._place()
         self._pop.focus_force()
         self.root.after(60, self._place)          # algunos sistemas ubican la ventana al mostrarla
 
     def _target_box(self):
-        s = self.steps[self.i]
-        w = _safe(s.target) if s.target else None
-        if w is None:
+        step = self.steps[self.i]
+        widget = _safe(step.target) if step.target else None
+        if widget is None:
             return None
         try:
-            if not w.winfo_ismapped():
+            if not widget.winfo_ismapped():
                 return None
-            x, y = w.winfo_rootx(), w.winfo_rooty()
-            return x - PAD, y - PAD, x + w.winfo_width() + PAD, y + w.winfo_height() + PAD
+            x, y = widget.winfo_rootx(), widget.winfo_rooty()
+            return x - PAD, y - PAD, x + widget.winfo_width() + PAD, y + widget.winfo_height() + PAD
         except tk.TclError:
             return None
 
     def _place(self):
         if not self._pop or self.i < 0:
             return
-        r = self.root
-        rx, ry, rw, rh = r.winfo_rootx(), r.winfo_rooty(), r.winfo_width(), r.winfo_height()
+        root = self.root
+        root_x, root_y, root_width, root_height = root.winfo_rootx(), root.winfo_rooty(), root.winfo_width(), root.winfo_height()
         box = self._target_box()
         if box is None:                                   # sin hueco: todo oscuro, globo al centro
-            box = (rx + rw // 2, ry + rh // 2, rx + rw // 2, ry + rh // 2)
+            box = (root_x + root_width // 2, root_y + root_height // 2, root_x + root_width // 2, root_y + root_height // 2)
             hole = False
         else:
             hole = True
-        x0, y0, x1, y1 = (max(rx, box[0]), max(ry, box[1]), min(rx + rw, box[2]), min(ry + rh, box[3]))
-        rects = [(rx, ry, rw, y0 - ry), (rx, y1, rw, ry + rh - y1),
-                 (rx, y0, x0 - rx, y1 - y0), (x1, y0, rx + rw - x1, y1 - y0)]
-        for w, (x, y, ww, hh) in zip(self._shades, rects):
-            _geom(w, x, y, ww, hh)
+        x0, y0, x1, y1 = (max(root_x, box[0]), max(root_y, box[1]), min(root_x + root_width, box[2]), min(root_y + root_height, box[3]))
+        rects = [(root_x, root_y, root_width, y0 - root_y), (root_x, y1, root_width, root_y + root_height - y1),
+                 (root_x, y0, x0 - root_x, y1 - y0), (x1, y0, root_x + root_width - x1, y1 - y0)]
+        for widget, (x, y, width, height) in zip(self._shades, rects):
+            _geom(widget, x, y, width, height)
         ring = [(x0 - RING, y0 - RING, x1 - x0 + 2 * RING, RING), (x0 - RING, y1, x1 - x0 + 2 * RING, RING),
                 (x0 - RING, y0, RING, y1 - y0), (x1, y0, RING, y1 - y0)] if hole else [(0, 0, 0, 0)] * 4
-        for w, (x, y, ww, hh) in zip(self._ring, ring):
-            _geom(w, x, y, ww, hh)
+        for widget, (x, y, width, height) in zip(self._ring, ring):
+            _geom(widget, x, y, width, height)
         _geom(self._glass, x0, y0, x1 - x0, y1 - y0) if hole else _geom(self._glass, 0, 0, 0, 0)
-        pw, ph = self._pop.winfo_reqwidth(), self._pop.winfo_reqheight()
+        panel_width, panel_height = self._pop.winfo_reqwidth(), self._pop.winfo_reqheight()
         if not hole:
-            px, py = rx + (rw - pw) // 2, ry + (rh - ph) // 2
+            pixel_x, pixel_y = root_x + (root_width - panel_width) // 2, root_y + (root_height - panel_height) // 2
         else:                                              # primer lugar donde quepa: abajo, derecha, izquierda, arriba
             gap = 12
-            options = [(x0, y1 + gap), (x1 + gap, y0), (x0 - pw - gap, y0), (x0, y0 - ph - gap)]
-            px, py = options[0]
-            for ox, oy in options:
-                if rx <= ox and ox + pw <= rx + rw and ry <= oy and oy + ph <= ry + rh:
-                    px, py = ox, oy
+            options = [(x0, y1 + gap), (x1 + gap, y0), (x0 - panel_width - gap, y0), (x0, y0 - panel_height - gap)]
+            pixel_x, pixel_y = options[0]
+            for offset_x, offset_y in options:
+                if root_x <= offset_x and offset_x + panel_width <= root_x + root_width and root_y <= offset_y and offset_y + panel_height <= root_y + root_height:
+                    pixel_x, pixel_y = offset_x, offset_y
                     break
-            px = min(max(px, rx + 8), rx + rw - pw - 8)
-            py = min(max(py, ry + 8), ry + rh - ph - 8)
-        self._pop.geometry(f"{pw}x{ph}+{int(px)}+{int(py)}")
+            pixel_x = min(max(pixel_x, root_x + 8), root_x + root_width - panel_width - 8)
+            pixel_y = min(max(pixel_y, root_y + 8), root_y + root_height - panel_height - 8)
+        self._pop.geometry(f"{panel_width}x{panel_height}+{int(pixel_x)}+{int(pixel_y)}")
 
 
-def _geom(w: tk.Toplevel, x, y, ww, hh):
+def _geom(window: tk.Toplevel, x, y, width, height):
     """Sin ocultar ni volver a mostrar ventanas (en algunos sistemas eso mueve las demás):
     una franja vacía se manda fuera de la pantalla."""
-    if ww <= 0 or hh <= 0:
-        x, y, ww, hh = -50, -50, 1, 1
-    w.geometry(f"{int(ww)}x{int(hh)}+{int(x)}+{int(y)}")
+    if width <= 0 or height <= 0:
+        x, y, width, height = -50, -50, 1, 1
+    window.geometry(f"{int(width)}x{int(height)}+{int(x)}+{int(y)}")
 
 
-def _safe(fn, default=None):
+def _safe(func, default=None):
     try:
-        return fn()
+        return func()
     except Exception:
         return default

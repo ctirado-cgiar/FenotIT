@@ -40,7 +40,7 @@ class LayoutMixin:
 
     def _panel_of(self, section: str) -> CollapsiblePanel:
         """El panel lateral donde está la sección."""
-        side = next(s for s, names in PANELS.items() if section in names)
+        side = next(key for key, names in PANELS.items() if section in names)
         return getattr(self, f"{side}_panel")
 
     def _build_layout(self):
@@ -79,8 +79,8 @@ class LayoutMixin:
             title=t("panel.right"), colors=COLORS,
             default_width=SIZES["panel_right"], on_toggle=self._after_panel_toggle, max_width=380)
         self.right_panel.tab_host = self.center_frame
-        for w in (self.paned, self.left_panel, self.right_panel):
-            w.bind("<Configure>", self._limit_panels, add="+")
+        for widget in (self.paned, self.left_panel, self.right_panel):
+            widget.bind("<Configure>", self._limit_panels, add="+")
         self.paned.bind("<ButtonPress-1>", self._sash_press)
         self.paned.bind("<B1-Motion>", self._sash_motion)
         self.paned.bind("<ButtonRelease-1>", self._sash_release)
@@ -103,7 +103,7 @@ class LayoutMixin:
                                              style="Thin.Horizontal.TProgressbar")
         self._cancel_link = tk.Label(self.statusbar, text=t("common.cancel"), bg=COLORS["bg_panel"],
                                      fg=COLORS["accent"], font=FONTS["small"], cursor="hand2", padx=SPACE["sm"])
-        self._cancel_link.bind("<Button-1>", lambda e: self._cancel_batch())
+        self._cancel_link.bind("<Button-1>", lambda event: self._cancel_batch())
         self.preview_var = tk.StringVar(value="")
         tk.Label(self.statusbar, textvariable=self.preview_var, bg=COLORS["bg_panel"],
                  fg=COLORS["accent2"], font=FONTS["small"], padx=SPACE["md"]).pack(side=tk.RIGHT)
@@ -115,10 +115,10 @@ class LayoutMixin:
                                       font=FONTS["small"], anchor="w", padx=SPACE["lg"])
         self._status_label.pack(fill=tk.X)
 
-    def _build_images(self, lf):
+    def _build_images(self, label_frame):
         """Lista de fotos con su botón para agregar y el contador."""
-        self._section_lbl(lf, t("left.images"))
-        nav = tk.Frame(lf, bg=COLORS["bg_panel"])
+        self._section_lbl(label_frame, t("left.images"))
+        nav = tk.Frame(label_frame, bg=COLORS["bg_panel"])
         nav.pack(fill=tk.X, padx=SPACE["md"], pady=SPACE["xs"])
         button(nav, text="＋", command=self._open_image, width=2, kind="secondary", size="small").pack(side=tk.LEFT)
         self.batch_label = tk.Label(nav, text="—", bg=COLORS["bg_panel"],     # anterior/siguiente: ← → o clic
@@ -127,55 +127,55 @@ class LayoutMixin:
 
         # Lista (buscador, lista o cuadrícula): alto según las fotos. Si CAPAS (y, después,
         # el inspector) necesita espacio, la lista cede, hasta dejar ver un par de fotos
-        self.image_list = ImageList(lf, COLORS, FONTS, on_select=self._select_image,
+        self.image_list = ImageList(label_frame, COLORS, FONTS, on_select=self._select_image,
                                     on_delete=self._remove_current_image,
                                     mode=settings.get("image_view", "list"),
-                                    on_mode=lambda m: settings.set("image_view", m),
+                                    on_mode=lambda mode: settings.set("image_view", mode),
                                     max_height=self._image_list_room)
         self.image_list.pack(fill=tk.X)
         self.image_list.min_rows = lambda: 1 if self.inspector.winfo_ismapped() else 2   # con el inspector, cede más
-        self.image_list.search_text = lambda p: " ".join(str(v) for v in self._meta_row(p).values())
+        self.image_list.search_text = lambda path: " ".join(str(value) for value in self._meta_row(path).values())
 
-    def _build_layers(self, lf):
+    def _build_layers(self, label_frame):
         """Lista CAPAS: las capas de los análisis de la foto actual (con barra si no caben)."""
-        views = self._layers = tk.Frame(lf, bg=COLORS["bg_panel"])
+        views = self._layers = tk.Frame(label_frame, bg=COLORS["bg_panel"])
         views.pack(fill=tk.BOTH, expand=True)
         self._layers_title = self._section_lbl(views, t("left.history"))
         box = tk.Frame(views, bg=COLORS["bg_panel"])
         box.pack(fill=tk.BOTH, expand=True, padx=SPACE["md"], pady=(0, SPACE["md"]))
         self._layers_sb = ttk.Scrollbar(box, orient="vertical")
-        cv = self._layers_canvas = tk.Canvas(box, bg=COLORS["bg_panel"], highlightthickness=0, bd=0,
+        canvas = self._layers_canvas = tk.Canvas(box, bg=COLORS["bg_panel"], highlightthickness=0, bd=0,
                                              yscrollcommand=self._layers_sb.set)
-        self._layers_sb.config(command=cv.yview)
-        cv.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        self.history_frame = tk.Frame(cv, bg=COLORS["bg_panel"])
-        win = cv.create_window(0, 0, window=self.history_frame, anchor="nw")
-        cv.bind("<Configure>", lambda e: (cv.itemconfig(win, width=e.width), self._layers_scroll()))
-        self.history_frame.bind("<Configure>", lambda e: self._layers_scroll())
-        for ev, d in (("<Button-4>", -1), ("<Button-5>", 1)):
-            cv.bind_all(ev, lambda e, d=d: self._layers_wheel(e, d), add="+")
-        cv.bind_all("<MouseWheel>", lambda e: self._layers_wheel(e, -1 if e.delta > 0 else 1), add="+")
+        self._layers_sb.config(command=canvas.yview)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.history_frame = tk.Frame(canvas, bg=COLORS["bg_panel"])
+        win = canvas.create_window(0, 0, window=self.history_frame, anchor="nw")
+        canvas.bind("<Configure>", lambda event: (canvas.itemconfig(win, width=event.width), self._layers_scroll()))
+        self.history_frame.bind("<Configure>", lambda event: self._layers_scroll())
+        for sequence, delta in (("<Button-4>", -1), ("<Button-5>", 1)):
+            canvas.bind_all(sequence, lambda event, delta=delta: self._layers_wheel(event, delta), add="+")
+        canvas.bind_all("<MouseWheel>", lambda event: self._layers_wheel(event, -1 if event.delta > 0 else 1), add="+")
 
-    def _build_inspector(self, lf):
+    def _build_inspector(self, label_frame):
         """Inspector del objeto elegido; aparece al elegir un objeto."""
         from fenotit.gui.widgets.inspector import Inspector
-        self.inspector = Inspector(lf, self._clear_selection, self._toggle_exclude, self._toggle_highlight)
+        self.inspector = Inspector(label_frame, self._clear_selection, self._toggle_exclude, self._toggle_highlight)
         self._forget_selection()
 
-    def _build_steps(self, rf):
+    def _build_steps(self, panel):
         """Panel del análisis: sin análisis elegido, las tarjetas para elegirlo; con uno
         elegido, su nombre (con Cambiar) y las pestañas de sus pasos."""
         bg = COLORS["bg_panel"]
-        head = self._an_head = tk.Frame(rf, bg=bg)
+        head = self._an_head = tk.Frame(panel, bg=bg)
         self._an_title = tk.Label(head, bg=bg, fg=COLORS["text"], font=FONTS["title"], anchor="w")
         self._an_title.pack(side=tk.LEFT)
         button(head, text=t("rtab.change"), command=lambda: self._select_right_tab("choose"), kind="link",
                size="small", bg=bg).pack(side=tk.RIGHT)
-        self._preset_label = tk.Label(rf, bg=bg, fg=COLORS["text_muted"], font=FONTS["small"], anchor="w")
-        self._rtabs = tk.Frame(rf, bg=bg)
+        self._preset_label = tk.Label(panel, bg=bg, fg=COLORS["text_muted"], font=FONTS["small"], anchor="w")
+        self._rtabs = tk.Frame(panel, bg=bg)
         self._rtab_labels = {}
-        self._rtab_line = divider(rf)
-        self._rtab_body = tk.Frame(rf, bg=bg)
+        self._rtab_line = divider(panel)
+        self._rtab_body = tk.Frame(panel, bg=bg)
         self._rtab_body.pack(fill=tk.BOTH, expand=True)
         self._choose_tab = tk.Frame(self._rtab_body, bg=bg)
         tk.Label(self._choose_tab, text=t("rtab.choose"), bg=bg, fg=COLORS["section_text"], font=FONTS["section"],
@@ -196,8 +196,8 @@ class LayoutMixin:
         """Pestañas de los pasos del análisis elegido: (clave, nombre); con un solo paso, sin
         pestañas."""
         bg = COLORS["bg_panel"]
-        for w in self._rtabs.winfo_children():
-            w.destroy()
+        for widget in self._rtabs.winfo_children():
+            widget.destroy()
         self._rtab_labels = {}
         for key, text in steps if len(steps) > 1 else ():
             tab = tk.Frame(self._rtabs, bg=bg, cursor="hand2")
@@ -206,8 +206,8 @@ class LayoutMixin:
             lbl.pack()
             line = tk.Frame(tab, height=2, bg=bg)
             line.pack(fill=tk.X)
-            for w in (tab, lbl):
-                w.bind("<Button-1>", lambda e, k=key: self._select_right_tab(k))
+            for widget in (tab, lbl):
+                widget.bind("<Button-1>", lambda event, tab_key=key: self._select_right_tab(tab_key))
             self._rtab_labels[key] = (lbl, line)
 
     def _select_right_tab(self, key: str):
@@ -215,9 +215,9 @@ class LayoutMixin:
         if key != "choose" and not getattr(self, "_analysis_chosen", False):
             key = "choose"
         self._right_tab = key
-        for w in (self._an_head, self._preset_label, self._rtabs, self._rtab_line, self._choose_tab, self._seg_tab,
+        for widget in (self._an_head, self._preset_label, self._rtabs, self._rtab_line, self._choose_tab, self._seg_tab,
                   self._det_tab, self._an_tab):
-            w.pack_forget()
+            widget.pack_forget()
         self._rtab_body.pack_forget()
         if key != "choose":
             self._an_head.pack(fill=tk.X, padx=(SPACE["xxl"], SPACE["md"]), pady=(SPACE["sm"], 0))
@@ -229,10 +229,10 @@ class LayoutMixin:
         self._rtab_body.pack(fill=tk.BOTH, expand=True, pady=(SPACE["lg"] if key == "choose" else 0, 0))
         {"choose": self._choose_tab, "seg": self._seg_tab, "det": self._det_tab,
          "analysis": self._an_tab}[key].pack(fill=tk.BOTH, expand=True)
-        for k, (lbl, line) in self._rtab_labels.items():
-            on = k == key
-            lbl.config(fg=COLORS["accent"] if on else COLORS["text_muted"])
-            line.config(bg=COLORS["accent"] if on else COLORS["bg_panel"])
+        for tab_key, (lbl, line) in self._rtab_labels.items():
+            active = tab_key == key
+            lbl.config(fg=COLORS["accent"] if active else COLORS["text_muted"])
+            line.config(bg=COLORS["accent"] if active else COLORS["bg_panel"])
         self._update_seg_tab()
         self._update_stroke_tool()
         if hasattr(self, "zoom_ctrl"):
@@ -240,9 +240,9 @@ class LayoutMixin:
 
     def _visible_panes(self):
         """Paneles visibles, como widgets (panes() devuelve nombres de Tcl)."""
-        pw = self.paned
-        names = {str(p) for p in pw.panes() if str(pw.panecget(p, "hide")) not in ("1", "true")}
-        return [w for w in (self.left_panel, self.center_frame, self.right_panel) if str(w) in names]
+        panel_width = self.paned
+        names = {str(pane) for pane in panel_width.panes() if str(panel_width.panecget(pane, "hide")) not in ("1", "true")}
+        return [widget for widget in (self.left_panel, self.center_frame, self.right_panel) if str(widget) in names]
 
     def _sash_press(self, event):
         """Arrastre propio de las barras divisorias: el panel lateral llega como máximo a su
@@ -258,21 +258,21 @@ class LayoutMixin:
         index = getattr(self, "_sash_drag", None)
         if index is None:
             return
-        pw = self.paned
+        panel_width = self.paned
         visible = self._visible_panes()
         if index + 1 >= len(visible):
             return "break"
-        sw = int(pw.cget("sashwidth"))
-        total = pw.winfo_width()
-        lo, hi = CollapsiblePanel.COLLAPSED_W, total - CollapsiblePanel.COLLAPSED_W - sw
+        screen_width = int(panel_width.cget("sashwidth"))
+        total = panel_width.winfo_width()
+        low, high = CollapsiblePanel.COLLAPSED_W, total - CollapsiblePanel.COLLAPSED_W - screen_width
         if visible[index] is self.left_panel:                     # barra izquierda
-            hi = min(self.left_panel.max_width,
-                     (pw.sash_coord(index + 1)[0] if index + 1 < len(visible) - 1 else total) - 400 - sw)
+            high = min(self.left_panel.max_width,
+                     (panel_width.sash_coord(index + 1)[0] if index + 1 < len(visible) - 1 else total) - 400 - screen_width)
         elif visible[index + 1] is self.right_panel:              # barra derecha
-            start = pw.sash_coord(index - 1)[0] + sw if index > 0 else 0
-            lo = max(total - self.right_panel.max_width - sw, start + 400)
-        x = int(min(max(event.x, lo), max(lo, hi)))
-        pw.sash_place(index, x, 1)
+            start = panel_width.sash_coord(index - 1)[0] + screen_width if index > 0 else 0
+            low = max(total - self.right_panel.max_width - screen_width, start + 400)
+        x = int(min(max(event.x, low), max(low, high)))
+        panel_width.sash_place(index, x, 1)
         return "break"
 
     def _sash_release(self, _event=None):
@@ -284,8 +284,8 @@ class LayoutMixin:
 
     def _limit_panels(self, _event=None):
         """Si al achicar la ventana un panel quedó aplastado, al agrandarla recupera su ancho."""
-        pw = self.paned
-        if pw.winfo_width() <= 1 or getattr(self, "_restoring_panel", False):
+        panel_width = self.paned
+        if panel_width.winfo_width() <= 1 or getattr(self, "_restoring_panel", False):
             return
         visible = self._visible_panes()
         room = self.center_frame.winfo_width() - 400
@@ -300,9 +300,9 @@ class LayoutMixin:
                     self._restoring_panel = False
                     vis = self._visible_panes()
                     if panel is self.left_panel:
-                        pw.sash_place(0, target, 1)
+                        panel_width.sash_place(0, target, 1)
                     else:
-                        pw.sash_place(len(vis) - 2, pw.winfo_width() - target - int(pw.cget("sashwidth")), 1)
+                        panel_width.sash_place(len(vis) - 2, panel_width.winfo_width() - target - int(panel_width.cget("sashwidth")), 1)
                 self.root.after(60, restore)
                 return
 

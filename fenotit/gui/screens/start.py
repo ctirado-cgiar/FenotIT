@@ -25,8 +25,8 @@ def _project_info(path: Path) -> tuple[int, Path | None, str | None]:
     """Número de fotos, la imagen de la tarjeta (miniatura del último resultado o la primera
     foto) y el análisis elegido, sin cargar el proyecto entero."""
     try:
-        with open(path, encoding="utf-8") as f:
-            data = yaml.safe_load(f) or {}
+        with open(path, encoding="utf-8") as file:
+            data = yaml.safe_load(file) or {}
     except (OSError, yaml.YAMLError):
         return 0, None, None
     images = data.get("images") or []
@@ -44,12 +44,12 @@ def _thumbnail(path: Path | None):
     if not path or not path.exists():
         return None
     try:
-        with Image.open(path) as im:
-            im.draft("RGB", (_THUMB[0] * 2, _THUMB[1] * 2))       # JPEG: decodifica en pequeño
-            im = im.convert("RGB")
-            im.thumbnail(_THUMB)
+        with Image.open(path) as file:
+            file.draft("RGB", (_THUMB[0] * 2, _THUMB[1] * 2))       # JPEG: decodifica en pequeño
+            file = file.convert("RGB")
+            file.thumbnail(_THUMB)
             canvas = Image.new("RGB", _THUMB, (235, 238, 242))
-            canvas.paste(im, ((_THUMB[0] - im.width) // 2, (_THUMB[1] - im.height) // 2))
+            canvas.paste(file, ((_THUMB[0] - file.width) // 2, (_THUMB[1] - file.height) // 2))
             return ImageTk.PhotoImage(canvas)
     except Exception:
         return None
@@ -63,7 +63,7 @@ class StartScreen(tk.Frame):
         self.c = colors
         self._links = links
         self._cb = (on_photos, on_folder, on_open, on_recent)
-        self._img = {n: ImageTk.PhotoImage(icon(n, 30, colors["accent"])) for n in ("photo", "folder", "project")}
+        self._img = {name: ImageTk.PhotoImage(icon(name, 30, colors["accent"])) for name in ("photo", "folder", "project")}
         self._img["photo_w"] = ImageTk.PhotoImage(icon("photo", 22, COLORS["on_accent"]))
         self._img["folder_w"] = ImageTk.PhotoImage(icon("folder", 22, COLORS["on_accent"]))
         self._thumbs: list = []
@@ -79,7 +79,7 @@ class StartScreen(tk.Frame):
         hero = tk.Canvas(self, bg=COLORS["bg_card"], width=300, highlightthickness=0)
         hero.pack(side=tk.LEFT, fill=tk.Y)
         divider(self, "divider", vertical=True).pack(side=tk.LEFT, fill=tk.Y)
-        hero.bind("<Configure>", lambda e: self._decorate(hero, e.width, e.height))
+        hero.bind("<Configure>", lambda event: self._decorate(hero, event.width, event.height))
         inner = tk.Frame(hero, bg=COLORS["bg_card"])
         inner.place(relx=0.5, rely=0.45, anchor="center")
         try:
@@ -112,53 +112,53 @@ class StartScreen(tk.Frame):
         for i, (key, text, cmd) in enumerate(items):
             lbl = tk.Label(box, text=text, bg=self.c["bg"], fg=muted, font=FONTS["body"], cursor="hand2")
             lbl.pack(side=tk.LEFT, padx=(SPACE["lg"] if i else 0, 0))
-            lbl.bind("<Enter>", lambda e, w=lbl: w.config(fg=BLUE))
-            lbl.bind("<Leave>", lambda e, w=lbl: w.config(fg=muted))
-            lbl.bind("<Button-1>", lambda e, f=cmd: f())
+            lbl.bind("<Enter>", lambda event, widget=lbl: widget.config(fg=BLUE))
+            lbl.bind("<Leave>", lambda event, widget=lbl: widget.config(fg=muted))
+            lbl.bind("<Button-1>", lambda event, command=cmd: command())
             self.targets[key] = lbl
         ver = tk.Label(self, text=f"v{__version__}, Alliance of Bioversity International & CIAT",
                        bg=self.c["bg"], fg=COLORS["text_faint"], font=FONTS["tiny"])
         ver.place(relx=1.0, rely=1.0, x=-20, y=-12, anchor="se")
         self._floating.append(ver)
 
-    def _decorate(self, c, w, h):
+    def _decorate(self, canvas, width, height):
         """Píxeles con borde azul que se desvanecen: arriba desde la derecha, abajo desde la izquierda."""
-        c.delete("decor")
-        before = set(c.find_all())
-        pixel_dissolve(c, w, h, 22,
+        canvas.delete("decor")
+        before = set(canvas.find_all())
+        pixel_dissolve(canvas, width, height, 22,
                        lambda x, y: max(0.0, (y - 0.72) / 0.28 * 1.1 - x * 0.7) if y > 0.72 else 0.0)
-        pixel_dissolve(c, w, h, 22,
+        pixel_dissolve(canvas, width, height, 22,
                        lambda x, y: max(0.0, (0.22 - y) / 0.22 * 1.1 - (1 - x) * 0.7) if y < 0.22 else 0.0, seed=9)
-        for item in set(c.find_all()) - before:
-            c.addtag_withtag("decor", item)
-            c.tag_lower(item)
+        for item in set(canvas.find_all()) - before:
+            canvas.addtag_withtag("decor", item)
+            canvas.tag_lower(item)
 
     def refresh(self):
         """Vuelve a armar la parte derecha (al mostrarse: recientes al día)."""
-        c, m = self.c, self._main
-        for w in m.winfo_children():
-            w.destroy()
+        colors, main_frame = self.c, self._main
+        for widget in main_frame.winfo_children():
+            widget.destroy()
         self._thumbs = []
-        for w in getattr(self, "_floating", []):
-            w.lift()
+        for widget in getattr(self, "_floating", []):
+            widget.lift()
         on_photos, on_folder, on_open, on_recent = self._cb
-        body = tk.Frame(m, bg=c["bg"])
+        body = tk.Frame(main_frame, bg=colors["bg"])
         body.place(relx=0.5, rely=0.42, anchor="center")
 
-        tk.Label(body, text=t("start.begin"), bg=c["bg"], fg=c["text_muted"],
+        tk.Label(body, text=t("start.begin"), bg=colors["bg"], fg=colors["text_muted"],
                  font=FONTS["motto_xl"]).pack(anchor="w", pady=(0, SPACE["lg"]))
-        row = tk.Frame(body, bg=c["bg"])
+        row = tk.Frame(body, bg=colors["bg"])
         row.pack(anchor="w")
         self.targets["new"] = self._new_tile(row, on_photos, on_folder)
         self.targets["open"] = self._tile(row, "project", t("start.open"), t("start.open_hint"), on_open)
 
-        tk.Label(body, text=t("start.recent"), bg=c["bg"], fg=c["text_muted"],
+        tk.Label(body, text=t("start.recent"), bg=colors["bg"], fg=colors["text_muted"],
                  font=FONTS["motto_large"]).pack(anchor="w", pady=(SPACE["xxl"], SPACE["md"]))
         recent = settings.recent_projects()
         if not recent:
-            tk.Label(body, text=t("start.no_recent"), bg=c["bg"], fg=c["text_muted"],
+            tk.Label(body, text=t("start.no_recent"), bg=colors["bg"], fg=colors["text_muted"],
                      font=FONTS["body"]).pack(anchor="w")
-        grid = tk.Frame(body, bg=c["bg"])
+        grid = tk.Frame(body, bg=colors["bg"])
         grid.pack(anchor="w")
         self.targets["recent"] = grid if recent else None
         for i, path in enumerate(recent[:6]):
@@ -168,66 +168,66 @@ class StartScreen(tk.Frame):
     # ── tarjetas ─────────────────────────────────────────────────────────────
 
     def _card(self, parent, width, height):
-        c = self.c
-        card = tk.Frame(parent, bg=c["bg_card"], highlightthickness=1, highlightbackground=c["border"],
+        colors = self.c
+        card = tk.Frame(parent, bg=colors["bg_card"], highlightthickness=1, highlightbackground=colors["border"],
                         width=width, height=height, cursor="hand2")
         card.pack_propagate(False)
         return card
 
     def _hover(self, card, widgets):
-        c = self.c
+        colors = self.c
 
-        def paint(on):
-            card.config(highlightbackground=c["accent"] if on else c["border"])
-        for w in [card] + list(widgets):
-            w.bind("<Enter>", lambda e: paint(True), add="+")
-            w.bind("<Leave>", lambda e: paint(False), add="+")
+        def paint(active):
+            card.config(highlightbackground=colors["accent"] if active else colors["border"])
+        for widget in [card] + list(widgets):
+            widget.bind("<Enter>", lambda event: paint(True), add="+")
+            widget.bind("<Leave>", lambda event: paint(False), add="+")
 
     def _tile(self, parent, ico, title, hint, cmd):
-        c = self.c
+        colors = self.c
         card = self._card(parent, 210, 120)
         card.pack(side=tk.LEFT, padx=(0, SPACE["lg"]))
-        parts = [tk.Label(card, image=self._img[ico], bg=c["bg_card"]),
-                 tk.Label(card, text=title, bg=c["bg_card"], fg=c["text"], font=FONTS["topbar"]),
-                 tk.Label(card, text=hint, bg=c["bg_card"], fg=c["text_muted"], font=FONTS["small"],
+        parts = [tk.Label(card, image=self._img[ico], bg=colors["bg_card"]),
+                 tk.Label(card, text=title, bg=colors["bg_card"], fg=colors["text"], font=FONTS["topbar"]),
+                 tk.Label(card, text=hint, bg=colors["bg_card"], fg=colors["text_muted"], font=FONTS["small"],
                           wraplength=190, justify="center")]
         parts[0].pack(pady=(SPACE["xl"], SPACE["sm"]))
         parts[1].pack()
         parts[2].pack()
         self._hover(card, parts)
-        for w in [card] + parts:
-            w.bind("<Button-1>", lambda e: cmd())
+        for widget in [card] + parts:
+            widget.bind("<Button-1>", lambda event: cmd())
         return card
 
     def _new_tile(self, parent, on_photos, on_folder):
         """Nuevo proyecto: al tocarlo aparecen "Agregar fotos" y "Agregar carpeta"."""
-        c = self.c
+        colors = self.c
         card = self._card(parent, 210, 120)
         card.pack(side=tk.LEFT, padx=(0, SPACE["lg"]))
-        front = [tk.Label(card, image=self._img["photo"], bg=c["bg_card"]),
-                 tk.Label(card, text=t("start.new"), bg=c["bg_card"], fg=c["text"], font=FONTS["topbar"]),
-                 tk.Label(card, text=t("start.new_hint"), bg=c["bg_card"], fg=c["text_muted"], font=FONTS["small"],
+        front = [tk.Label(card, image=self._img["photo"], bg=colors["bg_card"]),
+                 tk.Label(card, text=t("start.new"), bg=colors["bg_card"], fg=colors["text"], font=FONTS["topbar"]),
+                 tk.Label(card, text=t("start.new_hint"), bg=colors["bg_card"], fg=colors["text_muted"], font=FONTS["small"],
                           wraplength=190, justify="center")]
         front[0].pack(pady=(SPACE["xl"], SPACE["sm"]))
         front[1].pack()
         front[2].pack()
-        choices = tk.Frame(card, bg=c["bg_card"])
+        choices = tk.Frame(card, bg=colors["bg_card"])
         for ico, text, cmd in (("photo_w", t("start.photos"), on_photos), ("folder_w", t("start.folder"), on_folder)):
             button(choices, text=f"  {text}", image=self._img[ico], compound="left", command=cmd, anchor="w", kind="primary", pady=SPACE["md"]).pack(fill=tk.X, padx=SPACE["lg"], pady=(SPACE["lg"], 0))
 
-        def open_choices(_e=None):
-            for w in front:
-                w.pack_forget()
+        def open_choices(_event=None):
+            for widget in front:
+                widget.pack_forget()
             choices.pack(fill=tk.BOTH, expand=True)
         self._hover(card, front)
-        for w in [card] + front:
-            w.bind("<Button-1>", open_choices)
+        for widget in [card] + front:
+            widget.bind("<Button-1>", open_choices)
         return card
 
     def _recent_card(self, parent, path: Path, cmd):
-        c = self.c
+        colors = self.c
         card = self._card(parent, 300, 82)
-        n, first, analysis = _project_info(path)
+        n_photos, first, analysis = _project_info(path)
         thumb = _thumbnail(first)
         self._thumbs.append(thumb)
         pic = tk.Label(card, bg=COLORS["placeholder"], width=_THUMB[0], height=_THUMB[1])
@@ -238,17 +238,17 @@ class StartScreen(tk.Frame):
             when = dt.datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d")
         except OSError:
             when = ""
-        texts = [tk.Label(card, text=path.stem, bg=c["bg_card"], fg=c["accent"], font=FONTS["topbar"],
+        texts = [tk.Label(card, text=path.stem, bg=colors["bg_card"], fg=colors["accent"], font=FONTS["topbar"],
                           anchor="w"),
-                 tk.Label(card, text=t("start.recent_info", n=n, date=when), bg=c["bg_card"], fg=c["text"],
+                 tk.Label(card, text=t("start.recent_info", n=n_photos, date=when), bg=colors["bg_card"], fg=colors["text"],
                           font=FONTS["small"], anchor="w"),
                  tk.Label(card, text=t(f"analysis.{analysis}.name", analysis) if analysis else str(path.parent),
-                          bg=c["bg_card"], fg=c["text_muted"], font=FONTS["small"] if analysis else FONTS["tiny"], anchor="w")]
+                          bg=colors["bg_card"], fg=colors["text_muted"], font=FONTS["small"] if analysis else FONTS["tiny"], anchor="w")]
         from fenotit.gui.widgets.toolbar import Tooltip
         Tooltip(card, str(path.parent))
-        for i, w in enumerate(texts):
-            w.place(x=_THUMB[0] + 18, y=10 + i * 21, width=300 - _THUMB[0] - 26)
+        for i, widget in enumerate(texts):
+            widget.place(x=_THUMB[0] + 18, y=10 + i * 21, width=300 - _THUMB[0] - 26)
         self._hover(card, [pic] + texts)
-        for w in [card, pic] + texts:
-            w.bind("<Button-1>", lambda e: cmd(str(path)))
+        for widget in [card, pic] + texts:
+            widget.bind("<Button-1>", lambda event: cmd(str(path)))
         return card

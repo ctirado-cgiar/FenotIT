@@ -11,28 +11,28 @@ BLUE = COLORS["accent"]
 
 
 def mosaic(canvas: tk.Canvas, x: int, y: int, cell: int, heights: list[int], mirror: bool = False,
-           up: bool = False, seed: int = 7, gap: int = 2):
+           upward: bool = False, seed: int = 7, gap: int = 2):
     """Columnas de cuadritos con alturas `heights` (en celdas), desde (x, y).
     `up`: crecen hacia arriba; `mirror`: las columnas van hacia la izquierda. Los colores
     se aclaran hacia la punta de cada columna (con algo de azar fijo)."""
     rnd = random.Random(seed)
-    for c, h in enumerate(heights):
-        for r in range(h):
-            k = min(len(TINTS) - 1, max(0, int((r + c * 0.6) / max(h, 1) * 2.2) + rnd.choice((0, 0, 1))))
-            cx = x - (c + 1) * cell if mirror else x + c * cell
-            cy = y - (r + 1) * cell if up else y + r * cell
-            canvas.create_rectangle(cx, cy, cx + cell - gap, cy + cell - gap, fill=TINTS[k], width=0)
+    for column, n_cells in enumerate(heights):
+        for row in range(n_cells):
+            tint = min(len(TINTS) - 1, max(0, int((row + column * 0.6) / max(n_cells, 1) * 2.2) + rnd.choice((0, 0, 1))))
+            cx = x - (column + 1) * cell if mirror else x + column * cell
+            cy = y - (row + 1) * cell if upward else y + row * cell
+            canvas.create_rectangle(cx, cy, cx + cell - gap, cy + cell - gap, fill=TINTS[tint], width=0)
 
 
 
-def pixel_dissolve(canvas: tk.Canvas, w: int, h: int, cell: int, density, seed: int = 5, gap: int = 3):
+def pixel_dissolve(canvas: tk.Canvas, width: int, height: int, cell: int, density, seed: int = 5, gap: int = 3):
     """Cuadritos solo con borde, en tonos de azul, que se desvanecen. `density(x, y)`
     (x, y de 0 a 1) = probabilidad de que una celda aparezca; más densa = más oscura."""
     rnd = random.Random(seed)
-    for gy in range(h // cell + 1):
-        for gx in range(w // cell + 1):
-            p = density(gx * cell / w, gy * cell / h)
-            if p > 0 and rnd.random() < p:
-                k = min(len(EDGES) - 1, max(0, int((1 - p) * 4.5) + rnd.choice((0, 0, 1))))
-                x, y = gx * cell + gap, gy * cell + gap
-                canvas.create_rectangle(x, y, x + cell - 2 * gap, y + cell - 2 * gap, outline=EDGES[k], width=1)
+    for cell_y in range(height // cell + 1):
+        for cell_x in range(width // cell + 1):
+            chance = density(cell_x * cell / width, cell_y * cell / height)
+            if chance > 0 and rnd.random() < chance:
+                edge = min(len(EDGES) - 1, max(0, int((1 - chance) * 4.5) + rnd.choice((0, 0, 1))))
+                x, y = cell_x * cell + gap, cell_y * cell + gap
+                canvas.create_rectangle(x, y, x + cell - 2 * gap, y + cell - 2 * gap, outline=EDGES[edge], width=1)

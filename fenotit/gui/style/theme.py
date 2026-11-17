@@ -35,17 +35,17 @@ def available() -> dict[str, dict]:
     """Temas instalados: nombre del archivo → sección [info]."""
     found = {}
     for folder in FOLDERS:
-        for f in sorted(folder.glob("*.toml")):
+        for file in sorted(folder.glob("*.toml")):
             try:
-                found[f.stem] = _read(f).get("info", {})
+                found[file.stem] = _read(file).get("info", {})
             except (OSError, tomllib.TOMLDecodeError):
-                _log.warning("Tema ilegible: %s", f)
+                _log.warning("Tema ilegible: %s", file)
     return found
 
 
 def _read(path: Path) -> dict:
-    with open(path, "rb") as f:
-        return tomllib.load(f)
+    with open(path, "rb") as file:
+        return tomllib.load(file)
 
 
 def _find(name: str) -> Path | None:
@@ -77,13 +77,13 @@ def _font(spec: str, families: dict) -> tuple:
 
 
 _THEME = load()
-_FAMILIES = {k: v[0] if isinstance(v, list) else v for k, v in _THEME["families"].items()}
+_FAMILIES = {name: value[0] if isinstance(value, list) else value for name, value in _THEME["families"].items()}
 
 COLORS: dict[str, str] = dict(_THEME["colors"])
-FONTS: dict[str, tuple] = {k: _font(v, _FAMILIES) for k, v in _THEME["fonts"].items()}
+FONTS: dict[str, tuple] = {name: _font(value, _FAMILIES) for name, value in _THEME["fonts"].items()}
 SIZES: dict[str, int] = dict(_THEME["sizes"])
 SPACE: dict[str, int] = dict(_THEME["spacing"])
-BUTTONS: dict[str, dict] = {k: dict(v) for k, v in _THEME["buttons"].items()}
+BUTTONS: dict[str, dict] = {name: dict(value) for name, value in _THEME["buttons"].items()}
 CLASS_COLORS = tuple(_THEME["palettes"]["classes"])
 CHART_COLORS = tuple(_THEME["palettes"]["charts"])
 LOGO_TINTS = tuple(_THEME["palettes"]["logo_tints"])
@@ -94,11 +94,11 @@ def use_installed_fonts(root) -> None:
     """Cambia cada familia por la primera de su lista que está instalada en el equipo.
     Se llama una vez, con la ventana principal ya creada."""
     import tkinter.font as tkfont
-    installed = {f.lower() for f in tkfont.families(root)}
+    installed = {family.lower() for family in tkfont.families(root)}
     for key, names in _THEME["families"].items():
         names = names if isinstance(names, list) else [names]
-        _FAMILIES[key] = next((n for n in names if n.lower() in installed), names[0])
-    FONTS.update({k: _font(v, _FAMILIES) for k, v in _THEME["fonts"].items()})
+        _FAMILIES[key] = next((name for name in names if name.lower() in installed), names[0])
+    FONTS.update({name: _font(value, _FAMILIES) for name, value in _THEME["fonts"].items()})
 
 
 def font(size: int, weight: str | None = None) -> tuple:

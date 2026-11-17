@@ -18,8 +18,8 @@ def _file() -> Path:
 
 def load() -> dict:
     try:
-        with open(_file(), encoding="utf-8") as f:
-            return yaml.safe_load(f) or {}
+        with open(_file(), encoding="utf-8") as file:
+            return yaml.safe_load(file) or {}
     except (OSError, yaml.YAMLError):
         return {}
 
@@ -33,29 +33,29 @@ def set(key: str, value) -> None:
     data[key] = value
     try:
         _file().parent.mkdir(parents=True, exist_ok=True)
-        with open(_file(), "w", encoding="utf-8") as f:
-            yaml.safe_dump(data, f, allow_unicode=True)
+        with open(_file(), "w", encoding="utf-8") as file:
+            yaml.safe_dump(data, file, allow_unicode=True)
     except OSError:
         pass
 
 
 def recent_projects() -> list[str]:
     """Proyectos abiertos o guardados hace poco (los que todavía existen)."""
-    return [p for p in get("recent_projects", []) or [] if Path(p).exists()]
+    return [path for path in get("recent_projects", []) or [] if Path(path).exists()]
 
 
 def recent_presets() -> list[str]:
     """Presets cargados o guardados hace poco (los que todavía existen)."""
-    return [p for p in get("recent_presets", []) or [] if Path(p).exists()]
+    return [path for path in get("recent_presets", []) or [] if Path(path).exists()]
 
 
 def add_recent_preset(path) -> None:
     path = str(Path(path).resolve())
-    items = [path] + [p for p in get("recent_presets", []) or [] if p != path]
+    items = [path] + [item for item in get("recent_presets", []) or [] if item != path]
     set("recent_presets", items[:8])
 
 
 def add_recent_project(path) -> None:
     path = str(Path(path).resolve())
-    items = [path] + [p for p in get("recent_projects", []) or [] if p != path]
+    items = [path] + [item for item in get("recent_projects", []) or [] if item != path]
     set("recent_projects", items[:8])

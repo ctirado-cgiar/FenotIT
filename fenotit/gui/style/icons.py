@@ -15,214 +15,214 @@ from fenotit.gui.style.theme import COLORS
 
 ICON_DIR = Path(__file__).resolve().parents[2] / "assets" / "icons"
 
-_SS = 4          # sobre-muestreo para bordes suaves
+_SUPERSAMPLING = 4          # sobre-muestreo para bordes suaves
 
 
-def _magnifier(d: ImageDraw.ImageDraw, s: int, w: int, color, sign: str | None):
-    r = s * 0.30
-    cx = cy = s * 0.40
-    d.ellipse((cx - r, cy - r, cx + r, cy + r), outline=color, width=w)
-    a = r * 0.7071
-    d.line((cx + a, cy + a, s * 0.90, s * 0.90), fill=color, width=int(w * 1.6))
-    k = r * 0.5
+def _magnifier(draw: ImageDraw.ImageDraw, size: int, stroke: int, color, sign: str | None):
+    radius = size * 0.30
+    cx = cy = size * 0.40
+    draw.ellipse((cx - radius, cy - radius, cx + radius, cy + radius), outline=color, width=stroke)
+    handle = radius * 0.7071
+    draw.line((cx + handle, cy + handle, size * 0.90, size * 0.90), fill=color, width=int(stroke * 1.6))
+    sign_size = radius * 0.5
     if sign:
-        d.line((cx - k, cy, cx + k, cy), fill=color, width=w)
+        draw.line((cx - sign_size, cy, cx + sign_size, cy), fill=color, width=stroke)
     if sign == "+":
-        d.line((cx, cy - k, cx, cy + k), fill=color, width=w)
+        draw.line((cx, cy - sign_size, cx, cy + sign_size), fill=color, width=stroke)
 
 
-def _hand(d: ImageDraw.ImageDraw, s: int, w: int, color):
+def _hand(draw: ImageDraw.ImageDraw, size: int, stroke: int, color):
     """Mano abierta rellena."""
-    fw, gap = s * 0.13, s * 0.03
+    finger_width, gap = size * 0.13, size * 0.03
     for i, top in enumerate((0.20, 0.08, 0.11, 0.22)):
-        x = s * 0.27 + i * (fw + gap)
-        d.rounded_rectangle((x, s * top, x + fw, s * 0.60), radius=fw / 2, fill=color)
-    d.rounded_rectangle((s * 0.27, s * 0.42, s * 0.27 + 4 * fw + 3 * gap, s * 0.94),
-                        radius=s * 0.17, fill=color)
-    d.line((s * 0.30, s * 0.74, s * 0.10, s * 0.44), fill=color, width=int(fw))
-    d.ellipse((s * 0.10 - fw / 2, s * 0.44 - fw / 2, s * 0.10 + fw / 2, s * 0.44 + fw / 2), fill=color)
+        x = size * 0.27 + i * (finger_width + gap)
+        draw.rounded_rectangle((x, size * top, x + finger_width, size * 0.60), radius=finger_width / 2, fill=color)
+    draw.rounded_rectangle((size * 0.27, size * 0.42, size * 0.27 + 4 * finger_width + 3 * gap, size * 0.94),
+                        radius=size * 0.17, fill=color)
+    draw.line((size * 0.30, size * 0.74, size * 0.10, size * 0.44), fill=color, width=int(finger_width))
+    draw.ellipse((size * 0.10 - finger_width / 2, size * 0.44 - finger_width / 2, size * 0.10 + finger_width / 2, size * 0.44 + finger_width / 2), fill=color)
 
 
-def _fit(d: ImageDraw.ImageDraw, s: int, w: int, color):
-    m, k = s * 0.12, s * 0.30
-    for x, y, dx, dy in ((m, m, 1, 1), (s - m, m, -1, 1), (m, s - m, 1, -1), (s - m, s - m, -1, -1)):
-        d.line((x, y, x + dx * k, y), fill=color, width=w)
-        d.line((x, y, x, y + dy * k), fill=color, width=w)
+def _fit(draw: ImageDraw.ImageDraw, size: int, stroke: int, color):
+    margin, corner = size * 0.12, size * 0.30
+    for x, y, dx, dy in ((margin, margin, 1, 1), (size - margin, margin, -1, 1), (margin, size - margin, 1, -1), (size - margin, size - margin, -1, -1)):
+        draw.line((x, y, x + dx * corner, y), fill=color, width=stroke)
+        draw.line((x, y, x, y + dy * corner), fill=color, width=stroke)
 
 
-def _zoom_area(d: ImageDraw.ImageDraw, s: int, w: int, color):
-    x0, y0, x1, y1 = s * 0.08, s * 0.08, s * 0.70, s * 0.62
-    dash = s * 0.10
-    for a, b, horiz, fixed in ((x0, x1, True, y0), (x0, x1, True, y1), (y0, y1, False, x0), (y0, y1, False, x1)):
-        p = a
-        while p < b:
-            q = min(p + dash, b)
-            d.line((p, fixed, q, fixed) if horiz else (fixed, p, fixed, q), fill=color, width=w)
-            p += dash * 1.8
-    r = s * 0.17
-    cx, cy = s * 0.62, s * 0.60
-    d.ellipse((cx - r, cy - r, cx + r, cy + r), outline=color, width=w, fill=None)
-    d.line((cx + r * 0.7, cy + r * 0.7, s * 0.94, s * 0.94), fill=color, width=int(w * 1.6))
-    k = r * 0.55
-    d.line((cx - k, cy, cx + k, cy), fill=color, width=max(1, int(w * 0.8)))
-    d.line((cx, cy - k, cx, cy + k), fill=color, width=max(1, int(w * 0.8)))
+def _zoom_area(draw: ImageDraw.ImageDraw, size: int, stroke: int, color):
+    x0, y0, x1, y1 = size * 0.08, size * 0.08, size * 0.70, size * 0.62
+    dash = size * 0.10
+    for start, end, horiz, fixed in ((x0, x1, True, y0), (x0, x1, True, y1), (y0, y1, False, x0), (y0, y1, False, x1)):
+        position = start
+        while position < end:
+            other = min(position + dash, end)
+            draw.line((position, fixed, other, fixed) if horiz else (fixed, position, fixed, other), fill=color, width=stroke)
+            position += dash * 1.8
+    radius = size * 0.17
+    cx, cy = size * 0.62, size * 0.60
+    draw.ellipse((cx - radius, cy - radius, cx + radius, cy + radius), outline=color, width=stroke, fill=None)
+    draw.line((cx + radius * 0.7, cy + radius * 0.7, size * 0.94, size * 0.94), fill=color, width=int(stroke * 1.6))
+    handle = radius * 0.55
+    draw.line((cx - handle, cy, cx + handle, cy), fill=color, width=max(1, int(stroke * 0.8)))
+    draw.line((cx, cy - handle, cx, cy + handle), fill=color, width=max(1, int(stroke * 0.8)))
 
 
-def _palette(d: ImageDraw.ImageDraw, s: int, w: int, color):
+def _palette(draw: ImageDraw.ImageDraw, size: int, stroke: int, color):
     """Paleta de pintor rellena, con muesca, hueco para el pulgar y manchas caladas."""
     clear = (0, 0, 0, 0)
-    d.ellipse((s * 0.06, s * 0.14, s * 0.94, s * 0.86), fill=color)
-    d.ellipse((s * 0.62, s * 0.50, s * 1.02, s * 0.84), fill=clear)          # muesca
-    d.ellipse((s * 0.50, s * 0.52, s * 0.66, s * 0.68), fill=clear)          # pulgar
-    r = s * 0.075
+    draw.ellipse((size * 0.06, size * 0.14, size * 0.94, size * 0.86), fill=color)
+    draw.ellipse((size * 0.62, size * 0.50, size * 1.02, size * 0.84), fill=clear)          # muesca
+    draw.ellipse((size * 0.50, size * 0.52, size * 0.66, size * 0.68), fill=clear)          # pulgar
+    radius = size * 0.075
     for cx, cy in ((0.24, 0.42), (0.40, 0.28), (0.60, 0.27), (0.76, 0.38), (0.30, 0.64)):
-        d.ellipse((s * cx - r, s * cy - r, s * cx + r, s * cy + r), fill=clear)
+        draw.ellipse((size * cx - radius, size * cy - radius, size * cx + radius, size * cy + radius), fill=clear)
 
 
-def _shape_pts(s, kind):
+def _shape_pts(size, kind):
     if kind == "rect":
-        return [(s * 0.14, s * 0.22), (s * 0.86, s * 0.22), (s * 0.86, s * 0.78), (s * 0.14, s * 0.78)]
-    return [(s * 0.50, s * 0.10), (s * 0.90, s * 0.40), (s * 0.74, s * 0.88),
-            (s * 0.26, s * 0.88), (s * 0.10, s * 0.40)]
+        return [(size * 0.14, size * 0.22), (size * 0.86, size * 0.22), (size * 0.86, size * 0.78), (size * 0.14, size * 0.78)]
+    return [(size * 0.50, size * 0.10), (size * 0.90, size * 0.40), (size * 0.74, size * 0.88),
+            (size * 0.26, size * 0.88), (size * 0.10, size * 0.40)]
 
 
-def _area(d, s, w, color, kind, exclude):
-    pts = _shape_pts(s, kind)
+def _area(draw, size, stroke, color, kind, exclude):
+    pts = _shape_pts(size, kind)
     if exclude:                                       # zona excluida: rayada
-        for k in range(-4, 6):
-            x = s * (0.12 + k * 0.16)
-            d.line((x, s * 0.92, x + s * 0.8, s * 0.12), fill=color, width=max(1, w // 2))
+        for offset in range(-4, 6):
+            x = size * (0.12 + offset * 0.16)
+            draw.line((x, size * 0.92, x + size * 0.8, size * 0.12), fill=color, width=max(1, stroke // 2))
         clear = (0, 0, 0, 0)
-        mask = Image.new("L", (s, s), 0)
+        mask = Image.new("L", (size, size), 0)
         ImageDraw.Draw(mask).polygon(pts, fill=255)
-        d._image.paste(clear, mask=Image.eval(mask, lambda v: 255 - v))
-    d.line(pts + [pts[0]], fill=color, width=w, joint="curve")
+        draw._image.paste(clear, mask=Image.eval(mask, lambda value: 255 - value))
+    draw.line(pts + [pts[0]], fill=color, width=stroke, joint="curve")
 
 
-def _select(d, s, w, color):
-    x0, y0, x1, y1 = s * 0.08, s * 0.08, s * 0.66, s * 0.62
-    dash = s * 0.09
-    for a, b, horiz, fixed in ((x0, x1, True, y0), (x0, x1, True, y1), (y0, y1, False, x0), (y0, y1, False, x1)):
-        q = a
-        while q < b:
-            e = min(q + dash, b)
-            d.line((q, fixed, e, fixed) if horiz else (fixed, q, fixed, e), fill=color, width=max(1, w // 2 + 1))
-            q += dash * 1.9
-    arrow = [(s * 0.45, s * 0.40), (s * 0.45, s * 0.95), (s * 0.58, s * 0.80), (s * 0.68, s * 0.98),
-             (s * 0.78, s * 0.93), (s * 0.68, s * 0.76), (s * 0.86, s * 0.74)]
-    d.polygon(arrow, fill=color)
+def _select(draw, size, stroke, color):
+    x0, y0, x1, y1 = size * 0.08, size * 0.08, size * 0.66, size * 0.62
+    dash = size * 0.09
+    for start, end, horiz, fixed in ((x0, x1, True, y0), (x0, x1, True, y1), (y0, y1, False, x0), (y0, y1, False, x1)):
+        other = start
+        while other < end:
+            event = min(other + dash, end)
+            draw.line((other, fixed, event, fixed) if horiz else (fixed, other, fixed, event), fill=color, width=max(1, stroke // 2 + 1))
+            other += dash * 1.9
+    arrow = [(size * 0.45, size * 0.40), (size * 0.45, size * 0.95), (size * 0.58, size * 0.80), (size * 0.68, size * 0.98),
+             (size * 0.78, size * 0.93), (size * 0.68, size * 0.76), (size * 0.86, size * 0.74)]
+    draw.polygon(arrow, fill=color)
 
 
-def _photo(d, s, w, color):
-    d.rounded_rectangle((s * 0.08, s * 0.18, s * 0.92, s * 0.82), radius=s * 0.08, outline=color, width=w)
-    d.polygon([(s * 0.16, s * 0.74), (s * 0.40, s * 0.44), (s * 0.56, s * 0.62), (s * 0.66, s * 0.52),
-               (s * 0.84, s * 0.74)], fill=color)
-    d.ellipse((s * 0.62, s * 0.28, s * 0.74, s * 0.40), fill=color)
+def _photo(draw, size, stroke, color):
+    draw.rounded_rectangle((size * 0.08, size * 0.18, size * 0.92, size * 0.82), radius=size * 0.08, outline=color, width=stroke)
+    draw.polygon([(size * 0.16, size * 0.74), (size * 0.40, size * 0.44), (size * 0.56, size * 0.62), (size * 0.66, size * 0.52),
+               (size * 0.84, size * 0.74)], fill=color)
+    draw.ellipse((size * 0.62, size * 0.28, size * 0.74, size * 0.40), fill=color)
 
 
-def _folder(d, s, w, color):
-    d.polygon([(s * 0.08, s * 0.22), (s * 0.38, s * 0.22), (s * 0.46, s * 0.32), (s * 0.92, s * 0.32),
-               (s * 0.92, s * 0.80), (s * 0.08, s * 0.80)], outline=color, width=w)
-    d.line((s * 0.08, s * 0.42, s * 0.92, s * 0.42), fill=color, width=w)
+def _folder(draw, size, stroke, color):
+    draw.polygon([(size * 0.08, size * 0.22), (size * 0.38, size * 0.22), (size * 0.46, size * 0.32), (size * 0.92, size * 0.32),
+               (size * 0.92, size * 0.80), (size * 0.08, size * 0.80)], outline=color, width=stroke)
+    draw.line((size * 0.08, size * 0.42, size * 0.92, size * 0.42), fill=color, width=stroke)
 
 
-def _project(d, s, w, color):
+def _project(draw, size, stroke, color):
     """Documento con esquina doblada (abrir un proyecto guardado)."""
-    d.polygon([(s * 0.22, s * 0.08), (s * 0.60, s * 0.08), (s * 0.80, s * 0.28), (s * 0.80, s * 0.92),
-               (s * 0.22, s * 0.92)], outline=color, width=w)
-    d.line((s * 0.60, s * 0.08, s * 0.60, s * 0.28, s * 0.80, s * 0.28), fill=color, width=w)
+    draw.polygon([(size * 0.22, size * 0.08), (size * 0.60, size * 0.08), (size * 0.80, size * 0.28), (size * 0.80, size * 0.92),
+               (size * 0.22, size * 0.92)], outline=color, width=stroke)
+    draw.line((size * 0.60, size * 0.08, size * 0.60, size * 0.28, size * 0.80, size * 0.28), fill=color, width=stroke)
     for y in (0.48, 0.62, 0.76):
-        d.line((s * 0.34, s * y, s * 0.68, s * y), fill=color, width=w)
+        draw.line((size * 0.34, size * y, size * 0.68, size * y), fill=color, width=stroke)
 
 
-def _eye(d, s, w, color, off=False):
-    d.arc((s * 0.04, s * 0.22, s * 0.96, s * 1.30), 200, 340, fill=color, width=w)     # párpado de arriba
-    d.arc((s * 0.04, s * -0.30, s * 0.96, s * 0.78), 20, 160, fill=color, width=w)     # de abajo
-    d.ellipse((s * 0.34, s * 0.34, s * 0.66, s * 0.66), outline=color, width=w)
-    d.ellipse((s * 0.44, s * 0.44, s * 0.56, s * 0.56), fill=color)
+def _eye(draw, size, stroke, color, off=False):
+    draw.arc((size * 0.04, size * 0.22, size * 0.96, size * 1.30), 200, 340, fill=color, width=stroke)     # párpado de arriba
+    draw.arc((size * 0.04, size * -0.30, size * 0.96, size * 0.78), 20, 160, fill=color, width=stroke)     # de abajo
+    draw.ellipse((size * 0.34, size * 0.34, size * 0.66, size * 0.66), outline=color, width=stroke)
+    draw.ellipse((size * 0.44, size * 0.44, size * 0.56, size * 0.56), fill=color)
     if off:
-        d.line((s * 0.12, s * 0.88, s * 0.88, s * 0.12), fill=color, width=int(w * 1.3))
+        draw.line((size * 0.12, size * 0.88, size * 0.88, size * 0.12), fill=color, width=int(stroke * 1.3))
 
 
-def _list(d, s, w, color):
+def _list(draw, size, stroke, color):
     for y in (0.24, 0.50, 0.76):
-        d.ellipse((s * 0.08, s * y - s * 0.06, s * 0.20, s * y + s * 0.06), fill=color)
-        d.line((s * 0.32, s * y, s * 0.92, s * y), fill=color, width=w)
+        draw.ellipse((size * 0.08, size * y - size * 0.06, size * 0.20, size * y + size * 0.06), fill=color)
+        draw.line((size * 0.32, size * y, size * 0.92, size * y), fill=color, width=stroke)
 
 
-def _grid(d, s, w, color):
-    k, g = s * 0.36, s * 0.10
-    for x in (s * 0.09, s * 0.09 + k + g):
-        for y in (s * 0.09, s * 0.09 + k + g):
-            d.rounded_rectangle((x, y, x + k, y + k), radius=s * 0.05, outline=color, width=w)
+def _grid(draw, size, stroke, color):
+    cell, gap = size * 0.36, size * 0.10
+    for x in (size * 0.09, size * 0.09 + cell + gap):
+        for y in (size * 0.09, size * 0.09 + cell + gap):
+            draw.rounded_rectangle((x, y, x + cell, y + cell), radius=size * 0.05, outline=color, width=stroke)
 
 
-def _panel(d, s, w, color, side="left"):
+def _panel(draw, size, stroke, color, side="left"):
     """Ventana con una franja a un lado: mostrar/ocultar el panel de ese lado."""
-    x0, y0, x1, y1 = s * 0.08, s * 0.16, s * 0.92, s * 0.84
-    d.rounded_rectangle((x0, y0, x1, y1), radius=s * 0.08, outline=color, width=w)
+    x0, y0, x1, y1 = size * 0.08, size * 0.16, size * 0.92, size * 0.84
+    draw.rounded_rectangle((x0, y0, x1, y1), radius=size * 0.08, outline=color, width=stroke)
     if side == "bottom":
-        d.rectangle((x0, y1 - s * 0.24, x1, y1), fill=color)
+        draw.rectangle((x0, y1 - size * 0.24, x1, y1), fill=color)
         return
-    bx = (x0, x0 + s * 0.30) if side == "left" else (x1 - s * 0.30, x1)
-    d.rectangle((bx[0], y0, bx[1], y1), fill=color)
+    box_x = (x0, x0 + size * 0.30) if side == "left" else (x1 - size * 0.30, x1)
+    draw.rectangle((box_x[0], y0, box_x[1], y1), fill=color)
 
 
-def _tune(d, s, w, color):
+def _tune(draw, size, stroke, color):
     """Ajustes: tres líneas con su perilla (opciones de una medición)."""
-    for y, kx in ((0.26, 0.66), (0.50, 0.34), (0.74, 0.58)):
-        d.line((s * 0.08, s * y, s * 0.92, s * y), fill=color, width=w)
-        r = s * 0.11
-        d.ellipse((s * kx - r, s * y - r, s * kx + r, s * y + r), fill=color)
+    for y, knob_x in ((0.26, 0.66), (0.50, 0.34), (0.74, 0.58)):
+        draw.line((size * 0.08, size * y, size * 0.92, size * y), fill=color, width=stroke)
+        radius = size * 0.11
+        draw.ellipse((size * knob_x - radius, size * y - radius, size * knob_x + radius, size * y + radius), fill=color)
 
 
-def _inspect(d, s, w, color):
+def _inspect(draw, size, stroke, color):
     """Inspeccionar: mira con un punto al centro (elegir un objeto)."""
-    c, r = s * 0.5, s * 0.30
-    d.ellipse((c - r, c - r, c + r, c + r), outline=color, width=w)
-    for a, b in (((c, s * 0.04), (c, s * 0.26)), ((c, s * 0.74), (c, s * 0.96)),
-                 ((s * 0.04, c), (s * 0.26, c)), ((s * 0.74, c), (s * 0.96, c))):
-        d.line((a, b), fill=color, width=w)
-    q = s * 0.08
-    d.ellipse((c - q, c - q, c + q, c + q), fill=color)
+    center, radius = size * 0.5, size * 0.30
+    draw.ellipse((center - radius, center - radius, center + radius, center + radius), outline=color, width=stroke)
+    for start, end in (((center, size * 0.04), (center, size * 0.26)), ((center, size * 0.74), (center, size * 0.96)),
+                 ((size * 0.04, center), (size * 0.26, center)), ((size * 0.74, center), (size * 0.96, center))):
+        draw.line((start, end), fill=color, width=stroke)
+    dot = size * 0.08
+    draw.ellipse((center - dot, center - dot, center + dot, center + dot), fill=color)
 
 
-def _dock_up(d, s, w, color):
+def _dock_up(draw, size, stroke, color):
     """Ventana con flecha hacia arriba: llevar el gráfico al lugar de una imagen."""
-    x0, y0, x1, y1 = s * 0.08, s * 0.16, s * 0.92, s * 0.84
-    d.rounded_rectangle((x0, y0, x1, y1), radius=s * 0.08, outline=color, width=w)
-    cx = s * 0.5
-    d.line((cx, s * 0.72, cx, s * 0.34), fill=color, width=w)
-    d.polygon([(cx, s * 0.26), (cx - s * 0.17, s * 0.45), (cx + s * 0.17, s * 0.45)], fill=color)
+    x0, y0, x1, y1 = size * 0.08, size * 0.16, size * 0.92, size * 0.84
+    draw.rounded_rectangle((x0, y0, x1, y1), radius=size * 0.08, outline=color, width=stroke)
+    cx = size * 0.5
+    draw.line((cx, size * 0.72, cx, size * 0.34), fill=color, width=stroke)
+    draw.polygon([(cx, size * 0.26), (cx - size * 0.17, size * 0.45), (cx + size * 0.17, size * 0.45)], fill=color)
 
 
-def _expand(d, s, w, color):
+def _expand(draw, size, stroke, color):
     """Dos flechas en diagonal hacia las esquinas: pantalla completa."""
-    a, b, h = s * 0.14, s * 0.86, s * 0.26
-    for (x0, y0, x1, y1, sx, sy) in ((s * 0.56, s * 0.44, b, a, -1, 1), (s * 0.44, s * 0.56, a, b, 1, -1)):
-        d.line((x0, y0, x1, y1), fill=color, width=w)
-        d.line((x1, y1, x1 + sx * h, y1), fill=color, width=w)
-        d.line((x1, y1, x1, y1 + sy * h), fill=color, width=w)
+    near, far, head = size * 0.14, size * 0.86, size * 0.26
+    for (x0, y0, x1, y1, dir_x, dir_y) in ((size * 0.56, size * 0.44, far, near, -1, 1), (size * 0.44, size * 0.56, near, far, 1, -1)):
+        draw.line((x0, y0, x1, y1), fill=color, width=stroke)
+        draw.line((x1, y1, x1 + dir_x * head, y1), fill=color, width=stroke)
+        draw.line((x1, y1, x1, y1 + dir_y * head), fill=color, width=stroke)
 
 
-def _home(d, s, w, color):
+def _home(draw, size, stroke, color):
     """Casa: techo y cuerpo con puerta."""
-    m = s * 0.16
-    d.line((m, s * 0.5, s / 2, m, s - m, s * 0.5), fill=color, width=w, joint="curve")
-    d.line((s * 0.26, s * 0.42, s * 0.26, s - m, s * 0.74, s - m, s * 0.74, s * 0.42), fill=color, width=w)
-    d.line((s * 0.44, s - m, s * 0.44, s * 0.64, s * 0.56, s * 0.64, s * 0.56, s - m), fill=color, width=w)
+    margin = size * 0.16
+    draw.line((margin, size * 0.5, size / 2, margin, size - margin, size * 0.5), fill=color, width=stroke, joint="curve")
+    draw.line((size * 0.26, size * 0.42, size * 0.26, size - margin, size * 0.74, size - margin, size * 0.74, size * 0.42), fill=color, width=stroke)
+    draw.line((size * 0.44, size - margin, size * 0.44, size * 0.64, size * 0.56, size * 0.64, size * 0.56, size - margin), fill=color, width=stroke)
 
 
 _DRAW = {"home": _home, "palette": _palette, "dock_up": _dock_up, "expand": _expand, "inspect": _inspect, "list": _list, "grid": _grid, "tune": _tune,
-         "panel_left": lambda d, s, w, c: _panel(d, s, w, c, "left"),
-         "panel_right": lambda d, s, w, c: _panel(d, s, w, c, "right"),
-         "panel_bottom": lambda d, s, w, c: _panel(d, s, w, c, "bottom"), "select": _select,
-         "eye": _eye, "eye_off": lambda d, s, w, c: _eye(d, s, w, c, off=True), "photo": _photo, "folder": _folder, "project": _project,
-         "area_rect": lambda d, s, w, c: _area(d, s, w, c, "rect", False),
-         "area_poly": lambda d, s, w, c: _area(d, s, w, c, "poly", False),
-         "excl_rect": lambda d, s, w, c: _area(d, s, w, c, "rect", True),
-         "excl_poly": lambda d, s, w, c: _area(d, s, w, c, "poly", True), "zoom_in": lambda d, s, w, c: _magnifier(d, s, w, c, "+"),
-         "zoom_out": lambda d, s, w, c: _magnifier(d, s, w, c, "-"),
+         "panel_left": lambda draw, size, stroke, color: _panel(draw, size, stroke, color, "left"),
+         "panel_right": lambda draw, size, stroke, color: _panel(draw, size, stroke, color, "right"),
+         "panel_bottom": lambda draw, size, stroke, color: _panel(draw, size, stroke, color, "bottom"), "select": _select,
+         "eye": _eye, "eye_off": lambda draw, size, stroke, color: _eye(draw, size, stroke, color, off=True), "photo": _photo, "folder": _folder, "project": _project,
+         "area_rect": lambda draw, size, stroke, color: _area(draw, size, stroke, color, "rect", False),
+         "area_poly": lambda draw, size, stroke, color: _area(draw, size, stroke, color, "poly", False),
+         "excl_rect": lambda draw, size, stroke, color: _area(draw, size, stroke, color, "rect", True),
+         "excl_poly": lambda draw, size, stroke, color: _area(draw, size, stroke, color, "poly", True), "zoom_in": lambda draw, size, stroke, color: _magnifier(draw, size, stroke, color, "+"),
+         "zoom_out": lambda draw, size, stroke, color: _magnifier(draw, size, stroke, color, "-"),
          "pan": _hand, "fit": _fit, "zoom_area": _zoom_area}
 
 
@@ -233,8 +233,8 @@ _FILES: dict[str, Image.Image | None] = {}
 def _file_mask(name: str) -> Image.Image | None:
     """Forma del ícono desde su .png (canal alfa), o None si no hay archivo."""
     if name not in _FILES:
-        p = ICON_DIR / f"{name}.png"
-        _FILES[name] = Image.open(p).convert("RGBA").getchannel("A") if p.exists() else None
+        path = ICON_DIR / f"{name}.png"
+        _FILES[name] = Image.open(path).convert("RGBA").getchannel("A") if path.exists() else None
     return _FILES[name]
 
 
@@ -244,9 +244,9 @@ def icon(name: str, size: int, color: str = COLORS["on_accent"]) -> Image.Image:
         out = Image.new("RGBA", (size, size), color)
         out.putalpha(mask.resize((size, size), Image.LANCZOS))
         return out
-    s = size * _SS
-    img = Image.new("RGBA", (s, s), (0, 0, 0, 0))
-    _DRAW[name](ImageDraw.Draw(img), s, max(_SS, int(s * 0.085)), color)
+    canvas_size = size * _SUPERSAMPLING
+    img = Image.new("RGBA", (canvas_size, canvas_size), (0, 0, 0, 0))
+    _DRAW[name](ImageDraw.Draw(img), canvas_size, max(_SUPERSAMPLING, int(canvas_size * 0.085)), color)
     return img.resize((size, size), Image.LANCZOS)
 
 

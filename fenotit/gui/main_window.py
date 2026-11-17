@@ -110,9 +110,9 @@ class MainWindow(
         if ico.exists():
             try: self.root.iconbitmap(default=str(ico))
             except Exception: _log.debug("ignorado", exc_info=True)
-        sw, sh = self.root.winfo_screenwidth(), self.root.winfo_screenheight()
-        w = min(int(sw * 0.92), 1600)
-        h = min(int(sh * 0.88), 960)
-        self.root.geometry(f"{w}x{h}+{(sw-w)//2}+{(sh-h)//2}")
+        screen_width, screen_height = self.root.winfo_screenwidth(), self.root.winfo_screenheight()
+        width = min(int(screen_width * 0.92), 1600)
+        height = min(int(screen_height * 0.88), 960)
+        self.root.geometry(f"{width}x{height}+{(screen_width-width)//2}+{(screen_height-height)//2}")
         self.root.minsize(900, 600)
         ttk_styles.apply(self.root)

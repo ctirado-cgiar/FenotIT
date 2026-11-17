@@ -9,8 +9,8 @@ from fenotit.gui.style import ttk_styles
 _log = log.get("gui")
 
 
-def _report_error(root, exc_type, exc, tb):
-    _log.error("Error en la interfaz", exc_info=(exc_type, exc, tb))
+def _report_error(root, exc_type, exc, trace):
+    _log.error("Error en la interfaz", exc_info=(exc_type, exc, trace))
     messagebox.showerror(
         i18n.t("common.error"),
         i18n.t("error.unhandled", error=f"{exc_type.__name__}: {exc}", log=log.log_file()),
@@ -21,7 +21,7 @@ def main(project_path: str | None = None):
     lang = i18n.load()
     _log.info("Idioma: %s", lang)
     root = tk.Tk()
-    root.report_callback_exception = lambda *a: _report_error(root, *a)
+    root.report_callback_exception = lambda *error_args: _report_error(root, *error_args)
     root.withdraw()
     ttk_styles.apply(root)
 

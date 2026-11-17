@@ -11,38 +11,38 @@ def apply(root: tk.Misc) -> None:
     use_installed_fonts(root)
     for cls in ("Checkbutton", "Radiobutton", "Button"):
         root.option_add(f"*{cls}.highlightThickness", SIZES["focus_ring"])
-    s = ttk.Style(root)
-    s.theme_use("clam")
-    s.configure("TFrame", background=COLORS["bg"])
-    s.configure("TLabel", background=COLORS["bg"], foreground=COLORS["text"], font=FONTS["body"])
-    s.configure("TButton", background=COLORS["btn_bg"], foreground=COLORS["accent"], font=FONTS["body"],
+    style = ttk.Style(root)
+    style.theme_use("clam")
+    style.configure("TFrame", background=COLORS["bg"])
+    style.configure("TLabel", background=COLORS["bg"], foreground=COLORS["text"], font=FONTS["body"])
+    style.configure("TButton", background=COLORS["btn_bg"], foreground=COLORS["accent"], font=FONTS["body"],
                 borderwidth=1, relief="flat", padding=(SIZES["button_small_pad_x"], SIZES["button_pad_y"]))
-    s.map("TButton", background=[("active", COLORS["btn_hover"])], foreground=[("active", COLORS["accent"])])
-    s.configure("TSeparator", background=COLORS["border"])
+    style.map("TButton", background=[("active", COLORS["btn_hover"])], foreground=[("active", COLORS["accent"])])
+    style.configure("TSeparator", background=COLORS["border"])
     for name in ("Horizontal.TProgressbar", "Thin.Horizontal.TProgressbar"):
-        s.configure(name, background=COLORS["accent"], troughcolor=COLORS["bg_panel"],
+        style.configure(name, background=COLORS["accent"], troughcolor=COLORS["bg_panel"],
                     bordercolor=COLORS["border"], lightcolor=COLORS["accent"], darkcolor=COLORS["accent"])
-    s.configure("Thin.Horizontal.TProgressbar", thickness=SIZES["progress_thin"])
-    s.configure("TScrollbar", background=COLORS["bg_panel"], troughcolor=COLORS["bg"], borderwidth=0,
+    style.configure("Thin.Horizontal.TProgressbar", thickness=SIZES["progress_thin"])
+    style.configure("TScrollbar", background=COLORS["bg_panel"], troughcolor=COLORS["bg"], borderwidth=0,
                 arrowsize=SIZES["scroll_arrow"])
-    s.configure("TCombobox", fieldbackground=COLORS["bg_card"], background=COLORS["bg_card"],
+    style.configure("TCombobox", fieldbackground=COLORS["bg_card"], background=COLORS["bg_card"],
                 foreground=COLORS["text"], selectbackground=COLORS["accent_light"],
                 selectforeground=COLORS["text"])
-    s.configure("Treeview", background=COLORS["bg_card"], fieldbackground=COLORS["bg_card"],
+    style.configure("Treeview", background=COLORS["bg_card"], fieldbackground=COLORS["bg_card"],
                 foreground=COLORS["text"], font=FONTS["small"], rowheight=SIZES["row_height"])
-    s.configure("Treeview.Heading", background=COLORS["bg_panel"], foreground=COLORS["table_heading"],
+    style.configure("Treeview.Heading", background=COLORS["bg_panel"], foreground=COLORS["table_heading"],
                 font=FONTS["small_bold"], relief="flat")
-    s.map("Treeview", background=[("selected", COLORS["bg_table_sel"])],
+    style.map("Treeview", background=[("selected", COLORS["bg_table_sel"])],
           foreground=[("selected", COLORS["text"])])
-    s.configure("TNotebook", background=COLORS["bg_card"], bordercolor=COLORS["border"])
-    s.configure("TNotebook.Tab", background=COLORS["bg_panel"], foreground=COLORS["text_muted"],
+    style.configure("TNotebook", background=COLORS["bg_card"], bordercolor=COLORS["border"])
+    style.configure("TNotebook.Tab", background=COLORS["bg_panel"], foreground=COLORS["text_muted"],
                 bordercolor=COLORS["border"], lightcolor=COLORS["bg_panel"], font=FONTS["body"])
-    s.map("TNotebook.Tab", background=[("selected", COLORS["bg_card"])], foreground=[("selected", COLORS["text"])],
+    style.map("TNotebook.Tab", background=[("selected", COLORS["bg_card"])], foreground=[("selected", COLORS["text"])],
           lightcolor=[("selected", COLORS["bg_card"])])
-    s.map("TCombobox", fieldbackground=[("readonly", COLORS["bg_card"])], background=[("readonly", COLORS["bg_card"])],
+    style.map("TCombobox", fieldbackground=[("readonly", COLORS["bg_card"])], background=[("readonly", COLORS["bg_card"])],
           selectbackground=[("readonly", COLORS["bg_card"])], selectforeground=[("readonly", COLORS["text"])],
           bordercolor=[("focus", COLORS["accent"])])
-    s.configure("TCombobox", bordercolor=COLORS["border"], lightcolor=COLORS["bg_card"], darkcolor=COLORS["bg_card"],
+    style.configure("TCombobox", bordercolor=COLORS["border"], lightcolor=COLORS["bg_card"], darkcolor=COLORS["bg_card"],
                 arrowcolor=COLORS["text_muted"])
-    s.configure("Horizontal.TScale", background=COLORS["bg_card"], troughcolor=COLORS["divider"],
+    style.configure("Horizontal.TScale", background=COLORS["bg_card"], troughcolor=COLORS["divider"],
                 bordercolor=COLORS["border"], lightcolor=COLORS["bg_card"], darkcolor=COLORS["bg_card"])

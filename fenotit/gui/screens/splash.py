@@ -29,43 +29,43 @@ class SplashScreen:
 
     def show(self):
         self._t0 = time.monotonic()
-        w = self.window = tk.Toplevel(self.root)
-        W, H = 500, 300
-        sw, sh = self.root.winfo_screenwidth(), self.root.winfo_screenheight()
-        w.geometry(f"{W}x{H}+{(sw - W) // 2}+{(sh - H) // 2}")
-        w.overrideredirect(True)
-        w.attributes("-topmost", True)
-        c = self._c = tk.Canvas(w, width=W, height=H, bg=COLORS["bg_card"], highlightthickness=1,
+        window = self.window = tk.Toplevel(self.root)
+        width, height = 500, 300
+        screen_width, screen_height = self.root.winfo_screenwidth(), self.root.winfo_screenheight()
+        window.geometry(f"{width}x{height}+{(screen_width - width) // 2}+{(screen_height - height) // 2}")
+        window.overrideredirect(True)
+        window.attributes("-topmost", True)
+        canvas = self._c = tk.Canvas(window, width=width, height=height, bg=COLORS["bg_card"], highlightthickness=1,
                                 highlightbackground=COLORS["divider"])
-        c.pack(fill=tk.BOTH, expand=True)
-        c.create_rectangle(0, 0, W, 6, fill=BLUE, width=0)
-        mosaic(c, W, 6, 13, [7, 5, 4, 3, 2, 2, 1], mirror=True)
+        canvas.pack(fill=tk.BOTH, expand=True)
+        canvas.create_rectangle(0, 0, width, 6, fill=BLUE, width=0)
+        mosaic(canvas, width, 6, 13, [7, 5, 4, 3, 2, 2, 1], mirror=True)
         x0 = 40
         try:
             from PIL import Image, ImageTk
             img = Image.open(_assets() / "logo.ico").convert("RGBA").resize((64, 64), Image.LANCZOS)
             self._logo = ImageTk.PhotoImage(img)
-            c.create_image(x0, 70, image=self._logo, anchor="nw")
+            canvas.create_image(x0, 70, image=self._logo, anchor="nw")
             x1 = x0 + 78
         except Exception:
             _log.debug("logo", exc_info=True)
             x1 = x0
-        c.create_text(x1, 66, text=APP_NAME, anchor="nw", fill=BLUE, font=FONTS["display_xl"])
-        c.create_text(x1 + 2, 112, text=t("start.subtitle"), anchor="nw", fill=COLORS["text_muted"],
+        canvas.create_text(x1, 66, text=APP_NAME, anchor="nw", fill=BLUE, font=FONTS["display_xl"])
+        canvas.create_text(x1 + 2, 112, text=t("start.subtitle"), anchor="nw", fill=COLORS["text_muted"],
                       font=FONTS["motto"])
-        c.create_text(x0, 160, text="Alliance of Bioversity International & CIAT", anchor="nw",
+        canvas.create_text(x0, 160, text="Alliance of Bioversity International & CIAT", anchor="nw",
                       fill=COLORS["text_faint"], font=FONTS["small"])
-        c.create_line(x0, 186, W - x0, 186, fill=COLORS["divider"])
-        self._msg = c.create_text(x0, 204, text=t("splash.loading"), anchor="nw", fill=COLORS["text_muted"],
+        canvas.create_line(x0, 186, width - x0, 186, fill=COLORS["divider"])
+        self._msg = canvas.create_text(x0, 204, text=t("splash.loading"), anchor="nw", fill=COLORS["text_muted"],
                                   font=FONTS["small"])
-        self._bar = (x0, 226, W - x0, 230)
-        c.create_rectangle(*self._bar, fill=COLORS["placeholder"], width=0)
-        self._fill = c.create_rectangle(x0, 226, x0, 230, fill=BLUE, width=0)
-        c.create_text(W - x0, H - 18, text=f"v{__version__}", anchor="e", fill=COLORS["text_faint"],
+        self._bar = (x0, 226, width - x0, 230)
+        canvas.create_rectangle(*self._bar, fill=COLORS["placeholder"], width=0)
+        self._fill = canvas.create_rectangle(x0, 226, x0, 230, fill=BLUE, width=0)
+        canvas.create_text(width - x0, height - 18, text=f"v{__version__}", anchor="e", fill=COLORS["text_faint"],
                       font=FONTS["tiny"])
-        c.create_rectangle(0, H - 4, W, H, fill=BLUE, width=0)
+        canvas.create_rectangle(0, height - 4, width, height, fill=BLUE, width=0)
         self._set(0.03)
-        w.update()
+        window.update()
 
     def _set(self, frac: float, msg: str | None = None):
         self._frac = max(self._frac, min(1.0, frac))

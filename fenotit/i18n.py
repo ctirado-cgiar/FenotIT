@@ -15,9 +15,9 @@ _current = DEFAULT
 def available() -> dict[str, str]:
     """{código: nombre nativo} de los idiomas con archivo en lang/."""
     out = {}
-    for f in sorted(LANG_DIR.glob("*.json")):
+    for file in sorted(LANG_DIR.glob("*.json")):
         try:
-            out[f.stem] = json.loads(f.read_text(encoding="utf-8")).get("_language", f.stem)
+            out[file.stem] = json.loads(file.read_text(encoding="utf-8")).get("_language", file.stem)
         except (OSError, json.JSONDecodeError):
             continue
     return out
@@ -67,10 +67,10 @@ def set_language(code: str) -> None:
     settings.set("language", code)
 
 
-def t(key: str, default: str | None = None, **kw) -> str:
+def t(key: str, default: str | None = None, **kwargs) -> str:
     text = _strings.get(key, default if default is not None else key)
-    kw.setdefault("app", APP_NAME)
+    kwargs.setdefault("app", APP_NAME)
     try:
-        return text.format(**kw)
+        return text.format(**kwargs)
     except (KeyError, IndexError, ValueError):
         return text

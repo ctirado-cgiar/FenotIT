@@ -12,7 +12,7 @@ SIZE_NAMES = ("normal", "small")
 
 
 def button(parent: tk.Misc, text: str = "", command=None, kind: str = "secondary", size: str = "normal",
-           bg: str | None = None, **kw) -> tk.Button:
+           bg: str | None = None, **kwargs) -> tk.Button:
     """Botón del tema. kind: primary (acción principal), secondary, quiet (cancelar, cerrar) o
     link (sin fondo, sobre el color `bg` de su contenedor). size: normal o small."""
     style = BUTTONS[kind]
@@ -24,13 +24,13 @@ def button(parent: tk.Misc, text: str = "", command=None, kind: str = "secondary
                    padx=SIZES["button_small_pad_x" if small else "button_pad_x"],
                    pady=SIZES["button_small_pad_y" if small else "button_pad_y"],
                    highlightthickness=0)
-    options.update(kw)
-    b = tk.Button(parent, text=text, command=command, **options)
+    options.update(kwargs)
+    button_widget = tk.Button(parent, text=text, command=command, **options)
     hover = style.get("hover")
     if hover:
-        b.bind("<Enter>", lambda e: b.cget("state") != "disabled" and b.config(bg=COLORS[hover]), add="+")
-        b.bind("<Leave>", lambda e: b.config(bg=back), add="+")
-    return b
+        button_widget.bind("<Enter>", lambda event: button_widget.cget("state") != "disabled" and button_widget.config(bg=COLORS[hover]), add="+")
+        button_widget.bind("<Leave>", lambda event: button_widget.config(bg=back), add="+")
+    return button_widget
 
 
 def section(parent: tk.Misc, text: str, bg: str | None = None, line: str = "after",

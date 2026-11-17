@@ -35,20 +35,20 @@ def setup(console_level=logging.WARNING) -> Path | None:
     path = None
     try:
         log_dir().mkdir(parents=True, exist_ok=True)
-        fh = RotatingFileHandler(log_file(), maxBytes=1_000_000, backupCount=5, encoding="utf-8")
-        fh.setLevel(logging.DEBUG)
-        fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)-7s %(name)s: %(message)s"))
-        root.addHandler(fh)
+        handler = RotatingFileHandler(log_file(), maxBytes=1_000_000, backupCount=5, encoding="utf-8")
+        handler.setLevel(logging.DEBUG)
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)-7s %(name)s: %(message)s"))
+        root.addHandler(handler)
         path = log_file()
     except OSError as e:
         root.warning("No se pudo crear el log en %s: %s", log_dir(), e)
 
-    def _hook(exc_type, exc, tb):
-        root.critical("Error no controlado", exc_info=(exc_type, exc, tb))
+    def _hook(exc_type, exc, trace):
+        root.critical("Error no controlado", exc_info=(exc_type, exc, trace))
     sys.excepthook = _hook
-    threading.excepthook = lambda a: root.critical(
-        "Error no controlado en hilo %s", a.thread.name if a.thread else "?",
-        exc_info=(a.exc_type, a.exc_value, a.exc_traceback))
+    threading.excepthook = lambda hook_args: root.critical(
+        "Error no controlado en hilo %s", hook_args.thread.name if hook_args.thread else "?",
+        exc_info=(hook_args.exc_type, hook_args.exc_value, hook_args.exc_traceback))
 
     root.info("%s %s | Python %s | %s", APP_NAME, __version__, sys.version.split()[0], sys.platform)
     return path

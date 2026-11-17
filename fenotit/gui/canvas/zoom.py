@@ -49,9 +49,9 @@ class ZoomState:
         off_y = (canvas_h - img_h * self.zoom) / 2 + self.pan_y
         ix0, ix1 = sorted(((x0 - off_x) / self.zoom, (x1 - off_x) / self.zoom))
         iy0, iy1 = sorted(((y0 - off_y) / self.zoom, (y1 - off_y) / self.zoom))
-        w, h = max(ix1 - ix0, 1.0), max(iy1 - iy0, 1.0)
-        lo, hi = self._limits()
-        self.zoom = max(lo, min(hi, min(canvas_w / w, canvas_h / h)))
+        width, height = max(ix1 - ix0, 1.0), max(iy1 - iy0, 1.0)
+        low, high = self._limits()
+        self.zoom = max(low, min(high, min(canvas_w / width, canvas_h / height)))
         cx, cy = (ix0 + ix1) / 2, (iy0 + iy1) / 2
         self.pan_x = canvas_w / 2 - cx * self.zoom - (canvas_w - img_w * self.zoom) / 2
         self.pan_y = canvas_h / 2 - cy * self.zoom - (canvas_h - img_h * self.zoom) / 2
@@ -59,8 +59,8 @@ class ZoomState:
     def zoom_at_center(self, canvas_w: int, canvas_h: int,
                        img_w: int, img_h: int, factor: float):
         """Zoom centrado en el centro del canvas."""
-        lo, hi = self._limits()
-        new_zoom = max(lo, min(hi, self.zoom * factor))
+        low, high = self._limits()
+        new_zoom = max(low, min(high, self.zoom * factor))
         if abs(new_zoom - self.zoom) < 1e-6:
             return
         # Mantener el centro fijo
@@ -75,18 +75,18 @@ class ZoomState:
         self.pan_y = cy - img_y * new_zoom - (canvas_h - img_h * new_zoom) / 2
         self.zoom   = new_zoom
 
-    def zoom_at(self, px: float, py: float, canvas_w: int, canvas_h: int,
+    def zoom_at(self, pixel_x: float, pixel_y: float, canvas_w: int, canvas_h: int,
                 img_w: int, img_h: int, factor: float):
         """Zoom manteniendo fijo el punto (px, py) del canvas (p. ej. el cursor)."""
-        lo, hi = self._limits()
-        new_zoom = max(lo, min(hi, self.zoom * factor))
+        low, high = self._limits()
+        new_zoom = max(low, min(high, self.zoom * factor))
         if abs(new_zoom - self.zoom) < 1e-6:
             return
         off_x = (canvas_w - img_w * self.zoom) / 2 + self.pan_x
         off_y = (canvas_h - img_h * self.zoom) / 2 + self.pan_y
-        img_x, img_y = (px - off_x) / self.zoom, (py - off_y) / self.zoom
-        self.pan_x = px - img_x * new_zoom - (canvas_w - img_w * new_zoom) / 2
-        self.pan_y = py - img_y * new_zoom - (canvas_h - img_h * new_zoom) / 2
+        img_x, img_y = (pixel_x - off_x) / self.zoom, (pixel_y - off_y) / self.zoom
+        self.pan_x = pixel_x - img_x * new_zoom - (canvas_w - img_w * new_zoom) / 2
+        self.pan_y = pixel_y - img_y * new_zoom - (canvas_h - img_h * new_zoom) / 2
         self.zoom = new_zoom
 
     def pan(self, dx: float, dy: float,
@@ -139,31 +139,31 @@ def wheel_factor(event) -> float:
     return ZoomState.WHEEL_STEP ** notches
 
 
-def render(img_bgr: np.ndarray, state: ZoomState, cw: int, ch: int, post=None, size=None):
+def render(img_bgr: np.ndarray, state: ZoomState, canvas_width: int, canvas_height: int, post=None, size=None):
     """Solo la parte visible, ya escalada: (rgb, x, y) o None. `size` = (ancho, alto) de la foto
     cuando `img_bgr` es una copia reducida (vista previa de fotos muy grandes)."""
-    iw, ih = size or (img_bgr.shape[1], img_bgr.shape[0])
+    image_width, image_height = size or (img_bgr.shape[1], img_bgr.shape[0])
     z = state.zoom
-    ox, oy = state.image_offset(cw, ch, iw, ih)
-    x0, y0 = max(0, int(np.floor(-ox / z))), max(0, int(np.floor(-oy / z)))
-    x1, y1 = min(iw, int(np.ceil((cw - ox) / z)) + 1), min(ih, int(np.ceil((ch - oy) / z)) + 1)
+    offset_x, offset_y = state.image_offset(canvas_width, canvas_height, image_width, image_height)
+    x0, y0 = max(0, int(np.floor(-offset_x / z))), max(0, int(np.floor(-offset_y / z)))
+    x1, y1 = min(image_width, int(np.ceil((canvas_width - offset_x) / z)) + 1), min(image_height, int(np.ceil((canvas_height - offset_y) / z)) + 1)
     if x1 <= x0 or y1 <= y0:
         return None
-    k = img_bgr.shape[1] / iw
-    if k != 1:
-        crop = img_bgr[int(y0 * k):max(int(y0 * k) + 1, int(np.ceil(y1 * k))),
-                       int(x0 * k):max(int(x0 * k) + 1, int(np.ceil(x1 * k)))]
+    factor = img_bgr.shape[1] / image_width
+    if factor != 1:
+        crop = img_bgr[int(y0 * factor):max(int(y0 * factor) + 1, int(np.ceil(y1 * factor))),
+                       int(x0 * factor):max(int(x0 * factor) + 1, int(np.ceil(x1 * factor)))]
     else:
         crop = img_bgr[y0:y1, x0:x1]
-    dw, dh = max(1, int(round((x1 - x0) * z))), max(1, int(round((y1 - y0) * z)))
+    display_width, display_height = max(1, int(round((x1 - x0) * z))), max(1, int(round((y1 - y0) * z)))
     interp = cv2.INTER_AREA if z < 1 else (cv2.INTER_NEAREST if z >= 4 else cv2.INTER_LINEAR)
-    out = cv2.resize(crop, (dw, dh), interpolation=interp)
+    out = cv2.resize(crop, (display_width, display_height), interpolation=interp)
     if out.ndim == 2:
         out = cv2.cvtColor(out, cv2.COLOR_GRAY2BGR)
     if post is not None:                      # marcas a tamaño de pantalla (overlay.draw)
         out = np.ascontiguousarray(out) if out is not crop else out.copy()
         post(out, (x0, y0), z)
-    return cv2.cvtColor(out, cv2.COLOR_BGR2RGB), ox + int(round(x0 * z)), oy + int(round(y0 * z))
+    return cv2.cvtColor(out, cv2.COLOR_BGR2RGB), offset_x + int(round(x0 * z)), offset_y + int(round(y0 * z))
 
 
 class ZoomController:
@@ -203,26 +203,26 @@ class ZoomController:
         self.highlight = None                 # contorno (px de imagen) del objeto elegido
         self.on_hover = None                  # (canvas, (x, y) px de imagen | None) con "inspeccionar"
 
-        for c in (canvas_left, canvas_right):
-            c.config(takefocus=True)
-            c.bind("<MouseWheel>", self._on_wheel, add="+")
-            c.bind("<Shift-MouseWheel>", self._on_hwheel, add="+")
-            c.bind("<Button-4>", self._on_wheel, add="+")
-            c.bind("<Button-5>", self._on_wheel, add="+")
+        for canvas_widget in (canvas_left, canvas_right):
+            canvas_widget.config(takefocus=True)
+            canvas_widget.bind("<MouseWheel>", self._on_wheel, add="+")
+            canvas_widget.bind("<Shift-MouseWheel>", self._on_hwheel, add="+")
+            canvas_widget.bind("<Button-4>", self._on_wheel, add="+")
+            canvas_widget.bind("<Button-5>", self._on_wheel, add="+")
             for btn in ("1", "2"):
-                c.bind(f"<ButtonPress-{btn}>", lambda e, b=btn: self._press(e, b), add="+")
-                c.bind(f"<B{btn}-Motion>", lambda e, b=btn: self._motion(e, b), add="+")
-                c.bind(f"<ButtonRelease-{btn}>", lambda e, b=btn: self._release(e, b), add="+")
-            c.bind("<Enter>", lambda e: self._update_cursor(e.widget), add="+")
-            c.bind("<Motion>", self._hover, add="+")
-            c.bind("<Leave>", lambda e: self.on_hover and self.on_hover(e.widget, None), add="+")
+                canvas_widget.bind(f"<ButtonPress-{btn}>", lambda event, button_number=btn: self._press(event, button_number), add="+")
+                canvas_widget.bind(f"<B{btn}-Motion>", lambda event, button_number=btn: self._motion(event, button_number), add="+")
+                canvas_widget.bind(f"<ButtonRelease-{btn}>", lambda event, button_number=btn: self._release(event, button_number), add="+")
+            canvas_widget.bind("<Enter>", lambda event: self._update_cursor(event.widget), add="+")
+            canvas_widget.bind("<Motion>", self._hover, add="+")
+            canvas_widget.bind("<Leave>", lambda event: self.on_hover and self.on_hover(event.widget, None), add="+")
 
     # ── Herramientas ──────────────────────────────────────────────────────────
 
     def set_tool(self, tool: str):
         self.tool = tool
-        for c in (self.cl, self.cr):
-            self._update_cursor(c)
+        for canvas_widget in (self.cl, self.cr):
+            self._update_cursor(canvas_widget)
         if self.on_tool_change:
             self.on_tool_change(tool)
 
@@ -288,17 +288,17 @@ class ZoomController:
         img = self._img_left if self._img_left is not None else self._img_right
         if img is None:
             return None
-        cw, ch = max(canvas.winfo_width(), 1), max(canvas.winfo_height(), 1)
-        ox, oy = self.state.image_offset(cw, ch, img.shape[1], img.shape[0])
-        return ox + x * self.state.zoom, oy + y * self.state.zoom
+        canvas_width, canvas_height = max(canvas.winfo_width(), 1), max(canvas.winfo_height(), 1)
+        offset_x, offset_y = self.state.image_offset(canvas_width, canvas_height, img.shape[1], img.shape[0])
+        return offset_x + x * self.state.zoom, offset_y + y * self.state.zoom
 
     def _to_image(self, canvas, x, y):
         img = self._img_left if self._img_left is not None else self._img_right
         if img is None:
             return None
-        cw, ch = max(canvas.winfo_width(), 1), max(canvas.winfo_height(), 1)
-        ox, oy = self.state.image_offset(cw, ch, img.shape[1], img.shape[0])
-        return (x - ox) / self.state.zoom, (y - oy) / self.state.zoom
+        canvas_width, canvas_height = max(canvas.winfo_width(), 1), max(canvas.winfo_height(), 1)
+        offset_x, offset_y = self.state.image_offset(canvas_width, canvas_height, img.shape[1], img.shape[0])
+        return (x - offset_x) / self.state.zoom, (y - offset_y) / self.state.zoom
 
     def _motion(self, event, button):
         if getattr(self, "_mini_drag", False):
@@ -308,10 +308,10 @@ class ZoomController:
             return
         if self._rect_start and button == "1":
             _, x0, y0 = self._rect_start
-            for c in (self.cl, self.cr):
-                c.delete("zoomrect")
-                c.create_rectangle(x0, y0, event.x, event.y, outline=COLORS["white"], width=1, tags="zoomrect")
-                c.create_rectangle(x0, y0, event.x, event.y, outline=COLORS["accent_dark"], dash=(4, 3), tags="zoomrect")
+            for canvas_widget in (self.cl, self.cr):
+                canvas_widget.delete("zoomrect")
+                canvas_widget.create_rectangle(x0, y0, event.x, event.y, outline=COLORS["white"], width=1, tags="zoomrect")
+                canvas_widget.create_rectangle(x0, y0, event.x, event.y, outline=COLORS["accent_dark"], dash=(4, 3), tags="zoomrect")
             return
         if self._drag is None:
             return
@@ -328,9 +328,9 @@ class ZoomController:
         click, self._click = self._click, None
         if click and button == "1" and click[0] is event.widget \
                 and abs(event.x - click[1]) < 4 and abs(event.y - click[2]) < 4 and self.on_pick:
-            pt = self._to_image(event.widget, event.x, event.y)
-            if pt is not None:
-                self.on_pick(*pt)
+            point = self._to_image(event.widget, event.x, event.y)
+            if point is not None:
+                self.on_pick(*point)
             return
         if getattr(self, "_mini_drag", False):
             self._mini_drag = False
@@ -339,8 +339,8 @@ class ZoomController:
             return
         _, x0, y0 = self._rect_start
         self._rect_start = None
-        for c in (self.cl, self.cr):
-            c.delete("zoomrect")
+        for canvas_widget in (self.cl, self.cr):
+            canvas_widget.delete("zoomrect")
         size = self._ref_size()
         if size is None:
             return
@@ -408,12 +408,12 @@ class ZoomController:
             return 0, 0, max(self.cl.winfo_width(), 1), \
                          max(self.cl.winfo_height(), 1)
         self.cl.update_idletasks()
-        cw = max(self.cl.winfo_width(),  1)
-        ch = max(self.cl.winfo_height(), 1)
-        ih, iw = self._img_left.shape[:2]
-        dw, dh = self.state.display_size(iw, ih)
-        ox, oy = self.state.image_offset(cw, ch, iw, ih)
-        return ox, oy, dw, dh
+        canvas_width = max(self.cl.winfo_width(),  1)
+        canvas_height = max(self.cl.winfo_height(), 1)
+        image_height, image_width = self._img_left.shape[:2]
+        display_width, display_height = self.state.display_size(image_width, image_height)
+        offset_x, offset_y = self.state.image_offset(canvas_width, canvas_height, image_width, image_height)
+        return offset_x, offset_y, display_width, display_height
 
     def pan_by(self, dx: int, dy: int):
         size = self._ref_size()
@@ -430,10 +430,10 @@ class ZoomController:
             return
         ref = self._ref()
         ref.update_idletasks()
-        cw = max(ref.winfo_width(),  100)
-        ch = max(ref.winfo_height(), 100)
-        ih, iw = self._img_left.shape[:2]
-        self.state.fit(cw, ch, iw, ih)
+        canvas_width = max(ref.winfo_width(),  100)
+        canvas_height = max(ref.winfo_height(), 100)
+        image_height, image_width = self._img_left.shape[:2]
+        self.state.fit(canvas_width, canvas_height, image_width, image_height)
         self._redraw()
 
     # ── Renderizado ───────────────────────────────────────────────────────────
@@ -457,25 +457,25 @@ class ZoomController:
                      img_bgr: np.ndarray | None,
                      attr: str, left: bool, marks=None, size=None):
         canvas.update_idletasks()
-        cw = max(canvas.winfo_width(),  1)
-        ch = max(canvas.winfo_height(), 1)
+        canvas_width = max(canvas.winfo_width(),  1)
+        canvas_height = max(canvas.winfo_height(), 1)
         canvas.delete("all")
         if img_bgr is None:
             return
-        iw, ih = size or (img_bgr.shape[1], img_bgr.shape[0])
+        image_width, image_height = size or (img_bgr.shape[1], img_bgr.shape[0])
         try:
             post = None
-            hl = self.highlight
-            if marks is not None or hl is not None:
+            highlighted = self.highlight
+            if marks is not None or highlighted is not None:
                 from fenotit.core.pipeline import overlay
 
                 def post(out, origin, z):
                     if marks is not None:
-                        ov, colors, keep = marks
-                        overlay.draw(out, ov, colors, origin, z, screen=True, keep=keep)
-                    if hl is not None:
-                        overlay.highlight(out, hl, origin, z)
-            view = render(img_bgr, self.state, cw, ch, post, size)
+                        drawn, colors, keep = marks
+                        overlay.draw(out, drawn, colors, origin, z, screen=True, keep=keep)
+                    if highlighted is not None:
+                        overlay.highlight(out, highlighted, origin, z)
+            view = render(img_bgr, self.state, canvas_width, canvas_height, post, size)
             if view is not None:
                 rgb, x, y = view
                 photo = ImageTk.PhotoImage(Image.fromarray(rgb))
@@ -485,9 +485,9 @@ class ZoomController:
             _log.debug("Render falló", exc_info=True)
             return
         if left and hasattr(canvas, '_roi_selector_ref'):
-            dw, dh = self.state.display_size(iw, ih)
-            ox, oy = self.state.image_offset(cw, ch, iw, ih)
-            canvas._roi_selector_ref.set_image_offset(ox, oy, dw, dh)
+            display_width, display_height = self.state.display_size(image_width, image_height)
+            offset_x, offset_y = self.state.image_offset(canvas_width, canvas_height, image_width, image_height)
+            canvas._roi_selector_ref.set_image_offset(offset_x, offset_y, display_width, display_height)
 
     # ── Minimapa ──────────────────────────────────────────────────────────────
 
@@ -500,58 +500,58 @@ class ZoomController:
         self._mini = None
         img = self._img_left if self._img_left is not None else self._img_right
         canvas = self.cl if self.cl.winfo_ismapped() else self.cr     # en la Entrada; si está oculta, en el Resultado
-        for c in (self.cl, self.cr):
-            c.delete("minimap")
+        for canvas_widget in (self.cl, self.cr):
+            canvas_widget.delete("minimap")
         if img is None or not canvas.winfo_ismapped():
             return
-        cw, ch = max(canvas.winfo_width(), 1), max(canvas.winfo_height(), 1)
-        ih, iw = img.shape[:2]
+        canvas_width, canvas_height = max(canvas.winfo_width(), 1), max(canvas.winfo_height(), 1)
+        image_height, image_width = img.shape[:2]
         z = self.state.zoom
-        if iw * z <= cw + 1 and ih * z <= ch + 1:
+        if image_width * z <= canvas_width + 1 and image_height * z <= canvas_height + 1:
             return
-        k = self.MINI / max(iw, ih)
-        mw, mh = max(8, int(iw * k)), max(8, int(ih * k))
-        x, y = cw - mw - 12, ch - mh - 12
-        ox, oy = self.state.image_offset(cw, ch, iw, ih)
-        vx0, vy0 = max(0.0, -ox / z), max(0.0, -oy / z)
-        vx1, vy1 = min(iw, (cw - ox) / z), min(ih, (ch - oy) / z)
+        factor = self.MINI / max(image_width, image_height)
+        mini_width, mini_height = max(8, int(image_width * factor)), max(8, int(image_height * factor))
+        x, y = canvas_width - mini_width - 12, canvas_height - mini_height - 12
+        offset_x, offset_y = self.state.image_offset(canvas_width, canvas_height, image_width, image_height)
+        vx0, vy0 = max(0.0, -offset_x / z), max(0.0, -offset_y / z)
+        vx1, vy1 = min(image_width, (canvas_width - offset_x) / z), min(image_height, (canvas_height - offset_y) / z)
         tag = "minimap"
-        canvas.create_rectangle(x - 1, y - 1, x + mw + 1, y + mh + 1, outline=COLORS["black"], width=1, tags=tag)
-        canvas.create_rectangle(x, y, x + mw, y + mh, outline=COLORS["white"], fill=COLORS["white"], stipple="gray50",
+        canvas.create_rectangle(x - 1, y - 1, x + mini_width + 1, y + mini_height + 1, outline=COLORS["black"], width=1, tags=tag)
+        canvas.create_rectangle(x, y, x + mini_width, y + mini_height, outline=COLORS["white"], fill=COLORS["white"], stipple="gray50",
                                 width=1, tags=tag)
-        rx0, ry0, rx1, ry1 = x + vx0 * k, y + vy0 * k, x + vx1 * k, y + vy1 * k
+        rx0, ry0, rx1, ry1 = x + vx0 * factor, y + vy0 * factor, x + vx1 * factor, y + vy1 * factor
         canvas.create_rectangle(rx0, ry0, rx1, ry1, outline=COLORS["accent_dark"], fill=COLORS["accent_dark"], stipple="gray25",
                                 width=2, tags=tag)
-        self._mini = (canvas, x, y, mw, mh, k)
+        self._mini = (canvas, x, y, mini_width, mini_height, factor)
 
     def _in_minimap(self, event) -> bool:
-        m = getattr(self, "_mini", None)
-        if not m or event.widget is not m[0]:
+        minimap = getattr(self, "_mini", None)
+        if not minimap or event.widget is not minimap[0]:
             return False
-        _, x, y, mw, mh, _ = m
-        return x - 2 <= event.x <= x + mw + 2 and y - 2 <= event.y <= y + mh + 2
+        _, x, y, mini_width, mini_height, _ = minimap
+        return x - 2 <= event.x <= x + mini_width + 2 and y - 2 <= event.y <= y + mini_height + 2
 
     def _minimap_goto(self, event):
-        m, size = getattr(self, "_mini", None), self._ref_size()
-        if not m or size is None:
+        minimap, size = getattr(self, "_mini", None), self._ref_size()
+        if not minimap or size is None:
             return
-        canvas, x, y, mw, mh, k = m
-        cw, ch, iw, ih = size
-        px = min(max((event.x - x) / k, 0), iw)
-        py = min(max((event.y - y) / k, 0), ih)
+        canvas, x, y, mini_width, mini_height, factor = minimap
+        canvas_width, canvas_height, image_width, image_height = size
+        pixel_x = min(max((event.x - x) / factor, 0), image_width)
+        pixel_y = min(max((event.y - y) / factor, 0), image_height)
         z = self.state.zoom
-        self.state.pan_x = cw / 2 - px * z - (cw - iw * z) / 2
-        self.state.pan_y = ch / 2 - py * z - (ch - ih * z) / 2
+        self.state.pan_x = canvas_width / 2 - pixel_x * z - (canvas_width - image_width * z) / 2
+        self.state.pan_y = canvas_height / 2 - pixel_y * z - (canvas_height - image_height * z) / 2
         self.state.clamp_pan(*size)
         self._redraw()
 
     def _right_aligned(self) -> np.ndarray | None:
         """Imagen derecha llevada al tamaño de la izquierda para que el zoom coincida."""
-        r, l = self._img_right, self._img_left
-        if r is None or l is None or r.shape[:2] == l.shape[:2]:
-            return r
-        interp = cv2.INTER_NEAREST if r.shape[0] < l.shape[0] else cv2.INTER_AREA
-        return cv2.resize(r, (l.shape[1], l.shape[0]), interpolation=interp)
+        right_image, left_image = self._img_right, self._img_left
+        if right_image is None or left_image is None or right_image.shape[:2] == left_image.shape[:2]:
+            return right_image
+        interp = cv2.INTER_NEAREST if right_image.shape[0] < left_image.shape[0] else cv2.INTER_AREA
+        return cv2.resize(right_image, (left_image.shape[1], left_image.shape[0]), interpolation=interp)
 
     def redraw_with_overlay(self,
                             overlay_left: np.ndarray | None = None):
@@ -571,8 +571,8 @@ class ZoomableCanvas(tk.Canvas):
     PAN_STEP = 40
     DRAG_PX = 4
 
-    def __init__(self, parent, on_click=None, on_overlay=None, on_zoom=None, **kw):
-        super().__init__(parent, **kw)
+    def __init__(self, parent, on_click=None, on_overlay=None, on_zoom=None, **kwargs):
+        super().__init__(parent, **kwargs)
         self._img_bgr: np.ndarray | None = None
         self._photo   = None
         self._state   = ZoomState()
@@ -584,15 +584,15 @@ class ZoomableCanvas(tk.Canvas):
         self.config(takefocus=True)
         for key in ("<Left>", "<Right>", "<Up>", "<Down>"):
             self.bind(key, self._on_arrow)
-        self.bind("<Configure>", lambda e=None: self._fit_if_needed())
+        self.bind("<Configure>", lambda event=None: self._fit_if_needed())
         self.bind("<MouseWheel>", self._on_wheel)
         self.bind("<Shift-MouseWheel>", self._on_hwheel)
         self.bind("<Button-4>", self._on_wheel)
         self.bind("<Button-5>", self._on_wheel)
-        for b in ("1", "2"):
-            self.bind(f"<ButtonPress-{b}>", lambda e, b=b: self._down(e, b))
-            self.bind(f"<B{b}-Motion>", self._drag)
-            self.bind(f"<ButtonRelease-{b}>", lambda e, b=b: self._up(e, b))
+        for button_number in ("1", "2"):
+            self.bind(f"<ButtonPress-{button_number}>", lambda event, button_number=button_number: self._down(event, button_number))
+            self.bind(f"<B{button_number}-Motion>", self._drag)
+            self.bind(f"<ButtonRelease-{button_number}>", lambda event, button_number=button_number: self._up(event, button_number))
 
     @property
     def image(self) -> np.ndarray | None:
@@ -607,42 +607,42 @@ class ZoomableCanvas(tk.Canvas):
     # coordenadas
     def _size(self):
         self.update_idletasks()
-        ih, iw = self._img_bgr.shape[:2]
-        return max(self.winfo_width(), 1), max(self.winfo_height(), 1), iw, ih
+        image_height, image_width = self._img_bgr.shape[:2]
+        return max(self.winfo_width(), 1), max(self.winfo_height(), 1), image_width, image_height
 
     def to_image(self, x, y):
-        cw, ch, iw, ih = self._size()
-        ox, oy = self._state.image_offset(cw, ch, iw, ih)
-        return ((x - ox) / self._state.zoom, (y - oy) / self._state.zoom)
+        canvas_width, canvas_height, image_width, image_height = self._size()
+        offset_x, offset_y = self._state.image_offset(canvas_width, canvas_height, image_width, image_height)
+        return ((x - offset_x) / self._state.zoom, (y - offset_y) / self._state.zoom)
 
     def to_screen(self, x, y):
-        cw, ch, iw, ih = self._size()
-        ox, oy = self._state.image_offset(cw, ch, iw, ih)
-        return (ox + x * self._state.zoom, oy + y * self._state.zoom)
+        canvas_width, canvas_height, image_width, image_height = self._size()
+        offset_x, offset_y = self._state.image_offset(canvas_width, canvas_height, image_width, image_height)
+        return (offset_x + x * self._state.zoom, offset_y + y * self._state.zoom)
 
     # mouse
-    def _down(self, e, b):
+    def _down(self, event, button_number):
         self.focus_set()
-        self._press, self._moved = (e.x, e.y, b), False
+        self._press, self._moved = (event.x, event.y, button_number), False
 
-    def _drag(self, e):
+    def _drag(self, event):
         if self._press is None or self._img_bgr is None:
             return
         x0, y0, _ = self._press
-        if not self._moved and abs(e.x - x0) + abs(e.y - y0) < self.DRAG_PX:
+        if not self._moved and abs(event.x - x0) + abs(event.y - y0) < self.DRAG_PX:
             return
         self._moved = True
-        self._state.pan(e.x - x0, e.y - y0, *self._size())
-        self._press = (e.x, e.y, self._press[2])
+        self._state.pan(event.x - x0, event.y - y0, *self._size())
+        self._press = (event.x, event.y, self._press[2])
         self._redraw()
 
-    def _up(self, e, b):
-        click = self._press is not None and not self._moved and b == "1"
+    def _up(self, event, button_number):
+        click = self._press is not None and not self._moved and button_number == "1"
         self._press = None
         if click and self._img_bgr is not None and self.on_click:
-            x, y = self.to_image(e.x, e.y)
-            ih, iw = self._img_bgr.shape[:2]
-            if 0 <= x < iw and 0 <= y < ih:
+            x, y = self.to_image(event.x, event.y)
+            image_height, image_width = self._img_bgr.shape[:2]
+            if 0 <= x < image_width and 0 <= y < image_height:
                 self.on_click(int(round(x)), int(round(y)))
 
     def _on_wheel(self, event):
@@ -697,10 +697,10 @@ class ZoomableCanvas(tk.Canvas):
         if self._img_bgr is None:
             return
         self.update_idletasks()
-        cw = max(self.winfo_width(),  10)
-        ch = max(self.winfo_height(), 10)
-        ih, iw = self._img_bgr.shape[:2]
-        self._state.fit(cw, ch, iw, ih)
+        canvas_width = max(self.winfo_width(),  10)
+        canvas_height = max(self.winfo_height(), 10)
+        image_height, image_width = self._img_bgr.shape[:2]
+        self._state.fit(canvas_width, canvas_height, image_width, image_height)
         self._fitted = True
         self._redraw()
 
@@ -715,13 +715,13 @@ class ZoomableCanvas(tk.Canvas):
 
     def _redraw(self):
         self.update_idletasks()
-        cw = max(self.winfo_width(),  1)
-        ch = max(self.winfo_height(), 1)
+        canvas_width = max(self.winfo_width(),  1)
+        canvas_height = max(self.winfo_height(), 1)
         self.delete("all")
         if self._img_bgr is None:
             return
         try:
-            view = render(self._img_bgr, self._state, cw, ch)
+            view = render(self._img_bgr, self._state, canvas_width, canvas_height)
             if view is not None:
                 rgb, x, y = view
                 self._photo = ImageTk.PhotoImage(Image.fromarray(rgb))

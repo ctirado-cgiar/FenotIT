@@ -34,12 +34,12 @@ class AreaEditor:
         self._start = None
         self._points: list[tuple[float, float]] = []
         self._edit = None                   # arrastre en curso: (tipo, área, índice, datos)
-        for seq, fn in (("<ButtonPress-1>", self._press), ("<B1-Motion>", self._drag),
+        for seq, func in (("<ButtonPress-1>", self._press), ("<B1-Motion>", self._drag),
                         ("<ButtonRelease-1>", self._release), ("<Double-Button-1>", self._double),
                         ("<Button-3>", self._undo_point), ("<Motion>", self._hover)):
-            canvas.bind(seq, fn, add="+")
-        canvas.tag_bind("area_del", "<Enter>", lambda e: self._hover_delete(True))
-        canvas.tag_bind("area_del", "<Leave>", lambda e: self._hover_delete(False))
+            canvas.bind(seq, func, add="+")
+        canvas.tag_bind("area_del", "<Enter>", lambda event: self._hover_delete(True))
+        canvas.tag_bind("area_del", "<Leave>", lambda event: self._hover_delete(False))
 
     # ── estado ────────────────────────────────────────────────────────────────
 
@@ -64,14 +64,14 @@ class AreaEditor:
             self.on_done()
 
     def set_shapes(self, shapes: list[dict]):
-        self.shapes = [dict(s) for s in shapes or []]
+        self.shapes = [dict(shape) for shape in shapes or []]
         self.selected.clear()
         self.redraw()
 
     def delete_selected(self) -> bool:
         if not self.selected:
             return False
-        self.shapes = [s for i, s in enumerate(self.shapes) if i not in self.selected]
+        self.shapes = [shape for i, shape in enumerate(self.shapes) if i not in self.selected]
         self.selected.clear()
         self._changed()
         return True
@@ -83,84 +83,84 @@ class AreaEditor:
     def _changed(self):
         self.redraw()
         if self.on_change:
-            self.on_change([dict(s) for s in self.shapes])
+            self.on_change([dict(shape) for shape in self.shapes])
 
     # ── coordenadas ───────────────────────────────────────────────────────────
 
-    def set_image_offset(self, x, y, w, h):
-        self._view = (x, y, max(w, 1), max(h, 1))
+    def set_image_offset(self, x, y, width, height):
+        self._view = (x, y, max(width, 1), max(height, 1))
         self.redraw()
 
     def _to_norm(self, cx, cy):
-        x, y, w, h = self._view
-        return (min(1.0, max(0.0, (cx - x) / w)), min(1.0, max(0.0, (cy - y) / h)))
+        x, y, width, height = self._view
+        return (min(1.0, max(0.0, (cx - x) / width)), min(1.0, max(0.0, (cy - y) / height)))
 
-    def _to_canvas(self, nx, ny):
-        x, y, w, h = self._view
-        return x + nx * w, y + ny * h
+    def _to_canvas(self, norm_x, norm_y):
+        x, y, width, height = self._view
+        return x + norm_x * width, y + norm_y * height
 
     # ── dibujo ────────────────────────────────────────────────────────────────
 
     def redraw(self):
-        c = self.canvas
-        c.delete("area")
+        canvas = self.canvas
+        canvas.delete("area")
         area_names = iter(roi.area_names(self.shapes))
         several_areas = len(roi.analysis_areas(self.shapes)) > 1
-        for i, s in enumerate(self.shapes):
-            pts = [self._to_canvas(*p) for p in polygon(s)]
-            if s["kind"] != "exclude":
+        for i, shape in enumerate(self.shapes):
+            pts = [self._to_canvas(*point) for point in polygon(shape)]
+            if shape["kind"] != "exclude":
                 area_name = next(area_names)
-                if several_areas or s.get("name"):                     # nombre del área junto a su vértice de arriba a la izquierda
+                if several_areas or shape.get("name"):                     # nombre del área junto a su vértice de arriba a la izquierda
                     label_x, label_y = min(pts, key=lambda corner: corner[0] + corner[1])
-                    label = c.create_text(label_x + SPACE["md"], label_y + SPACE["sm"], text=area_name, anchor="nw",
+                    label = canvas.create_text(label_x + SPACE["md"], label_y + SPACE["sm"], text=area_name, anchor="nw",
                                           fill=COLORS["on_accent"], font=FONTS["small_bold"],
                                           tags=("area", f"area_name_{i}"))
-                    box = c.bbox(label)
-                    c.tag_lower(c.create_rectangle(box[0] - SPACE["sm"], box[1] - 1, box[2] + SPACE["sm"], box[3] + 1,
+                    box = canvas.bbox(label)
+                    canvas.tag_lower(canvas.create_rectangle(box[0] - SPACE["sm"], box[1] - 1, box[2] + SPACE["sm"], box[3] + 1,
                                                    fill=INCLUDE, outline="", tags=("area", f"area_name_{i}")), label)
-            flat = [v for p in pts for v in p]
+            flat = [coord for point in pts for coord in point]
             sel = i in self.selected
-            color = SELECTED if sel else (EXCLUDE if s["kind"] == "exclude" else INCLUDE)
-            c.create_polygon(*flat, outline=COLORS["white"], fill="", width=4, tags="area")
-            c.create_polygon(*flat, outline=color, width=3 if sel else 2, tags="area",
-                             fill=EXCLUDE if s["kind"] == "exclude" else "",
-                             stipple="gray25" if s["kind"] == "exclude" else "",
-                             dash=(6, 3) if s["kind"] == "exclude" else ())
+            color = SELECTED if sel else (EXCLUDE if shape["kind"] == "exclude" else INCLUDE)
+            canvas.create_polygon(*flat, outline=COLORS["white"], fill="", width=4, tags="area")
+            canvas.create_polygon(*flat, outline=color, width=3 if sel else 2, tags="area",
+                             fill=EXCLUDE if shape["kind"] == "exclude" else "",
+                             stipple="gray25" if shape["kind"] == "exclude" else "",
+                             dash=(6, 3) if shape["kind"] == "exclude" else ())
             # × sobre el vértice de arriba a la derecha (siempre sobre la forma)
-            bx, by = max(pts, key=lambda q: q[0] - q[1])
-            c.create_oval(bx - 6, by - 6, bx + 6, by + 6, fill=COLORS["white"], outline=COLORS["text_faint"], width=1,
+            corner_x, corner_y = max(pts, key=lambda corner: corner[0] - corner[1])
+            canvas.create_oval(corner_x - 6, corner_y - 6, corner_x + 6, corner_y + 6, fill=COLORS["white"], outline=COLORS["text_faint"], width=1,
                           tags=("area", "area_del", "area_del_bg", f"area_del_{i}"))
-            c.create_text(bx, by - 1, text="×", fill=COLORS["text_muted"], font=FONTS["small_bold"],
+            canvas.create_text(corner_x, corner_y - 1, text="×", fill=COLORS["text_muted"], font=FONTS["small_bold"],
                           tags=("area", "area_del", "area_del_x", f"area_del_{i}"))
         if self.mode == "select":
             for i in sorted(self.selected):
                 if i >= len(self.shapes):
                     continue
-                for kind, k, (x, y) in self._handles(i):
+                for kind, handle_index, (x, y) in self._handles(i):
                     if kind == "v":
-                        c.create_rectangle(x - 4, y - 4, x + 4, y + 4, fill=COLORS["white"], outline=COLORS["text"], tags="area")
+                        canvas.create_rectangle(x - 4, y - 4, x + 4, y + 4, fill=COLORS["white"], outline=COLORS["text"], tags="area")
                     else:
-                        c.create_oval(x - 3, y - 3, x + 3, y + 3, fill=SELECTED, outline=COLORS["text"], tags="area")
+                        canvas.create_oval(x - 3, y - 3, x + 3, y + 3, fill=SELECTED, outline=COLORS["text"], tags="area")
         self._draw_temp()
 
     def _handles(self, i: int):
         """Vértices ("v", k) y puntos medios de los lados ("m", k) del área i, en el canvas."""
-        pts = [self._to_canvas(*p) for p in polygon(self.shapes[i])]
-        out = [("v", k, p) for k, p in enumerate(pts)]
-        for k, (a, b) in enumerate(zip(pts, pts[1:] + pts[:1])):
-            out.append(("m", k, ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)))
+        pts = [self._to_canvas(*point) for point in polygon(self.shapes[i])]
+        out = [("v", handle_index, point) for handle_index, point in enumerate(pts)]
+        for handle_index, (start, end) in enumerate(zip(pts, pts[1:] + pts[:1])):
+            out.append(("m", handle_index, ((start[0] + end[0]) / 2, (start[1] + end[1]) / 2)))
         return out
 
     def _hit_handle(self, x: float, y: float):
         for i in sorted(self.selected):
             if i < len(self.shapes):
-                for kind, k, (hx, hy) in self._handles(i):
-                    if abs(hx - x) <= 6 and abs(hy - y) <= 6:
-                        return kind, i, k
+                for kind, handle_index, (handle_x, handle_y) in self._handles(i):
+                    if abs(handle_x - x) <= 6 and abs(handle_y - y) <= 6:
+                        return kind, i, handle_index
         return None
 
     def _inside(self, i: int, x: float, y: float) -> bool:
-        pts = np.array([self._to_canvas(*p) for p in polygon(self.shapes[i])], np.float32)
+        pts = np.array([self._to_canvas(*point) for point in polygon(self.shapes[i])], np.float32)
         return cv2.pointPolygonTest(pts.reshape(-1, 1, 2), (float(x), float(y)), False) >= 0
 
     def _start_edit(self, event) -> bool:
@@ -169,84 +169,84 @@ class AreaEditor:
             return False
         hit = self._hit_handle(event.x, event.y)
         if hit:
-            kind, i, k = hit
-            s = self.shapes[i]
-            if kind == "m" and s["type"] == "polygon":          # nuevo vértice en el medio del lado
-                s["points"].insert(k + 1, list(self._to_norm(event.x, event.y)))
-                kind, k = "v", k + 1
-            self._edit = (kind, i, k, None)
-            self._before = [list(p) for p in self.shapes[i]["points"]] if kind != "v" or s["type"] != "polygon" \
+            kind, i, handle_index = hit
+            shape = self.shapes[i]
+            if kind == "m" and shape["type"] == "polygon":          # nuevo vértice en el medio del lado
+                shape["points"].insert(handle_index + 1, list(self._to_norm(event.x, event.y)))
+                kind, handle_index = "v", handle_index + 1
+            self._edit = (kind, i, handle_index, None)
+            self._before = [list(point) for point in self.shapes[i]["points"]] if kind != "v" or shape["type"] != "polygon" \
                 else None                   # un vértice nuevo ya es un cambio
             return True
         for i in sorted(self.selected):
             if i < len(self.shapes) and self._inside(i, event.x, event.y):
                 self._edit = ("move", i, 0, (self._to_norm(event.x, event.y),
-                                             [list(p) for p in self.shapes[i]["points"]]))
-                self._before = [list(p) for p in self.shapes[i]["points"]]
+                                             [list(point) for point in self.shapes[i]["points"]]))
+                self._before = [list(point) for point in self.shapes[i]["points"]]
                 return True
         return False
 
     def _do_edit(self, event):
-        kind, i, k, data = self._edit
-        s = self.shapes[i]
-        nx, ny = self._to_norm(event.x, event.y)
+        kind, i, handle_index, data = self._edit
+        shape = self.shapes[i]
+        norm_x, norm_y = self._to_norm(event.x, event.y)
         if kind == "move":
-            (sx, sy), orig = data
-            dx, dy = nx - sx, ny - sy
-            s["points"] = [[_r(min(1, max(0, x + dx))), _r(min(1, max(0, y + dy)))] for x, y in orig]
-        elif s["type"] == "polygon":
-            s["points"][k] = [_r(nx), _r(ny)]
+            (start_x, start_y), orig = data
+            dx, dy = norm_x - start_x, norm_y - start_y
+            shape["points"] = [[_r(min(1, max(0, x + dx))), _r(min(1, max(0, y + dy)))] for x, y in orig]
+        elif shape["type"] == "polygon":
+            shape["points"][handle_index] = [_r(norm_x), _r(norm_y)]
         else:                                               # rectángulo: sigue siendo rectángulo
-            (x0, y0), _, (x1, y1), _ = polygon(s)
+            (x0, y0), _, (x1, y1), _ = polygon(shape)
             if kind == "v":
-                opposite = polygon(s)[(k + 2) % 4]
-                s["points"] = [[_r(nx), _r(ny)], [_r(opposite[0]), _r(opposite[1])]]
+                opposite = polygon(shape)[(handle_index + 2) % 4]
+                shape["points"] = [[_r(norm_x), _r(norm_y)], [_r(opposite[0]), _r(opposite[1])]]
             else:
-                if k == 0:
-                    y0 = ny
-                elif k == 1:
-                    x1 = nx
-                elif k == 2:
-                    y1 = ny
+                if handle_index == 0:
+                    y0 = norm_y
+                elif handle_index == 1:
+                    x1 = norm_x
+                elif handle_index == 2:
+                    y1 = norm_y
                 else:
-                    x0 = nx
-                s["points"] = [[_r(x0), _r(y0)], [_r(x1), _r(y1)]]
+                    x0 = norm_x
+                shape["points"] = [[_r(x0), _r(y0)], [_r(x1), _r(y1)]]
         self.redraw()
 
     def _remove_vertex(self, event) -> bool:
         hit = self._hit_handle(event.x, event.y) if self.mode == "select" else None
         if not hit or hit[0] != "v":
             return False
-        _, i, k = hit
-        s = self.shapes[i]
-        if s["type"] == "polygon" and len(s["points"]) > 3:
-            del s["points"][k]
+        _, i, handle_index = hit
+        shape = self.shapes[i]
+        if shape["type"] == "polygon" and len(shape["points"]) > 3:
+            del shape["points"][handle_index]
             self._changed()
         return True
 
-    def _hover_delete(self, on: bool):
+    def _hover_delete(self, active: bool):
         """La × se pone roja bajo el mouse (clic = borrar esa área)."""
-        c = self.canvas
-        tags = [tg for tg in c.gettags("current") if tg.startswith("area_del_") and tg[9:].isdigit()]
-        for tg in tags:
-            for item in c.find_withtag(tg):
-                kind = c.gettags(item)
+        canvas = self.canvas
+        tags = [tag for tag in canvas.gettags("current") if tag.startswith("area_del_") and tag[9:].isdigit()]
+        for tag in tags:
+            for item in canvas.find_withtag(tag):
+                kind = canvas.gettags(item)
                 if "area_del_bg" in kind:
-                    c.itemconfig(item, fill=COLORS["delete"] if on else COLORS["white"], outline=COLORS["delete"] if on else COLORS["text_faint"])
+                    canvas.itemconfig(item, fill=COLORS["delete"] if active else COLORS["white"], outline=COLORS["delete"] if active else COLORS["text_faint"])
                 elif "area_del_x" in kind:
-                    c.itemconfig(item, fill=COLORS["white"] if on else COLORS["text_muted"])
-        c.config(cursor="hand2" if on else "")
+                    canvas.itemconfig(item, fill=COLORS["white"] if active else COLORS["text_muted"])
+        canvas.config(cursor="hand2" if active else "")
 
     def _draw_temp(self, cursor=None):
-        c = self.canvas
-        c.delete("area_tmp")
+        canvas = self.canvas
+        canvas.delete("area_tmp")
         if self._points:
             color = EXCLUDE if self.mode and self.mode.startswith("exclude") else INCLUDE
-            pts = [self._to_canvas(*p) for p in self._points] + ([cursor] if cursor else [])
+            pts = [self._to_canvas(*point) for point in self._points] + ([cursor] if cursor else [])
             for x, y in pts[:len(self._points)]:
-                c.create_oval(x - 4, y - 4, x + 4, y + 4, fill=color, outline=COLORS["white"], tags="area_tmp")
+                canvas.create_oval(x - 4, y - 4, x + 4, y + 4, fill=color, outline=COLORS["white"], tags="area_tmp")
             if len(pts) >= 2:
-                c.create_line(*[v for p in pts for v in p], fill=color, width=2, dash=(4, 3), tags="area_tmp")
+                canvas.create_line(*[coord for point in pts for coord in point], fill=color, width=2, dash=(4, 3), tags="area_tmp")
 
     def _cancel_temp(self):
         self._start, self._points = None, []
@@ -273,13 +273,13 @@ class AreaEditor:
         if self._start_edit(event):
             return "break"
         if self.mode.endswith("_poly"):
-            p = self._to_norm(event.x, event.y)
+            point = self._to_norm(event.x, event.y)
             if len(self._points) >= 3:                    # clic sobre el primer punto: cerrar
-                fx, fy = self._to_canvas(*self._points[0])
-                if abs(fx - event.x) < 8 and abs(fy - event.y) < 8:
+                first_x, first_y = self._to_canvas(*self._points[0])
+                if abs(first_x - event.x) < 8 and abs(first_y - event.y) < 8:
                     self._finish_polygon()
                     return
-            self._points.append(p)
+            self._points.append(point)
             self._draw_temp()
         else:
             self._start = (event.x, event.y)
@@ -287,8 +287,8 @@ class AreaEditor:
     def _square(self, event, x0, y0):
         x, y = event.x, event.y
         if event.state & 0x0001 and self.mode != "select":          # Shift = cuadrado
-            d = min(abs(x - x0), abs(y - y0))
-            x, y = x0 + (d if x >= x0 else -d), y0 + (d if y >= y0 else -d)
+            side = min(abs(x - x0), abs(y - y0))
+            x, y = x0 + (side if x >= x0 else -side), y0 + (side if y >= y0 else -side)
         return x, y
 
     def _drag(self, event):
@@ -324,10 +324,10 @@ class AreaEditor:
         if abs(x - x0) < 4 or abs(y - y0) < 4:
             return
         kind = "exclude" if self.mode.startswith("exclude") else "include"
-        a, b = self._to_norm(x0, y0), self._to_norm(x, y)
-        if abs(a[0] - b[0]) < 0.003 or abs(a[1] - b[1]) < 0.003:      # dibujado fuera de la foto
+        corner_a, corner_b = self._to_norm(x0, y0), self._to_norm(x, y)
+        if abs(corner_a[0] - corner_b[0]) < 0.003 or abs(corner_a[1] - corner_b[1]) < 0.003:      # dibujado fuera de la foto
             return
-        self.shapes.append({"kind": kind, "type": "rect", "points": [list(map(_r, a)), list(map(_r, b))]})
+        self.shapes.append({"kind": kind, "type": "rect", "points": [list(map(_r, corner_a)), list(map(_r, corner_b))]})
         self._changed()
         self.stop()
 
@@ -401,8 +401,8 @@ class AreaEditor:
         click = abs(x1 - x0) < 4 and abs(y1 - y0) < 4
         bx0, bx1 = sorted((x0, x1))
         by0, by1 = sorted((y0, y1))
-        for i, s in enumerate(self.shapes):
-            pts = np.array([self._to_canvas(*p) for p in polygon(s)], np.float32)
+        for i, shape in enumerate(self.shapes):
+            pts = np.array([self._to_canvas(*point) for point in polygon(shape)], np.float32)
             if click:
                 if cv2.pointPolygonTest(pts.reshape(-1, 1, 2), (float(x1), float(y1)), False) >= 0:
                     self.selected ^= {i}
@@ -412,5 +412,5 @@ class AreaEditor:
         self.redraw()
 
 
-def _r(v: float) -> float:
-    return round(float(v), 5)
+def _r(value: float) -> float:
+    return round(float(value), 5)
