@@ -17,15 +17,36 @@ from fenotit.core.roi import from_legacy
 PRESET_EXT = ".fenotitpreset"
 FORMAT = 1
 PARTS = ("corrections", "scale", "areas", "segmentation", "analysis")
-SAVED_BY_DEFAULT = ("corrections", "segmentation", "analysis")
+OWN_OF_A_PHOTO = ("scale", "areas")           # partes que una foto puede tener distintas a las demás
 PART_FIELDS = {"corrections": ("corrections", "max_mpx"), "scale": ("scale", "unit"), "areas": ("areas",),
                "segmentation": ("segmentation",), "analysis": ("analysis", "params")}
 
 
-def from_project(project: Project, name: str, parts=SAVED_BY_DEFAULT, description: str = "",
-                 areas: list | None = None) -> dict:
-    """El preset con las partes pedidas del proyecto. `areas`: las áreas que se guardan
-    (por defecto las de todas las fotos)."""
+def applicable(project: Project, path=None) -> tuple:
+    """Partes que el proyecto tiene configuradas y un preset puede llevar. `path`: la foto
+    abierta (sus áreas y su escala cuentan)."""
+    from fenotit.core.analysis.registry import ANALYSES
+    analysis = ANALYSES.get(project.analysis)
+    has = {"corrections": bool(project.corrections.active()),
+           "scale": project.scale_for(path).mm_per_pixel is not None,
+           "areas": bool(project.roi_for(path)),
+           "segmentation": analysis is None or bool(analysis.segmentation),
+           "analysis": analysis is not None}
+    return tuple(part for part in PARTS if has[part])
+
+
+def suggested(project: Project, path=None) -> tuple:
+    """Partes aplicables que valen para todas las fotos: las áreas o la escala propias de la
+    foto abierta quedan fuera."""
+    own = {"scale": bool(path) and project.key(path) in project.image_scale,
+           "areas": project.has_own_roi(path)}
+    return tuple(part for part in applicable(project, path) if not own.get(part))
+
+
+def from_project(project: Project, name: str, parts=PARTS, description: str = "",
+                 areas: list | None = None, scale: Scale | None = None) -> dict:
+    """El preset con las partes pedidas del proyecto. `areas` y `scale`: los que se guardan
+    (por defecto los de todas las fotos)."""
     data = {"fenotit_preset": FORMAT, "fenotit_version": __version__, "name": name, "description": description}
     if "corrections" in parts:
         corrections = project.corrections.to_dict()
@@ -33,7 +54,7 @@ def from_project(project: Project, name: str, parts=SAVED_BY_DEFAULT, descriptio
         data["corrections"] = corrections
         data["max_mpx"] = project.max_mpx
     if "scale" in parts:
-        data["scale"] = asdict(project.scale)
+        data["scale"] = asdict(project.scale if scale is None else scale)
         data["unit"] = project.unit
     if "areas" in parts:
         data["areas"] = copy.deepcopy(project.roi if areas is None else areas)

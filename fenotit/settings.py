@@ -44,6 +44,17 @@ def recent_projects() -> list[str]:
     return [p for p in get("recent_projects", []) or [] if Path(p).exists()]
 
 
+def recent_presets() -> list[str]:
+    """Presets cargados o guardados hace poco (los que todavía existen)."""
+    return [p for p in get("recent_presets", []) or [] if Path(p).exists()]
+
+
+def add_recent_preset(path) -> None:
+    path = str(Path(path).resolve())
+    items = [path] + [p for p in get("recent_presets", []) or [] if p != path]
+    set("recent_presets", items[:8])
+
+
 def add_recent_project(path) -> None:
     path = str(Path(path).resolve())
     items = [path] + [p for p in get("recent_projects", []) or [] if p != path]

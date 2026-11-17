@@ -20,6 +20,9 @@ class PresetsMixin:
     def _preset_items(self) -> list:
         """Entradas del submenú Preset."""
         items = [(t("preset.load"), self._load_preset), (t("preset.save"), self._save_preset)]
+        recent = [(Path(path).stem, lambda path=path: self._load_preset(path)) for path in settings.recent_presets()]
+        if recent:
+            items.insert(1, (t("menu.recent"), recent))
         if self.project.preset.get("data"):
             items += [None, (t("preset.restore"), self._restore_preset), (t("preset.detach"), self._detach_preset)]
         return items
@@ -31,9 +34,14 @@ class PresetsMixin:
     def _save_preset(self):
         from fenotit.gui.dialogs.preset import PresetDialog
         self._collect_state()
-        available = tuple(part for part in preset.PARTS
-                          if part != "analysis" or (self._analysis_chosen and self.project.analysis))
-        PresetDialog(self.root, self.project.preset.get("name", ""), available, self._write_preset)
+        photo = self.current_image_path
+        chosen = self._analysis_chosen and self.project.analysis
+        available = tuple(part for part in preset.applicable(self.project, photo) if part != "analysis" or chosen)
+        if not available:
+            messagebox.showinfo(t("preset.save_title"), t("preset.nothing_to_save"), parent=self.root)
+            return
+        checked = tuple(part for part in preset.suggested(self.project, photo) if part in available)
+        PresetDialog(self.root, self.project.preset.get("name", ""), available, checked, self._write_preset)
 
     def _write_preset(self, name: str, description: str, parts: tuple):
         path = filedialog.asksaveasfilename(
@@ -44,7 +52,8 @@ class PresetsMixin:
             return
         self._collect_state()
         data = preset.from_project(self.project, name, parts, description,
-                                   areas=self.project.roi_for(self.current_image_path))
+                                   areas=self.project.roi_for(self.current_image_path),
+                                   scale=self.project.scale_for(self.current_image_path))
         try:
             saved = preset.save(data, path)
         except OSError as error:
@@ -52,6 +61,7 @@ class PresetsMixin:
             messagebox.showerror(t("common.error"), str(error), parent=self.root)
             return
         settings.set("preset_dir", str(saved.parent))
+        settings.add_recent_preset(saved)
         self.project.preset = {"name": name, "data": data}
         self._show_preset_name()
         self._set_status(t("preset.saved", name=name))
@@ -68,6 +78,7 @@ class PresetsMixin:
             messagebox.showerror(t("common.error"), t("preset.not_a_preset", file=Path(path).name), parent=self.root)
             return
         settings.set("preset_dir", str(Path(path).parent))
+        settings.add_recent_preset(path)
         self._apply_preset(data)
 
     def _restore_preset(self):

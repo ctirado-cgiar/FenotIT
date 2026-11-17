@@ -11,10 +11,10 @@ from fenotit.i18n import t
 
 class PresetDialog(BaseDialog):
     """`on_save(nombre, descripción, partes)` recibe lo elegido al pulsar Guardar.
-    `available`: partes que el proyecto puede guardar (sin análisis elegido no hay «analysis»)."""
+    `available`: partes que el proyecto tiene configuradas; `checked`: las que empiezan marcadas."""
     W, H = 440, 400
 
-    def __init__(self, parent, name: str, available: tuple, on_save):
+    def __init__(self, parent, name: str, available: tuple, checked: tuple, on_save):
         self._on_save = on_save
         super().__init__(parent, t("preset.save_title"))
         bg, small = COLORS["bg_card"], FONTS["small"]
@@ -37,7 +37,7 @@ class PresetDialog(BaseDialog):
         for part in preset.PARTS:
             if part not in available:
                 continue
-            self.part_vars[part] = tk.BooleanVar(value=part in preset.SAVED_BY_DEFAULT)
+            self.part_vars[part] = tk.BooleanVar(value=part in checked)
             tk.Checkbutton(self.body, text=t(f"preset.part.{part}"), variable=self.part_vars[part], bg=bg,
                            activebackground=bg, selectcolor=COLORS["bg_card"], font=FONTS["body"],
                            anchor="w").pack(fill=tk.X)

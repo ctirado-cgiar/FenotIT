@@ -90,3 +90,17 @@ def test_project_keeps_its_preset_and_other_files_are_rejected():
         with pytest.raises(ValueError):
             preset.load(other)
     assert dict(exporter.preset_rows(Project())) == {"preset": "none"}
+
+
+def test_only_configured_parts_are_offered_and_own_ones_start_unchecked():
+    empty = Project()
+    assert preset.applicable(empty) == ("segmentation",)
+    project = _source()
+    assert preset.applicable(project) == preset.PARTS and preset.suggested(project) == preset.PARTS
+    photo = "fotos/01.jpg"
+    project.set_roi(photo, [{"kind": "include", "type": "rect", "points": [[0.2, 0.2], [0.5, 0.5]]}])
+    project.set_scale(photo, Scale(0.08, "two_points"))
+    assert preset.suggested(project, photo) == ("corrections", "segmentation", "analysis")
+    data = preset.from_project(project, "Foto", preset.PARTS, areas=project.roi_for(photo),
+                               scale=project.scale_for(photo))
+    assert data["scale"]["mm_per_pixel"] == 0.08 and data["areas"][0]["points"][0] == [0.2, 0.2]
