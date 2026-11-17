@@ -44,8 +44,9 @@ resolution is applied to photos of another resolution with the same aspect ratio
 the focal lengths and the optical center by the ratio of widths and heights.
 
 **Result on real photos.** Figure 1.1 uses the nine chessboard photos taken in the capture box
-of the bean seed photos (4040 × 3040 px, 7 × 6 inner corners). Each photo was corrected
-with a calibration made from the other eight. On a
+of the bean seed photos (4040 × 3040 px, 7 × 6 inner corners). The camera was calibrated nine
+times, each time with eight of the nine photos, and each calibration corrected the ninth photo
+(cross-validation). On a
 flat board the corners of each row and column lie on a straight line, so the distance from
 each corner to the line fitted through its row or column measures the remaining distortion.
 
@@ -64,8 +65,9 @@ corners of the frame extend the zone where the model is fitted to data.
 
 *Figure 1.1. Lens calibration in the capture box of the bean seed photos. (a) Inner corners
 found on one chessboard photo. (b) For each photo, the RMS distance of its corners to the
-straight line through their row or column, in the original photo (gray) and after the
-correction calibrated with the other eight photos (blue).*
+straight line through their row or column, in the original photo (gray, mean 1.11 px) and after the
+correction (blue, mean 0.38 px), each photo corrected with the calibration made from the other
+eight.*
 
 ## 1.2 Perspective (ArUco markers)
 
@@ -150,8 +152,8 @@ reached the cyan and the white (patches 18 and 19), and in the drought box also 
 *Figure 1.2. Color correction with the card of the Durango seed box. (a) The 24 patches, numbered
 in the order of the reference. (b, c) Each square shows the reference color around and the
 photographed color in the center, before and after the correction; the number under each
-square is ΔE₀₀. (d) ΔE₀₀ of each patch before (gray) and after (blue) the correction, each
-patch corrected with a fit to the other 23 patches.*
+square is ΔE₀₀. (d) ΔE₀₀ of each patch before (gray, mean 9.9) and after (blue, mean 4.1) the
+correction, each patch corrected with a fit to the other 23 patches.*
 
 ## 1.4 Scale
 

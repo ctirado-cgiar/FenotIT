@@ -11,7 +11,8 @@ objects of a mask (*Detections per object* in the *Objects* analysis).
 *Figure 8.1. A bruchid detection model (RF-DETR, five classes) in FenotIT. (a) Objects analysis
 with detections per object: seed outlines from the mask (yellow) and the boxes found in each
 seed, colored by class. (b) Detection analysis: adult bruchids in a Petri dish, each box is one
-object. (c) Number of holes (class Agujero) per seed in six photos of seed samples.*
+object. (c) Number of holes (class Agujero) per seed in six photos of seed samples (91
+seeds).*
 
 ## 8.1 Models
 

@@ -161,16 +161,16 @@ def fig_lens():
     ax.set_axis_off()
     ax.imshow(rgb(photo[y0:y1, x0:x1]))
     ax.plot(corners[:, 0] - x0, corners[:, 1] - y0, "+", color=RED, ms=5, mew=1)
-    ax.set_title(f"(a) Chessboard, {len(corners)} inner corners")
+    ax.set_title("(a) Detected corners")
     ax = fig.add_subplot(grid[1])
     positions = np.arange(len(found))
-    ax.bar(positions - 0.2, rms_before, 0.4, color=GRAY, label=f"Original photo (mean {np.mean(rms_before):.2f} px)")
-    ax.bar(positions + 0.2, rms_after, 0.4, color=BLUE, label=f"Corrected photo (mean {np.mean(rms_after):.2f} px)")
+    ax.bar(positions - 0.2, rms_before, 0.4, color=GRAY, label="Original")
+    ax.bar(positions + 0.2, rms_after, 0.4, color=BLUE, label="Corrected")
     ax.set_xticks(positions, [str(i + 1) for i in positions])
-    ax.set_xlabel("Chessboard photo (corrected with a calibration from the other photos)")
-    ax.set_ylabel("Distance of the corners to a\nstraight line, RMS (px)")
+    ax.set_xlabel("Chessboard photo")
+    ax.set_ylabel("Line deviation, RMS (px)")
     ax.legend(frameon=False, loc="upper right")
-    ax.set_title("(b) Straightness of the chessboard rows and columns")
+    ax.set_title("(b) Straightness")
     save(fig, "lens.png")
     print(f"lens: {len(found)} photos, reprojection RMS {full.rms_error:.2f} px, "
           f"straightness {np.mean(rms_before):.2f} -> {np.mean(rms_after):.2f} px "
@@ -236,21 +236,21 @@ def fig_colorcard():
     for index, (x, y) in enumerate(centers):
         ax.text(x - x0, y - y0, str(index + 1), ha="center", va="center", fontsize=5.5, color="white",
                 bbox={"boxstyle": "circle,pad=0.15", "fc": "black", "ec": "none", "alpha": 0.55})
-    ax.set_title("(a) The 24 patches located")
+    ax.set_title("(a) Color card")
     patch_grid(fig.add_subplot(grid[0, 1]), data["measured"], reference, data["before"],
                "(b) Before correction")
     patch_grid(fig.add_subplot(grid[0, 2]), data["corrected"], reference, data["after"],
                "(c) After correction")
     ax = fig.add_subplot(grid[1, :])
     positions = np.arange(24)
-    ax.bar(positions - 0.2, data["before"], 0.4, color=GRAY, label=f"Before (mean {data['before'].mean():.1f})")
-    ax.bar(positions + 0.2, data["after"], 0.4, color=BLUE, label=f"After (mean {data['after'].mean():.1f})")
+    ax.bar(positions - 0.2, data["before"], 0.4, color=GRAY, label="Before")
+    ax.bar(positions + 0.2, data["after"], 0.4, color=BLUE, label="After")
     ax.set_xticks(positions, [str(i + 1) for i in positions])
     ax.set_xlabel("Patch")
-    ax.set_ylabel("Color difference (ΔE$_{00}$)")
+    ax.set_ylabel("ΔE$_{00}$")
     ax.set_ylim(0, 1.3 * max(data["before"].max(), data["after"].max()))
     ax.legend(frameon=False, ncol=2, loc="upper right")
-    ax.set_title("(d) Difference between each patch and its reference color")
+    ax.set_title("(d) Difference to the reference")
     save(fig, "colorcard.png")
     for photo in (CALIBRATION / "colorCard.jpg", DATA / "Cgiar_Bean_Sequia_Seeds" / "calibracion" / "colorCard.jpg",
                   DATA / "images" / "card_cameratrax.jpg"):
@@ -285,18 +285,18 @@ def fig_segmentation():
     axes[0, 0].imshow(rgb(img))
     closed = np.vstack([points, points[:1]])
     axes[0, 0].plot(closed[:, 0], closed[:, 1], color="yellow", lw=1.2)
-    axes[0, 0].set_title("(a) Photo and analysis area (yellow)")
+    axes[0, 0].set_title("(a) Photo")
     axes[0, 1].imshow(channel[view], cmap="gray")
-    axes[0, 1].set_title("(b) b* channel of CIELAB")
+    axes[0, 1].set_title("(b) b* channel")
     axes[1, 0].imshow(ctx.mask[view], cmap="gray")
-    axes[1, 0].set_title(f"(c) Mask, Otsu threshold b* ≥ {ctx.extra.get('otsu_threshold', 0):.0f}")
+    axes[1, 0].set_title("(c) Mask")
     axes[1, 1].imshow(rgb(img[view]))
     for object_id in range(1, int(ctx.labels.max()) + 1):
         mask = ctx.labels[view] == object_id
         if mask.any():
             contour = outline(mask)
             axes[1, 1].plot(contour[:, 0], contour[:, 1], color="yellow", lw=0.7)
-    axes[1, 1].set_title(f"(d) {int(ctx.labels.max())} objects")
+    axes[1, 1].set_title("(d) Objects")
     fig.tight_layout()
     save(fig, "segmentation.png")
 
@@ -311,13 +311,13 @@ def fig_segmentation():
     counts, _ = np.histogram(values, bins=256, range=(0, 255))
     ax.set_ylim(top=counts.max() * 40)
     ax.set_xlim(values.min() - 5, values.max() + 5)
-    ax.set_xlabel("b* value (8-bit scale; lower = bluer)")
-    ax.set_ylabel("Pixels (log scale)")
+    ax.set_xlabel("b*")
+    ax.set_ylabel("Pixels")
     below, above = values[values < threshold], values[values >= threshold]
     for group, name in ((below, "blue tray"), (above, "seeds")):
         peak = int(np.bincount(group.astype(int)).argmax())
         ax.text(peak, counts.max() * 4, name, fontsize=7, ha="center")
-    ax.text(threshold + 2, counts.max() * 12, f"Otsu threshold = {threshold:.0f}", fontsize=7, color=RED)
+    ax.text(threshold + 2, counts.max() * 12, f"Otsu {threshold:.0f}", fontsize=7, color=RED)
     save(fig, "otsu_histogram.png")
 
 
@@ -433,7 +433,7 @@ def fig_banana():
         ax.bar(positions, share, bottom=bottom, color=color, label=name.capitalize(), width=0.7)
         bottom += share
     ax.set_xticks(positions, [row["photo"] for row in rows], rotation=45, fontsize=6.5)
-    ax.set_ylabel("Share of the leaf (%)")
+    ax.set_ylabel("Share (%)")
     ax.set_ylim(0, 100)
     ax.legend(frameon=False, ncol=3, loc="lower right", bbox_to_anchor=(1.0, 1.0), fontsize=7.5)
     twin = ax.twinx()
@@ -441,7 +441,7 @@ def fig_banana():
     twin.set_ylabel("Leaf area (cm²)")
     twin.spines["top"].set_visible(False)
     ax.set_xlabel("Photo")
-    ax.set_title("(d) Leaf area and share of each color in the 13 photos", loc="left")
+    ax.set_title("(d) Leaf colors and area", loc="left")
     save(fig, "banana.png")
     print(f"banana: card {np.median(heights):.1f} px tall (range {min(heights):.1f}-{max(heights):.1f}, "
           f"{len(heights)} photos) -> {mm_per_px:.4f} mm/px")
@@ -504,18 +504,18 @@ def fig_separation():
     ax[0].imshow(shown)
     ax[0].set_title("(a) Touching seeds")
     ax[1].imshow(binary, cmap="gray")
-    ax[1].set_title("(b) Mask: one\nconnected region")
+    ax[1].set_title("(b) Mask")
     ax[2].imshow(distance, cmap="magma")
     ax[2].plot(peaks[:, 1], peaks[:, 0], "c+", ms=8, mew=1.5)
-    ax[2].set_title("(c) Distance to the\nbackground and its peaks")
+    ax[2].set_title("(c) Distance transform")
     ax[3].imshow(np.ma.masked_equal(basins, 0), cmap="tab10", interpolation="nearest")
-    ax[3].set_title("(d) Watershed from\nthe peaks")
+    ax[3].set_title("(d) Watershed")
     ax[4].imshow(shown)
     for object_id in range(1, int(final.labels.max()) + 1):
         if (final.labels == object_id).any():
             contour = outline(final.labels == object_id)
             ax[4].plot(contour[:, 0], contour[:, 1], lw=1.2, color="yellow")
-    ax[4].set_title(f"(e) Final objects: {len(np.unique(final.labels)) - 1}")
+    ax[4].set_title("(e) Objects")
     save(fig, "separation.png")
 
 
@@ -558,7 +558,7 @@ def fig_morphometry():
     ax[0].plot(contour[:, 0], contour[:, 1], color="#FFD700", lw=1)
     ax[0].plot(*np.vstack([rect, rect[:1]]).T, color=RED, lw=1)
     ax[0].plot(cx, cy, "w+", ms=8)
-    ax[0].set_title("(a) Outline, smallest enclosing\nrectangle and centroid")
+    ax[0].set_title("(a) Enclosing rectangle")
     gap = np.zeros(mask.shape, np.uint8)
     cv2.fillPoly(gap, [hull.astype(np.int32)], 1)
     gap = (gap > 0) & ~(mask > 0)
@@ -567,7 +567,7 @@ def fig_morphometry():
     ax[1].imshow(shade)
     ax[1].plot(contour[:, 0], contour[:, 1], color="#FFD700", lw=0.7)
     ax[1].plot(*np.vstack([hull, hull[:1]]).T, color=GREEN, lw=1.1, ls=(0, (3, 2)), zorder=3)
-    ax[1].set_title("(b) Convex hull (dashed green)\nover the outline (yellow)")
+    ax[1].set_title("(b) Convex hull")
     t = np.linspace(0, 2 * np.pi, 200)
     a = np.deg2rad(angle)
     x = ex + major / 2 * np.cos(t) * np.cos(a) - minor / 2 * np.sin(t) * np.sin(a)
@@ -577,7 +577,7 @@ def fig_morphometry():
     radius = np.hypot(points[:, 0] - cx, points[:, 1] - cy)
     for index, color in ((radius.argmin(), RED), (radius.argmax(), GREEN)):
         ax[2].plot([cx, points[index, 0]], [cy, points[index, 1]], color=color, lw=1)
-    ax[2].set_title("(c) Fitted ellipse, shortest and\nlongest radius from the centroid")
+    ax[2].set_title("(c) Ellipse and radii")
     save(fig, "morphometry.png")
 
 
@@ -628,9 +628,9 @@ def fig_color():
     fig, ax = panels(3, 2.9, 2.6)
     ax[0].imshow(shown)
     trim = int(np.clip(round(0.015 * np.sqrt(mask.sum())), 1, 3))
-    ax[0].set_title(f"(a) Edge removed\n({trim} px ring, magenta)")
+    ax[0].set_title("(a) Edge ring")
     ax[1].imshow(painted)
-    ax[1].set_title("(b) Each pixel replaced by\nthe color of its group (k = 3)")
+    ax[1].set_title("(b) k = 3")
     ax[2].set_axis_on()
     left = 0.0
     from fenotit.core.measurements.color import _lab
@@ -649,7 +649,7 @@ def fig_color():
     ax[2].set_xticks([])
     for side in ax[2].spines.values():
         side.set_visible(False)
-    ax[2].set_title("(c) The three colors and their\nshare of the seed")
+    ax[2].set_title("(c) Colors")
     save(fig, "color.png")
 
 
@@ -704,18 +704,18 @@ def fig_color_k():
     ax.axhline(color_step.AUTO_ERR, color=GRAY, ls="--", lw=1)
     ax.text(1, color_step.AUTO_ERR - 0.6, "limit 5", fontsize=7, color=GRAY)
     ax.axvline(chosen, color=BLUE, lw=0.8, alpha=0.4)
-    ax.set_xlabel("Number of colors k")
-    ax.set_ylabel("Mean ΔE$_{00}$ from each pixel\nto the color of its group")
-    ax.set_title("(a) How well k colors describe the seed", loc="left")
+    ax.set_xlabel("k")
+    ax.set_ylabel("Mean ΔE$_{00}$")
+    ax.set_title("(a) Fit", loc="left")
     ax = fig.add_subplot(bottom[0, 1])
-    ax.plot(ks[1:], [row[2] for row in rows[1:]], "o-", color=RED, label="Closest two colors (ΔE$_{00}$)")
+    ax.plot(ks[1:], [row[2] for row in rows[1:]], "o-", color=RED, label="Closest pair")
     ax.axhline(color_step.AUTO_SEP, color=GRAY, ls="--", lw=1)
     ax.text(ks[-1], color_step.AUTO_SEP + 0.6, "limit 10", ha="right", fontsize=7, color=GRAY)
     ax.axvline(chosen, color=BLUE, lw=0.8, alpha=0.4)
     ax.set_xticks(ks[1:])
-    ax.set_xlabel("Number of colors k")
-    ax.set_ylabel("ΔE$_{00}$ between the two\nclosest colors")
-    ax.set_title("(b) How distinct the k colors are", loc="left")
+    ax.set_xlabel("k")
+    ax.set_ylabel("ΔE$_{00}$, closest pair")
+    ax.set_title("(b) Separation", loc="left")
     save(fig, "color_k.png")
     counts = {}
     median = np.median([row["area_px2"] for row in ctx.tables["objects"] if row.get("area_px2")])
@@ -750,7 +750,7 @@ def fig_distances():
     triangles = Delaunay(centroids)
     ax.triplot(centroids[:, 0] - left, centroids[:, 1] - top, triangles.simplices, color="#FFD700", lw=0.6)
     ax.plot(centroids[:, 0] - left, centroids[:, 1] - top, "o", color=RED, ms=2)
-    ax.set_title("(a) Neighbors: Delaunay triangulation of the centroids")
+    ax.set_title("(a) Delaunay neighbors")
     pairs = sorted(ctx.tables["distances"], key=lambda row: row.get("center_distance_px", 1e9))
     pair = pairs[len(pairs) // 4]
     first, second = pair["object_a"], pair["object_b"]
@@ -763,7 +763,7 @@ def fig_distances():
     ax.plot([centers[first][0] - ox, centers[second][0] - ox], [centers[first][1] - oy, centers[second][1] - oy],
             color="#DDDDDD", lw=1, ls="--")
     ax.plot([point_a[0] - ox, point_b[0] - ox], [point_a[1] - oy, point_b[1] - oy], color=RED, lw=2.2)
-    ax.set_title("(b) Free space between two neighbors\nalong the line joining their centroids")
+    ax.set_title("(b) Edge-to-edge distance")
     save(fig, "distances.png")
 
 
@@ -818,7 +818,7 @@ def fig_detection():
     ax = fig.add_subplot(grid[0])
     ax.set_axis_off()
     ax.imshow(rgb(seed_view[int(0.06 * h):int(0.94 * h), int(0.2 * w):int(0.82 * w)]))
-    ax.set_title("(a) Detections per seed (Objects)", loc="left")
+    ax.set_title("(a) Detections per seed", loc="left")
     handles = [plt.Rectangle((0, 0), 1, 1, fc="none", ec=color, lw=1.5) for color in colors]
     ax.legend(handles, model["classes"], frameon=False, fontsize=5.5, loc="upper center", ncol=3,
               bbox_to_anchor=(0.5, 0.02))
@@ -826,14 +826,14 @@ def fig_detection():
     ax = fig.add_subplot(grid[1])
     ax.set_axis_off()
     ax.imshow(rgb(insect_view[int(0.3 * h):int(0.85 * h), int(0.25 * w):int(0.65 * w)]))
-    ax.set_title("(b) Adult insects in a dish (Detection)", loc="left")
+    ax.set_title("(b) Adult bruchids", loc="left")
     ax = fig.add_subplot(grid[2])
     values, counts = np.unique(holes, return_counts=True)
     ax.bar(values, counts, color=BLUE, width=0.7)
     ax.set_xticks(values)
-    ax.set_xlabel("Holes (class Agujero) per seed")
+    ax.set_xlabel("Holes per seed")
     ax.set_ylabel("Seeds")
-    ax.set_title(f"(c) {len(holes)} seeds, {len(SEED_PHOTOS)} photos", loc="left")
+    ax.set_title("(c) Holes per seed", loc="left")
     save(fig, "detection.png")
     totals = dict(zip(model["classes"], per_seed.sum(0).tolist()))
     print(f"detection: {len(holes)} seeds, holes per seed mean {holes.mean():.2f} (max {holes.max()}), "

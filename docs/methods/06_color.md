@@ -6,8 +6,8 @@ object.
 
 ![Color](../img/color.png)
 
-*Figure 6.1. Color of the seed of Figure 4.1. (a) The edge of the seed (magenta) is removed
-before measuring. (b) Each remaining pixel painted with the color of its group, with three
+*Figure 6.1. Color of the seed of Figure 4.1. (a) The 3 px ring removed from the edge of the seed
+(magenta) before measuring. (b) Each remaining pixel painted with the color of its group, with three
 groups. (c) The three colors, their share of the seed and their CIELAB values.*
 
 ## 6.1 Pixels used

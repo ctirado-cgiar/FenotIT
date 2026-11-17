@@ -22,7 +22,7 @@ cut by mistake and cut objects left joined.
 
 *Figure 3.1. Separation of four touching bean seeds (crop of a seed tray photo, drought trial).
 (a) The seeds. (b) In the mask they form one region. (c) Distance from each pixel to the
-background, with one peak per seed (crosses). (d) Watershed started from the peaks. (e) Final
+background, with one peak per seed (crosses). (d) Watershed started from the peaks. (e) The four
 objects after the joining rules.*
 
 **Distance to the background.** For each pixel of the mask, the distance transform gives the

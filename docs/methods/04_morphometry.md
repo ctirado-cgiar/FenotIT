@@ -8,8 +8,8 @@ on. The outer outline of each object is traced with the algorithm of Suzuki & Ab
 
 *Figure 4.1. Geometry measured on one mottled bean seed from a Petri dish photo (bruchid trial,
 section 8.5). (a) Outline
-(yellow), smallest enclosing rectangle (red) and centroid (cross). (b) Convex hull (green), the
-outline of the seed with every concavity bridged. (c) Ellipse fitted to the outline (blue), and
+(yellow), smallest enclosing rectangle (red) and centroid (cross). (b) Convex hull (dashed green)
+over the outline (yellow): the outline with every concavity bridged. (c) Ellipse fitted to the outline (blue), and
 the shortest (red) and longest (green) distances from the centroid to the outline.*
 
 ## 4.1 What is measured

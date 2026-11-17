@@ -9,9 +9,9 @@ Object detectors, which find objects as boxes instead of masks, are described in
 ![Segmentation](../img/segmentation.png)
 
 *Figure 2.1. Threshold segmentation of a tray of bean seeds (drought trial). (a) Photo with the
-analysis area drawn around the seeds, leaving out the color card. (b) The b\* channel of CIELAB:
-the blue tray is dark and the seeds are light. (c) Mask from the automatic (Otsu) threshold.
-(d) Outline of each object found.*
+analysis area (yellow) drawn around the seeds, apart from the color card. (b) The b\* channel of CIELAB:
+the blue tray is dark and the seeds are light. (c) Mask from Otsu's threshold (b\* ≥ 99).
+(d) Outlines of the 52 objects found.*
 
 ## 2.1 Color spaces
 
@@ -156,9 +156,10 @@ of a chosen diameter in pixels and can be repeated:
 
 **Filling holes.** A hole (background enclosed by an object, such as a bright hilum) is filled
 when its area is less than 0.2 times the typical object area, taken as the median area of the
-regions of the mask that measure at least 5 % of the largest. Larger holes stay as background:
-they are usually the background enclosed by a ring of touching objects. Holes that reach the
-border of the photo also stay as background. By default the list contains only "Fill holes".
+regions of the mask that measure at least 5 % of the largest. This limit
+separates a hole inside one object, which is small, from the background enclosed by a ring of
+touching objects, which is about the size of an object or larger. A hole that reaches the border
+of the photo is part of the background. By default the list contains only "Fill holes".
 
 ## 2.8 Area classification
 
