@@ -10,7 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 OUT = Path(__file__).with_name("out")
-WIDTH, HEIGHT = 1900, 1270
+WIDTH, HEIGHT = 1900, 1260
 DPI = 600
 WIDTH_MM = 190
 
@@ -29,10 +29,8 @@ TITLE_SIZE = 26
 
 LEFT_X = 165          # centro de la columna izquierda
 RIGHT_X = 1745        # centro de la columna derecha
-APP = (340, 40, 1530, 1010)          # x0, y0, x1, y1 de la aplicación
-INTERFACE = (370, 100, 1500, 300)
-CORE = (370, 350, 1500, 980)
-CONVERTER = (340, 1070, 1530, 1240)
+INTERFACE = (330, 20, 1570, 232)     # x0, y0, x1, y1 de cada marco
+CORE = (330, 300, 1570, 965)
 
 parts: list[str] = []
 
@@ -56,16 +54,16 @@ def group(box, title):
     text(x0 + 16, y0 + 32, title, size=NAME_SIZE, anchor="start", color=GRAY)
 
 
-def module(x, y, width, height, name, notes=(), fill=BLUE_FILL, stroke=BLUE, name_size=NAME_SIZE, weight="bold"):
+def module(x, y, width, height, name, notes=(), fill=BLUE_FILL, stroke=BLUE, name_size=NAME_SIZE, weight="bold", note_size=NOTE_SIZE):
     """Caja con barras laterales, el símbolo clásico de un módulo de software."""
     parts.append(f'<rect x="{x}" y="{y}" width="{width}" height="{height}" fill="{fill}" '
                  f'stroke="{stroke}" stroke-width="2"/>')
     for side in (x + 14, x + width - 14):
         parts.append(f'<line x1="{side}" y1="{y}" x2="{side}" y2="{y + height}" stroke="{stroke}" stroke-width="2"/>')
     middle = x + width / 2
-    first = y + height / 2 - (len(notes) * NOTE_SIZE * 1.2) / 2 + name_size * 0.35
+    first = y + height / 2 - (len(notes) * note_size * 1.2) / 2 + name_size * 0.35
     text(middle, first, name, size=name_size, weight=weight)
-    lines(middle, first + NAME_SIZE * 1.15, notes)
+    lines(middle, first + name_size * 1.15, notes, size=note_size)
 
 
 def stacked(x, y, width, height, name, notes=()):
@@ -132,113 +130,98 @@ def document(cx, cy, tag=None):
                          f'y2="{y + 34 + row * 14}" stroke="{GRAY}" stroke-width="2"/>')
 
 
-def arrow(points, label=None, at=None, anchor="middle", both=False, dashed=False, width=2.2):
+def arrow(points, label=None, at=None, anchor="middle", both=False, dashed=False, width=2.2, main=False):
+    """Flecha; main = camino principal de la foto (azul y más gruesa)."""
     path = " ".join(f"{x},{y}" for x, y in points)
-    marks = ' marker-end="url(#head)"' + (' marker-start="url(#tail)"' if both else "")
+    head = "main" if main else "head"
+    marks = f' marker-end="url(#{head})"' + (' marker-start="url(#tail)"' if both else "")
     dash = ' stroke-dasharray="10 7"' if dashed else ""
-    parts.append(f'<polyline points="{path}" fill="none" stroke="{DARK}" stroke-width="{width}"{dash}{marks}/>')
+    color = BLUE if main else DARK
+    parts.append(f'<polyline points="{path}" fill="none" stroke="{color}" stroke-width="{width}"{dash}{marks}/>')
     if label:
         rows = label if isinstance(label, (list, tuple)) else [label]
         lines(at[0], at[1], rows, size=LABEL_SIZE, anchor=anchor)
 
 
 def draw():
-    # Columna izquierda: usuario y lo que entra
-    person(LEFT_X, 165, "User")
-    cylinder(LEFT_X, 470, 200, 92, ["Project and", "preset files"], ["YAML (.fnt, .fntp)"])
-    photos(LEFT_X, 715)
-    lines(LEFT_X, 790, ["Photographs"], size=NAME_SIZE, weight="bold")
-    document(LEFT_X, 1150, tag=".pt")
-    lines(LEFT_X, 1232, ["Trained model"], size=NAME_SIZE, weight="bold")
+    # Usuario e interfaz
+    person(LEFT_X, 150, "User")
+    group(INTERFACE, "Interface (Tkinter)")
+    for column, (name, notes) in zip((360, 660, 960, 1260), (
+            ("Main window", ["photo list, views,", "analysis panel"]),
+            ("Dialogs", ["corrections, models,", "presets, export"]),
+            ("Image views", ["zoom, areas,", "strokes, clicks"]),
+            ("Charts", ["boxes, histograms,", "scatter, color"]))):
+        window(column, 80, 270, 128, name, notes)
+    arrow([(215, 145), (358, 145)], label="uses", at=(287, 130), both=True)
+    cylinder(RIGHT_X, 140, 190, 92, ["Languages"], ["one JSON file", "per language"])
+    arrow([(1648, 145), (1572, 145)], label="texts", at=(1610, 130))
 
-    # Aplicación
-    group(APP, "FenotIT desktop application (Python 3.12)")
-    group(INTERFACE, "Interface layer (Tkinter)")
-    columns = [395, 670, 945, 1220]
-    box_width = 255
-    window(columns[0], 150, box_width, 132, "Main window", ["photo list, views,", "step panels"])
-    window(columns[1], 150, box_width, 132, "Dialogs", ["corrections, models,", "presets, export"])
-    window(columns[2], 150, box_width, 132, "Image canvases", ["zoom, areas,", "strokes, clicks"])
-    window(columns[3], 150, box_width, 132, "Charts", ["boxes, histograms,", "scatter, color 3D"])
-
+    # Núcleo: la cadena de análisis en una fila
     group(CORE, "Analysis core (no interface code)")
-    arrow([(935, 300), (935, 352)], width=4)
-    text(955, 333, "calls", size=LABEL_SIZE, anchor="start")
-
-    # Núcleo: columna izquierda
-    module(395, 400, 255, 110, "Project", ["areas, scale, strokes,", "parameters"])
-    module(395, 545, 255, 100, "Presets", ["capture setup"])
-    stacked(395, 700, 225, 110, "Batch runner", ["worker processes"])
-
-    # Motor con la cadena de pasos
-    engine = (710, 400, 1140, 880)
-    parts.append(f'<rect x="{engine[0]}" y="{engine[1]}" width="{engine[2] - engine[0]}" '
-                 f'height="{engine[3] - engine[1]}" fill="white" stroke="{BLUE}" stroke-width="2.5"/>')
-    text((engine[0] + engine[2]) / 2, engine[1] + 34, "Pipeline engine", size=NAME_SIZE, weight="bold")
-    text((engine[0] + engine[2]) / 2, engine[1] + 62, "registered steps, shared context, cache")
-    steps = [("Corrections", "lens, perspective, color, scale"),
-             ("Segmentation", "threshold, by example, MobileSAM"),
-             ("Detection", "boxes of trained models"),
-             ("Objects", "separation, filters"),
-             ("Measurements", "count, size, shape, color, classes")]
-    top, height, gap = 485, 62, 15
-    for index, (name, note) in enumerate(steps):
-        y = top + index * (height + gap)
-        parts.append(f'<rect x="{engine[0] + 25}" y="{y}" width="{engine[2] - engine[0] - 50}" height="{height}" '
-                     f'fill="{BLUE_FILL}" stroke="{BLUE}" stroke-width="2"/>')
-        text((engine[0] + engine[2]) / 2, y + 26, name, size=NAME_SIZE, weight="bold")
-        text((engine[0] + engine[2]) / 2, y + 52, note)
+    arrow([(950, 232), (950, 298)], width=3)
+    text(968, 272, "runs analyses", size=LABEL_SIZE, anchor="start")
+    text(360, 372, "Analysis chain, run on each photograph", size=NOTE_SIZE, anchor="start", italic=True)
+    chain = [("Corrections", ["lens, perspective,", "color, scale"]),
+             ("Segmentation", ["threshold,", "by example,", "MobileSAM"]),
+             ("Detection", ["boxes from", "trained models"]),
+             ("Objects", ["separation,", "filters"]),
+             ("Measurements", ["size, shape,", "color, classes"]),
+             ("Export", ["tables, workbook,", "metadata"])]
+    box_width, gap, top, height = 180, 22, 392, 120
+    for index, (name, notes) in enumerate(chain):
+        x = 360 + index * (box_width + gap)
+        module(x, top, box_width, height, name, notes, name_size=21, note_size=18)
         if index:
-            arrow([((engine[0] + engine[2]) / 2, y - gap - 1), ((engine[0] + engine[2]) / 2, y - 1)], width=2)
+            arrow([(x - gap, top + height / 2), (x - 1, top + height / 2)], width=3.5, main=True)
+    chain_end = 360 + len(chain) * (box_width + gap) - gap
+    photos(LEFT_X, 470)
+    lines(LEFT_X, 545, ["Photographs"], size=NAME_SIZE, weight="bold")
+    arrow([(LEFT_X + 70, 452), (358, 452)], width=3.5, main=True)
+    text(290, 438, "reads", size=LABEL_SIZE)
+    cylinder(RIGHT_X, 452, 190, 92, ["Results"], ["tables, images,", "metadata"], stack=3)
+    arrow([(chain_end + 2, 452), (1645, 452)], width=3.5, main=True)
+    text(1612, 438, "writes", size=LABEL_SIZE)
 
-    # Núcleo: columna derecha
-    module(1230, 400, 255, 110, "Statistics", ["groups, summaries,", "mean shapes"])
-    module(1230, 590, 255, 110, "Export", ["tables, workbook,", "metadata, views"])
+    # Núcleo: lo que acompaña a la cadena
+    module(360, 590, 280, 100, "Project", ["photos, areas, scale,", "parameters"])
+    module(360, 720, 280, 100, "Saved settings", ["presets shared", "between laboratories"])
+    cylinder(LEFT_X, 705, 200, 92, ["Project and", "preset files"], ["readable text files"])
+    arrow([(265, 690), (358, 640)], both=True, label="opens, saves", at=(215, 618))
+    arrow([(265, 720), (358, 770)], both=True)
+    stacked(700, 600, 300, 110, "Batch processing", ["several photos at once"])
+    arrow([(850, 584), (850, 514)])
+    text(866, 560, "runs the chain on each photo", size=LABEL_SIZE, anchor="start")
+    module(1100, 600, 300, 110, "Statistics and charts", ["by photo or group"])
+    arrow([(1258, 514), (1258, 598)])
+    text(1274, 560, "results", size=LABEL_SIZE, anchor="start")
+    cylinder(RIGHT_X, 655, 190, 92, ["Field book"], ["genotype or ID", "of each photo"])
+    arrow([(1648, 655), (1402, 655)], label="adds", at=(1610, 640))
 
     # Bibliotecas
-    module(395, 905, 520, 62, "OpenCV, NumPy, SciPy, scikit-image, scikit-learn", fill=GRAY_FILL, stroke=GRAY,
+    module(360, 880, 560, 62, "OpenCV, NumPy, SciPy, scikit-image, scikit-learn", fill=GRAY_FILL, stroke=GRAY,
            name_size=NOTE_SIZE, weight="normal")
-    module(965, 905, 520, 62, "ONNX Runtime", fill=GRAY_FILL, stroke=GRAY, name_size=NOTE_SIZE, weight="normal")
+    module(960, 880, 580, 62, "ONNX Runtime (runs trained models)", fill=GRAY_FILL, stroke=GRAY,
+           name_size=NOTE_SIZE, weight="normal")
+    text(360, 868, "Libraries used by every step", size=NOTE_SIZE, anchor="start", italic=True)
 
-    # Relaciones dentro del núcleo
-    arrow([(636, 755), (708, 755)], label=["one", "photo"], at=(672, 716))
-    arrow([(1140, 455), (1228, 455)], label="results", at=(1184, 440))
-    arrow([(1140, 645), (1228, 645)])
-    arrow([(810, 880), (810, 903)])
-    arrow([(1080, 880), (1080, 903)])
-
-    # Columna derecha: almacenamiento
-    cylinder(RIGHT_X, 200, 190, 92, ["Languages"], ["JSON, one file", "per language"])
-    cylinder(RIGHT_X, 470, 190, 92, ["Field book"], ["CSV, XLSX"])
-    cylinder(RIGHT_X, 680, 190, 92, ["Results"], ["CSV, XLSX, PNG,", "metadata"], stack=3)
-    cylinder(RIGHT_X, 935, 190, 92, ["Model", "library"])
-    text(RIGHT_X, 1032, "ONNX models")
-
-    # Conexiones con el exterior
-    arrow([(225, 165), (393, 165)], label=["edits,", "views"], at=(309, 120), both=True)
-    arrow([(265, 470), (393, 455)], both=True, label="open, save", at=(318, 440))
-    arrow([(265, 500), (393, 590)], both=True)
-    arrow([(LEFT_X + 70, 700), (392, 740)], label="read", at=(318, 704))
-    arrow([(1648, 200), (1502, 200)], label="texts", at=(1575, 186))
-    arrow([(1648, 470), (1488, 460)], label="joined", at=(1568, 450))
-    arrow([(1650, 500), (1488, 610)])
-    arrow([(1487, 645), (1640, 668)], label="write", at=(1565, 642))
-    arrow([(1648, 935), (1487, 935)], label="load", at=(1568, 920))
-
-    # Conversión de modelos
-    group(CONVERTER, "Model converter (separate Python environment, installed on request)")
-    module(560, 1135, 420, 80, "PyTorch with the model library", ["Ultralytics or RF-DETR"])
-    module(1060, 1135, 380, 80, "ONNX export", ["opset 17, output layout read"])
-    arrow([(LEFT_X + 45, 1150), (558, 1175)])
-    arrow([(980, 1175), (1058, 1175)])
-    arrow([(1440, 1175), (1870, 1175), (1870, 935), (1842, 935)])
+    # Modelos entrenados y su conversión
+    cylinder(RIGHT_X, 910, 190, 92, ["Trained", "models"], [])
+    arrow([(1648, 910), (1542, 910)], label="loads", at=(1603, 895))
+    module(1600, 1095, 290, 110, "Converter", ["separate Python", "environment, to ONNX"])
+    arrow([(RIGHT_X, 1093), (RIGHT_X, 975)], label="adds", at=(RIGHT_X + 40, 1040), anchor="start")
+    document(1440, 1150, tag=".pt")
+    lines(1440, 1232, ["PyTorch model"], size=NOTE_SIZE)
+    arrow([(1482, 1150), (1598, 1150)])
 
 
 def svg() -> str:
     defs = (f'<defs><marker id="head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">'
             f'<path d="M0,0 L10,5 L0,10 z" fill="{DARK}"/></marker>'
             f'<marker id="tail" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="7" markerHeight="7" orient="auto">'
-            f'<path d="M10,0 L0,5 L10,10 z" fill="{DARK}"/></marker></defs>')
+            f'<path d="M10,0 L0,5 L10,10 z" fill="{DARK}"/></marker>'
+            f'<marker id="main" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto">'
+            f'<path d="M0,0 L10,5 L0,10 z" fill="{BLUE}"/></marker></defs>')
     return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" height="{HEIGHT}" viewBox="0 0 {WIDTH} {HEIGHT}" '
             f'font-family="{FONT}">{defs}<rect width="100%" height="100%" fill="white"/>{"".join(parts)}</svg>')
 
