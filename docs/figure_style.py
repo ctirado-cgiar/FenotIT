@@ -2,7 +2,8 @@
 
 Usa el tema "ticks" de seaborn con letra Arial (o Liberation Sans, de las mismas medidas) de
 7 pt, ejes separados del área de datos y recortados al rango de los valores. Los colores son el
-azul de FenotIT, grises y negro. Los anchos son los de Elsevier: 90 mm (una columna), 140 mm
+azul de FenotIT, grises y negro en los gráficos, y la paleta PHOTO_COLORS para las marcas sobre
+fotos. Los anchos son los de Elsevier: 90 mm (una columna), 140 mm
 (columna y media) y 190 mm (dos columnas).
 """
 from __future__ import annotations
@@ -22,6 +23,8 @@ DARK_GRAY = "#4D4D4D"
 GRAY = "#8C8C8C"
 LIGHT_GRAY = "#C8C8C8"
 WHITE = "#FFFFFF"
+# Marcas sobre fotos (clases, regiones, contornos): paleta de Okabe e Ito, distinguible con daltonismo
+PHOTO_COLORS = ("#0072B2", "#E69F00", "#009E73", "#D55E00", "#CC79A7", "#56B4E9", "#F0E442", "#000000")
 
 MM = 1 / 25.4
 SINGLE = 90 * MM

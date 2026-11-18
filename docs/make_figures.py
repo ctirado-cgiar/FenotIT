@@ -32,7 +32,7 @@ from fenotit.core.pipeline import run  # noqa: E402
 
 sys.path.insert(0, str(ROOT / "docs"))
 import figure_style as style  # noqa: E402
-from figure_style import BLACK, BLUE, GRAY, LIGHT_GRAY, MM, WHITE  # noqa: E402
+from figure_style import BLACK, BLUE, GRAY, LIGHT_GRAY, MM, PHOTO_COLORS, WHITE  # noqa: E402
 
 OUT = ROOT / "docs" / "img"
 DATA = ROOT / "tests" / "data"
@@ -375,8 +375,10 @@ def fig_separation():
     ax[1].imshow(binary, cmap="gray")
     ax[2].imshow(distance, cmap="gray")
     ax[2].plot(peaks[:, 1], peaks[:, 0], "+", color=BLUE, ms=6, mew=1.2)
+    from matplotlib.colors import ListedColormap
     regions = np.ma.masked_equal(basins, 0)
-    ax[3].imshow(regions, cmap="Blues", vmin=-1, vmax=len(peaks) + 1, interpolation="nearest")
+    ax[3].imshow(regions, cmap=ListedColormap(PHOTO_COLORS[:len(peaks)]), vmin=0.5, vmax=len(peaks) + 0.5,
+                 interpolation="nearest")
     ax[3].contour(basins, levels=np.arange(0.5, len(peaks) + 1), colors=WHITE, linewidths=0.6)
     ax[4].imshow(shown)
     for object_id in range(1, int(final.labels.max()) + 1):
@@ -425,25 +427,25 @@ def fig_morphometry():
     for axis in ax:
         axis.imshow(rgb(patch))
     ax[0].plot(contour[:, 0], contour[:, 1], color=WHITE, lw=0.8)
-    ax[0].plot(*np.vstack([rect, rect[:1]]).T, color=BLUE, lw=0.9)
+    ax[0].plot(*np.vstack([rect, rect[:1]]).T, color=PHOTO_COLORS[1], lw=0.9)
     ax[0].plot(cx, cy, "+", color=WHITE, ms=6)
     gap = np.zeros(mask.shape, np.uint8)
     cv2.fillPoly(gap, [hull.astype(np.int32)], 1)
     gap = (gap > 0) & ~(mask > 0)
     shade = np.zeros((*mask.shape, 4))
-    shade[gap] = matplotlib.colors.to_rgba(BLUE, 0.45)
+    shade[gap] = matplotlib.colors.to_rgba(PHOTO_COLORS[2], 0.5)
     ax[1].imshow(shade)
     ax[1].plot(contour[:, 0], contour[:, 1], color=WHITE, lw=0.6)
-    ax[1].plot(*np.vstack([hull, hull[:1]]).T, color=BLUE, lw=0.9, ls=(0, (3, 2)), zorder=3)
+    ax[1].plot(*np.vstack([hull, hull[:1]]).T, color=PHOTO_COLORS[2], lw=0.9, ls=(0, (3, 2)), zorder=3)
     t = np.linspace(0, 2 * np.pi, 200)
     a = np.deg2rad(angle)
     x = ex + major / 2 * np.cos(t) * np.cos(a) - minor / 2 * np.sin(t) * np.sin(a)
     y = ey + major / 2 * np.cos(t) * np.sin(a) + minor / 2 * np.sin(t) * np.cos(a)
-    ax[2].plot(x, y, color=BLUE, lw=0.9)
+    ax[2].plot(x, y, color=PHOTO_COLORS[5], lw=0.9)
     points = contour[:-1].astype(float)
     radius = np.hypot(points[:, 0] - cx, points[:, 1] - cy)
-    for index, line_style in ((radius.argmin(), "-"), (radius.argmax(), (0, (3, 2)))):
-        ax[2].plot([cx, points[index, 0]], [cy, points[index, 1]], color=WHITE, lw=0.9, ls=line_style)
+    for index, color in ((radius.argmin(), PHOTO_COLORS[3]), (radius.argmax(), PHOTO_COLORS[6])):
+        ax[2].plot([cx, points[index, 0]], [cy, points[index, 1]], color=color, lw=0.9)
     for axis, letter in zip(ax, "abc"):
         axis.set_title(f"({letter})")
     save(fig, "morphometry.png", style.PHOTO_DPI)
@@ -610,7 +612,7 @@ def fig_detection():
     from fenotit.core.pipeline import overlay
     from fenotit.core.segmentation import models
     model = models.get(model_id)
-    colors = [BLUE, style.DARK_GRAY, GRAY, BLACK, LIGHT_GRAY]       # Agujero, AgujeroBorde, AgujeroCerrado, Bruquido, BruquidoEncerrado
+    colors = list(PHOTO_COLORS[:len(model["classes"])])
     detector = {"name": model_id, "conf": 0.5, "use": [], "classes": model["classes"], "colors": colors}
     columns = [f"n_{name.lower()}" for name in model["classes"]]
     per_seed, seed_view = [], None
@@ -649,13 +651,17 @@ def fig_detection():
     style.photo_axes(ax)
     ax.imshow(rgb(seed_view[int(0.06 * h):int(0.94 * h), int(0.2 * w):int(0.82 * w)]))
     ax.set_title("(a)")
-    handles = [plt.Rectangle((0, 0), 1, 1, fc="none", ec=color, lw=1.2) for color in colors]
-    ax.legend(handles, model["classes"], fontsize=6, loc="upper center", ncol=3, bbox_to_anchor=(0.5, 0.02))
+    present = [index for index in range(len(columns)) if per_seed[:, index].sum() > 0]
+    handles = [plt.Rectangle((0, 0), 1, 1, fc="none", ec=colors[index], lw=1.2) for index in present]
+    ax.legend(handles, [model["classes"][index] for index in present], fontsize=6, loc="upper center",
+              ncol=len(present), bbox_to_anchor=(0.5, 0.0))
     h, w = insect_view.shape[:2]
     ax = fig.add_subplot(grid[1])
     style.photo_axes(ax)
     ax.imshow(rgb(insect_view[int(0.3 * h):int(0.85 * h), int(0.25 * w):int(0.65 * w)]))
     ax.set_title("(b)")
+    ax.legend([plt.Rectangle((0, 0), 1, 1, fc="none", ec=colors[3], lw=1.2)], [model["classes"][3]], fontsize=6,
+              loc="upper center", bbox_to_anchor=(0.5, 0.0))
     ax = fig.add_subplot(grid[2])
     values, counts = np.unique(holes, return_counts=True)
     ax.bar(values, counts, color=BLUE, width=0.7)

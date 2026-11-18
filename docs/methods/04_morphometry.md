@@ -7,8 +7,8 @@ is on.
 ![Morphometry](../img/morphometry.png)
 
 *Figure 4.1. Geometry of one mottled bean seed (bruchid trial, section 7.5). (a) Outline (white),
-smallest enclosing rectangle (blue) and centroid (cross). (b) Convex hull (dashed blue) over the
-outline. (c) Fitted ellipse (blue) and the shortest (solid) and longest (dashed) radius.*
+smallest enclosing rectangle (orange) and centroid (cross). (b) Convex hull (dashed green) over the
+outline. (c) Fitted ellipse (light blue), shortest radius (red) and longest radius (yellow).*
 
 ## 4.1 What is measured
 

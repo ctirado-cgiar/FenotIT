@@ -138,12 +138,14 @@ def undistort(image: np.ndarray, cfg: Distortion) -> np.ndarray:
 
 # ── Perspectiva ───────────────────────────────────────────────────────────────
 
-def rectify(image: np.ndarray, cfg: Perspective) -> tuple[np.ndarray | None, float | None, str]:
-    """Endereza con ArUco 0-3 (TL, TR, BR, BL) sin deformar. Devuelve (imagen, mm/px, error)."""
+def rectify_transform(image: np.ndarray, cfg: Perspective):
+    """Homografía que endereza la foto con ArUco 0-3 (TL, TR, BR, BL), tamaño de salida y mm/px.
+    Devuelve (transformación, (ancho, alto), mm/px, error); sin los cuatro marcadores la
+    transformación es None."""
     centers = aruco.detect_aruco_corners(image)
     missing = [i for i in range(4) if i not in centers]
     if missing:
-        return None, None, f"missing ArUco IDs {missing}"
+        return None, None, None, f"missing ArUco IDs {missing}"
     top_left, top_right, bottom_right, bottom_left = (np.asarray(centers[i], dtype=np.float64) for i in range(4))
     w_px = (np.linalg.norm(top_right - top_left) + np.linalg.norm(bottom_right - bottom_left)) / 2
     h_px = (np.linalg.norm(bottom_left - top_left) + np.linalg.norm(bottom_right - top_right)) / 2
@@ -158,6 +160,14 @@ def rectify(image: np.ndarray, cfg: Perspective) -> tuple[np.ndarray | None, flo
     dst = np.float32([[margin, margin], [margin + w_px, margin], [margin + w_px, margin + h_px], [margin, margin + h_px]])
     transform = cv2.getPerspectiveTransform(np.float32([top_left, top_right, bottom_right, bottom_left]), dst)
     size = (int(round(w_px + 2 * margin)), int(round(h_px + 2 * margin)))
+    return transform, size, mm_per_px, ""
+
+
+def rectify(image: np.ndarray, cfg: Perspective) -> tuple[np.ndarray | None, float | None, str]:
+    """Endereza con ArUco 0-3 (TL, TR, BR, BL) sin deformar. Devuelve (imagen, mm/px, error)."""
+    transform, size, mm_per_px, error = rectify_transform(image, cfg)
+    if transform is None:
+        return None, None, error
     out = cv2.warpPerspective(image, transform, size, flags=cv2.INTER_LINEAR,
                               borderMode=cv2.BORDER_CONSTANT, borderValue=(255, 255, 255))
     return out, mm_per_px, ""
