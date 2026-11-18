@@ -49,6 +49,8 @@ DISH_SEG = {"step": "threshold", "params": {"color_space": "LAB", "channel": 0, 
 PEST = DATA / "Cgiar_Bean_Pest_Seeds"
 SEED_PHOTOS = ("051", "052", "184", "185", "552", "553")       # semillas en la caja de Petri
 INSECT_PHOTOS = ("053", "186", "554")                          # insectos y residuos sobre papel
+CLASS_NAMES_EN = {"Agujero": "Hole", "AgujeroBorde": "Edge hole", "AgujeroCerrado": "Closed hole",
+                  "Bruquido": "Bruchid", "BruquidoEncerrado": "Enclosed bruchid"}   # nombres del modelo en inglés
 style.apply()
 
 
@@ -615,6 +617,7 @@ def fig_detection():
     colors = list(PHOTO_COLORS[:len(model["classes"])])
     detector = {"name": model_id, "conf": 0.5, "use": [], "classes": model["classes"], "colors": colors}
     columns = [f"n_{name.lower()}" for name in model["classes"]]
+    english = [CLASS_NAMES_EN.get(name, name) for name in model["classes"]]
     per_seed, seed_view = [], None
     for photo in SEED_PHOTOS:
         image = load_image(str(PEST / f"{photo}.jpg"))
@@ -627,6 +630,7 @@ def fig_detection():
         seeds = [row for row in rows if 0.4 * median < row["area_px2"] < 2.5 * median]
         per_seed += [[row.get(column, 0) for column in columns] for row in seeds]
         if photo == "051":
+            shown_counts = np.array([[row.get(column, 0) for column in columns] for row in seeds]).sum(0)
             name = next(view for view in result.step_images if view == result.extra.get("first_view") or "etec" in view)
             name = next(view for view in result.step_images if "etec" in view)
             seed_view = result.step_images[name].copy()
@@ -651,16 +655,16 @@ def fig_detection():
     style.photo_axes(ax)
     ax.imshow(rgb(seed_view[int(0.06 * h):int(0.94 * h), int(0.2 * w):int(0.82 * w)]))
     ax.set_title("(a)")
-    present = [index for index in range(len(columns)) if per_seed[:, index].sum() > 0]
+    present = [index for index in range(len(columns)) if shown_counts[index] > 0]
     handles = [plt.Rectangle((0, 0), 1, 1, fc="none", ec=colors[index], lw=1.2) for index in present]
-    ax.legend(handles, [model["classes"][index] for index in present], fontsize=6, loc="upper center",
+    ax.legend(handles, [english[index] for index in present], fontsize=6, loc="upper center",
               ncol=len(present), bbox_to_anchor=(0.5, 0.0))
     h, w = insect_view.shape[:2]
     ax = fig.add_subplot(grid[1])
     style.photo_axes(ax)
     ax.imshow(rgb(insect_view[int(0.3 * h):int(0.85 * h), int(0.25 * w):int(0.65 * w)]))
     ax.set_title("(b)")
-    ax.legend([plt.Rectangle((0, 0), 1, 1, fc="none", ec=colors[3], lw=1.2)], [model["classes"][3]], fontsize=6,
+    ax.legend([plt.Rectangle((0, 0), 1, 1, fc="none", ec=colors[3], lw=1.2)], [english[3]], fontsize=6,
               loc="upper center", bbox_to_anchor=(0.5, 0.0))
     ax = fig.add_subplot(grid[2])
     values, counts = np.unique(holes, return_counts=True)

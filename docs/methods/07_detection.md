@@ -8,7 +8,7 @@ counts them inside the objects of a mask (*Detections per object* in *Objects*).
 
 *Figure 7.1. A bruchid detection model (RF-DETR, five classes). (a) Seed outlines from the mask
 (white) and the boxes found in each seed, by class. (b) Detection analysis: adult bruchids in a
-Petri dish. (c) Holes (class Agujero) per seed in six photos (91 seeds).*
+Petri dish. (c) Holes per seed in six photos (91 seeds).*
 
 ## 7.1 Models
 
@@ -51,11 +51,12 @@ report the totals and `mean_<class>_per_object`. The table `detections` lists ev
 
 Seed samples from a bruchid study of the Alliance bean program and the adults that emerged from
 them were photographed in Petri dishes on a blue background (3648 × 2736 px). An RF-DETR Small model
-(512 px) detects five classes: *Agujero* (hole), *AgujeroBorde* (hole on the seed edge),
-*AgujeroCerrado* (closed hole), *Bruquido* (adult) and *BruquidoEncerrado* (adult inside the seed).
+(512 px) detects five classes: hole, edge hole (on the seed edge), closed hole, bruchid (adult) and
+enclosed bruchid (adult inside the seed); the model stores them with Spanish names (*Agujero*,
+*AgujeroBorde*, *AgujeroCerrado*, *Bruquido*, *BruquidoEncerrado*).
 Converted in FenotIT, it gave the same boxes and classes as RF-DETR in Python (IoU ≥ 0.98).
 
 Six seed photos were analyzed with Objects (threshold on L\* 0 to 160 inside the dish, holes filled)
 and detections per object (confidence ≥ 0.5): 91 seeds with 153 holes, 1.68 per seed on average
 and at most 7, and 69 % of the seeds with at least one hole (Figure 7.1c). Three photos of adults
-analyzed with Detection (class Bruquido) gave 30, 8 and 20 adults (Figure 7.1b).
+analyzed with Detection (class bruchid) gave 30, 8 and 20 adults (Figure 7.1b).
