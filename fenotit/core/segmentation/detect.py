@@ -113,7 +113,7 @@ def _letterbox(img: np.ndarray, size: int):
     pad_x, pad_y = (size - new_width) / 2, (size - new_height) / 2
     out = np.full((size, size, 3), 114, np.uint8)
     out[int(round(pad_y - 0.1)):int(round(pad_y - 0.1)) + new_height, int(round(pad_x - 0.1)):int(round(pad_x - 0.1)) + new_width] = \
-        cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_AREA if ratio < 1 else cv2.INTER_LINEAR)
+        cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
     return out, ratio, int(round(pad_x - 0.1)), int(round(pad_y - 0.1))
 
 
