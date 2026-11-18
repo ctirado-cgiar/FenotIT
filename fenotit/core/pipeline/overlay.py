@@ -154,7 +154,7 @@ def _draw(img, marks, colors, origin, zoom, screen):
     exc = [tr(contour).reshape(-1, 1, 2) for contour, ok in marks.get("outlines", []) if not ok]
     _lines(img, exc, _EXCLUDED, min(width, 1.0), False)
     _lines(img, inc, colors["outline"], width, halo=width >= 1.5)
-    if marks.get("lines"):                             # segmentos sueltos con opacidad (p. ej. distancias)
+    if marks.get("lines"):                             # segmentos sueltos con opacidad
         thin = marks.get("thin_lines")                 # líneas de referencia (largo/ancho): finas
         line_width = (max(1, int(round(width * 0.5))) - 1) if thin else max(1, int(round(width)))
         bins = {}

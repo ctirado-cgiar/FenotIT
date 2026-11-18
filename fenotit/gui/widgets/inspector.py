@@ -6,7 +6,6 @@ Por capa:
   Morfometría  cotas de largo y ancho con su valor y barra de escala; área, largo, ancho, perímetro
   Forma        su silueta sobre la forma media de la foto y cuánto se aparta de ella
   Color        barra de proporciones y cada color en el formato elegido, con %
-  Distancias   líneas a sus vecinos con la distancia; vecino más cercano, promedio, n
 """
 from __future__ import annotations
 
@@ -167,13 +166,12 @@ def crop_around(img: np.ndarray, contour: np.ndarray, size=CROP, extra=None, mar
     return np.ascontiguousarray(out), (x0, y0), factor
 
 
-def text(img, label, x, y, scale=0.38, dark=False):
+def text(img, label, x, y, scale=0.38):
     (text_width, text_height), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, scale, 1)
     x = int(min(max(2, x - text_width / 2), img.shape[1] - text_width - 2))
     y = int(min(max(text_height + 2, y + text_height / 2), img.shape[0] - 3))
-    halo, ink = (WHITE, DARK) if dark else (DARK, WHITE)      # dark = texto oscuro sobre fondo claro
-    cv2.putText(img, label, (x, y), cv2.FONT_HERSHEY_SIMPLEX, scale, halo, 3, cv2.LINE_AA)
-    cv2.putText(img, label, (x, y), cv2.FONT_HERSHEY_SIMPLEX, scale, ink, 1, cv2.LINE_AA)
+    cv2.putText(img, label, (x, y), cv2.FONT_HERSHEY_SIMPLEX, scale, DARK, 3, cv2.LINE_AA)
+    cv2.putText(img, label, (x, y), cv2.FONT_HERSHEY_SIMPLEX, scale, WHITE, 1, cv2.LINE_AA)
 
 
 def fmt(value: float) -> str:
@@ -196,12 +194,12 @@ def _free(img, box, mask, taken) -> bool:
     return not any(x0 < other[2] and other[0] < x1 and y0 < other[3] and other[1] < y1 for other in taken)
 
 
-def label_at(img, label, candidates, mask, taken, scale=0.38, dark=False):
-    """Escribe `s` en el primer lugar libre de `candidates` (si ninguno lo está, en el primero)."""
+def label_at(img, label, candidates, mask, taken, scale=0.38):
+    """Escribe `label` en el primer lugar libre de `candidates` (si ninguno lo está, en el primero)."""
     spots = [np.asarray(spot, float) for spot in candidates]
     spot = next((candidate for candidate in spots if _free(img, _box(img, label, candidate[0], candidate[1], scale), mask, taken)), spots[0])
     taken.append(_box(img, label, spot[0], spot[1], scale))
-    text(img, label, spot[0], spot[1], scale, dark)
+    text(img, label, spot[0], spot[1], scale)
 
 
 def cota(img, start, end, label, mask=None, taken=None):

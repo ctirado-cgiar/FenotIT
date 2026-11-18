@@ -54,7 +54,7 @@ class AnalysisResult:
 
 @dataclass
 class AnalysisDescriptor:
-    key: str                          # identificador: "objects", "distances"…
+    key: str                          # identificador: "objects", "cover"…
     func: Callable                    # run(image: np.ndarray, params: dict) -> AnalysisResult
     supports_batch: bool = True
     # Parámetros del panel de configuración. Cada entrada:
@@ -127,7 +127,7 @@ def get(key: str) -> AnalysisDescriptor | None:
 
 # ── Módulos de análisis: cada uno se registra con register() al importarse ─────
 # Orden = orden en el menú Análisis.
-ANALYSIS_MODULES = ("objects", "detection", "distances", "cover", "image_color")
+ANALYSIS_MODULES = ("objects", "detection", "cover", "image_color")
 
 
 def _load_modules():

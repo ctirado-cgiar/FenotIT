@@ -174,19 +174,6 @@ def test_color_pooled():
         assert abs(sum(r["pct"] for r in rows if r["object_id"] == oid) - 100) < 0.1
 
 
-def test_distances():
-    """Tres círculos de radio 20 en fila, centros a 100 px: borde a borde = 60, centro = 100."""
-    img = np.zeros((200, 400, 3), np.uint8)
-    for x in (100, 200, 300):
-        cv2.circle(img, (x, 100), 20, (255, 255, 255), -1)
-    base = [{"step": "threshold", "params": {"color_space": "HSV", "channel": 2, "min_val": 50}}, {"step": "label"}]
-    for measure, expected in (("edge_line", 60), ("edge_nearest", 60), ("center", 100)):
-        ctx = pipeline.run(img, base + [{"step": "distances", "params": {"k": 1, "measure": measure}}])
-        ds = sorted(r["distance_px"] for r in ctx.tables["distances"])
-        assert len(ds) == 2 and all(abs(d - expected) <= 2.5 for d in ds), (measure, ds)
-    assert ctx.image_row()["n_pairs"] == 2
-
-
 def test_large_objects_kept():
     """Fotos grandes: objetos de millones de px no se pierden por un tope fijo."""
     img = np.full((3000, 4000, 3), 255, np.uint8)

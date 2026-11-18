@@ -2,7 +2,7 @@
 
 Technical description of the methods implemented in FenotIT, written as the basis of the
 methods section of the software paper. All figures are made with real photos from Alliance
-programs (bean seeds, bean pests and banana leaves) by [`make_figures.py`](../make_figures.py),
+programs (bean seeds and bean pests) by [`make_figures.py`](../make_figures.py),
 which calls FenotIT's own functions, so each picture shows what the software computes.
 
 ```
@@ -26,8 +26,7 @@ Each photo goes through the same ordered chain. The parameters used are written 
 | 4. Size and shape descriptors | [04 Morphometry](04_morphometry.md) |
 | 5. Outline shape: elliptic Fourier descriptors, alignment and mean shape | [05 Shape](05_shape.md) |
 | 6. Color: mean color, dominant colors and their number | [06 Color](06_color.md) |
-| 7. Spatial pattern: neighbor distances and Clark–Evans index | [07 Distances](07_distances.md) |
-| 8. Detection models: boxes as objects, detections per object; bruchid damage in bean seeds | [08 Detection](08_detection.md) |
+| 7. Detection models: boxes as objects, detections per object; bruchid damage in bean seeds | [07 Detection](07_detection.md) |
 
 References are listed in [references.md](references.md).
 

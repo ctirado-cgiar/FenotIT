@@ -75,7 +75,7 @@ class TableMixin:
             xsb.pack_forget()
             self.table.xview_moveto(0)
 
-    _YES_NO = ("touching", "crosses_object")
+    _YES_NO = ("touching",)
 
     @staticmethod
     def _class_aliases(result) -> dict:
@@ -123,8 +123,8 @@ class TableMixin:
         ids = _row_objects(getattr(self, "_table_items", {}).get(sel[0], {}))
         if ids and self.zoom_ctrl and self.zoom_ctrl.tool != "inspect":
             self.zoom_ctrl.set_tool("inspect")          # la tabla elige objetos: también la imagen
-        if ids:                         # en Distancias (una fila por par) se elige el primero
-            self._select_object(self._sel if self._sel in ids else ids[0], from_table=True)
+        if ids:
+            self._select_object(ids[0], from_table=True)
 
     def _sort_table(self, col: str):
         """Ordena por esa columna; otro clic invierte el orden (▲ / ▼ en el título)."""

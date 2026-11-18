@@ -201,7 +201,6 @@ class ZoomController:
         self._click = None
         self.on_pick = None                   # (x, y) en px de imagen: clic con "inspeccionar"
         self.highlight = None                 # contorno (px de imagen) del objeto elegido
-        self.on_hover = None                  # (canvas, (x, y) px de imagen | None) con "inspeccionar"
 
         for canvas_widget in (canvas_left, canvas_right):
             canvas_widget.config(takefocus=True)
@@ -214,8 +213,6 @@ class ZoomController:
                 canvas_widget.bind(f"<B{btn}-Motion>", lambda event, button_number=btn: self._motion(event, button_number), add="+")
                 canvas_widget.bind(f"<ButtonRelease-{btn}>", lambda event, button_number=btn: self._release(event, button_number), add="+")
             canvas_widget.bind("<Enter>", lambda event: self._update_cursor(event.widget), add="+")
-            canvas_widget.bind("<Motion>", self._hover, add="+")
-            canvas_widget.bind("<Leave>", lambda event: self.on_hover and self.on_hover(event.widget, None), add="+")
 
     # ── Herramientas ──────────────────────────────────────────────────────────
 
@@ -278,19 +275,6 @@ class ZoomController:
             return
         self._drag = (event.x, event.y)
         self._click = (event.widget, event.x, event.y) if button == "1" and self.tool == "inspect" else None
-
-    def _hover(self, event):
-        if self.tool == "inspect" and self.on_hover and self._drag is None:
-            self.on_hover(event.widget, self._to_image(event.widget, event.x, event.y))
-
-    def to_canvas(self, canvas, x, y):
-        """Punto en px de imagen → coordenadas del canvas (inverso de _to_image)."""
-        img = self._img_left if self._img_left is not None else self._img_right
-        if img is None:
-            return None
-        canvas_width, canvas_height = max(canvas.winfo_width(), 1), max(canvas.winfo_height(), 1)
-        offset_x, offset_y = self.state.image_offset(canvas_width, canvas_height, img.shape[1], img.shape[0])
-        return offset_x + x * self.state.zoom, offset_y + y * self.state.zoom
 
     def _to_image(self, canvas, x, y):
         img = self._img_left if self._img_left is not None else self._img_right

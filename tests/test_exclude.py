@@ -29,9 +29,6 @@ def test_exclude_keeps_numbers():
     assert {r["object_id"]: r["status"] for r in after.extra["tables"]["objects"]}[5] == "excluded"
     for r in after.measurements:                       # el resto: mismo número, mismas medidas
         assert r["area_px2"] == objs[r["object_id"]]["area_px2"]
-    dist = ANALYSES["distances"].func(img, params)
-    assert 5 not in {r["object_a"] for r in dist.extra["tables"]["distances"]} | \
-        {r["object_b"] for r in dist.extra["tables"]["distances"]}
 
 
 

@@ -91,7 +91,6 @@ class ViewerMixin:
         self.zoom_ctrl.set_zoom_var(self._zoom_pct_var)
         self.zoom_ctrl.on_tool_change = self._on_zoom_tool_change
         self.zoom_ctrl.on_pick = self._pick_object
-        self.zoom_ctrl.on_hover = self._hover_object
         # Referencia para que ZoomController informe al ROI
         self.canvas_left._roi_selector_ref = CanvasTools(self.areas, self.strokes, self.prompts,
                                                                 self.region_picker)

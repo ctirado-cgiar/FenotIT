@@ -45,9 +45,9 @@ def _cell(value) -> str:
 
 
 def _row_objects(row: dict) -> list[int]:
-    """Objetos de una fila de tabla: object_id, o los dos de un par (Distancias)."""
-    ids = [row.get(key) for key in ("object_id", "object_a", "object_b")]
-    return [int(i) for i in ids if isinstance(i, (int, np.integer))]
+    """Objeto de una fila de tabla (object_id), o ninguno."""
+    object_id = row.get("object_id")
+    return [int(object_id)] if isinstance(object_id, (int, np.integer)) else []
 
 
 def _on_base(result, view) -> bool:
@@ -99,7 +99,7 @@ def _duration(seconds: float) -> str:
 
 def _summary(stats: dict, limit: int = 6, aliases: dict | None = None) -> str:
     """Resumen de la fila de la imagen para la barra de estado. Sirve para cualquier
-    análisis (conteos, distancias, color, modelos…): los valores que el análisis puso, sin
+    análisis (conteos, color, modelos…): los valores que el análisis puso, sin
     vacíos ni la resolución, con pocos decimales."""
     aliases = aliases or {}
     hidden = {key for key in aliases if key.startswith("\0")}          # fondo de la segmentación por ejemplos

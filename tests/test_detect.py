@@ -1,5 +1,5 @@
 """Detectores ONNX (cajas): lectura de los formatos YOLOv8, YOLOv5 y RF-DETR, agregar un
-modelo, cadena de Objetos y Distancias con cajas, exclusiones y cajas pasadas a máscaras
+modelo, cadena de Objetos con cajas, exclusiones y cajas pasadas a máscaras
 con MobileSAM. Los modelos de tests/data/models tienen salida fija (los genera make_models.py)."""
 import os
 import sys
@@ -101,16 +101,6 @@ def test_exclude_and_filter_boxes():
     assert res.stats["n_objects"] == 2 and res.stats["n_excluded_manual"] == 1
     res = objects.run(scene(), {"segmentation": _seg(m), "size_filter": True, "length_max": 110})
     assert res.stats["n_objects"] == 1                      # las de 120 px de largo no pasan
-
-
-def test_distances_by_class():
-    from fenotit.core.analysis import distances
-    m = _added("yolov8_test")
-    res = distances.run(scene(), {"segmentation": _seg(m), "mm_per_pixel": 0.1})
-    pairs = res.extra["tables"]["distances"]
-    assert {(p["class_a"], p["class_b"]) for p in pairs} >= {("seed", "seed")}
-    assert res.stats["mean_nearest_seed_mm"] == pytest.approx(49.04, abs=0.01)
-    assert res.stats["mean_nearest_pod_mm"] is None
 
 
 def test_boxes_to_masks():
@@ -225,10 +215,3 @@ def test_detector_saved_as_segmentation_model_moves_to_detector():
     assert seg.method == "threshold" and seg.model["name"] == "mobilesam"
     assert seg.detector == {"name": "bugs", "conf": 0.4, "use": [0], "classes": ["bug"]}
 
-
-def test_distances_between_detections():
-    from fenotit.core.analysis import distances
-    m = _added("yolov8_test")
-    res = distances.run(scene(), {"from_detector": True, "detector": _detector(m), "mm_per_pixel": 0.1})
-    assert res.stats["n_objects"] == 3
-    assert res.stats["mean_nearest_seed_mm"] == pytest.approx(49.04, abs=0.01)

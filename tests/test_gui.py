@@ -394,24 +394,6 @@ def main(with_sam=False):
         w._results.get(objects, {}).pop(w.current_image_path, None)
         w._run_analysis(False)
 
-    @flow.step("Distancias entre detecciones",
-               wait=lambda: result("distances") is not None, timeout=90)
-    def _():
-        w._open_analysis("distances")
-        w.config_panel._vars["from_detector"].set(True)
-        root.update()
-        if list(w._rtab_labels) != ["det", "analysis"]:
-            ERRORS.append(f"Distancias con detector: pestañas {list(w._rtab_labels)}")
-        w._run_analysis(False)
-
-    @flow.step("Distancias con segmentación")
-    def _():
-        w.config_panel._vars["from_detector"].set(False)
-        root.update()
-        if list(w._rtab_labels) != ["seg", "analysis"]:
-            ERRORS.append(f"Distancias sin detector: pestañas {list(w._rtab_labels)}")
-        w._open_analysis(objects)
-
     @flow.step("Objetos sin detecciones")
     def _():
         w.config_panel._vars["measure_detections"].set(False)

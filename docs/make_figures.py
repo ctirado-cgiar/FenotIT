@@ -1,5 +1,5 @@
 """Figures and numbers for docs/methods. Every figure is made with FenotIT's own functions on
-real photos of the Alliance bean and banana programs (folders tests/data/Cgiar_*), so the
+real photos of the Alliance bean program (folders tests/data/Cgiar_*), so the
 pictures show what the software computes on real material.
 
     python docs/make_figures.py                      (writes docs/img/*.png)
@@ -42,7 +42,6 @@ TRAY_AREA = [{"kind": "include", "type": "polygon",
 TRAY_SEG = {"step": "otsu", "params": {"color_space": "LAB", "channel": 2}}
 DISH_PHOTO = DATA / "Cgiar_Bean_Pest_Seeds" / "552.jpg"
 DISH_SEG = {"step": "threshold", "params": {"color_space": "LAB", "channel": 0, "min_val": 0, "max_val": 160}}
-BANANA = DATA / "Cgiar_Banana_Leaf"
 CARD_HEIGHT_MM = 100.0                      # alto del cuadro rojo de las fotos de banano
 PEST = DATA / "Cgiar_Bean_Pest_Seeds"
 SEED_PHOTOS = ("051", "052", "184", "185", "552", "553")       # semillas en la caja de Petri
@@ -327,136 +326,6 @@ def fig_segmentation():
     save(fig, "otsu_histogram.png")
 
 
-def banana_strokes():
-    """Brush strokes of four classes (background and three leaf colors: green, dark and yellow) on two leaves, as drawn
-    in the interface; coordinates are fractions of the photo."""
-    def young(px, py):
-        return [round(0.40 + px / 352 * 0.54, 4), round(0.02 + py / 900 * 0.78, 4)]
-
-    def old(px, py):
-        return [round(0.52 + px / 422 * 0.30, 4), round(0.44 + py / 900 * 0.36, 4)]
-
-    def stroke(cls, *pts, w=0.012):
-        return {"c": cls, "pts": list(pts), "w": w}
-    return {
-        "20251203_095757.jpg": [
-            stroke(0, [0.15, 0.20], [0.15, 0.60]), stroke(0, [0.62, 0.84], [0.80, 0.86]),
-            stroke(0, [0.31, 0.80], [0.40, 0.90]),
-            stroke(1, young(90, 640), young(120, 720)), stroke(1, young(250, 700), young(230, 760)),
-            stroke(1, young(222, 110), young(235, 160)),
-            stroke(2, young(80, 350), young(120, 400)), stroke(2, young(200, 300), young(240, 310))],
-        "20251203_095619.jpg": [
-            stroke(0, old(40, 600), old(40, 800)), stroke(0, old(265, 120), old(300, 180)),
-            stroke(0, old(100, 880), old(350, 880)),
-            stroke(1, old(215, 210), old(225, 250), w=0.006), stroke(1, old(250, 540), old(262, 568), w=0.006),
-            stroke(2, old(170, 590), old(180, 640), w=0.006), stroke(2, old(240, 430), old(280, 440), w=0.006),
-            stroke(3, old(115, 240), old(122, 300), w=0.006), stroke(3, old(290, 290), old(300, 320), w=0.006),
-            stroke(3, old(320, 440), old(325, 520), w=0.006)],
-    }
-
-
-def red_card_height(img: np.ndarray) -> float | None:
-    """Height in px of the red card (the side of its minimum-area rectangle closest to vertical)."""
-    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    red = (((hsv[..., 0] < 12) | (hsv[..., 0] > 168)) & (hsv[..., 1] > 90) & (hsv[..., 2] > 60)).astype(np.uint8)
-    red = cv2.morphologyEx(red, cv2.MORPH_OPEN, np.ones((9, 9), np.uint8))
-    _, labels, stats, _ = cv2.connectedComponentsWithStats(red)
-    if len(stats) < 2:
-        return None
-    biggest = 1 + int(stats[1:, cv2.CC_STAT_AREA].argmax())
-    if stats[biggest, cv2.CC_STAT_AREA] < 0.01 * img.shape[0] * img.shape[1]:
-        return None
-    ys, xs = np.nonzero(labels == biggest)
-    box = cv2.boxPoints(cv2.minAreaRect(np.column_stack([xs, ys]).astype(np.float32)))
-    sides = [(box[k], box[(k + 1) % 4]) for k in range(4)]
-    vertical = max(sides, key=lambda side: abs(side[1][1] - side[0][1]) / (np.linalg.norm(side[1] - side[0]) + 1e-9))
-    return float(np.linalg.norm(vertical[1] - vertical[0]))
-
-
-BANANA_CLASSES = ["background", "green", "dark", "yellow"]
-BANANA_COLORS = ["#3B5BA5", "#4DAF4A", "#7B3F3F", "#E0B050"]
-
-
-def banana_results():
-    """Leaf area, length, width and share of each class for every banana photo."""
-    import tempfile
-    from fenotit.core.analysis import objects
-    from fenotit.core.segmentation import classifier
-    photos = sorted(BANANA.glob("*.jpg"))
-    heights = [height for height in (red_card_height(load_image(str(p))) for p in photos) if height]
-    mm_per_px = CARD_HEIGHT_MM / float(np.median(heights))
-    strokes = banana_strokes()
-    features, labels = [], []
-    for name, marks in strokes.items():
-        small = classifier.work_copy(load_image(str(BANANA / name)), 1.0)
-        found_features, found_labels = classifier.samples(classifier.features(small), marks)
-        features.append(found_features)
-        labels.append(found_labels)
-    features, labels = classifier.balance(np.concatenate(features), np.concatenate(labels))
-    path, key = classifier.store(features, labels, Path(tempfile.mkdtemp()))
-    segmentation = {"method": "classifier", "refine": [{"op": "fill_holes"}],
-                    "classifier": {"samples": path, "hash": key, "objects": [1, 2, 3], "names": BANANA_CLASSES,
-                                   "colors": BANANA_COLORS, "detail": 1.0}}
-    area_above_card = [{"kind": "include", "type": "rect", "points": [[0.0, 0.0], [1.0, 0.76]]}]
-    rows, views = [], {}
-    for photo in photos:
-        image = load_image(str(photo))
-        result = objects.run(image, {"segmentation": segmentation, "measure_size": True, "measure_classes": True,
-                                     "mm_per_pixel": mm_per_px, "length_unit": "cm",
-                                     "roi_shapes": area_above_card, "exclude_border": True})
-        leaf = max(result.extra["tables"]["objects"], key=lambda row: row.get("area_cm2", 0))
-        rows.append({"photo": photo.stem.split("_")[-1], **leaf})
-        views[photo.name] = (image, result)
-    return mm_per_px, heights, rows, views
-
-
-def fig_banana():
-    if not have(BANANA):
-        return
-    mm_per_px, heights, rows, views = banana_results()
-    shown = ["20251203_095757.jpg", "20251203_095645.jpg", "20251203_095543.jpg"]
-    fig = plt.figure(figsize=(9.0, 6.6))
-    grid = GridSpec(2, 6, figure=fig, height_ratios=[1.35, 1], hspace=0.3, wspace=0.08)
-    for index, name in enumerate(shown):
-        image, result = views[name]
-        leaf = max(result.extra["tables"]["objects"], key=lambda row: row.get("area_cm2", 0))
-        classes_view = result.step_images[next(v for v in result.step_images if "las" in v.lower() or "class" in v.lower())]
-        mask = result.extra["geometry"][leaf["object_id"]]
-        x0, y0 = np.maximum(mask.min(0) - 80, 0)
-        x1, y1 = mask.max(0) + 80
-        for offset, picture, label in ((0, image, "Photo"), (1, classes_view, "Classes")):
-            ax = fig.add_subplot(grid[0, 2 * index + offset])
-            ax.set_axis_off()
-            ax.imshow(rgb(picture[y0:y1, x0:x1]))
-            if offset == 0:
-                ax.set_title(f"({'abc'[index]}) {leaf['area_cm2']:.0f} cm², {leaf['length_cm']:.1f} × "
-                             f"{leaf['width_cm']:.1f} cm", fontsize=8, loc="left")
-    ax = fig.add_subplot(grid[1, :])
-    positions = np.arange(len(rows))
-    bottom = np.zeros(len(rows))
-    for name, color in zip(BANANA_CLASSES[1:], BANANA_COLORS[1:]):
-        share = np.array([row.get(f"{name}_pct", 0) for row in rows])
-        ax.bar(positions, share, bottom=bottom, color=color, label=name.capitalize(), width=0.7)
-        bottom += share
-    ax.set_xticks(positions, [row["photo"] for row in rows], rotation=45, fontsize=6.5)
-    ax.set_ylabel("Share (%)")
-    ax.set_ylim(0, 100)
-    ax.legend(frameon=False, ncol=3, loc="lower right", bbox_to_anchor=(1.0, 1.0), fontsize=7.5)
-    twin = ax.twinx()
-    twin.plot(positions, [row["area_cm2"] for row in rows], "o", color="black", ms=3.5)
-    twin.set_ylabel("Leaf area (cm²)")
-    twin.spines["top"].set_visible(False)
-    ax.set_xlabel("Photo")
-    ax.set_title("(d) Leaf colors and area", loc="left")
-    save(fig, "banana.png")
-    print(f"banana: card {np.median(heights):.1f} px tall (range {min(heights):.1f}-{max(heights):.1f}, "
-          f"{len(heights)} photos) -> {mm_per_px:.4f} mm/px")
-    for row in rows:
-        print(f"  {row['photo']}: area {row['area_cm2']:.1f} cm2, length {row['length_cm']:.1f} cm, "
-              f"width {row['width_cm']:.1f} cm, green {row.get('green_pct', 0):.1f} %, "
-              f"dark {row.get('dark_pct', 0):.1f} %, yellow {row.get('yellow_pct', 0):.1f} %")
-
-
 # ── 3. Separation of touching objects ───────────────────────────────────────
 
 def touching_clump():
@@ -736,44 +605,7 @@ def fig_color_k():
           "chosen", chosen, "| chosen k per seed in the photo:", dict(sorted(counts.items())))
 
 
-# ── 7. Distances ────────────────────────────────────────────────────────────
-
-def fig_distances():
-    if not have(TRAY_PHOTO):
-        return
-    from scipy.spatial import Delaunay
-    from fenotit.core.measurements.distances import _centroids, _edge_on_line
-    img, _, points, view = tray()
-    ctx = objects_in(img, TRAY_SEG, TRAY_AREA, [{"step": "distances", "params": {"neighbors": "voronoi"}}])
-    centers = _centroids(ctx.labels)
-    centroids = np.array([centers[i] for i in sorted(centers)])
-    top, left = view[0].start, view[1].start
-    fig = plt.figure(figsize=(8.4, 4.2))
-    grid = GridSpec(1, 2, figure=fig, width_ratios=[1.35, 1], wspace=0.08)
-    ax = fig.add_subplot(grid[0])
-    ax.set_axis_off()
-    ax.imshow(rgb(img[view]))
-    triangles = Delaunay(centroids)
-    ax.triplot(centroids[:, 0] - left, centroids[:, 1] - top, triangles.simplices, color="#FFD700", lw=0.6)
-    ax.plot(centroids[:, 0] - left, centroids[:, 1] - top, "o", color=RED, ms=2)
-    ax.set_title("(a) Delaunay neighbors")
-    pairs = sorted(ctx.tables["distances"], key=lambda row: row.get("center_distance_px", 1e9))
-    pair = pairs[len(pairs) // 4]
-    first, second = pair["object_a"], pair["object_b"]
-    bounds = crop_box(ctx.labels, [first, second], pad=40)
-    ax = fig.add_subplot(grid[1])
-    ax.set_axis_off()
-    ax.imshow(rgb(img[bounds]))
-    oy, ox = bounds[0].start, bounds[1].start
-    point_a, point_b = _edge_on_line(ctx.labels, first, second, centers[first], centers[second])
-    ax.plot([centers[first][0] - ox, centers[second][0] - ox], [centers[first][1] - oy, centers[second][1] - oy],
-            color="#DDDDDD", lw=1, ls="--")
-    ax.plot([point_a[0] - ox, point_b[0] - ox], [point_a[1] - oy, point_b[1] - oy], color=RED, lw=2.2)
-    ax.set_title("(b) Edge-to-edge distance")
-    save(fig, "distances.png")
-
-
-# ── 8. Detection ────────────────────────────────────────────────────────────
+# ── 7. Detection ────────────────────────────────────────────────────────────
 
 def fig_detection():
     model_id = os.environ.get("FENOTIT_DOCS_DETECTOR", "")
@@ -851,13 +683,11 @@ def main():
     fig_lens()
     fig_colorcard()
     fig_segmentation()
-    fig_banana()
     fig_separation()
     fig_morphometry()
     fig_efd()
     fig_color()
     fig_color_k()
-    fig_distances()
     fig_detection()
 
 

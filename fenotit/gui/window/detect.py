@@ -201,8 +201,7 @@ class DetectMixin:
     # ── Qué análisis detecta ────────────────────────────────────────────────
 
     def _detection_analysis(self) -> bool:
-        """Los objetos del análisis elegido salen del detector, sin segmentar (análisis Detección,
-        o Distancias con «Objetos de un modelo de detección»)."""
+        """Los objetos del análisis elegido salen del detector, sin segmentar (análisis Detección)."""
         name = self.active_analysis
         if not getattr(self, "_analysis_chosen", False) or name not in ANALYSES:
             return False

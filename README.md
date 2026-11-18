@@ -8,7 +8,7 @@ Developed by Cristian Tirado-Murcia (software development and analysis methods),
 
 ## Features
 
-- **Analyses:** Objects (count and measure each object), Detection (objects found by a detection model), Distances (spacing between objects and Clark–Evans index), Classify areas (share and area of each class) and Image color.
+- **Analyses:** Objects (count and measure each object), Detection (objects found by a detection model), Classify areas (share and area of each class) and Image color.
 - **Segmentation:** threshold on one channel of eight color spaces, manual or automatic (Otsu); classification by examples painted on the photo (random forest); regions from the MobileSAM model, grouped into categories with clicks.
 - **Detection models:** YOLO and RF-DETR models trained by the user, run on the CPU; boxes as objects or counted inside each object (for example, holes per seed).
 - **Measurements per object:** area, length, width, perimeter and shape ratios; elliptic Fourier descriptors and mean shape; mean and dominant colors (fixed or automatic number) in RGB and CIELAB; area of each class.

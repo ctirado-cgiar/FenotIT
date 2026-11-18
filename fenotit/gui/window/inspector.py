@@ -8,7 +8,6 @@ import numpy as np
 
 from fenotit import log
 from fenotit.core import units
-from fenotit.gui.style.theme import COLORS, FONTS
 from fenotit.gui.window.common import _on_base
 from fenotit.i18n import t
 
@@ -31,55 +30,6 @@ class InspectorMixin:
                 self._select_object(oid)
                 return
         self._clear_selection()
-
-    def _object_at(self, x: float, y: float) -> int | None:
-        for oid, contour in self._geometry().items():
-            x0, y0 = contour.min(axis=0)
-            x1, y1 = contour.max(axis=0)
-            if x0 - 2 <= x <= x1 + 2 and y0 - 2 <= y <= y1 + 2 \
-                    and cv2.pointPolygonTest(contour.reshape(-1, 1, 2).astype(np.float32), (float(x), float(y)), True) >= -2:
-                return oid
-        return None
-
-    def _hover_object(self, canvas, point):
-        """Inspeccionar en la capa Distancias: al pasar el mouse sobre un objeto se ven las
-        líneas a sus vecinos con la distancia (en los dos lados)."""
-        result = self.last_result
-        view = self.step_names[self.step_idx] if result and self.step_names and 0 <= self.step_idx < len(self.step_names) else None
-        kind = (result.extra.get("step_folders") or {}).get(view) if result else None
-        oid = self._object_at(*point) if point is not None and kind == "distances" else None
-        if oid == getattr(self, "_hover_oid", None):
-            return
-        self._hover_oid = oid
-        for canvas_widget in (self.canvas_left, self.canvas_right):
-            canvas_widget.delete("hover")
-        if oid is None:
-            return
-        tables = result.extra.get("tables") or {}
-        centers = {obj["object_id"]: (obj.get("centroid_x_px"), obj.get("centroid_y_px")) for obj in tables.get("objects", [])}
-        pairs = [pair for pair in tables.get("distances", []) if oid in (pair.get("object_a"), pair.get("object_b"))]
-        distance_column = next((column for column in (pairs[0] if pairs else {}) if column.startswith("distance_")), None)
-        from fenotit.gui.widgets import inspector as inspector_draw
-        for canvas_widget in (self.canvas_left, self.canvas_right):
-            if not canvas_widget.winfo_ismapped() or centers.get(oid, (None,))[0] is None:
-                continue
-            start = self.zoom_ctrl.to_canvas(canvas_widget, *centers[oid])
-            for pair in pairs:
-                other = pair["object_b"] if pair["object_a"] == oid else pair["object_a"]
-                if centers.get(other, (None,))[0] is None or start is None:
-                    continue
-                end = self.zoom_ctrl.to_canvas(canvas_widget, *centers[other])
-                canvas_widget.create_line(*start, *end, fill=COLORS["white"], width=4, tags="hover")
-                canvas_widget.create_line(*start, *end, fill=COLORS["accent"], width=2, tags="hover")
-                distance = pair.get(distance_column)
-                if isinstance(distance, (int, float)):
-                    text_x, text_y = (start[0] + 2 * end[0]) / 3, (start[1] + 2 * end[1]) / 3     # cerca del vecino
-                    for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
-                        canvas_widget.create_text(text_x + dx, text_y + dy, text=inspector_draw.fmt(float(distance)), fill=COLORS["white"],
-                                      font=FONTS["body_bold"], tags="hover")
-                    canvas_widget.create_text(text_x, text_y, text=inspector_draw.fmt(float(distance)), fill=COLORS["area_include"], font=FONTS["body_bold"],
-                                  tags="hover")
-            canvas_widget.create_oval(start[0] - 4, start[1] - 4, start[0] + 4, start[1] + 4, fill=COLORS["highlight"], outline=COLORS["white"], tags="hover")
 
     def _select_object(self, oid: int, from_table: bool = False):
         geom = self._geometry()
@@ -195,43 +145,6 @@ class InspectorMixin:
             if colors:
                 rows.append(("bar", [(color["hex"], float(color.get("pct", 0))) for color in colors]))
                 rows += [("color", color["hex"], _color_text(color, color_format), float(color.get("pct", 0))) for color in colors]
-        elif kind == "distances":
-            pairs = [record for record in tables.get("distances", []) if oid in (record.get("object_a"), record.get("object_b"))]
-            distance_column = next((column for column in (pairs[0] if pairs else {}) if column.startswith("distance_")), None)
-
-            def centre(points):
-                moments = cv2.moments(points.reshape(-1, 1, 2).astype(np.float32))
-                return np.array([moments["m10"] / moments["m00"], moments["m01"] / moments["m00"]]) if moments["m00"] else points.mean(axis=0)
-            own = centre(contour)
-            neighbors = [(record["object_b"] if record["object_a"] == oid else record["object_a"], record.get(distance_column)) for record in pairs]
-            neighbors = [(neighbor, measured) for neighbor, measured in neighbors if neighbor in geometry]
-            extra = np.array([centre(geometry[neighbor]) for neighbor, _ in neighbors]) if neighbors else None
-            crop, origin, zoom = inspector_draw.crop_around(image, contour, size, extra=extra) if image is not None else (None, (0, 0), 1)
-            if crop is not None:                          # foto tenue: resaltan las líneas y los valores
-                crop[:] = (crop.astype(np.float32) * 0.35 + 255 * 0.65).astype(np.uint8)
-                for neighbor, _ in neighbors:
-                    pts = np.round((geometry[neighbor] - origin) * zoom).astype(np.int32).reshape(-1, 1, 2)
-                    cv2.polylines(crop, [pts], True, (150, 150, 150), 1, cv2.LINE_AA)
-                pts = np.round((contour - origin) * zoom).astype(np.int32).reshape(-1, 1, 2)
-                cv2.polylines(crop, [pts], True, (60, 60, 60), 1, cv2.LINE_AA)
-                mask, taken = inspector_draw.object_mask(crop.shape, contour, origin, zoom), []
-                start = (own - origin) * zoom
-                for neighbor, _ in neighbors:
-                    end = (centre(geometry[neighbor]) - origin) * zoom
-                    cv2.line(crop, tuple(np.round(start).astype(int)), tuple(np.round(end).astype(int)),
-                             (172, 102, 33), 1, cv2.LINE_AA)
-                    cv2.circle(crop, tuple(np.round(end).astype(int)), 2, (172, 102, 33), -1, cv2.LINE_AA)
-                for neighbor, measured in neighbors:                         # el valor en la punta, por fuera
-                    if isinstance(measured, (int, float)):
-                        end = (centre(geometry[neighbor]) - origin) * zoom
-                        direction = (end - start) / (np.hypot(*(end - start)) or 1)
-                        normal = np.array([-direction[1], direction[0]])
-                        inspector_draw.label_at(crop, inspector_draw.fmt(float(measured)), [end + direction * 13, end + direction * 13 + normal * 10,
-                                                               end + direction * 13 - normal * 10, end + normal * 11, end - normal * 11],
-                                     mask, taken, 0.34, dark=True)
-            for name, prefix in (("insp.nearest", "nearest_"), ("insp.mean_neighbor", "mean_neighbor_")):
-                rows.append((t(name), value(col(prefix))))
-            rows.append((t("insp.n_neighbors"), str(obj.get("n_neighbors", len(neighbors)))))
         else:                                              # conteo, máscara
             crop, origin, zoom = inspector_draw.crop_around(image, contour, size) if image is not None else (None, (0, 0), 1)
             if crop is not None:
