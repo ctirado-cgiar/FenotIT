@@ -11,5 +11,4 @@ dist/
 *.egg-info/
 tests/data/images/*/
 fenotit/_model_key.py
-tests/data/Cgiar_*/
-tests/data/Kaggle_*/
+tools/*.png
