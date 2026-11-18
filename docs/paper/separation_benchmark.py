@@ -16,14 +16,13 @@ import time
 from pathlib import Path
 
 import cv2
-import matplotlib
+import matplotlib.pyplot as plt
 import numpy as np
-
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "docs"))
+import figure_style as style  # noqa: E402
 from fenotit.core.pipeline.base import Context  # noqa: E402
 from fenotit.core.objects import separate as ob  # noqa: E402
 
@@ -34,9 +33,8 @@ LEVELS = [("Isolated", None), ("Touching", (0.0, 0.03)), ("Overlap 3–10 %", (0
 N_SEEDS, N_SCENES, SIZE, CLUSTER = 30, 20, 1300, 5
 VERSIONS = ["Connected\ncomponents", "Watershed,\nfixed spacing", "+ spacing from\nobject size",
             "+ neck\nmerge", "+ notch and\nsize rules", "FenotIT\n(current)"]
-COLORS = ["#999999", "#E08214", "#FDB863", "#B2ABD2", "#5E3C99", "#2166AC"]
-plt.rcParams.update({"font.size": 8, "axes.titlesize": 9, "figure.dpi": 150, "savefig.dpi": 300, "savefig.bbox": "tight",
-                     "axes.spines.top": False, "axes.spines.right": False})
+COLORS = ["#D0D0D0", "#B0B0B0", "#8C8C8C", "#666666", "#333333", style.BLUE]     # versiones: grises, actual en azul
+MARKERS = ["o", "s", "^", "D", "v", "o"]
 
 
 # ── scenes ──────────────────────────────────────────────────────────────────
@@ -223,71 +221,64 @@ def main():
     figures(rows, examples)
 
 
-def outline(ax, img, labels, color="yellow"):
+def outline(ax, img, labels, color):
     ax.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
     for i in np.unique(labels):
         if not i:
             continue
         cnts, _ = cv2.findContours((labels == i).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         for c in cnts:
-            ax.plot(*np.vstack([c[:, 0], c[:1, 0]]).T, lw=0.8, color=color)
-    ax.set_axis_off()
+            ax.plot(*np.vstack([c[:, 0], c[:1, 0]]).T, lw=0.7, color=color)
+    style.photo_axes(ax)
 
 
 def figures(rows, examples):
     import pandas as pd
+    style.apply()
     df = pd.DataFrame(rows)
     df["count_error"] = 100 * (df.n_found - df.n_true) / df.n_true
+    fig = plt.figure(figsize=(style.DOUBLE, 165 * style.MM))
+    rows_grid = fig.add_gridspec(3, 1, height_ratios=[1, 1, 1.35], hspace=0.22)
 
-    # A: the five levels of difficulty
-    fig, ax = plt.subplots(1, len(LEVELS), figsize=(2.2 * len(LEVELS), 2.3))
+    levels = rows_grid[0].subgridspec(1, len(LEVELS), wspace=0.06)      # escenas de cada nivel
     for li, (name, _) in enumerate(LEVELS):
-        img = examples[li][0]
-        ax[li].imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-        ax[li].set_title(f"{chr(65 + li)}  {name}", loc="left")
-        ax[li].set_axis_off()
-    fig.savefig(OUT / "sep_levels.png")
-    plt.close(fig)
+        ax = fig.add_subplot(levels[li])
+        ax.imshow(cv2.cvtColor(examples[li][0], cv2.COLOR_BGR2RGB))
+        style.photo_axes(ax)
+        ax.set_title(f"({chr(97 + li)}) {name}")
 
-    # B: the same clump through every version
-    img, mask, visible = examples[3]
+    img, mask, visible = examples[3]                                    # el mismo grupo en cada versión
     ys, xs = np.nonzero(visible[0] | visible[1] | visible[2] | visible[3] | visible[4])
     sl = (slice(max(ys.min() - 30, 0), ys.max() + 30), slice(max(xs.min() - 30, 0), xs.max() + 30))
-    fig, ax = plt.subplots(1, len(VERSIONS), figsize=(2.0 * len(VERSIONS), 2.4))
+    versions = rows_grid[1].subgridspec(1, len(VERSIONS), wspace=0.06)
     for v in range(len(VERSIONS)):
-        lab = version(mask, img, v)
-        sub = lab[sl]
+        ax = fig.add_subplot(versions[v])
+        sub = version(mask, img, v)[sl]
         n = len([i for i in np.unique(sub) if i])
-        outline(ax[v], img[sl], sub, "yellow" if v < 5 else "#00FFFF")
-        ax[v].set_title(f"{chr(65 + v)}  {VERSIONS[v].replace(chr(10), ' ')}\n{n} objects (true: 5)",
-                        loc="left", fontsize=7.5)
-    fig.savefig(OUT / "sep_versions.png")
-    plt.close(fig)
+        outline(ax, img[sl], sub, style.WHITE)
+        ax.set_title(f"({chr(102 + v)}) {n} object{'s' if n != 1 else ''}", fontsize=6.5)
+        ax.text(0.5, -0.04, VERSIONS[v], transform=ax.transAxes, ha="center", va="top", fontsize=6)
 
-    # C: statistics
-    fig, ax = plt.subplots(1, 2, figsize=(8.2, 3.0))
+    stats = rows_grid[2].subgridspec(1, 2, wspace=0.3)
     x = np.arange(len(LEVELS))
+    left, right = fig.add_subplot(stats[0]), fig.add_subplot(stats[1])
     for v in range(len(VERSIONS)):
         g = df[df.version == v].groupby("level")
-        m, sd = g.f1.mean(), g.f1.std()
-        ax[0].errorbar(x, m, yerr=sd, color=COLORS[v], marker="o", ms=3.5, lw=1.4 if v == 5 else 1,
-                       capsize=2, label=VERSIONS[v].replace("\n", " "))
-        e = g.count_error.mean()
-        esd = g.count_error.std()
-        ax[1].errorbar(x, e, yerr=esd, color=COLORS[v], marker="o", ms=3.5, lw=1.4 if v == 5 else 1,
-                       capsize=2)
-    for a in ax:
-        a.set_xticks(x, [n.replace(" ", "\n", 1) for n, _ in LEVELS], fontsize=7)
-    ax[0].set_ylabel("F1 (IoU ≥ 0.5)")
-    ax[0].set_ylim(0, 1.03)
-    ax[0].set_title("A  Objects correctly delimited", loc="left")
-    ax[1].axhline(0, color="#333", lw=0.6)
-    ax[1].set_ylabel("Count error (%)")
-    ax[1].set_title("B  Objects found vs. true number", loc="left")
-    ax[0].legend(frameon=False, fontsize=6.5, loc="lower left")
-    fig.tight_layout()
-    fig.savefig(OUT / "sep_stats.png")
-    plt.close(fig)
+        for ax, column in ((left, "f1"), (right, "count_error")):
+            ax.errorbar(x, g[column].mean(), yerr=g[column].std(), color=COLORS[v], marker=MARKERS[v], ms=3,
+                        mfc=style.WHITE if v < len(VERSIONS) - 1 else COLORS[v], lw=1.0 if v == len(VERSIONS) - 1 else 0.7,
+                        capsize=1.5, label=VERSIONS[v].replace("\n", " "))
+    for ax in (left, right):
+        ax.set_xticks(x, [name.replace(" ", "\n", 1) for name, _ in LEVELS])
+    left.set_ylabel("F1 (IoU ≥ 0.5)")
+    left.set_ylim(0, 1.03)
+    left.set_title("(l)")
+    right.axhline(0, color=style.GRAY, lw=0.6)
+    right.set_ylabel("Count error (%)")
+    right.set_title("(m)")
+    left.legend(loc="lower left", fontsize=6)
+    style.chart_axes(left, right)
+    style.save(fig, OUT / "separation.png")
 
     summary = df.groupby(["level_name", "version"], sort=False).agg(
         f1=("f1", "mean"), f1_sd=("f1", "std"), count_error=("count_error", "mean"),
