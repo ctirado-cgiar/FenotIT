@@ -1,22 +1,18 @@
 # FenotIT methods
 
-Technical description of the methods implemented in FenotIT, written as the basis of the
-methods section of the software paper. All figures are made with real photos from Alliance
-programs (bean seeds and bean pests) by [`make_figures.py`](../make_figures.py),
-which calls FenotIT's own functions, so each picture shows what the software computes.
+Description of the methods implemented in FenotIT. The figures are made with photos of the
+Alliance bean program by [`make_figures.py`](../make_figures.py), which calls FenotIT's own functions:
 
 ```
 python docs/make_figures.py      # regenerates docs/img/*.png
 ```
 
-The script expects the example photos in `tests/data/` (folders `Cgiar_*`); it draws the figures whose
-photos are present. The detection figure also needs the detection model installed and its
-id in the variable `FENOTIT_DOCS_DETECTOR`.
+It needs the example photos in `tests/data/` (folders `Cgiar_*`) and, for the detection figure,
+the id of an installed detection model in `FENOTIT_DOCS_DETECTOR`.
 
 ## Processing chain
 
-Each photo goes through the same ordered chain. The parameters used are written to
-`metadata.csv` on export.
+Each photo goes through the same chain; the parameters used are written to `metadata.csv`.
 
 | Step | Section |
 |---|---|
@@ -37,6 +33,5 @@ References are listed in [references.md](references.md).
   of each column name (`area_mm2`, `length_mm`); without a scale the columns end in `px`.
 - **Image coordinates.** x grows to the right and y downwards, from the top-left pixel.
 - **Connectivity.** Objects are 8-connected regions of the mask.
-- **Reproducibility.** Random steps (k-means, random forests) use a fixed seed, so the same photo
-  with the same parameters gives the same numbers. `tests/reference.py` checks this on every
-  change.
+- **Reproducibility.** Random steps (k-means, random forests) use a fixed seed;
+  `tests/reference.py` checks that the numbers stay the same.

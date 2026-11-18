@@ -1,40 +1,31 @@
 # 4. Morphometry
 
-Size and shape descriptors are computed for each object. Objects that come from a split region
-(`touching = 1`, section 3.2) are counted and measured only when "Measure touching objects" is
-on. The outer outline of each object is traced with the algorithm of Suzuki & Abe (1985).
+Size and shape descriptors are computed for each object from its outer outline (Suzuki & Abe,
+1985). Objects from a split region (`touching = 1`) are measured when "Measure touching objects"
+is on.
 
 ![Morphometry](../img/morphometry.png)
 
-*Figure 4.1. Geometry measured on one mottled bean seed from a Petri dish photo (bruchid trial,
-section 7.5). (a) Outline
-(white), smallest enclosing rectangle (blue) and centroid (cross). (b) Convex hull (dashed blue)
-over the outline (white): the outline with every concavity bridged. (c) Ellipse fitted to the outline (blue), and
-the shortest (solid) and longest (dashed) distances from the centroid to the outline.*
+*Figure 4.1. Geometry of one mottled bean seed (bruchid trial, section 7.5). (a) Outline (white),
+smallest enclosing rectangle (blue) and centroid (cross). (b) Convex hull (dashed blue) over the
+outline. (c) Fitted ellipse (blue) and the shortest (solid) and longest (dashed) radius.*
 
 ## 4.1 What is measured
 
-- **Area**: number of pixels of the object.
-- **Perimeter**: length of the outline after simplifying it with the Douglas–Peucker algorithm
-  with a tolerance of 1 px (Douglas & Peucker, 1973). The raw pixel outline follows the steps of
-  the pixel grid, which add length on curved and oblique edges; the simplification removes the
-  steps and keeps the shape.
-- **Polygon area**: area enclosed by the outline polygon. The ratios below use it together with
-  the perimeter, so that both come from the same polygon.
-- **Convex hull**: the smallest convex polygon that contains the outline (Sklansky, 1982), with
-  its own area and perimeter.
-- **Length and width**: the long and short sides of the smallest rectangle, at any angle, that
-  encloses the object (Freeman & Shapira, 1975; found with rotating calipers, Toussaint, 1983).
-  They are the length and width a caliper would give.
-- **Ellipse axes**: full lengths of the major and minor axes of the ellipse fitted to the
-  outline by least squares (Fitzgibbon & Fisher, 1995).
-- **Centroid**: mean position of the object pixels.
-- **Radii**: distances from the centroid to each point of the outline.
+- **Area:** number of pixels of the object.
+- **Perimeter:** length of the outline simplified with the Douglas–Peucker algorithm at 1 px
+  (Douglas & Peucker, 1973), which removes the steps of the pixel grid.
+- **Polygon area:** area enclosed by the simplified outline, used in the ratios with the perimeter.
+- **Convex hull:** smallest convex polygon containing the outline (Sklansky, 1982).
+- **Length and width:** sides of the smallest enclosing rectangle at any angle (Freeman & Shapira,
+  1975; rotating calipers, Toussaint, 1983).
+- **Ellipse axes:** axes of the least-squares ellipse fitted to the outline (Fitzgibbon & Fisher,
+  1995).
+- **Centroid and radii:** mean position of the pixels and distances from it to the outline.
 
 ## 4.2 Exported descriptors
 
-Lengths are multiplied by the scale (unit per pixel) and areas by the scale squared; the unit is
-part of the column name (`<u>` is `mm`, `um`, `cm`, `m` or `px`). Ratios have no unit.
+`<u>` is the unit of the scale (`mm`, `um`, `cm`, `m` or `px`). Ratios have no unit.
 
 | Column | Definition | Values |
 |---|---|---|
@@ -53,8 +44,8 @@ part of the column name (`<u>` is `mm`, `um`, `cm`, `m` or `px`). Ratios have no
 | `radius_ratio` | shortest radius / longest radius | 1 for a disk |
 | `centroid_x_px`, `centroid_y_px` | Centroid, in pixels from the top-left corner | |
 
-The definitions follow the usual conventions of image analysis (Russ & Neal, 2016), the same
-used by ImageJ (Schneider et al., 2012) and CellProfiler (Stirling et al., 2021).
+Definitions follow Russ & Neal (2016), as in ImageJ (Schneider et al., 2012) and CellProfiler
+(Stirling et al., 2021).
 
 ## 4.3 Values per photo
 
@@ -65,5 +56,4 @@ used by ImageJ (Schneider et al., 2012) and CellProfiler (Stirling et al., 2021)
 | `n_measured` | Objects with size and shape measurements |
 | `n_excluded_manual`, `n_highlighted` | Objects excluded or highlighted in the inspector |
 
-Legends and charts summarize each descriptor with the mean and the sample standard deviation
-(SD, computed with n − 1).
+Legends and charts give the mean and the sample standard deviation (n − 1).
