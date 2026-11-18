@@ -1,7 +1,7 @@
 """Convierte los íconos de fenotit/assets/icons/svg/<nombre>.svg en
 fenotit/assets/icons/<nombre>.png (128 × 128 px), que es lo que lee la aplicación.
 
-Uso:  python docs/design/icons_svg_to_png.py
+Uso:  python tools/icons_svg_to_png.py
 
 Necesita cairosvg (pip install cairosvg) o Inkscape en el PATH."""
 from __future__ import annotations
@@ -11,7 +11,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "fenotit" / "assets" / "icons" / "svg"
 DST = SRC.parent
 SIZE = 128
@@ -36,7 +36,7 @@ def main():
     from fenotit.gui.style.icons import NAMES
     for svg in sorted(SRC.glob("*.svg")):
         if svg.stem not in NAMES:
-            print(f"  {svg.name}: no es un nombre de ícono de la app (ver docs/design/README.md)")
+            print(f"  {svg.name}: no es un nombre de ícono de la app")
             continue
         convert(svg, DST / f"{svg.stem}.png")
         print(f"  {svg.stem}.png")

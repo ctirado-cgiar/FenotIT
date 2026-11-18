@@ -1,7 +1,7 @@
-"""Hoja con los colores y tipos de letra de un tema: docs/design/theme.png (clásico) o
-docs/design/theme_<nombre>.png.
+"""Hoja con los colores y tipos de letra de un tema: tools/theme.png (clásico) o
+tools/theme_<nombre>.png.
 
-Uso:  python docs/design/theme_sheet.py [nombre]"""
+Uso:  python tools/theme_sheet.py [nombre]"""
 from __future__ import annotations
 
 import os
@@ -9,7 +9,7 @@ import sys
 import tkinter as tk
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 if len(sys.argv) > 1:
     os.environ["FENOTIT_THEME"] = sys.argv[1]

@@ -4,7 +4,7 @@ tamaño, color)` lo devuelve como imagen RGBA de ese color.
 Si existe fenotit/assets/icons/<nombre>.png, se usa ese archivo (su transparencia es la
 forma del ícono y se pinta del color pedido); si no, el ícono se dibuja con las funciones
 de este archivo. Los .png salen de los .svg de fenotit/assets/icons/svg con
-docs/design/icons_svg_to_png.py. La lista de nombres está en NAMES."""
+tools/icons_svg_to_png.py. La lista de nombres está en NAMES."""
 from __future__ import annotations
 
 from pathlib import Path

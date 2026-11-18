@@ -1,172 +1,99 @@
 # 1. Image corrections
 
-Corrections are optional and independent of each other. When several are active, they are
-applied in this order, on the full-resolution photo and in memory (the original file is not
-changed):
-
-**lens distortion → perspective → color → scale → working resolution**
-
-A photo is analyzed when every active correction applies to it: the ArUco markers and the
-color card are found, and the photo has the aspect ratio of the lens calibration. The other
-photos are exported with `status = skipped`, so all analyzed photos received the same
-corrections.
+Corrections are optional. Active corrections are applied in memory to the full-resolution
+photo in this order: lens distortion, perspective, color, scale and working resolution. A photo
+whose markers, card or calibration size are not found is exported with `status = skipped`.
 
 ## 1.1 Lens distortion
 
-**Camera model.** FenotIT uses the camera model of OpenCV (Bradski, 2000), with the radial
-and tangential distortion terms of Brown (1966). The model has two parts:
+FenotIT uses the OpenCV camera model (Bradski, 2000) with the radial and tangential terms of
+Brown (1966): a camera matrix (focal lengths $f_x$, $f_y$ and optical center $c_x$, $c_y$) and
+five coefficients. A point $(x, y)$ relative to the optical center, at distance $r$, appears at
 
-- the *camera matrix*, with the focal length in pixels along each axis ($f_x$, $f_y$) and the
-  image point where the optical axis falls ($c_x$, $c_y$);
-- five *distortion coefficients*: three radial ($k_1$, $k_2$, $k_3$), which bend straight lines
-  more and more towards the edges of the frame, and two tangential ($p_1$, $p_2$), which
-  appear when the lens is slightly tilted relative to the sensor.
+```latex
+x_d = x\,(1 + k_1 r^2 + k_2 r^4 + k_3 r^6) + 2 p_1 x y + p_2 (r^2 + 2x^2)
+y_d = y\,(1 + k_1 r^2 + k_2 r^4 + k_3 r^6) + p_1 (r^2 + 2y^2) + 2 p_2 x y
+```
 
-A point at position $(x, y)$ relative to the optical center (in units of the focal length),
-at distance $r$ from it ($r^2 = x^2 + y^2$), appears in the photo at
+The parameters are estimated with Zhang's method (Zhang, 2000) from 10 to 40 photos of a flat
+chessboard. Corners are found on a copy of at most 1600 px and refined to sub-pixel precision
+on the full photo. A photo is flagged when its reprojection error exceeds 2.5 times the median
+and 0.5 px. Photos are remapped with OpenCV's optimal camera matrix ($\alpha = 1$) and cropped
+to the valid region; `.npz` files with this format load directly. A calibration is applied to
+other resolutions with the same aspect ratio by scaling the camera matrix.
 
-$$x_d = x\,(1 + k_1 r^2 + k_2 r^4 + k_3 r^6) + 2 p_1 x y + p_2 (r^2 + 2x^2)$$
-$$y_d = y\,(1 + k_1 r^2 + k_2 r^4 + k_3 r^6) + p_1 (r^2 + 2y^2) + 2 p_2 x y$$
-
-**Calibration.** The camera matrix and the coefficients are estimated with Zhang's method
-(Zhang, 2000) from 10 to 40 photos of a flat chessboard taken with the same camera, lens and
-zoom. The inner corners of the board are found on a copy of at most 1600 px and then located
-to a fraction of a pixel on the full photo (`cornerSubPix`). For each photo FenotIT reports the
-reprojection error, the distance between the corners found and the corners predicted by the
-fitted model; a photo is flagged when its error is larger than 2.5 times the median of all
-photos and larger than 0.5 px. When more than 40 photos are given, 40 are taken evenly spaced.
-
-**Correction.** Each photo is remapped so that straight lines become straight, keeping all
-source pixels (OpenCV's optimal camera matrix with $\alpha = 1$) and cropping to the valid
-region. These are the same settings as the calibration scripts used by the Bean Physiology
-team, so their calibration files (`.npz`) load directly. A calibration made at one
-resolution is applied to photos of another resolution with the same aspect ratio by scaling
-the focal lengths and the optical center by the ratio of widths and heights.
-
-**Result on real photos.** Figure 1.1 uses the nine chessboard photos taken in the capture box
-of the bean seed photos (4040 × 3040 px, 7 × 6 inner corners, squares of about 250 px). The
-camera was calibrated nine times, each time with eight of the nine photos, and each calibration
-corrected the ninth photo (cross-validation). On a flat board every square has the same size, so
-the area of each square was compared with its area on a flat board seen through the same
-perspective (a homography fitted to all corners of the photo).
+**Evaluation.** Each chessboard photo of the bean seed capture boxes was corrected with a
+calibration made from the others. The area of each square was compared with its area on a flat
+board seen through the same perspective (a homography fitted to all corners).
 
 | Capture box | Photos | Square area error, original | Corrected | Largest, original → corrected |
 |---|---|---|---|---|
 | Durango seeds | 9 | 0.76 % | 0.32 % | 2.2 → 1.0 % |
 | Drought seeds | 7 | 0.66 % | 0.31 % | 1.6 → 1.0 % |
 
-The correction reduces the area error to less than half. The reprojection error of the
-calibration with all photos was 1.01 px (Durango) and 1.12 px (drought).
-
 ![Lens](../img/lens.png)
 
-*Figure 1.1. Lens calibration in the capture box of the bean seed photos. (a) Inner corners
-found on one chessboard photo. (b) Mean area error of the squares of each photo, original (gray,
-0.76 %) and corrected (blue, 0.32 %), each photo corrected with the calibration made from the
-other eight.*
+*Figure 1.1. Lens calibration in the Durango capture box. (a) Inner corners found on one
+chessboard photo. (b) Mean area error of the squares in each photo, original (gray) and
+corrected (blue).*
 
 ## 1.2 Perspective (ArUco markers)
 
-Four ArUco markers (dictionary `DICT_4X4_50`; Garrido-Jurado et al., 2014) with IDs 0 to 3 are
-placed at the corners of the working surface: 0 top left, 1 top right, 2 bottom right and
-3 bottom left. When the camera is tilted, the rectangle they form appears as a general
-quadrilateral. FenotIT computes the plane homography (Hartley & Zisserman, 2004) that takes the
-four marker centers to the corners of a rectangle and resamples the photo with bilinear
-interpolation, so the surface looks as if photographed from straight above.
-
-The size of the target rectangle keeps the real proportions of the surface:
-
-- **With the marker positions only**, the width of the rectangle is the mean length, in pixels, of the
-  top and bottom sides of the quadrilateral, and its height the mean length of the left and
-  right sides.
-- **With the real distances** between the markers (ID 0 to ID 1 for the width, ID 0 to ID 3 for
-  the height, in mm), FenotIT computes the pixels per millimeter along each direction, takes
-  their mean, and builds the rectangle with the real width and height at that density. The
-  scale of the photo is then 1 / (pixels per millimeter), in mm/px.
-
-Each photo thus carries its own scale, measured from its own markers.
+Four ArUco markers (`DICT_4X4_50`; Garrido-Jurado et al., 2014), IDs 0 to 3 from the top left
+clockwise, mark the corners of the working surface. The plane homography (Hartley & Zisserman,
+2004) that takes their centers to a rectangle is applied with bilinear interpolation. The
+rectangle has the mean lengths of opposite sides of the quadrilateral or, when the real
+distances between markers are given (ID 0 to 1 for width, ID 0 to 3 for height), the real
+proportions at the mean pixel density; each photo then gets its own scale in mm/px.
 
 ## 1.3 Color (color card)
 
-**Finding the card.** The card is searched on a copy of at most 1600 px. Candidate patches are
-smooth, nearly square regions enclosed by edges in the three CIELAB channels (sides in a ratio
-of at most 1.35, filling at least 85 % of their bounding box). The largest group of candidates
-spaced like a grid is the card. The direction of the grid is taken from the directions between
-neighboring patches, which gives the row and column of each patch at any rotation of the card.
-A homography from the row and column numbers to the image (RANSAC, tolerance a quarter of the
-patch spacing) places the remaining patches; in Figure 1.2a, 23
-patches were found directly and one was placed by the grid.
+The card is searched on a copy of at most 1600 px as a group of smooth, nearly square patches
+spaced like a grid. The row and column of each patch come from the dominant directions between
+neighbors, and a RANSAC homography places patches that were not found. The color of a patch is
+the mean of its central 40 %, and the card rotation (in steps of 90°) is the one that fits the
+reference best.
 
-**Measuring.** The color of each patch is the mean of its central 40 %, away from the edges.
-The card may appear in any of four 90° rotations; FenotIT uses the rotation whose correction
-fits the reference colors best.
+As in PlantCV (Berry et al., 2018), corrected colors are an affine function of the measured
+values scaled from 0 to 1:
 
-**Correction model.** As in PlantCV (Berry et al., 2018), each corrected color is a linear
-combination of the measured red, green and blue values plus a constant, with colors scaled
-from 0 to 1:
+```latex
+\begin{pmatrix} R' & G' & B' \end{pmatrix} = \begin{pmatrix} R & G & B & 1 \end{pmatrix} M
+```
 
-$$\begin{pmatrix} R' & G' & B' \end{pmatrix} = \begin{pmatrix} R & G & B & 1 \end{pmatrix} M$$
+with $M$ (4 × 3) fitted by least squares. The patch farthest from its reference is dropped and
+the fit repeated while its distance is more than three times the median and above 0.08 (up to
+four patches). The reference is the published ColorChecker values (McCamy et al., 1976), values
+given by the card maker, or the card in a reference photo. A white or gray card gives a white
+balance instead.
 
-where $M$ is a table of 4 × 3 numbers fitted by least squares so that the measured patches
-come as close as possible to their reference values. Patches with glare or shadow are handled by
-refitting: while the patch farthest from its reference is more than three times the median
-distance away and more than 0.08, the fit is repeated with the other patches (up to four
-times). The reference is one of: the published values of the 24-patch ColorChecker (McCamy et
-al., 1976), the values given by the card maker, or the colors of the card in a reference photo
-(all photos are then matched to that photo).
+**Evaluation.** Color differences were measured with CIEDE2000 (ΔE₀₀; Sharma et al., 2005),
+each patch corrected with a fit to the other 23.
 
-**White balance.** With a white or gray card only, each channel is multiplied by the factor that
-makes the marked area neutral (or equal to the reference photo).
+| Card | Before | After | Largest, before → after |
+|---|---|---|---|
+| Durango seed box | 9.9 | 4.1 | 18.2 → 9.4 |
+| Drought seed box | 10.0 | 3.9 | 16.7 → 8.9 |
+| CameraTrax card (test photo) | 10.2 | 4.7 | 19.8 → 8.6 |
 
-**Result on real photos.** The color difference between each patch and its reference was
-measured with CIEDE2000 (ΔE₀₀; Sharma et al., 2005), the CIE formula that weights differences
-in lightness, chroma and hue as they are perceived. A ΔE₀₀ near 1 is the smallest difference
-noticed side by side; values from 2 to 10 are differences seen at a glance. Each patch was
-evaluated with a correction fitted to the other 23 patches (cross-validation).
-
-| Card | Before | After (cross-validated) | Largest, before → after | Gray patches 19–24, after |
-|---|---|---|---|---|
-| Durango seed box | 9.9 | 4.1 | 18.2 → 9.4 | 6.4 |
-| Drought seed box | 10.0 | 3.9 | 16.7 → 8.9 | 6.0 |
-| CameraTrax card (test photo) | 10.2 | 4.7 | 19.8 → 8.6 | 6.9 |
-
-The correction reduces the mean difference to 40–46 % of its original value, and the colored
-patches improve the most. The white and the two lightest grays (patches 19 to 21) end with a
-difference similar to or larger than before (Figure 1.2d). The camera's tone curve explains it:
-in the Durango box the white patch was recorded at 85 % of full scale and the next gray at 78 %,
-while their reference values are 95 % and 78 %. The camera compresses the light tones, and a
-linear correction follows a straight line: fitted to the whole card, it matches the colored
-patches and the middle grays, and the white and the black keep part of their difference. Models
-with squared or root terms, and a tone curve fitted to the six grays before the linear
-correction, gave mean differences of 4.2 to 4.7 in the same test, against 4.1 for the linear
-model. In the seed boxes the glare rule refitted the correction with the other patches when it
-reached the cyan and the white (patches 18 and 19), and in the drought box also the black
-(patch 24).
+Colored patches improve the most. The lightest patches keep part of their difference because
+the camera compresses light tones (white recorded at 85 % of full scale against a reference of
+95 %).
 
 ![Color card](../img/colorcard.png)
 
-*Figure 1.2. Color correction with the card of the Durango seed box. (a) The 24 patches, numbered
-in the order of the reference. (b, c) Each square shows the reference color around and the
-photographed color in the center, before and after the correction; the number under each
-square is ΔE₀₀. (d) ΔE₀₀ of each patch before (gray, mean 9.9) and after (blue, mean 4.1) the
-correction, each patch corrected with a fit to the other 23 patches.*
+*Figure 1.2. Color correction with the card of the Durango seed box. (a) Patches numbered in
+reference order. (b, c) Reference color around and photographed color in the center, before
+and after correction, with ΔE₀₀ below. (d) ΔE₀₀ of each patch before (gray) and after (blue).*
 
 ## 1.4 Scale
 
-The scale is the length that one pixel represents (mm per pixel by default; µm, cm or m can be
-chosen). For each photo it comes from the first available source:
-
-1. **The photo's own scale**, set by clicking two points a known distance apart: the scale is
-   that distance divided by the distance in pixels between the two points.
-2. **ArUco markers** with real distances (section 1.2).
-3. **The scale for all photos**, set with two points or typed.
-4. **Pixels**: with no scale source, results are given in pixels.
+The scale (mm per pixel by default; µm, cm or m can be chosen) comes from the first available
+source: the photo's own two-point scale, ArUco markers with real distances, the scale set for
+all photos, or none (results in pixels).
 
 ## 1.5 Working resolution
 
-After the corrections, a photo larger than the working resolution (50 megapixels by default)
-is reduced so that its pixel count equals that value, with area interpolation, and the scale
-is multiplied by the same factor. Results in real units are therefore the same at both
-resolutions, while very large phone photos (for example 200 MP) are analyzed with the memory of
-an ordinary computer. The reduction factor is exported as `work_scale`. In a test with a 69 MP
-photo reduced to 20 MP, object areas in mm² differed by less than 2 %.
+After the corrections, photos larger than the working resolution (50 MP by default) are reduced
+with area interpolation and the scale is multiplied by the same factor (`work_scale` in the
+export). A 69 MP photo reduced to 20 MP gave object areas within 2 % in mm².

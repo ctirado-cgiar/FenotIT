@@ -1,6 +1,6 @@
-"""Hoja con todos los íconos de la aplicación y su nombre: docs/design/icons.png.
+"""Hoja con todos los íconos de la aplicación y su nombre: tools/icons.png.
 
-Uso:  python docs/design/icon_sheet.py"""
+Uso:  python tools/icon_sheet.py"""
 from __future__ import annotations
 
 import sys
@@ -8,7 +8,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from fenotit.gui.style.icons import NAMES, icon  # noqa: E402
 from fenotit.gui.style.theme import COLORS  # noqa: E402

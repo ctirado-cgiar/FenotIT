@@ -1,14 +1,14 @@
 """Genera las miniaturas que muestran qué da cada tipo de modelo de IA (máscaras o cajas),
 a partir de un recorte de tests/data/images/01.jpg: fenotit/assets/models/masks.png y boxes.png.
 
-    python docs/design/model_examples.py
+    python tools/model_examples.py
 """
 from pathlib import Path
 
 import cv2
 import numpy as np
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "fenotit" / "assets" / "models"
 SIZE = (84, 60)
 COLORS = [(68, 158, 46), (5, 183, 242), (40, 39, 214), (173, 68, 142), (34, 126, 230)]

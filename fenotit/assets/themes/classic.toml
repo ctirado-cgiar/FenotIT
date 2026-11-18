@@ -3,7 +3,7 @@
 # Un tema es un archivo .toml en esta carpeta. Para crear uno nuevo, copia este archivo con
 # otro nombre (p. ej. modern.toml), cambia los valores y elígelo en Editar → Preferencias.
 # Un tema puede traer solo algunos valores: lo que falte se toma de este archivo.
-# Guía completa: docs/design/README.md
+# Para probar un tema sin cambiar las preferencias: FENOTIT_THEME=<nombre> python main.py
 
 [info]
 name = "Clásico"
