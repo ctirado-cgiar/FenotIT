@@ -1,6 +1,7 @@
 """Benchmark of the separation of touching objects (paper figures).
 
-Synthetic scenes are composed from real bean seeds cut out of the test photos, with a known
+Scenes are composed from real bean seeds of 51 genotypes cut out of the genebank photos
+(tests/data/Zamorano_PIF_25-04_X_Fotos_Semillas_REP2), on the blue background of the same photos, with a known
 number of seeds and a controlled degree of contact. Each scene is segmented once and then
 separated with successive versions of the algorithm, from plain connected components to the
 current FenotIT step, so the figures show what each rule adds.
@@ -10,7 +11,6 @@ current FenotIT step, so the figures show what each rule adds.
 from __future__ import annotations
 
 import csv
-import glob
 import sys
 import time
 from pathlib import Path
@@ -47,10 +47,18 @@ def segment(img):
     return cv2.morphologyEx(m, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
 
 
+SEED_PHOTOS = ROOT / "tests" / "data" / "Zamorano_PIF_25-04_X_Fotos_Semillas_REP2"
+PHOTO_SCALE = 1.0                                   # escala de las fotos (6000 × 4000) al recortar las semillas
+
+
+def read(path):
+    return cv2.resize(cv2.imread(str(path)), None, fx=PHOTO_SCALE, fy=PHOTO_SCALE, interpolation=cv2.INTER_AREA)
+
+
 def seed_library():
     seeds = []
-    for f in sorted(glob.glob(str(ROOT / "tests" / "data" / "images" / "[01]*.jpg")))[:10]:
-        img = cv2.imread(f)
+    for f in sorted(SEED_PHOTOS.glob("*.JPG"))[::3]:
+        img = read(f)
         m = segment(img)
         n, lab, st, _ = cv2.connectedComponentsWithStats(m, 8)
         a = st[1:, 4]
@@ -67,10 +75,9 @@ def seed_library():
 
 
 def background():
-    img = cv2.imread(str(ROOT / "tests" / "data" / "images" / "01.jpg"))
-    tile = img[1900:2500, 150:750]                      # empty tray, real texture
-    reps = SIZE // tile.shape[0] + 1
-    return np.tile(tile, (reps, reps, 1))[:SIZE, :SIZE].copy()
+    img = read(sorted(SEED_PHOTOS.glob("*.JPG"))[0])
+    empty = img[1550:2000, 0:900]                       # franja vacía del fondo azul, textura real
+    return cv2.resize(empty, (SIZE, SIZE), interpolation=cv2.INTER_LINEAR)
 
 
 def rotate(mask, patch, angle):
@@ -193,6 +200,13 @@ def score(labels, visible):
 
 # ── run ─────────────────────────────────────────────────────────────────────
 
+def redraw(cache_path):
+    """Rehace las figuras con los resultados guardados por main()."""
+    import pickle
+    with open(cache_path, "rb") as cache:
+        figures(*pickle.load(cache))
+
+
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     lib = seed_library()
@@ -213,12 +227,37 @@ def main():
                              "f1": 2 * p * r / max(p + r, 1e-9), "seconds": dt})
             if s == 0:
                 examples[li] = (img, mask, visible)
+            if li == 3:
+                examples.setdefault("level3", []).append((img, mask, visible))
         print(name, "done")
     with open(OUT / "separation_benchmark.csv", "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0]))
         w.writeheader()
         w.writerows(rows)
+    if len(sys.argv) > 1:                               # copia para rehacer solo las figuras
+        import pickle
+        with open(sys.argv[1], "wb") as cache:
+            pickle.dump((rows, examples), cache)
     figures(rows, examples)
+
+
+def cluster_versions(img, mask, visible):
+    """Recorte del primer grupo y las etiquetas de cada versión, solo con ese grupo en la máscara."""
+    first = np.zeros_like(visible[0])
+    for seed in visible[:CLUSTER]:
+        first |= seed
+    only = (mask > 0) & (cv2.dilate(first.astype(np.uint8), np.ones((9, 9), np.uint8)) > 0)
+    box = cluster_box(visible)
+    return box, [version(only.astype(np.uint8), img, v)[box] for v in range(len(VERSIONS))]
+
+
+def cluster_box(visible):
+    """Recorte alrededor del primer grupo de CLUSTER semillas de la escena."""
+    first = np.zeros_like(visible[0])
+    for seed in visible[:CLUSTER]:
+        first |= seed
+    ys, xs = np.nonzero(first)
+    return slice(max(ys.min() - 30, 0), ys.max() + 30), slice(max(xs.min() - 30, 0), xs.max() + 30)
 
 
 def outline(ax, img, labels, color):
@@ -237,31 +276,33 @@ def figures(rows, examples):
     style.apply()
     df = pd.DataFrame(rows)
     df["count_error"] = 100 * (df.n_found - df.n_true) / df.n_true
-    fig = plt.figure(figsize=(style.DOUBLE, 165 * style.MM))
-    rows_grid = fig.add_gridspec(3, 1, height_ratios=[1, 1, 1.35], hspace=0.22)
+    fig = plt.figure(figsize=(style.DOUBLE, 150 * style.MM), layout="constrained")
+    rows_grid = fig.subfigures(3, 1, height_ratios=[40, 38, 62])
 
-    levels = rows_grid[0].subgridspec(1, len(LEVELS), wspace=0.06)      # escenas de cada nivel
+    levels = rows_grid[0].subplots(1, len(LEVELS))                     # escenas de cada nivel
     for li, (name, _) in enumerate(LEVELS):
-        ax = fig.add_subplot(levels[li])
-        ax.imshow(cv2.cvtColor(examples[li][0], cv2.COLOR_BGR2RGB))
-        style.photo_axes(ax)
-        ax.set_title(f"({chr(97 + li)}) {name}")
+        levels[li].imshow(cv2.cvtColor(examples[li][0], cv2.COLOR_BGR2RGB))
+        style.photo_axes(levels[li])
+        levels[li].set_title(f"({chr(97 + li)}) {name}")
 
-    img, mask, visible = examples[3]                                    # el mismo grupo en cada versión
-    ys, xs = np.nonzero(visible[0] | visible[1] | visible[2] | visible[3] | visible[4])
-    sl = (slice(max(ys.min() - 30, 0), ys.max() + 30), slice(max(xs.min() - 30, 0), xs.max() + 30))
-    versions = rows_grid[1].subgridspec(1, len(VERSIONS), wspace=0.06)
+    best = None                                                         # el grupo donde más difieren las versiones
+    for img, mask, visible in examples["level3"]:
+        box, labels = cluster_versions(img, mask, visible)
+        counts = [len([i for i in np.unique(sub) if i]) for sub in labels]
+        spread = len(set(counts)) + 2 * (counts[-1] == CLUSTER)
+        if best is None or spread > best[0]:
+            best = (spread, img, box, labels)
+    _, img, sl, version_labels = best
+    versions = rows_grid[1].subplots(1, len(VERSIONS))
     for v in range(len(VERSIONS)):
-        ax = fig.add_subplot(versions[v])
-        sub = version(mask, img, v)[sl]
+        sub = version_labels[v]
         n = len([i for i in np.unique(sub) if i])
-        outline(ax, img[sl], sub, style.WHITE)
-        ax.set_title(f"({chr(102 + v)}) {n} object{'s' if n != 1 else ''}", fontsize=6.5)
-        ax.text(0.5, -0.04, VERSIONS[v], transform=ax.transAxes, ha="center", va="top", fontsize=6)
+        outline(versions[v], img[sl], sub, style.WHITE)
+        name = VERSIONS[v].replace("\n", " ")
+        versions[v].set_title(f"({chr(102 + v)}) {name}\n{n} object{'s' if n != 1 else ''}", fontsize=6)
 
-    stats = rows_grid[2].subgridspec(1, 2, wspace=0.3)
     x = np.arange(len(LEVELS))
-    left, right = fig.add_subplot(stats[0]), fig.add_subplot(stats[1])
+    left, right = rows_grid[2].subplots(1, 2)
     for v in range(len(VERSIONS)):
         g = df[df.version == v].groupby("level")
         for ax, column in ((left, "f1"), (right, "count_error")):
@@ -276,7 +317,8 @@ def figures(rows, examples):
     right.axhline(0, color=style.GRAY, lw=0.6)
     right.set_ylabel("Count error (%)")
     right.set_title("(m)")
-    left.legend(loc="lower left", fontsize=6)
+    handles, names = left.get_legend_handles_labels()
+    rows_grid[2].legend(handles, names, loc="outside lower center", ncol=3, fontsize=6)
     style.chart_axes(left, right)
     style.save(fig, OUT / "separation.png")
 
@@ -288,4 +330,7 @@ def figures(rows, examples):
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 2 and sys.argv[2] == "--figures":
+        redraw(sys.argv[1])
+    else:
+        main()
