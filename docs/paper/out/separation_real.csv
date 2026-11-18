@@ -1,0 +1,61 @@
+area,seeds,version,found,count_error
+1,35,Connected components,1,-97.14285714285714
+1,35,"Watershed, fixed spacing",34,-2.857142857142857
+1,35,+ spacing from object size,32,-8.571428571428571
+1,35,+ neck merge,32,-8.571428571428571
+1,35,+ notch and size rules,32,-8.571428571428571
+1,35,FenotIT (current),32,-8.571428571428571
+4,19,Connected components,1,-94.73684210526316
+4,19,"Watershed, fixed spacing",22,15.789473684210526
+4,19,+ spacing from object size,19,0.0
+4,19,+ neck merge,19,0.0
+4,19,+ notch and size rules,19,0.0
+4,19,FenotIT (current),19,0.0
+5,13,Connected components,1,-92.3076923076923
+5,13,"Watershed, fixed spacing",23,76.92307692307692
+5,13,+ spacing from object size,13,0.0
+5,13,+ neck merge,13,0.0
+5,13,+ notch and size rules,13,0.0
+5,13,FenotIT (current),13,0.0
+6,7,Connected components,1,-85.71428571428571
+6,7,"Watershed, fixed spacing",12,71.42857142857143
+6,7,+ spacing from object size,7,0.0
+6,7,+ neck merge,7,0.0
+6,7,+ notch and size rules,7,0.0
+6,7,FenotIT (current),7,0.0
+7,6,Connected components,1,-83.33333333333333
+7,6,"Watershed, fixed spacing",18,200.0
+7,6,+ spacing from object size,6,0.0
+7,6,+ neck merge,6,0.0
+7,6,+ notch and size rules,6,0.0
+7,6,FenotIT (current),6,0.0
+8,6,Connected components,1,-83.33333333333333
+8,6,"Watershed, fixed spacing",13,116.66666666666667
+8,6,+ spacing from object size,6,0.0
+8,6,+ neck merge,6,0.0
+8,6,+ notch and size rules,6,0.0
+8,6,FenotIT (current),6,0.0
+9,5,Connected components,1,-80.0
+9,5,"Watershed, fixed spacing",10,100.0
+9,5,+ spacing from object size,5,0.0
+9,5,+ neck merge,5,0.0
+9,5,+ notch and size rules,5,0.0
+9,5,FenotIT (current),5,0.0
+10,5,Connected components,1,-80.0
+10,5,"Watershed, fixed spacing",10,100.0
+10,5,+ spacing from object size,6,20.0
+10,5,+ neck merge,5,0.0
+10,5,+ notch and size rules,5,0.0
+10,5,FenotIT (current),5,0.0
+11,3,Connected components,1,-66.66666666666667
+11,3,"Watershed, fixed spacing",4,33.333333333333336
+11,3,+ spacing from object size,3,0.0
+11,3,+ neck merge,3,0.0
+11,3,+ notch and size rules,3,0.0
+11,3,FenotIT (current),3,0.0
+12,2,Connected components,1,-50.0
+12,2,"Watershed, fixed spacing",6,200.0
+12,2,+ spacing from object size,2,0.0
+12,2,+ neck merge,2,0.0
+12,2,+ notch and size rules,2,0.0
+12,2,FenotIT (current),2,0.0

@@ -1,18 +1,17 @@
-"""Benchmark of the separation of touching objects (paper figures).
+"""Separation of touching seeds on real photographs (paper figure).
 
-Scenes are composed from real bean seeds of 51 genotypes cut out of the genebank photos
-(tests/data/Zamorano_PIF_25-04_X_Fotos_Semillas_REP2), on the blue background of the same photos, with a known
-number of seeds and a controlled degree of contact. Each scene is segmented once and then
-separated with successive versions of the algorithm, from plain connected components to the
-current FenotIT step, so the figures show what each rule adds.
+Twelve clusters of touching bean seeds were taken from the drought trial photographs
+(tests/data/Cgiar_Bean_Sequia_Seeds) and their seeds were counted by hand
+(docs/paper/separation_areas.csv). Each cluster is separated with successive versions of the
+algorithm, from plain connected components to the current FenotIT step, and the number of
+objects found is compared with the manual count.
 
-    python docs/paper/separation_benchmark.py            (writes docs/paper/out/*)
+    python docs/paper/separation_benchmark.py            (writes docs/paper/out/separation.png)
 """
 from __future__ import annotations
 
 import csv
 import sys
-import time
 from pathlib import Path
 
 import cv2
@@ -23,115 +22,39 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "docs"))
 import figure_style as style  # noqa: E402
-from fenotit.core.pipeline.base import Context  # noqa: E402
+from fenotit.core.image_io import load_image  # noqa: E402
 from fenotit.core.objects import separate as ob  # noqa: E402
+from fenotit.core.pipeline.base import Context  # noqa: E402
 
 OUT = Path(__file__).resolve().parent / "out"
-RNG = np.random.default_rng(134)
-LEVELS = [("Isolated", None), ("Touching", (0.0, 0.03)), ("Overlap 3–10 %", (0.03, 0.10)),
-          ("Overlap 10–20 %", (0.10, 0.20)), ("Overlap 20–30 %", (0.20, 0.30))]
-N_SEEDS, N_SCENES, SIZE, CLUSTER = 30, 20, 1300, 5
-VERSIONS = ["Connected\ncomponents", "Watershed,\nfixed spacing", "+ spacing from\nobject size",
-            "+ neck\nmerge", "+ notch and\nsize rules", "FenotIT\n(current)"]
+PHOTOS = ROOT / "tests" / "data" / "Cgiar_Bean_Sequia_Seeds"
+AREAS = Path(__file__).resolve().parent / "separation_areas.csv"
+TRAY_RIGHT = 0.62                     # fracción del ancho donde termina la bandeja (a la derecha, la tarjeta)
+PAD = 40                              # margen alrededor de cada grupo, en px
+VERSIONS = ["Connected components", "Watershed, fixed spacing", "+ spacing from object size",
+            "+ neck merge", "+ notch and size rules", "FenotIT (current)"]
 COLORS = ["#D0D0D0", "#B0B0B0", "#8C8C8C", "#666666", "#333333", style.BLUE]     # versiones: grises, actual en azul
-MARKERS = ["o", "s", "^", "D", "v", "o"]
 
-
-# ── scenes ──────────────────────────────────────────────────────────────────
 
 def segment(img):
     """Seeds on the blue tray: Otsu on the Cb channel (blue background = high Cb)."""
     cb = cv2.cvtColor(img, cv2.COLOR_BGR2YCrCb)[:, :, 2]
     t, _ = cv2.threshold(cb, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     m = (cb < t).astype(np.uint8)
+    m[:, int(TRAY_RIGHT * m.shape[1]):] = 0
     return cv2.morphologyEx(m, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
 
 
-SEED_PHOTOS = ROOT / "tests" / "data" / "Zamorano_PIF_25-04_X_Fotos_Semillas_REP2"
-PHOTO_SCALE = 1.0                                   # escala de las fotos (6000 × 4000) al recortar las semillas
+def cluster(row):
+    """Recorte de la foto y máscara del grupo: el componente con más píxeles dentro del recuadro."""
+    img = load_image(str(PHOTOS / row["photo"]))
+    x, y, width, height = (int(row[key]) for key in ("x", "y", "width", "height"))
+    _, labels = cv2.connectedComponents(segment(img), connectivity=8)
+    inside = labels[y:y + height, x:x + width]
+    biggest = np.bincount(inside[inside > 0]).argmax()
+    window = (slice(y - PAD, y + height + PAD), slice(x - PAD, x + width + PAD))
+    return img[window], (labels[window] == biggest).astype(np.uint8)
 
-
-def read(path):
-    return cv2.resize(cv2.imread(str(path)), None, fx=PHOTO_SCALE, fy=PHOTO_SCALE, interpolation=cv2.INTER_AREA)
-
-
-def seed_library():
-    seeds = []
-    for f in sorted(SEED_PHOTOS.glob("*.JPG"))[::3]:
-        img = read(f)
-        m = segment(img)
-        n, lab, st, _ = cv2.connectedComponentsWithStats(m, 8)
-        a = st[1:, 4]
-        med = np.median(a[a > 200])
-        H, W = m.shape
-        for i in range(1, n):
-            x, y, w, h, area = st[i]
-            if not 0.6 * med < area < 1.5 * med or x < 5 or y < 5 or x + w > W - 5 or y + h > H - 5:
-                continue
-            p = 6
-            sl = (slice(y - p, y + h + p), slice(x - p, x + w + p))
-            seeds.append(((lab[sl] == i).astype(np.uint8), img[sl].copy()))
-    return seeds
-
-
-def background():
-    img = read(sorted(SEED_PHOTOS.glob("*.JPG"))[0])
-    empty = img[1550:2000, 0:900]                       # franja vacía del fondo azul, textura real
-    return cv2.resize(empty, (SIZE, SIZE), interpolation=cv2.INTER_LINEAR)
-
-
-def rotate(mask, patch, angle):
-    h, w = mask.shape
-    d = int(np.hypot(h, w)) + 4
-    M = cv2.getRotationMatrix2D((w / 2, h / 2), angle, 1.0)
-    M[:, 2] += [(d - w) / 2, (d - h) / 2]
-    m = cv2.warpAffine(mask, M, (d, d), flags=cv2.INTER_NEAREST)
-    p = cv2.warpAffine(patch, M, (d, d), flags=cv2.INTER_LINEAR)
-    ys, xs = np.nonzero(m)
-    sl = (slice(ys.min(), ys.max() + 1), slice(xs.min(), xs.max() + 1))
-    return m[sl], p[sl]
-
-
-def compose(lib, level, bg):
-    """Scene with N_SEEDS seeds; returns image and the visible mask of each seed."""
-    img = bg.copy()
-    owner = np.zeros((SIZE, SIZE), np.int32)            # which seed is on top at each pixel
-    margin = 40
-    k = 0
-    attempts = 0
-    while k < N_SEEDS and attempts < 40000:
-        attempts += 1
-        m, p = rotate(*lib[RNG.integers(len(lib))], RNG.uniform(0, 360))
-        h, w = m.shape
-        y, x = RNG.integers(margin, SIZE - margin - h), RNG.integers(margin, SIZE - margin - w)
-        under = owner[y:y + h, x:x + w]
-        area = m.sum()
-        ov = ((under > 0) & (m > 0)).sum() / area
-        near = cv2.dilate((under > 0).astype(np.uint8), np.ones((5, 5), np.uint8))
-        contact = (near & m).any()
-        rng = LEVELS[level][1]
-        new_cluster = k % CLUSTER == 0
-        if rng is None or new_cluster:
-            gap = cv2.dilate((under > 0).astype(np.uint8), np.ones((25, 25), np.uint8))
-            if (gap & m).any():
-                continue
-        else:
-            lo, hi = rng
-            if not contact or not (lo <= ov <= hi):
-                continue
-            # contact must be with the current cluster
-            ids = np.unique(under[cv2.dilate(m, np.ones((5, 5), np.uint8)) > 0])
-            if not any(i > (k // CLUSTER) * CLUSTER for i in ids):
-                continue
-        k += 1
-        reg = img[y:y + h, x:x + w]
-        reg[m > 0] = p[m > 0]
-        under[m > 0] = k
-    visible = [owner == i for i in range(1, k + 1)]
-    return img, visible
-
-
-# ── algorithm versions ──────────────────────────────────────────────────────
 
 def version(mask, img, v):
     binary = (mask > 0).astype(np.uint8)
@@ -171,93 +94,8 @@ def version(mask, img, v):
     return labels
 
 
-def score(labels, visible):
-    """Count and one-to-one matching with IoU ≥ 0.5 against the visible part of each seed."""
-    ids = [i for i in np.unique(labels) if i]
-    areas = np.bincount(labels.ravel())
-    noise = 0.15 * np.median([v.sum() for v in visible])
-    ids = [i for i in ids if areas[i] >= noise]
-    tp = 0
-    used = set()
-    for v in visible:
-        if v.sum() < 0.3 * noise / 0.15 * 0.15:
-            continue
-        cand = np.bincount(labels[v].ravel())
-        cand[0] = 0
-        j = int(cand.argmax())
-        if j == 0 or j in used:
-            continue
-        inter = cand[j]
-        iou = inter / (v.sum() + areas[j] - inter)
-        if iou >= 0.5:
-            tp += 1
-            used.add(j)
-    n_true = len(visible)
-    prec = tp / max(len(ids), 1)
-    rec = tp / n_true
-    return len(ids), prec, rec
-
-
-# ── run ─────────────────────────────────────────────────────────────────────
-
-def redraw(cache_path):
-    """Rehace las figuras con los resultados guardados por main()."""
-    import pickle
-    with open(cache_path, "rb") as cache:
-        figures(*pickle.load(cache))
-
-
-def main():
-    OUT.mkdir(parents=True, exist_ok=True)
-    lib = seed_library()
-    bg = background()
-    print(f"seed library: {len(lib)} seeds")
-    rows, examples = [], {}
-    for li, (name, _) in enumerate(LEVELS):
-        for s in range(N_SCENES):
-            img, visible = compose(lib, li, bg)
-            mask = segment(img)
-            for v in range(len(VERSIONS)):
-                t0 = time.perf_counter()
-                lab = version(mask, img, v)
-                dt = time.perf_counter() - t0
-                n, p, r = score(lab, visible)
-                rows.append({"level": li, "level_name": name, "scene": s, "version": v,
-                             "n_true": len(visible), "n_found": n, "precision": p, "recall": r,
-                             "f1": 2 * p * r / max(p + r, 1e-9), "seconds": dt})
-            if s == 0:
-                examples[li] = (img, mask, visible)
-            if li == 3:
-                examples.setdefault("level3", []).append((img, mask, visible))
-        print(name, "done")
-    with open(OUT / "separation_benchmark.csv", "w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=list(rows[0]))
-        w.writeheader()
-        w.writerows(rows)
-    if len(sys.argv) > 1:                               # copia para rehacer solo las figuras
-        import pickle
-        with open(sys.argv[1], "wb") as cache:
-            pickle.dump((rows, examples), cache)
-    figures(rows, examples)
-
-
-def cluster_versions(img, mask, visible):
-    """Recorte del primer grupo y las etiquetas de cada versión, solo con ese grupo en la máscara."""
-    first = np.zeros_like(visible[0])
-    for seed in visible[:CLUSTER]:
-        first |= seed
-    only = (mask > 0) & (cv2.dilate(first.astype(np.uint8), np.ones((9, 9), np.uint8)) > 0)
-    box = cluster_box(visible)
-    return box, [version(only.astype(np.uint8), img, v)[box] for v in range(len(VERSIONS))]
-
-
-def cluster_box(visible):
-    """Recorte alrededor del primer grupo de CLUSTER semillas de la escena."""
-    first = np.zeros_like(visible[0])
-    for seed in visible[:CLUSTER]:
-        first |= seed
-    ys, xs = np.nonzero(first)
-    return slice(max(ys.min() - 30, 0), ys.max() + 30), slice(max(xs.min() - 30, 0), xs.max() + 30)
+def count(labels):
+    return len([i for i in np.unique(labels) if i])
 
 
 def outline(ax, img, labels, color):
@@ -271,66 +109,55 @@ def outline(ax, img, labels, color):
     style.photo_axes(ax)
 
 
-def figures(rows, examples):
+def main():
     import pandas as pd
+    import seaborn as sns
     style.apply()
-    df = pd.DataFrame(rows)
-    df["count_error"] = 100 * (df.n_found - df.n_true) / df.n_true
-    fig = plt.figure(figsize=(style.DOUBLE, 150 * style.MM), layout="constrained")
-    rows_grid = fig.subfigures(3, 1, height_ratios=[40, 38, 62])
+    rows, example = [], None
+    with open(AREAS, newline="") as table:
+        areas = [row for row in csv.DictReader(table) if row["seeds"]]
+    for row in areas:
+        img, mask = cluster(row)
+        labels = [version(mask, img, v) for v in range(len(VERSIONS))]
+        counts = [count(item) for item in labels]
+        manual = int(row["seeds"])
+        for v, found in enumerate(counts):
+            rows.append({"area": int(row["area"]), "seeds": manual, "version": VERSIONS[v], "found": found,
+                         "count_error": 100 * (found - manual) / manual})
+        spread = len(set(counts)) + 2 * (counts[-1] == manual)
+        if manual <= 13 and (example is None or spread > example[0]):
+            example = (spread, img, labels, manual)
+    data = pd.DataFrame(rows)
+    data.to_csv(OUT / "separation_real.csv", index=False)
 
-    levels = rows_grid[0].subplots(1, len(LEVELS))                     # escenas de cada nivel
-    for li, (name, _) in enumerate(LEVELS):
-        levels[li].imshow(cv2.cvtColor(examples[li][0], cv2.COLOR_BGR2RGB))
-        style.photo_axes(levels[li])
-        levels[li].set_title(f"({chr(97 + li)}) {name}")
-
-    best = None                                                         # el grupo donde más difieren las versiones
-    for img, mask, visible in examples["level3"]:
-        box, labels = cluster_versions(img, mask, visible)
-        counts = [len([i for i in np.unique(sub) if i]) for sub in labels]
-        spread = len(set(counts)) + 2 * (counts[-1] == CLUSTER)
-        if best is None or spread > best[0]:
-            best = (spread, img, box, labels)
-    _, img, sl, version_labels = best
-    versions = rows_grid[1].subplots(1, len(VERSIONS))
-    for v in range(len(VERSIONS)):
-        sub = version_labels[v]
-        n = len([i for i in np.unique(sub) if i])
-        outline(versions[v], img[sl], sub, style.WHITE)
-        name = VERSIONS[v].replace("\n", " ")
-        versions[v].set_title(f"({chr(102 + v)}) {name}\n{n} object{'s' if n != 1 else ''}", fontsize=6)
-
-    x = np.arange(len(LEVELS))
-    left, right = rows_grid[2].subplots(1, 2)
-    for v in range(len(VERSIONS)):
-        g = df[df.version == v].groupby("level")
-        for ax, column in ((left, "f1"), (right, "count_error")):
-            ax.errorbar(x, g[column].mean(), yerr=g[column].std(), color=COLORS[v], marker=MARKERS[v], ms=3,
-                        mfc=style.WHITE if v < len(VERSIONS) - 1 else COLORS[v], lw=1.0 if v == len(VERSIONS) - 1 else 0.7,
-                        capsize=1.5, label=VERSIONS[v].replace("\n", " "))
-    for ax in (left, right):
-        ax.set_xticks(x, [name.replace(" ", "\n", 1) for name, _ in LEVELS])
-    left.set_ylabel("F1 (IoU ≥ 0.5)")
-    left.set_ylim(0, 1.03)
-    left.set_title("(l)")
-    right.axhline(0, color=style.GRAY, lw=0.6)
-    right.set_ylabel("Count error (%)")
-    right.set_title("(m)")
-    handles, names = left.get_legend_handles_labels()
-    rows_grid[2].legend(handles, names, loc="outside lower center", ncol=3, fontsize=6)
+    fig = plt.figure(figsize=(style.DOUBLE, 98 * style.MM), layout="constrained")
+    top, bottom = fig.subfigures(2, 1, height_ratios=[31, 62])
+    axes = top.subplots(1, len(VERSIONS))
+    _, img, labels, manual = example
+    for v, ax in enumerate(axes):
+        outline(ax, img, labels[v], style.WHITE)
+        found = count(labels[v])
+        ax.set_title(f"({chr(97 + v)}) {VERSIONS[v]}\n{found} object{'s' if found != 1 else ''}", fontsize=6)
+    left, right = bottom.subplots(1, 2, width_ratios=[1, 1.6])
+    current = data[data.version == VERSIONS[-1]]
+    limit = max(data.seeds.max(), current.found.max()) + 2
+    left.plot([0, limit], [0, limit], color=style.GRAY, lw=0.6, ls="--")
+    left.set_box_aspect(1)
+    left.scatter(current.seeds, current.found, s=16, color=style.BLUE, zorder=3)
+    left.set(xlim=(0, limit), ylim=(0, limit), xlabel="Seeds counted by hand", ylabel="Objects found by FenotIT")
+    left.set_title("(g)")
+    right.axvline(0, color=style.GRAY, lw=0.6)
+    sns.stripplot(data, y="version", x="count_error", hue="version", palette=COLORS, size=3.5, jitter=0.15,
+                  legend=False, ax=right)
+    right.set(ylabel="", xlabel="Count error (%)")
+    right.set_title("(h)")
     style.chart_axes(left, right)
     style.save(fig, OUT / "separation.png")
-
-    summary = df.groupby(["level_name", "version"], sort=False).agg(
-        f1=("f1", "mean"), f1_sd=("f1", "std"), count_error=("count_error", "mean"),
-        precision=("precision", "mean"), recall=("recall", "mean"), seconds=("seconds", "mean")).round(3)
-    summary.to_csv(OUT / "separation_summary.csv")
-    print(summary.to_string())
+    summary = data.groupby("version", sort=False).agg(mean_abs_error=("count_error", lambda e: e.abs().mean()),
+                                                     exact=("count_error", lambda e: (e == 0).sum()))
+    print(summary.round(1).to_string())
+    print(current[["area", "seeds", "found"]].to_string(index=False))
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 2 and sys.argv[2] == "--figures":
-        redraw(sys.argv[1])
-    else:
-        main()
+    main()
