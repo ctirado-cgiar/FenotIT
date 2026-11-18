@@ -12,3 +12,4 @@ dist/
 tests/data/images/*/
 fenotit/_model_key.py
 tools/*.png
+docs/paper/out/charts/
