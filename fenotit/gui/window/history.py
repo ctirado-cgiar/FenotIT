@@ -1,6 +1,7 @@
 """Deshacer y rehacer: estados del proyecto antes de cada cambio."""
 from __future__ import annotations
 
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 

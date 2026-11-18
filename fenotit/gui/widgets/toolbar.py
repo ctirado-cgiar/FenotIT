@@ -5,7 +5,9 @@ import tkinter as tk
 
 from PIL import ImageTk
 
+# icon devuelve un ícono por nombre, del color pedido.
 from fenotit.gui.style.icons import icon
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras); SPACE (márgenes).
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 
 

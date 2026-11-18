@@ -2,6 +2,7 @@
 exclusiones del usuario y numeración por filas."""
 import numpy as np
 
+# El decorador step registra esta pieza: convierte las cajas del detector en objetos.
 from fenotit.core.pipeline.base import step
 
 

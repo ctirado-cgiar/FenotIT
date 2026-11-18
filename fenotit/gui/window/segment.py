@@ -6,12 +6,20 @@ import tkinter as tk
 import cv2
 import numpy as np
 
+# log escribe los mensajes y errores en el archivo de registro.
 from fenotit import log
+# pipeline corre la pieza Otsu sobre la foto para la vista previa de la segmentación.
 from fenotit.core import pipeline
+# ANALYSES tiene los análisis registrados (Objetos, Detección…) por clave.
 from fenotit.core.analysis.registry import ANALYSES
+# button crea un botón con el estilo del tema; divider dibuja una línea separadora; section pone un
+# título de sección.
 from fenotit.gui.style.components import button, divider, section
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras); SPACE (márgenes).
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
+# HelpIcon es el «?» que explica una opción al pasar el mouse o al hacer clic.
 from fenotit.gui.widgets.help import HelpIcon
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 

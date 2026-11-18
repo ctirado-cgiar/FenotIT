@@ -9,6 +9,7 @@ import numpy as np
 from dataclasses import dataclass
 
 
+# Unidades de longitud, disponibles también desde este módulo para quien calcula escalas.
 from fenotit.core.units import TO_MM as UNIT_TO_MM, UNITS  # noqa: F401
 
 

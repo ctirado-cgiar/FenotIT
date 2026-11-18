@@ -3,9 +3,14 @@ segmentado que las contiene, y se cuentan por clase en cada objeto y en la foto.
 import cv2
 import numpy as np
 
+# slug convierte el nombre de cada clase del detector en nombre de columna (n_<clase>).
 from fenotit.core.measurements.classes import slug
+# Centro de una caja: decide a qué objeto pertenece la detección.
 from fenotit.core.objects.boxes import center
+# El decorador step registra esta medición como pieza de la cadena.
 from fenotit.core.pipeline.base import step
+# add_overlay guarda las cajas y contornos que se dibujan; object_geometry da el contorno de cada
+# objeto.
 from fenotit.core.pipeline.views import add_overlay, object_geometry
 
 DIMMED_PHOTO = 0.55                  # brillo de la foto bajo las cajas en la vista

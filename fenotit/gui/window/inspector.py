@@ -6,9 +6,13 @@ import tkinter as tk
 import cv2
 import numpy as np
 
+# log escribe los mensajes y errores en el archivo de registro.
 from fenotit import log
+# units convierte entre unidades de longitud y arma los textos con unidad.
 from fenotit.core import units
+# Funciones comunes de la ventana: _on_base dice si una vista se dibuja como foto con marcas.
 from fenotit.gui.window.common import _on_base
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 

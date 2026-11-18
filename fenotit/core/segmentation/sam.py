@@ -343,6 +343,8 @@ def _relabel(labels: np.ndarray) -> np.ndarray:
 
 # ── Pieza del pipeline ──────────────────────────────────────────────────────
 
+# El decorador step registra MobileSAM como pieza; BACKGROUND_COLOR es el color del fondo en la
+# vista de categorías.
 from fenotit.core.pipeline.base import BACKGROUND_COLOR, step  # noqa: E402
 
 

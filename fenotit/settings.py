@@ -4,6 +4,7 @@ from pathlib import Path
 
 import yaml
 
+# APP_NAME es el nombre del programa.
 from fenotit import APP_NAME
 
 

@@ -21,11 +21,18 @@ try:
 except ImportError:
     MPL_OK = False
 
+# log escribe los mensajes y errores en el archivo de registro.
 from fenotit import log
+# natural_key ordena los nombres de archivo como los ordena una persona (2 antes de 10).
 from fenotit.core.image_io import natural_key
+# HelpIcon es el «?» que explica una opción al pasar el mouse o al hacer clic.
 from fenotit.gui.widgets.help import HelpIcon
+# button crea un botón con el estilo del tema; divider dibuja una línea separadora.
 from fenotit.gui.style.components import button, divider
+# Valores del tema (fenotit/assets/themes): CHART_COLORS (colores de las series de los gráficos);
+# COLORS (colores); FONTS (letras); SPACE (márgenes).
 from fenotit.gui.style.theme import CHART_COLORS, COLORS, FONTS, SPACE
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 _log = log.get("gui.charts")

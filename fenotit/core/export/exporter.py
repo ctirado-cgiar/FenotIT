@@ -22,6 +22,7 @@ from typing import Any
 import cv2
 import numpy as np
 
+# Nombre y versión del programa, que se escriben en metadata.csv, y el registro de mensajes.
 from fenotit import APP_NAME, __version__, log
 
 _log = log.get("export")

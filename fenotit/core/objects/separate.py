@@ -3,7 +3,9 @@ watershed, corte por muescas y unión de partes."""
 import cv2
 import numpy as np
 
+# _instances usa los objetos que ya separó un modelo de IA, si los hay.
 from fenotit.core.objects.label import _instances
+# El decorador step registra la separación como pieza de la cadena.
 from fenotit.core.pipeline.base import step
 
 

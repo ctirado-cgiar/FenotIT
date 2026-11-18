@@ -13,6 +13,7 @@ from typing import Any, Callable
 
 import numpy as np
 
+# Registro de mensajes: anota las piezas que no se pudieron cargar.
 from fenotit import log
 
 _log = log.get("pipeline")

@@ -11,11 +11,21 @@ import cv2
 import numpy as np
 from PIL import Image, ImageTk
 
+# log escribe los mensajes y errores en el archivo de registro.
 from fenotit import log
+# batch corre el lote de fotos en procesos aparte.
 from fenotit.core import batch
+# ANALYSES tiene los análisis registrados (Objetos, Detección…) por clave; AnalysisResult es el
+# resultado de un análisis (tablas, vistas, leyendas).
 from fenotit.core.analysis.registry import ANALYSES, AnalysisResult
+# IntraImageChartPanel es el panel de gráficos; aquí se busca para redibujarlo con los resultados
+# nuevos.
 from fenotit.gui.charts.panels import IntraImageChartPanel
+# Funciones comunes de la ventana: _on_base dice si una vista se dibuja como foto con marcas;
+# _analysis_label da el nombre del análisis para mostrar; _duration escribe un tiempo en segundos o
+# minutos; _summary arma el resumen de la barra de estado.
 from fenotit.gui.window.common import _on_base, _analysis_label, _duration, _summary
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 

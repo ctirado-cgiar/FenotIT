@@ -8,9 +8,14 @@ from tkinter import ttk
 import cv2
 import numpy as np
 
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras); SPACE (márgenes).
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
+# HelpIcon es el «?» que explica una opción al pasar el mouse o al hacer clic.
 from fenotit.gui.widgets.help import HelpIcon
+# Funciones comunes de la ventana: CHANNEL_NAMES son los nombres de los canales de cada espacio de
+# color.
 from fenotit.gui.window.common import CHANNEL_NAMES
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 

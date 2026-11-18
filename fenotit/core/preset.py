@@ -9,9 +9,13 @@ from pathlib import Path
 
 import yaml
 
+# Versión del programa, que queda escrita en el preset.
 from fenotit import __version__
+# Las correcciones de imagen, que el preset guarda y vuelve a aplicar.
 from fenotit.core.corrections.pipeline import Corrections
+# El proyecto y sus partes (escala, segmentación) que el preset lee y modifica.
 from fenotit.core.project import Project, Scale, Segmentation
+# from_legacy lee las áreas guardadas en el formato de versiones anteriores.
 from fenotit.core.roi import from_legacy
 
 PRESET_EXT = ".fntp"

@@ -4,6 +4,7 @@ huecos y suavizado). El tamaño es el diámetro del elemento circular en px."""
 import cv2
 import numpy as np
 
+# El decorador step registra «Afinar máscara» como pieza de la cadena.
 from fenotit.core.pipeline.base import step
 
 # operaciones de "Afinar máscara" (tamaño en px del elemento circular; "veces" = iteraciones)

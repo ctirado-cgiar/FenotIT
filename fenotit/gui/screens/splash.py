@@ -7,9 +7,14 @@ import time
 import tkinter as tk
 from pathlib import Path
 
+# APP_NAME es el nombre del programa; __version__ es la versión del programa; log escribe los
+# mensajes y errores en el archivo de registro.
 from fenotit import APP_NAME, __version__, log
+# BLUE (el azul del logo); mosaic dibuja el mosaico de cuadritos del logo.
 from fenotit.gui.style.decor import BLUE, mosaic
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras).
 from fenotit.gui.style.theme import COLORS, FONTS
 
 _log = log.get("gui.splash")

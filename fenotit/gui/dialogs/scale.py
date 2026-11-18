@@ -6,11 +6,16 @@ import cv2
 import numpy as np
 from pathlib import Path
 
+# button crea un botón con el estilo del tema; divider dibuja una línea separadora.
 from fenotit.gui.style.components import button, divider
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras); SPACE (márgenes).
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
+# ZoomableCanvas muestra una foto con zoom y desplazamiento.
 from fenotit.gui.canvas.zoom import ZoomableCanvas
 
+# log escribe los mensajes y errores en el archivo de registro.
 from fenotit import log
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 _log = log.get("gui.calibration")

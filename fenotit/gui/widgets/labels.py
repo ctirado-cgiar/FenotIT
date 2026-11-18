@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import re
 
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 _UNITS = {"px": "px", "um": "µm", "mm": "mm", "cm": "cm", "m": "m"}

@@ -5,9 +5,13 @@ from __future__ import annotations
 
 import tkinter as tk
 
+# button crea un botón con el estilo del tema.
 from fenotit.gui.style.components import button
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras); SPACE (márgenes).
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
+# Tooltip muestra una frase al pasar el mouse.
 from fenotit.gui.widgets.toolbar import Tooltip
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 SIZE = 15

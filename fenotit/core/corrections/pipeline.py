@@ -7,7 +7,9 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+# Registro de mensajes: anota por qué una corrección no se pudo aplicar a una foto.
 from fenotit import log
+# Detección de los marcadores ArUco, para la corrección de perspectiva y la escala de cada foto.
 from fenotit.core.corrections import aruco
 
 _log = log.get("corrections")

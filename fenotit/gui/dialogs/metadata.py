@@ -7,11 +7,18 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, ttk
 
+# log escribe los mensajes y errores en el archivo de registro.
 from fenotit import log
+# metadata lee la tabla de datos del usuario, adivina la columna de la foto y une cada fila con su
+# foto.
 from fenotit.core import metadata
+# HelpIcon es el «?» que explica una opción al pasar el mouse o al hacer clic.
 from fenotit.gui.widgets.help import HelpIcon
+# button crea un botón con el estilo del tema; divider dibuja una línea separadora.
 from fenotit.gui.style.components import button, divider
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras); SPACE (márgenes).
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 _log = log.get("gui.metadata")

@@ -11,6 +11,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
+# Valores del tema (fenotit/assets/themes): COLORS (colores).
 from fenotit.gui.style.theme import COLORS
 
 ICON_DIR = Path(__file__).resolve().parents[2] / "assets" / "icons"

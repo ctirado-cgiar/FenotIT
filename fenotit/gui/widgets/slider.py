@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import tkinter as tk
 
+# Valores del tema (fenotit/assets/themes): COLORS (colores).
 from fenotit.gui.style.theme import COLORS
 
 

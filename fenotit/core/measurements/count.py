@@ -3,7 +3,10 @@ detector, `measurements.boxes.count_boxes`)."""
 import numpy as np
 from scipy.ndimage import find_objects
 
+# El decorador step registra el conteo como pieza de la cadena.
 from fenotit.core.pipeline.base import step
+# Recorrido de los objetos, un punto dentro de cada uno para su número y add_overlay para guardar
+# esas marcas.
 from fenotit.core.pipeline.views import regions, inside_point, add_overlay
 
 

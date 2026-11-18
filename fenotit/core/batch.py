@@ -14,6 +14,7 @@ from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from dataclasses import dataclass, field, replace
 from typing import Any, Callable
 
+# Registro de mensajes: cada proceso del lote escribe en el mismo archivo de registro.
 from fenotit import log
 
 _log = log.get("batch")

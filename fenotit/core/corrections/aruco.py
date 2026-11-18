@@ -3,6 +3,7 @@
 import cv2
 import numpy as np
 
+# Registro de mensajes: anota cuando no se encuentran los cuatro marcadores.
 from fenotit import log
 
 _log = log.get("corrections.aruco")

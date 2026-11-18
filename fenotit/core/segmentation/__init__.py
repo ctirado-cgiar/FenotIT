@@ -16,6 +16,7 @@ from __future__ import annotations
 
 METHODS = ("threshold", "classifier", "model")
 
+# Las operaciones de «Afinar máscara», que se agregan al final de la cadena de segmentación.
 from fenotit.core.segmentation.refine_mask import DEFAULT_REFINE, REFINE_OPS, reconstruct, refine, refine_op
 
 __all__ = ["DEFAULT_REFINE", "METHODS", "REFINE_OPS", "boxes_only", "chain", "from_legacy", "reconstruct",

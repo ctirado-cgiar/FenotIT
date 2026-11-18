@@ -3,6 +3,7 @@ destacados por el usuario; renumera los objetos."""
 import cv2
 import numpy as np
 
+# El decorador step registra el filtro como pieza de la cadena.
 from fenotit.core.pipeline.base import step
 
 

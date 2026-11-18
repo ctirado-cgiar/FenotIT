@@ -10,12 +10,20 @@ from pathlib import Path
 import yaml
 from PIL import Image, ImageTk
 
+# APP_NAME es el nombre del programa; __version__ es la versión del programa; i18n carga el idioma
+# elegido; settings guarda las preferencias del usuario entre sesiones.
 from fenotit import APP_NAME, __version__, i18n, settings
+# PREVIEW es el nombre de la miniatura del proyecto.
 from fenotit.core.project import PREVIEW
+# BLUE (el azul del logo); pixel_dissolve dibuja los píxeles decorativos.
 from fenotit.gui.style.decor import BLUE, pixel_dissolve
+# icon devuelve un ícono por nombre, del color pedido.
 from fenotit.gui.style.icons import icon
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
+# button crea un botón con el estilo del tema; divider dibuja una línea separadora.
 from fenotit.gui.style.components import button, divider
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras); SPACE (márgenes).
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 
 _THUMB = (88, 66)

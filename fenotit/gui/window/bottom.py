@@ -7,12 +7,19 @@ from tkinter import ttk
 
 from PIL import ImageTk
 
+# settings guarda las preferencias del usuario entre sesiones.
 from fenotit import settings
+# IntraImageChartPanel es la pestaña Gráficos del panel de abajo (gráficos de la foto actual).
 from fenotit.gui.charts.panels import IntraImageChartPanel
+# icon devuelve un ícono por nombre, del color pedido.
 from fenotit.gui.style.icons import icon
+# button crea un botón con el estilo del tema.
 from fenotit.gui.style.components import button
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras); SPACE (márgenes).
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
+# IconButton es un botón con ícono; Tooltip muestra una frase al pasar el mouse.
 from fenotit.gui.widgets.toolbar import IconButton, Tooltip
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 

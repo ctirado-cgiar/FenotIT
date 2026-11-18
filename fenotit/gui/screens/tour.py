@@ -9,8 +9,11 @@ import tkinter as tk
 from dataclasses import dataclass
 from typing import Callable
 
+# button crea un botón con el estilo del tema.
 from fenotit.gui.style.components import button
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras); SPACE (márgenes).
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 PAD = 6              # margen del hueco alrededor del elemento

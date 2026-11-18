@@ -5,10 +5,15 @@ import tkinter as tk
 
 from PIL import ImageTk
 
+# icon devuelve un ícono por nombre, del color pedido.
 from fenotit.gui.style.icons import icon
+# Tooltip muestra una frase al pasar el mouse.
 from fenotit.gui.widgets.toolbar import Tooltip
+# Funciones comunes de la ventana: _peek_tab dibuja la pestañita de un panel oculto.
 from fenotit.gui.window.common import _peek_tab
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
+# Valores del tema (fenotit/assets/themes): SPACE (márgenes).
 from fenotit.gui.style.theme import SPACE
 
 

@@ -15,12 +15,20 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import ttk
 
+# settings guarda las preferencias del usuario entre sesiones.
 from fenotit import settings
+# button crea un botón con el estilo del tema; divider dibuja una línea separadora.
 from fenotit.gui.style.components import button, divider
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras); SIZES (tamaños); SPACE
+# (márgenes).
 from fenotit.gui.style.theme import COLORS, FONTS, SIZES, SPACE
+# CollapsiblePanel es cada panel lateral, que se puede ocultar y ensanchar.
 from fenotit.gui.widgets.collapsible import CollapsiblePanel
+# ImageList es la lista de fotos del panel izquierdo (buscador, miniaturas, marcas).
 from fenotit.gui.widgets.image_list import ImageList
+# Tooltip muestra una frase al pasar el mouse.
 from fenotit.gui.widgets.toolbar import Tooltip
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 

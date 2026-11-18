@@ -4,10 +4,15 @@ import threading
 import tkinter as tk
 from tkinter import ttk
 
+# log escribe los mensajes y errores en el archivo de registro.
 from fenotit import log
+# BaseDialog es la ventana base de los diálogos (botones, tamaño, Esc para cerrar).
 from fenotit.gui.dialogs.scale import BaseDialog
+# button crea un botón con el estilo del tema.
 from fenotit.gui.style.components import button
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras); SPACE (márgenes).
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 _log = log.get("gui.converter")

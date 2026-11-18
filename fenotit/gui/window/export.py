@@ -4,12 +4,21 @@ from __future__ import annotations
 from pathlib import Path
 from tkinter import messagebox
 
+# log escribe los mensajes y errores en el archivo de registro; settings guarda las preferencias del
+# usuario entre sesiones.
 from fenotit import log, settings
+# batch corre el lote de fotos en procesos aparte.
 from fenotit.core import batch
+# units convierte entre unidades de longitud y arma los textos con unidad.
 from fenotit.core import units
+# ANALYSES tiene los análisis registrados (Objetos, Detección…) por clave; AnalysisResult es el
+# resultado de un análisis (tablas, vistas, leyendas).
 from fenotit.core.analysis.registry import ANALYSES, AnalysisResult
+# La ventana Exportar (carpeta, fotos y contenido).
 from fenotit.gui.dialogs.export import ExportDialog
+# Funciones comunes de la ventana: _analysis_label da el nombre del análisis para mostrar.
 from fenotit.gui.window.common import _analysis_label
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 

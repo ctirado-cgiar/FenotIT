@@ -1,11 +1,17 @@
 """Guardar preset: nombre, descripción y qué partes de la configuración lleva."""
 import tkinter as tk
 
+# preset dice qué partes del proyecto se pueden guardar y cuáles traen avisos.
 from fenotit.core import preset
+# BaseDialog es la ventana base de los diálogos (botones, tamaño, Esc para cerrar).
 from fenotit.gui.dialogs.scale import BaseDialog
+# button crea un botón con el estilo del tema.
 from fenotit.gui.style.components import button
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras); SPACE (márgenes).
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
+# HelpIcon es el «?» que explica una opción al pasar el mouse o al hacer clic.
 from fenotit.gui.widgets.help import HelpIcon
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 

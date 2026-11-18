@@ -5,6 +5,7 @@ import tkinter as tk
 import cv2
 from PIL import Image, ImageDraw, ImageTk
 
+# Valores del tema (fenotit/assets/themes): COLORS (colores).
 from fenotit.gui.style.theme import COLORS
 
 

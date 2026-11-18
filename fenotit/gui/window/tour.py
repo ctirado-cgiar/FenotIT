@@ -1,7 +1,9 @@
 """Pasos del recorrido guiado."""
 from __future__ import annotations
 
+# settings guarda las preferencias del usuario entre sesiones.
 from fenotit import settings
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 

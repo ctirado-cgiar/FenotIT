@@ -7,12 +7,20 @@ from tkinter import ttk, messagebox
 
 from PIL import Image
 
+# units convierte entre unidades de longitud y arma los textos con unidad.
 from fenotit.core import units
+# Scale es la escala guardada en el proyecto; aquí se cambia al elegir ArUco o quitar la escala.
 from fenotit.core.project import Scale
+# La ventana de cada corrección (lente, perspectiva, tarjeta de color) que se abre desde el menú
+# Calibración.
 from fenotit.gui.dialogs.corrections import CorrectionsDialog
+# La ventana para fijar la escala con dos puntos o con un valor escrito.
 from fenotit.gui.dialogs.scale import ScaleDialog
+# button crea un botón con el estilo del tema.
 from fenotit.gui.style.components import button
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras); SPACE (márgenes).
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 

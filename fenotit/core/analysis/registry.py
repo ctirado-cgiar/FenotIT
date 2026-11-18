@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Any
 import numpy as np
 
+# Registro de mensajes de FenotIT: aquí anota los análisis que no se pudieron cargar.
 from fenotit import log
 
 _log = log.get("analysis")

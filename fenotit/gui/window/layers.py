@@ -6,8 +6,13 @@ from pathlib import Path
 
 import numpy as np
 
+# ANALYSES tiene los análisis registrados (Objetos, Detección…) por clave; AnalysisResult es el
+# resultado de un análisis (tablas, vistas, leyendas).
 from fenotit.core.analysis.registry import ANALYSES, AnalysisResult
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras); SPACE (márgenes).
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
+# Funciones comunes de la ventana: _on_base dice si una vista se dibuja como foto con marcas;
+# _analysis_label da el nombre del análisis para mostrar.
 from fenotit.gui.window.common import _on_base, _analysis_label
 
 

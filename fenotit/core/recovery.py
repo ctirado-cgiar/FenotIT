@@ -11,7 +11,9 @@ from pathlib import Path
 
 import yaml
 
+# settings da la carpeta de datos del usuario, donde se guarda la copia de recuperación.
 from fenotit import settings
+# El proyecto y la extensión de sus archivos, para escribir y encontrar las copias.
 from fenotit.core.project import OLD_PROJECT_EXTS, PROJECT_EXT, Project
 
 

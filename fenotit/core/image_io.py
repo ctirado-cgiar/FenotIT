@@ -8,6 +8,7 @@ import cv2
 import numpy as np
 from pathlib import Path
 
+# Registro de mensajes: anota las fotos que no se pudieron leer.
 from fenotit import log
 
 _log = log.get("image_io")

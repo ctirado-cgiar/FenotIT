@@ -22,7 +22,9 @@ import os
 import tomllib
 from pathlib import Path
 
+# settings guarda las preferencias del usuario entre sesiones.
 from fenotit import settings
+# Registro de mensajes: anota los temas que no se pudieron leer.
 from fenotit.log import get as _get_log
 
 DEFAULT = "classic"

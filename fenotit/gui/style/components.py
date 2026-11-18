@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import tkinter as tk
 
+# Valores del tema (fenotit/assets/themes): BUTTONS (estilo de cada tipo de botón); COLORS
+# (colores); FONTS (letras); SIZES (tamaños).
 from fenotit.gui.style.theme import BUTTONS, COLORS, FONTS, SIZES
 
 KINDS = tuple(BUTTONS)            # primary, secondary, quiet, link

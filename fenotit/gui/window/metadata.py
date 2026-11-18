@@ -3,7 +3,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+# log escribe los mensajes y errores en el archivo de registro.
 from fenotit import log
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 

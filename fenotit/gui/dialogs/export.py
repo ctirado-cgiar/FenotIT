@@ -9,10 +9,16 @@ import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
+# log escribe los mensajes y errores en el archivo de registro.
 from fenotit import log
+# HelpIcon es el «?» que explica una opción al pasar el mouse o al hacer clic.
 from fenotit.gui.widgets.help import HelpIcon
+# button crea un botón con el estilo del tema; divider dibuja una línea separadora; section (aquí
+# title) pone un título de sección.
 from fenotit.gui.style.components import button, divider, section as title
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras); SPACE (márgenes).
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 _log = log.get("gui.export")

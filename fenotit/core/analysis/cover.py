@@ -5,10 +5,18 @@ from __future__ import annotations
 
 import numpy as np
 
+# pipeline arma y corre la cadena de piezas; aquí se usa su caché (ChainCache) para no volver a
+# clasificar la foto si solo cambia el resumen.
 from fenotit.core import pipeline
+# segmentation traduce la configuración del panel en piezas; este análisis le pide las de «Por
+# ejemplos».
 from fenotit.core import segmentation
+# register pone este análisis en las tarjetas del panel derecho; AnalysisResult es lo que se
+# devuelve a la ventana (tablas, vistas y leyendas).
 from fenotit.core.analysis.registry import AnalysisResult, register
+# overlay tiene los colores de las marcas; aquí convierte el color de cada clase para la leyenda.
 from fenotit.core.pipeline import overlay
+# t devuelve un texto en el idioma elegido (nombre de la vista y de la leyenda).
 from fenotit.i18n import t
 
 _CACHE = pipeline.ChainCache(size=2)

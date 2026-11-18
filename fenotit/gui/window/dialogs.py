@@ -9,11 +9,18 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import messagebox
 
+# __version__ es la versión del programa; log escribe los mensajes y errores en el archivo de
+# registro; settings guarda las preferencias del usuario entre sesiones.
 from fenotit import __version__, log, settings
+# i18n dice qué idioma está activo, para saber si al cambiarlo hay que reiniciar.
 from fenotit import i18n
+# button crea un botón con el estilo del tema.
 from fenotit.gui.style.components import button
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras); SPACE (márgenes).
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
+# Funciones comunes de la ventana: _assets da la carpeta de recursos.
 from fenotit.gui.window.common import _assets
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 

@@ -10,12 +10,23 @@ from tkinter import messagebox
 
 import numpy as np
 
+# log escribe los mensajes y errores en el archivo de registro; settings guarda las preferencias del
+# usuario entre sesiones.
 from fenotit import log, settings
+# batch corre el lote de fotos en procesos aparte.
 from fenotit.core import batch
+# ANALYSES tiene los análisis registrados (Objetos, Detección…) por clave; AnalysisResult es el
+# resultado de un análisis (tablas, vistas, leyendas).
 from fenotit.core.analysis.registry import ANALYSES, AnalysisResult
+# load_image lee una foto (también con rutas con tildes o en OneDrive) y la gira según su EXIF.
 from fenotit.core.image_io import load_image
+# Funciones comunes de la ventana: CV2_CODES son los códigos de OpenCV de cada espacio de color;
+# _analysis_label da el nombre del análisis para mostrar; _duration escribe un tiempo en segundos o
+# minutos.
 from fenotit.gui.window.common import CV2_CODES, _analysis_label, _duration
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
+# Valores del tema (fenotit/assets/themes): SPACE (márgenes).
 from fenotit.gui.style.theme import SPACE
 
 

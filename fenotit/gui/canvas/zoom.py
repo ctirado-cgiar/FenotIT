@@ -5,7 +5,9 @@ import cv2
 import numpy as np
 from PIL import Image, ImageTk
 
+# log escribe los mensajes y errores en el archivo de registro.
 from fenotit import log
+# Valores del tema (fenotit/assets/themes): COLORS (colores).
 from fenotit.gui.style.theme import COLORS
 
 _log = log.get("gui.zoom")

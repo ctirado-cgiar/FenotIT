@@ -10,9 +10,13 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Any
 
+# log escribe los mensajes y errores en el archivo de registro.
 from fenotit import log
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
+# button crea un botón con el estilo del tema; divider dibuja una línea separadora.
 from fenotit.gui.style.components import button, divider
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras); SPACE (márgenes).
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 
 _log = log.get("gui.config_panel")

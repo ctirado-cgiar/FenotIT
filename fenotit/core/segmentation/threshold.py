@@ -3,7 +3,9 @@ completa como un solo objeto (whole)."""
 import cv2
 import numpy as np
 
+# Conversión de la foto a cada espacio de color y lectura de un canal.
 from fenotit.core import colorspaces
+# El decorador step registra el umbral y Otsu como piezas de la cadena.
 from fenotit.core.pipeline.base import step
 
 

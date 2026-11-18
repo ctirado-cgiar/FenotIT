@@ -4,18 +4,32 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox
 
+# log escribe los mensajes y errores en el archivo de registro.
 from fenotit import log
+# colorcard busca la tarjeta de color en la foto y calcula la corrección.
 from fenotit.core.corrections import colorcard
+# Las correcciones guardadas en el proyecto, que esta ventana edita.
 from fenotit.core.corrections import pipeline as corrections_pipeline
+# Máximo de fotos del tablero que se usan para calibrar; aparece en la ayuda.
 from fenotit.core.corrections.distortion import MAX_PHOTOS as D_MAX
+# Ventanas de la tarjeta de color: escribir los colores de la marca, marcar el área blanca y ver la
+# tarjeta encontrada.
 from fenotit.gui.dialogs.colorcard import edit_values, pick_region, show_detection
+# HelpIcon es el «?» que explica una opción al pasar el mouse o al hacer clic.
 from fenotit.gui.widgets.help import HelpIcon
+# Busca los cuatro marcadores ArUco en la foto, para «Verificar».
 from fenotit.core.corrections.aruco import detect_aruco_corners
+# load_image lee una foto (también con rutas con tildes o en OneDrive) y la gira según su EXIF.
 from fenotit.core.image_io import load_image
+# ImagePicker es el selector de la foto sobre la que se prueba la corrección.
 from fenotit.gui.widgets.basic import ImagePicker
+# BaseDialog es la ventana base de los diálogos (botones, tamaño, Esc para cerrar).
 from fenotit.gui.dialogs.scale import BaseDialog
+# button crea un botón con el estilo del tema.
 from fenotit.gui.style.components import button
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras); SPACE (márgenes).
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 _log = log.get("gui.corrections")

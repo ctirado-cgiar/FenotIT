@@ -4,6 +4,7 @@ La extracción (fenotit.core.pipeline) da filas por objeto y por imagen. Aquí s
 combinan y se comparan con cualquier agrupación: por imagen, por lote o por una
 columna del usuario (genotipo, tratamiento...). Nada de esto toca imágenes.
 """
+# Unir los resultados de varias fotos, agruparlos y resumirlos.
 from fenotit.core.stats.dataset import combine, groups, summarize
 
 __all__ = ["combine", "groups", "summarize"]

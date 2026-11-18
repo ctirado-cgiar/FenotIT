@@ -13,6 +13,7 @@ from collections import OrderedDict
 
 import numpy as np
 
+# El registro de piezas y el contexto que la caché guarda y copia entre ejecuciones.
 from fenotit.core.pipeline.base import REGISTRY, Context, PipelineError, discover
 
 

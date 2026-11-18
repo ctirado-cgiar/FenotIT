@@ -13,9 +13,13 @@ from typing import Callable
 
 from PIL import Image, ImageOps, ImageTk
 
+# log escribe los mensajes y errores en el archivo de registro.
 from fenotit import log
+# IconButton es un botón con ícono.
 from fenotit.gui.widgets.toolbar import IconButton
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras); SPACE (márgenes).
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 
 _log = log.get("gui.images")

@@ -5,15 +5,22 @@ from __future__ import annotations
 import dataclasses
 import tkinter as tk
 
+# APP_NAME es el nombre del programa; log escribe los mensajes y errores en el archivo de registro;
+# settings guarda las preferencias del usuario entre sesiones.
 from fenotit import APP_NAME, log, settings
+# LayoutMixin arma los paneles; cada clase *Mixin de gui/window/ aporta los métodos de una parte de
+# la ventana.
 from fenotit.gui.layout import LayoutMixin
+# ttk_styles aplica el tema a las tablas, listas y barras de tkinter.
 from fenotit.gui.style import ttk_styles
+# Valores del tema (fenotit/assets/themes): COLORS (colores).
 from fenotit.gui.style.theme import COLORS
 from fenotit.gui.window.analyze import AnalyzeMixin
 from fenotit.gui.window.areas import AreasMixin
 from fenotit.gui.window.bottom import BottomMixin
 from fenotit.gui.window.calibration import CalibrationMixin
 from fenotit.gui.window.charts import ChartsMixin
+# _assets da la carpeta de recursos (logo, íconos), también dentro del .exe.
 from fenotit.gui.window.common import _assets
 from fenotit.gui.window.detect import DetectMixin
 from fenotit.gui.window.dialogs import DialogsMixin

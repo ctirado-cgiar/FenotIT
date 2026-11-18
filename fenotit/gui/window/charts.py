@@ -5,9 +5,13 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import messagebox
 
+# Los gráficos de una foto (también a pantalla completa) y la ventana «Comparar fotos» del lote.
 from fenotit.gui.charts.panels import IntraImageChartPanel, BatchChartWindow
+# button crea un botón con el estilo del tema.
 from fenotit.gui.style.components import button
+# Valores del tema (fenotit/assets/themes): COLORS (colores); SPACE (márgenes).
 from fenotit.gui.style.theme import COLORS, SPACE
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 

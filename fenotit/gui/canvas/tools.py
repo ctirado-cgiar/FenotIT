@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import tkinter as tk
 from typing import Callable
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras).
 from fenotit.gui.style.theme import COLORS, FONTS
 
 

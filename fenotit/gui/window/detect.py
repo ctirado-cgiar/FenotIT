@@ -10,11 +10,18 @@ import tkinter as tk
 import cv2
 import numpy as np
 
+# log escribe los mensajes y errores en el archivo de registro.
 from fenotit import log
+# ANALYSES tiene los análisis registrados (Objetos, Detección…) por clave.
 from fenotit.core.analysis.registry import ANALYSES
+# button crea un botón con el estilo del tema; section pone un título de sección.
 from fenotit.gui.style.components import button, section
+# Valores del tema (fenotit/assets/themes): CLASS_COLORS (colores de las clases); COLORS (colores);
+# FONTS (letras); SPACE (márgenes).
 from fenotit.gui.style.theme import CLASS_COLORS, COLORS, FONTS, SPACE
+# HelpIcon es el «?» que explica una opción al pasar el mouse o al hacer clic.
 from fenotit.gui.widgets.help import HelpIcon
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 _log = log.get("gui.window.detect")

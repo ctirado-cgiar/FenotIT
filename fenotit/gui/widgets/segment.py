@@ -7,8 +7,12 @@ from tkinter import colorchooser
 from tkinter import font as tkfont
 from typing import Callable
 
+# REFINE_OPS son las operaciones de «Afinar máscara» que se ofrecen en el menú.
 from fenotit.core.segmentation import REFINE_OPS
+# Valores del tema (fenotit/assets/themes): CLASS_COLORS (colores de las clases); COLORS (colores);
+# FONTS (letras); SPACE (márgenes).
 from fenotit.gui.style.theme import CLASS_COLORS, COLORS, FONTS, SPACE
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 

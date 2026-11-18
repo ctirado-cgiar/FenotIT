@@ -2,7 +2,9 @@
 import cv2
 import numpy as np
 
+# El decorador step registra esta medición como pieza de la cadena.
 from fenotit.core.pipeline.base import step
+# regions entrega cada objeto recortado con su máscara, para tomar sus píxeles.
 from fenotit.core.pipeline.views import regions
 
 

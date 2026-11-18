@@ -2,7 +2,9 @@
 categoría de cada objeto cuando cada uno es de una sola clase."""
 import numpy as np
 
+# El decorador step registra esta medición como pieza de la cadena.
 from fenotit.core.pipeline.base import step
+# regions recorre los objetos de la foto con su recorte y su máscara.
 from fenotit.core.pipeline.views import regions
 
 

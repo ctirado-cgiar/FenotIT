@@ -3,13 +3,22 @@ from __future__ import annotations
 
 import tkinter as tk
 
+# log escribe los mensajes y errores en el archivo de registro.
 from fenotit import log
+# units convierte entre unidades de longitud y arma los textos con unidad.
 from fenotit.core import units
+# ANALYSES tiene los análisis registrados (Objetos, Detección…) por clave.
 from fenotit.core.analysis.registry import ANALYSES
+# divider dibuja una línea separadora.
 from fenotit.gui.style.components import divider
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras); SIZES (tamaños); SPACE
+# (márgenes).
 from fenotit.gui.style.theme import COLORS, FONTS, SIZES, SPACE
+# ConfigPanel arma las casillas y opciones del paso Medir a partir del esquema del análisis.
 from fenotit.gui.widgets.params import ConfigPanel
+# Funciones comunes de la ventana: _analysis_label da el nombre del análisis para mostrar.
 from fenotit.gui.window.common import _analysis_label
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 

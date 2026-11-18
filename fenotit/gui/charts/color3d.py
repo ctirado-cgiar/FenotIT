@@ -9,12 +9,19 @@ from tkinter import ttk
 import numpy as np
 from PIL import Image, ImageTk
 
+# log escribe los mensajes y errores en el archivo de registro.
 from fenotit import log
+# Los puntos de color de cada objeto o foto, ya pasados al espacio elegido (Lab, RGB, HSV).
 from fenotit.core.stats import colors as color_stats
+# Lo común con los demás gráficos: si matplotlib está, su estilo, el aviso sin datos y Guardar.
 from fenotit.gui.charts.panels import MPL_OK, MPL_STYLE, _message, _save
+# HelpIcon es el «?» que explica una opción al pasar el mouse o al hacer clic.
 from fenotit.gui.widgets.help import HelpIcon
+# button crea un botón con el estilo del tema.
 from fenotit.gui.style.components import button
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras); SPACE (márgenes).
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 if MPL_OK:

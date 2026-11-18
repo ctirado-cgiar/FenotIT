@@ -5,13 +5,23 @@ import tkinter as tk
 
 from PIL import Image, ImageTk
 
+# APP_NAME es el nombre del programa; log escribe los mensajes y errores en el archivo de registro.
 from fenotit import APP_NAME, log
+# ANALYSES tiene los análisis registrados (Objetos, Detección…) por clave.
 from fenotit.core.analysis.registry import ANALYSES
+# button crea un botón con el estilo del tema; divider dibuja una línea separadora.
 from fenotit.gui.style.components import button, divider
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras); SPACE (márgenes).
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
+# DropMenu es cada menú de la barra superior; Sub, un submenú que se arma al abrirlo (Recientes,
+# Preset).
 from fenotit.gui.widgets.dropmenu import DropMenu, Sub
+# IconButton es un botón con ícono; Tooltip muestra una frase al pasar el mouse.
 from fenotit.gui.widgets.toolbar import IconButton, Tooltip
+# Funciones comunes de la ventana: _analysis_label da el nombre del análisis para mostrar; _assets
+# da la carpeta de recursos.
 from fenotit.gui.window.common import _analysis_label, _assets
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 

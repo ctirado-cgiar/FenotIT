@@ -196,6 +196,8 @@ def boxes_labels(shape, dets: list[dict]) -> np.ndarray:
 
 # ── Pieza del pipeline ──────────────────────────────────────────────────────
 
+# El decorador step registra el detector como pieza; BACKGROUND_COLOR es el color del fondo en la
+# vista de clases.
 from fenotit.core.pipeline.base import BACKGROUND_COLOR, step  # noqa: E402
 
 

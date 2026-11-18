@@ -2,7 +2,9 @@
 separar objetos."""
 import numpy as np
 
+# slug convierte el nombre de cada clase en nombre de columna.
 from fenotit.core.measurements.classes import slug
+# El decorador step registra esta medición como pieza de la cadena.
 from fenotit.core.pipeline.base import step
 
 

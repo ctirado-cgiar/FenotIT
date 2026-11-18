@@ -3,8 +3,12 @@ Alinear, promediar y comparar formas es análisis posterior (fenotit.core.stats.
 import cv2
 import numpy as np
 
+# Descriptores elípticos de Fourier: cálculo de los coeficientes, normalización y nombres de
+# columna.
 from fenotit.core import efd
+# El decorador step registra esta medición como pieza de la cadena.
 from fenotit.core.pipeline.base import step
+# included_view arma la vista Forma con los objetos medidos.
 from fenotit.core.pipeline.views import included_view
 
 

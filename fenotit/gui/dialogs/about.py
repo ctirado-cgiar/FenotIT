@@ -7,10 +7,17 @@ from pathlib import Path
 
 from PIL import Image, ImageTk
 
+# APP_NAME es el nombre del programa.
 from fenotit import APP_NAME
+# BLUE (el azul del logo); pixel_dissolve dibuja los píxeles decorativos.
 from fenotit.gui.style.decor import BLUE, pixel_dissolve
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
+# button crea un botón con el estilo del tema; divider dibuja una línea separadora; section (aquí
+# heading) pone un título de sección.
 from fenotit.gui.style.components import button, divider, section as heading
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras); SPACE (márgenes); font
+# (una letra de tamaño calculado).
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE, font as theme_font
 
 _WIDTH = 460

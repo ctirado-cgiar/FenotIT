@@ -2,7 +2,10 @@
 import cv2
 import numpy as np
 
+# Descriptores elípticos de Fourier: leer los coeficientes de una fila, normalizarlos y reconstruir
+# el contorno.
 from fenotit.core.efd import columns, contour_points, efd, from_row, normalize
+# groups reparte las filas por foto, genotipo u otra columna.
 from fenotit.core.stats.dataset import groups
 
 

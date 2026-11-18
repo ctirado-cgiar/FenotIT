@@ -15,11 +15,17 @@ import cv2
 import numpy as np
 from PIL import Image, ImageOps, ImageTk
 
+# log escribe los mensajes y errores en el archivo de registro.
 from fenotit import log
+# distortion busca las esquinas del tablero en cada foto y calibra el lente.
 from fenotit.core.corrections import distortion
+# IMAGE_EXTS son las extensiones de foto que se aceptan.
 from fenotit.core.project import IMAGE_EXTS
+# button crea un botón con el estilo del tema.
 from fenotit.gui.style.components import button
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras); SPACE (márgenes).
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 _log = log.get("gui.chessboard")

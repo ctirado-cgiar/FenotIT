@@ -12,10 +12,16 @@ from tkinter import ttk
 import cv2
 import numpy as np
 
+# log escribe los mensajes y errores en el archivo de registro; settings guarda las preferencias del
+# usuario entre sesiones.
 from fenotit import log, settings
+# button crea un botón con el estilo del tema.
 from fenotit.gui.style.components import button
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras); SPACE (márgenes).
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
+# HelpIcon es el «?» que explica una opción al pasar el mouse o al hacer clic.
 from fenotit.gui.widgets.help import HelpIcon
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 

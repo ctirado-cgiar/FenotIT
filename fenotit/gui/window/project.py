@@ -11,16 +11,30 @@ from tkinter import filedialog, messagebox
 
 import cv2
 
+# APP_NAME es el nombre del programa; log escribe los mensajes y errores en el archivo de registro;
+# settings guarda las preferencias del usuario entre sesiones.
 from fenotit import APP_NAME, log, settings
+# recovery escribe la copia de recuperación cada pocos minutos y la borra al guardar.
 from fenotit.core import recovery
+# units convierte entre unidades de longitud y arma los textos con unidad.
 from fenotit.core import units
+# ANALYSES tiene los análisis registrados (Objetos, Detección…) por clave.
 from fenotit.core.analysis.registry import ANALYSES
+# Las correcciones de imagen, que se aplican a cada foto al abrirla.
 from fenotit.core.corrections import pipeline as corrections
+# load_image lee una foto (también con rutas con tildes o en OneDrive) y la gira según su EXIF.
 from fenotit.core.image_io import load_image
+# El proyecto (fotos, áreas, escala, segmentación) y la extensión de su archivo.
 from fenotit.core.project import OLD_PROJECT_EXTS, PROJECT_EXT, Project, Segmentation
+# button crea un botón con el estilo del tema.
 from fenotit.gui.style.components import button
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras); SPACE (márgenes).
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
+# Funciones comunes de la ventana: _on_base dice si una vista se dibuja como foto con marcas;
+# _analysis_label da el nombre del análisis para mostrar; _analysis_name da la clave del análisis a
+# partir de su nombre.
 from fenotit.gui.window.common import _on_base, _analysis_label, _analysis_name
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 

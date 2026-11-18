@@ -2,8 +2,11 @@
 import tkinter as tk
 from tkinter import messagebox
 
+# i18n carga el idioma elegido; log escribe los mensajes y errores en el archivo de registro.
 from fenotit import i18n, log
+# SplashScreen es la pantalla de carga con la barra de avance.
 from fenotit.gui.screens.splash import SplashScreen
+# ttk_styles aplica el tema a los controles ttk.
 from fenotit.gui.style import ttk_styles
 
 _log = log.get("gui")

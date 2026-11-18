@@ -3,8 +3,11 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, ttk
 
+# IMAGE_EXTS son las extensiones de foto que se aceptan.
 from fenotit.core.project import IMAGE_EXTS
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras); SPACE (márgenes).
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 

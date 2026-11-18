@@ -2,6 +2,7 @@
 import cv2
 import numpy as np
 
+# El decorador step registra el etiquetado como pieza de la cadena.
 from fenotit.core.pipeline.base import step
 
 

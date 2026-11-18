@@ -8,6 +8,7 @@ import tkinter as tk
 
 import numpy as np
 
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras).
 from fenotit.gui.style.theme import COLORS, FONTS
 
 HEIGHT = 64

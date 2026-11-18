@@ -4,8 +4,12 @@ from __future__ import annotations
 import tkinter as tk
 import tkinter.font as tkfont
 
+# AnalysisResult es el resultado que se muestra en la tabla.
 from fenotit.core.analysis.registry import AnalysisResult
+# Funciones comunes de la ventana: _cell recorta los decimales de una celda; _row_objects da el
+# objeto de una fila de la tabla.
 from fenotit.gui.window.common import _cell, _row_objects
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 

@@ -5,9 +5,15 @@ import threading
 from pathlib import Path
 from tkinter import filedialog, messagebox
 
+# log escribe los mensajes y errores en el archivo de registro; settings guarda las preferencias del
+# usuario entre sesiones.
 from fenotit import log, settings
+# ImageScaler prepara la copia de la foto del tamaño de la pantalla; natural_key ordena los nombres
+# de archivo como los ordena una persona (2 antes de 10).
 from fenotit.core.image_io import ImageScaler, natural_key
+# IMAGE_EXTS son las extensiones de foto que se aceptan al agregar una carpeta.
 from fenotit.core.project import IMAGE_EXTS
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 

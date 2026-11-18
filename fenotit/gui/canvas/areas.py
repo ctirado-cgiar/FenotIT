@@ -13,8 +13,11 @@ from typing import Callable
 import cv2
 import numpy as np
 
+# roi da los nombres y números de las áreas, que se escriben sobre cada una.
 from fenotit.core import roi
+# polygon da los vértices de un área (rectángulo o polígono) para dibujarla.
 from fenotit.core.roi import polygon
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras); SPACE (márgenes).
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
 
 INCLUDE, EXCLUDE, SELECTED = COLORS["area_include"], COLORS["area_exclude"], COLORS["selection"]

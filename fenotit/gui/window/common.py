@@ -7,8 +7,11 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+# ANALYSES tiene los análisis registrados (Objetos, Detección…) por clave.
 from fenotit.core.analysis.registry import ANALYSES
+# Valores del tema (fenotit/assets/themes): COLORS (colores); SPACE (márgenes).
 from fenotit.gui.style.theme import COLORS, SPACE
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 

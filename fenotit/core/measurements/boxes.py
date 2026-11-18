@@ -3,9 +3,13 @@ count) y tamaño de cada caja (box_size)."""
 import cv2
 import numpy as np
 
+# slug convierte el nombre de una clase en un nombre de columna (n_<clase>).
 from fenotit.core.measurements.classes import slug
+# Centro y rectángulo de cada caja, para dibujarla y numerarla.
 from fenotit.core.objects.boxes import center, rect
+# El decorador step registra estas funciones como piezas de la cadena.
 from fenotit.core.pipeline.base import step
+# add_overlay guarda las marcas (cajas, números) que la ventana dibuja sobre la foto.
 from fenotit.core.pipeline.views import add_overlay
 
 

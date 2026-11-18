@@ -3,6 +3,7 @@ import json
 import locale
 from pathlib import Path
 
+# APP_NAME es el nombre del programa; settings guarda las preferencias del usuario entre sesiones.
 from fenotit import APP_NAME, settings
 
 LANG_DIR = Path(__file__).parent / "lang"

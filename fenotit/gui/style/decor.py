@@ -5,6 +5,8 @@ from __future__ import annotations
 import random
 import tkinter as tk
 
+# Valores del tema (fenotit/assets/themes): COLORS (colores); los tonos de borde del logo; los tonos
+# de relleno del logo.
 from fenotit.gui.style.theme import COLORS, LOGO_EDGES as EDGES, LOGO_TINTS as TINTS
 
 BLUE = COLORS["accent"]

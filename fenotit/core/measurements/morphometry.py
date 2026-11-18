@@ -2,7 +2,9 @@
 import cv2
 import numpy as np
 
+# El decorador step registra la morfometría como pieza de la cadena.
 from fenotit.core.pipeline.base import step
+# regions recorre los objetos; included_view arma la vista con los objetos medidos.
 from fenotit.core.pipeline.views import regions, included_view
 
 

@@ -6,9 +6,14 @@ from dataclasses import asdict
 from pathlib import Path
 from tkinter import filedialog, messagebox
 
+# log escribe los mensajes y errores en el archivo de registro; settings guarda las preferencias del
+# usuario entre sesiones.
 from fenotit import log, settings
+# preset guarda, carga y compara los presets de captura (.fntp).
 from fenotit.core import preset
+# ANALYSES tiene los análisis registrados (Objetos, Detección…) por clave.
 from fenotit.core.analysis.registry import ANALYSES
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 _log = log.get("gui.window.presets")

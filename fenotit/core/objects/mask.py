@@ -3,6 +3,7 @@
 import cv2
 import numpy as np
 
+# El decorador step registra estas funciones (área de análisis y limpieza) como piezas.
 from fenotit.core.pipeline.base import step
 
 

@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import tkinter as tk
 
+# overlay tiene los colores y el dibujo de las marcas sobre la foto.
 from fenotit.core.pipeline import overlay
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras); SPACE (márgenes).
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
+# Slider es el deslizador fino de la app.
 from fenotit.gui.widgets.slider import Slider
 
 _SWATCHES = ("green", "magenta", "yellow", "cyan", "red", "orange", "blue", "white", "black")

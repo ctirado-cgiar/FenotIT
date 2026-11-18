@@ -5,17 +5,34 @@ from __future__ import annotations
 import cv2
 import numpy as np
 
+# pipeline corre la cadena de piezas (segmentar, separar, medir) y guarda en caché lo que no cambió.
 from fenotit.core import pipeline
+# Las áreas que el usuario dibuja sobre la foto: de aquí salen la máscara de cada área y su nombre,
+# para la columna analysis_area.
 from fenotit.core import roi as areas
+# Los métodos para separar objeto y fondo (umbral, por ejemplos, modelo); aquí se les pide la lista
+# de piezas según la configuración.
 from fenotit.core import segmentation as segmentation_methods
+# Las casillas y opciones del panel derecho para este análisis.
 from fenotit.core.analysis.object_params import PARAMS_SCHEMA
+# register pone Objetos en las tarjetas del panel derecho; AnalysisResult es lo que se devuelve
+# (tablas, vistas y leyendas).
 from fenotit.core.analysis.registry import AnalysisResult, register
+# Contornos reconstruidos desde los armónicos elípticos, para dibujar la forma media en la leyenda
+# de Forma.
 from fenotit.core.efd import contour_points, from_row
+# Colores de las marcas que se dibujan sobre la foto (contornos, números, clases).
 from fenotit.core.pipeline import overlay
+# Color con que se pinta el fondo en la vista de clases.
 from fenotit.core.pipeline.base import BACKGROUND_COLOR
+# Estrellas sobre los objetos destacados y contorno simplificado de cada objeto, con el que
+# Inspeccionar sabe en qué objeto se hizo clic.
 from fenotit.core.pipeline.views import add_stars, object_geometry
+# Alinea las formas (giro de 180° y reflejo) antes de calcular la forma media.
 from fenotit.core.stats.shape import align
+# Conversión entre unidades de longitud y el texto «media ± DE» de las leyendas.
 from fenotit.core.units import TO_MM, ascii_name, display, mean_sd, per_px
+# t traduce los nombres de las vistas y los títulos de las leyendas.
 from fenotit.i18n import t
 
 # Vista de cada pieza → carpeta de sus imágenes en la exportación

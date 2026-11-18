@@ -8,8 +8,11 @@ from typing import Any
 
 import yaml
 
+# Versión del programa, que queda escrita en el archivo del proyecto.
 from fenotit import __version__
+# Las correcciones de imagen forman parte del proyecto.
 from fenotit.core.corrections.pipeline import Corrections
+# from_legacy lee las áreas guardadas en el formato de versiones anteriores.
 from fenotit.core.roi import from_legacy
 
 PREVIEW = "preview.jpg"

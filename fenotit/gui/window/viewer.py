@@ -6,13 +6,21 @@ import tkinter.font as tkfont
 from tkinter import ttk
 
 
+# settings guarda las preferencias del usuario entre sesiones.
 from fenotit import settings
+# AreaEditor dibuja y edita las áreas de análisis y las zonas excluidas sobre la Entrada.
 from fenotit.gui.canvas.areas import AreaEditor
+# CanvasTools reparte los clics del canvas entre áreas, pincel, clics de MobileSAM y regiones.
 from fenotit.gui.canvas.tools import CanvasTools
+# ZoomController lleva el zoom y el desplazamiento de Entrada y Resultado a la vez.
 from fenotit.gui.canvas.zoom import ZoomController
+# button crea un botón con el estilo del tema.
 from fenotit.gui.style.components import button
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras); SPACE (márgenes).
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
+# IconButton es un botón con ícono; Tooltip muestra una frase al pasar el mouse.
 from fenotit.gui.widgets.toolbar import IconButton, Tooltip
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 

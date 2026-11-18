@@ -8,11 +8,17 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Callable
 
+# i18n carga el idioma elegido; settings guarda las preferencias del usuario entre sesiones.
 from fenotit import i18n, settings
+# HelpIcon es el «?» que explica una opción al pasar el mouse o al hacer clic.
 from fenotit.gui.widgets.help import HelpIcon
+# theme lee el tema elegido (fenotit/assets/themes).
 from fenotit.gui.style import theme
+# button crea un botón con el estilo del tema; section (aquí heading) pone un título de sección.
 from fenotit.gui.style.components import button, section as heading
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras); SPACE (márgenes).
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 WORK_RES = (("0", "workres.full"), ("100.0", "workres.100"), ("50.0", "workres.50"),

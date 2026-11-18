@@ -15,6 +15,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+# Registro de mensajes: anota las fotos del tablero que no se pudieron leer o calibrar.
 from fenotit import log
 
 _log = log.get("corrections.distortion")

@@ -15,9 +15,13 @@ import cv2
 import numpy as np
 from PIL import Image, ImageTk
 
+# Unidades de longitud para la barra de escala del recorte.
 from fenotit.core.units import TO_MM, display
+# button crea un botón con el estilo del tema; divider dibuja una línea separadora.
 from fenotit.gui.style.components import button, divider
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras); SPACE (márgenes).
 from fenotit.gui.style.theme import COLORS, FONTS, SPACE
+# t devuelve cada texto de la ventana en el idioma elegido (fenotit/lang).
 from fenotit.i18n import t
 
 CROP = (220, 150)

@@ -5,6 +5,7 @@ import threading
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
+# APP_NAME es el nombre del programa; __version__ es la versión del programa.
 from fenotit import APP_NAME, __version__
 
 

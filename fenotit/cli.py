@@ -1,6 +1,8 @@
 """Línea de comandos: sin argumentos abre la interfaz; con una ruta .fnt abre ese proyecto."""
 import argparse
 
+# __version__ es la versión del programa; log escribe los mensajes y errores en el archivo de
+# registro.
 from fenotit import __version__, log
 
 

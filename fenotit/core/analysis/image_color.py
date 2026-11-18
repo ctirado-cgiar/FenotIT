@@ -4,8 +4,13 @@ from __future__ import annotations
 
 import numpy as np
 
+# La caché de pipeline guarda el resultado de las dos últimas fotos para no recalcularlo al cambiar
+# de vista.
 from fenotit.core import pipeline
+# register agrega Color de imagen a las tarjetas del panel derecho; AnalysisResult es el resultado
+# para la ventana.
 from fenotit.core.analysis.registry import AnalysisResult, register
+# t traduce el nombre de la vista y el título de la leyenda.
 from fenotit.i18n import t
 
 _CACHE = pipeline.ChainCache(size=2)

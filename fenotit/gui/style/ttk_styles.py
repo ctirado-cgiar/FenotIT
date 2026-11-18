@@ -2,6 +2,8 @@
 import tkinter as tk
 from tkinter import ttk
 
+# Valores del tema (fenotit/assets/themes): COLORS (colores); FONTS (letras); SIZES (tamaños);
+# use_installed_fonts (elige las letras instaladas).
 from fenotit.gui.style.theme import COLORS, FONTS, SIZES, use_installed_fonts
 
 

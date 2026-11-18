@@ -5,8 +5,13 @@ from __future__ import annotations
 
 import numpy as np
 
+# El análisis de objetos hace todo el trabajo: este módulo le pasa el detector como segmentación de
+# cajas.
 from fenotit.core.analysis import objects     # módulo (no nombres): evita el import circular
+# Las opciones del panel del análisis de objetos; aquí se quitan las que no sirven con cajas.
 from fenotit.core.analysis.object_params import PARAMS_SCHEMA
+# register agrega Detección a las tarjetas del panel derecho; AnalysisResult es el resultado que
+# recibe la ventana.
 from fenotit.core.analysis.registry import AnalysisResult, register
 
 # Parámetros del análisis de objetos que no aplican a cajas de un detector

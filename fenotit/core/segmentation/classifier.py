@@ -180,6 +180,7 @@ def colorize(class_map: np.ndarray, colors: list[str]) -> np.ndarray:
 
 # ── Pieza del pipeline ──────────────────────────────────────────────────────
 
+# El decorador step registra el clasificador como pieza de la cadena.
 from fenotit.core.pipeline.base import step  # noqa: E402
 
 
