@@ -8,7 +8,6 @@ dist/
 *.zip
 .vscode/
 *.code-workspace
-CLAUDE.md
 *.egg-info/
 tests/data/images/*/
 fenotit/_model_key.py
