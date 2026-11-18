@@ -30,6 +30,10 @@ ctx.tables["objects"]      # una fila por objeto
 `docs/map/index.html` muestra qué importa cada módulo y quién lo usa
 (`python docs/map/make_map.py` lo actualiza).
 
+Las figuras de `docs/img` y del artículo (`docs/paper`) se generan con `docs/make_figures.py` y
+los scripts de `docs/paper`, con el estilo de `docs/figure_style.py`. Necesitan además
+`pip install -r docs/requirements.txt`.
+
 ## Agregar una medición
 
 Un archivo nuevo en `fenotit/core/measurements/`. Se carga solo al iniciar:

@@ -7,13 +7,13 @@ import sys
 from pathlib import Path
 
 import cv2
-import matplotlib
-matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "docs"))
+import figure_style as style  # noqa: E402
 from fenotit.core import uncertainty as U
 from fenotit.core.image_io import load_image as imread
 
@@ -69,28 +69,23 @@ def main():
     ratio = obs / pred
     print(f"n={len(obs)}  observed/predicted median {np.median(ratio):.2f} "
           f"(IQR {np.percentile(ratio, 25):.2f}-{np.percentile(ratio, 75):.2f})")
-    fig, ax = plt.subplots(1, 2, figsize=(9, 3.8), dpi=300)
-    ax[0].loglog(pred * 100, obs * 100, "o", ms=3, color="#2166AC", alpha=.6)
+    style.apply()
+    fig, ax = plt.subplots(1, 2, figsize=(style.ONE_AND_HALF, 62 * style.MM), gridspec_kw={"wspace": 0.42})
+    ax[0].scatter(pred * 100, obs * 100, s=7, facecolors="none", edgecolors=style.BLUE, linewidths=0.5)
     lim = [min(pred.min(), obs.min()) * 80, max(pred.max(), obs.max()) * 120]
-    ax[0].plot(lim, lim, "k--", lw=.8)
-    ax[0].set(xlabel="Predicted relative SD of area (%)", ylabel="Observed relative SD of area (%)",
-              title="(a) Model vs. re-digitized seeds")
-    aa = np.logspace(1, 4, 100)
-    ax[1].loglog(area, obs * 100, "o", ms=3, color="#2166AC", alpha=.6, label="Seeds")
-    ax[1].loglog(aa, [U.area_rel_sd(x, U.CIRCLE_K * np.sqrt(x)) * 100 for x in aa], "k-", lw=1,
-                 label="Model, circle")
-    for e in (0.01, 0.005):
-        ax[1].axvline(U.min_area_px(e), color="gray", lw=.6, ls=":")
-        ax[1].text(U.min_area_px(e), ax[1].get_ylim()[1] if False else 8, f" {e*100:g} %", fontsize=7, color="gray")
-    ax[1].set(xlabel="Object area (px)", ylabel="Relative SD of area (%)", title="(b) Area needed for a target error")
-    ax[1].legend(fontsize=7, frameon=False)
-    for a_ in ax:
-        a_.tick_params(labelsize=7); a_.title.set_size(9); a_.xaxis.label.set_size(8); a_.yaxis.label.set_size(8)
-    fig.tight_layout()
-    OUT.mkdir(exist_ok=True)
-    fig.savefig(OUT / "uncertainty.png")
-    print(OUT / "uncertainty.png")
-
+    ax[0].plot(lim, lim, color=style.BLACK, ls="--", lw=0.7)
+    ax[0].set(xscale="log", yscale="log", xlabel="Predicted relative SD of area (%)",
+              ylabel="Observed relative SD of area (%)", title="(a)")
+    areas = np.logspace(1, 4, 100)
+    ax[1].scatter(area, obs * 100, s=7, facecolors="none", edgecolors=style.BLUE, linewidths=0.5)
+    ax[1].plot(areas, [U.area_rel_sd(x, U.CIRCLE_K * np.sqrt(x)) * 100 for x in areas], color=style.BLACK, lw=0.8)
+    for target in (0.01, 0.005):
+        ax[1].axvline(U.min_area_px(target), color=style.GRAY, lw=0.6, ls=":")
+        ax[1].text(U.min_area_px(target), 6 if target == 0.01 else 9, f" {target * 100:g} %", color=style.GRAY)
+    ax[1].set(xscale="log", yscale="log", xlabel="Object area (px)", ylabel="Relative SD of area (%)", title="(b)")
+    style.plain_log_labels(*ax)
+    style.chart_axes(*ax)
+    style.save(fig, OUT / "uncertainty.png")
 
 if __name__ == "__main__":
     main()

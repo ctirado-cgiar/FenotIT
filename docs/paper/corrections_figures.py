@@ -12,22 +12,19 @@ import sys
 from pathlib import Path
 
 import cv2
-import matplotlib
+import matplotlib.pyplot as plt
 import numpy as np
-
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
-from matplotlib.patches import Rectangle  # noqa: E402
+from matplotlib.patches import Rectangle
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "docs"))
+import figure_style as style  # noqa: E402
 from fenotit.core.corrections import pipeline as P  # noqa: E402
 
 OUT = Path(__file__).resolve().parent / "out"
 IMG = ROOT / "tests" / "data" / "images"
-BLUE, RED, GRAY = "#2166AC", "#D6604D", "#7F7F7F"
-plt.rcParams.update({"font.size": 8, "axes.titlesize": 9, "figure.dpi": 150, "savefig.dpi": 300, "savefig.bbox": "tight",
-                     "axes.spines.top": False, "axes.spines.right": False})
+BLUE, BLACK, GRAY = style.BLUE, style.BLACK, style.GRAY
 rows_out: list[dict] = []
 
 
@@ -58,11 +55,11 @@ def lengths(lab, ids):
     return np.array(out)
 
 
-def zoom(ax, src_ax, img, box, color="white"):
+def zoom(ax, src_ax, img, box, color=style.WHITE):
     x0, y0, x1, y1 = box
     ax.imshow(rgb(img[y0:y1, x0:x1]))
-    ax.set_axis_off()
-    src_ax.add_patch(Rectangle((x0, y0), x1 - x0, y1 - y0, fill=False, ec=color, lw=1))
+    style.photo_axes(ax)
+    src_ax.add_patch(Rectangle((x0, y0), x1 - x0, y1 - y0, fill=False, ec=color, lw=0.8))
 
 
 def label(ax, s):
@@ -159,57 +156,59 @@ def fig_aruco():
 
     tilted, Ht = photograph(scene, 40)
     rect, _, _ = P.rectify(tilted, cfg)
-    fig = plt.figure(figsize=(9.6, 5.8))
+    style.apply()
+    fig = plt.figure(figsize=(style.DOUBLE, 120 * style.MM))
     gs = fig.add_gridspec(2, 4, hspace=0.38, wspace=0.15)
     ax = fig.add_subplot(gs[0, 0])
     ax.imshow(rgb(scene))
-    ax.set_axis_off()
-    label(ax, "A  Tray with four ArUco markers")
+    style.photo_axes(ax)
+    label(ax, "(a)")
     ax1 = fig.add_subplot(gs[0, 1])
     ax1.imshow(rgb(tilted))
-    ax1.set_axis_off()
-    label(ax1, "B  Photographed at 40° tilt")
+    style.photo_axes(ax1)
+    label(ax1, "(b)")
     ax2 = fig.add_subplot(gs[0, 2])
     ax2.imshow(rgb(rect))
-    ax2.set_axis_off()
-    label(ax2, "C  Rectified by FenotIT")
+    style.photo_axes(ax2)
+    label(ax2, "(c)")
     # zoom on the same seeds near the far edge
     q = cv2.perspectiveTransform(np.float32([[[700, 260]]]), Ht).reshape(2).round().astype(int)
     zb = (q[0] - 120, q[1] - 45, q[0] + 120, q[1] + 45)
     ax3 = fig.add_subplot(gs[0, 3])
-    ax3.set_axis_off()
+    style.photo_axes(ax3)
     sub = fig.add_gridspec(2, 1, left=gs[0, 3].get_position(fig).x0, right=gs[0, 3].get_position(fig).x1,
                            bottom=gs[0, 3].get_position(fig).y0, top=gs[0, 3].get_position(fig).y1, hspace=0.25)
     z1 = fig.add_subplot(sub[0])
-    zoom(z1, ax1, tilted, zb, "yellow")
-    label(z1, "D  Far edge in B and C")
+    zoom(z1, ax1, tilted, zb, style.WHITE)
+    label(z1, "(d)")
     m = cfg.margin_px
     sc = (rect.shape[1] - 2 * m) / (centers[1][0] - centers[0][0])
     rx = int(m + (700 - centers[0][0]) * sc)
     ry = int(m + (260 - centers[0][1]) * sc)
     zb2 = (rx - 120, ry - 70, rx + 120, ry + 70)
     z2 = fig.add_subplot(sub[1])
-    zoom(z2, ax2, rect, zb2, "yellow")
-    ax4 = fig.add_subplot(gs[1, 0:2])
-    ax4.plot(res[:, 0], res[:, 1], "o-", color=RED, ms=3.5, label="Area, one scale for all photos")
-    ax4.plot(res[:, 0], res[:, 2], "o-", color=BLUE, ms=3.5, label="Area, ArUco rectification")
-    ax4.plot(res[:, 0], res[:, 3], "s--", color=RED, ms=3, lw=0.9, label="Length, one scale")
-    ax4.plot(res[:, 0], res[:, 4], "s--", color=BLUE, ms=3, lw=0.9, label="Length, ArUco")
-    ax4.axhline(0, color="#333", lw=0.6)
+    zoom(z2, ax2, rect, zb2, style.WHITE)
+    charts = gs[1, :].subgridspec(1, 2, wspace=0.35)
+    ax4 = fig.add_subplot(charts[0])
+    ax4.plot(res[:, 0], res[:, 1], "o-", color=BLACK, ms=3, mfc=style.WHITE, label="Area, one scale for all photos")
+    ax4.plot(res[:, 0], res[:, 2], "o-", color=BLUE, ms=3, label="Area, ArUco rectification")
+    ax4.plot(res[:, 0], res[:, 3], "s--", color=BLACK, ms=2.5, mfc=style.WHITE, label="Length, one scale")
+    ax4.plot(res[:, 0], res[:, 4], "s--", color=BLUE, ms=2.5, label="Length, ArUco")
+    ax4.axhline(0, color=GRAY, lw=0.6)
     ax4.set_xlabel("Camera tilt (°)")
     ax4.set_ylabel("Error of mean seed size (%)")
-    ax4.legend(frameon=False, fontsize=6.5)
-    label(ax4, "E  Tilted camera")
-    ax5 = fig.add_subplot(gs[1, 2:4])
-    ax5.plot(rd[:, 0], rd[:, 1], "o-", color=RED, ms=3.5, label="One scale for all photos")
-    ax5.plot(rd[:, 0], rd[:, 2], "o-", color=BLUE, ms=3.5, label="Scale from ArUco in each photo")
-    ax5.axhline(0, color="#333", lw=0.6)
+    ax4.legend(fontsize=6)
+    label(ax4, "(e)")
+    ax5 = fig.add_subplot(charts[1])
+    ax5.plot(rd[:, 0], rd[:, 1], "o-", color=BLACK, ms=3, mfc=style.WHITE, label="One scale for all photos")
+    ax5.plot(rd[:, 0], rd[:, 2], "o-", color=BLUE, ms=3, label="Scale from ArUco in each photo")
+    ax5.axhline(0, color=GRAY, lw=0.6)
     ax5.set_xlabel("Camera distance (relative to the first photo)")
     ax5.set_ylabel("Error of mean seed area (%)")
-    ax5.legend(frameon=False, fontsize=6.5)
-    label(ax5, "F  Camera moved closer or farther")
-    fig.savefig(OUT / "corr_aruco.png")
-    plt.close(fig)
+    ax5.legend(fontsize=6)
+    label(ax5, "(f)")
+    style.chart_axes(ax4, ax5)
+    style.save(fig, OUT / "corr_aruco.png")
     print("aruco tilt", res.round(2).tolist())
     print("aruco distance", rd.round(2).tolist())
 

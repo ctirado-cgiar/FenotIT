@@ -34,8 +34,8 @@ board seen through the same perspective (a homography fitted to all corners).
 ![Lens](../img/lens.png)
 
 *Figure 1.1. Lens calibration in the Durango capture box. (a) Inner corners found on one
-chessboard photo. (b) Mean area error of the squares in each photo, original (gray) and
-corrected (blue).*
+chessboard photo. (b) Mean area error of the squares in each photo, original (open circles)
+and corrected (filled circles); lines join the same photo.*
 
 ## 1.2 Perspective (ArUco markers)
 

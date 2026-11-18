@@ -7,7 +7,7 @@ and regions proposed by MobileSAM. Object detectors are described in [section 8]
 ![Segmentation](../img/segmentation.png)
 
 *Figure 2.1. Threshold segmentation of bean seeds (drought trial). (a) Photo with the analysis
-area (yellow). (b) b\* channel of CIELAB. (c) Mask from Otsu's threshold (b\* ≥ 99).
+area (dashed white line). (b) b\* channel of CIELAB. (c) Mask from Otsu's threshold (b\* ≥ 99).
 (d) Outlines of the 52 objects found.*
 
 ## 2.1 Color spaces

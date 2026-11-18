@@ -6,7 +6,7 @@ whole, FenotIT describes each one with elliptic Fourier descriptors (EFD; Kuhl &
 
 ![EFD](../img/efd_harmonics.png)
 
-*Figure 5.1. Outline of the seed of Figure 4.1 (gray) and its reconstruction (red) with 1, 2,
+*Figure 5.1. Outline of the seed of Figure 4.1 (gray) and its reconstruction (blue) with 1, 2,
 4, 8 and 20 harmonics. The first harmonic is an ellipse; each further harmonic adds finer
 detail. FenotIT uses 20 harmonics by default.*
 
