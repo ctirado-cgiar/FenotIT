@@ -161,7 +161,7 @@ def draw():
     group(CORE, "Analysis core (no interface code)")
     arrow([(950, 232), (950, 298)], width=3)
     text(968, 272, "runs analyses", size=LABEL_SIZE, anchor="start")
-    text(360, 372, "Analysis chain, run on each photograph", size=NOTE_SIZE, anchor="start", italic=True)
+    text(360, 372, "Analysis steps, run in order on each photograph", size=NOTE_SIZE, anchor="start", italic=True)
     chain = [("Corrections", ["lens, perspective,", "color, scale"]),
              ("Segmentation", ["threshold,", "by example,", "MobileSAM"]),
              ("Detection", ["boxes from", "trained models"]),
@@ -189,9 +189,13 @@ def draw():
     cylinder(LEFT_X, 705, 200, 92, ["Project and", "preset files"], ["readable text files"])
     arrow([(265, 690), (358, 640)], both=True, label="opens, saves", at=(215, 618))
     arrow([(265, 720), (358, 770)], both=True)
+    arrow([(450, 588), (450, 514)])
+    text(466, 560, "settings of each step", size=LABEL_SIZE, anchor="start")
+    arrow([(500, 718), (500, 692)])
+    text(516, 712, "loaded into", size=LABEL_SIZE, anchor="start")
     stacked(700, 600, 300, 110, "Batch processing", ["several photos at once"])
     arrow([(850, 584), (850, 514)])
-    text(866, 560, "runs the chain on each photo", size=LABEL_SIZE, anchor="start")
+    text(866, 560, "runs these steps on each photo", size=LABEL_SIZE, anchor="start")
     module(1100, 600, 300, 110, "Statistics and charts", ["by photo or group"])
     arrow([(1258, 514), (1258, 598)])
     text(1274, 560, "results", size=LABEL_SIZE, anchor="start")
@@ -211,7 +215,11 @@ def draw():
     module(1600, 1095, 290, 110, "Converter", ["separate Python", "environment, to ONNX"])
     arrow([(RIGHT_X, 1093), (RIGHT_X, 975)], label="adds", at=(RIGHT_X + 40, 1040), anchor="start")
     document(1440, 1150, tag=".pt")
-    lines(1440, 1232, ["PyTorch model"], size=NOTE_SIZE)
+    text(1385, 1160, "PyTorch model", size=NOTE_SIZE, anchor="end")
+    document(1440, 1030, tag=".onnx")
+    text(1385, 1040, "ONNX model", size=NOTE_SIZE, anchor="end")
+    arrow([(1482, 1015), (1655, 960)])
+    text(1590, 1018, "adds", size=LABEL_SIZE)
     arrow([(1482, 1150), (1598, 1150)])
 
 

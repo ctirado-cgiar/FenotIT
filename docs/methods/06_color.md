@@ -36,11 +36,10 @@ The colors of the whole photo are exported in `image_colors`.
 ## 6.4 Number of colors per object
 
 With "Automatic", pixels are grouped in CIELAB for $k = 1, 2, 3, \dots$ up to the maximum, and
-three quantities are computed with CIEDE2000 (ΔE₀₀; Sharma et al., 2005) on 1500 pixels: the mean
-ΔE₀₀ between each pixel and its group color (fit), the ΔE₀₀ between the two closest group colors
-(separation) and the share of the smallest group. The number chosen is the smallest $k$ with a fit
-of 5 ΔE₀₀ or less, stopping earlier if the next $k$ gives two colors closer than 10 ΔE₀₀ or a group
-below 1 %.
+two quantities are computed with CIEDE2000 (ΔE₀₀; Sharma et al., 2005) on 1500 pixels: the mean
+ΔE₀₀ between each pixel and its group color (fit) and the ΔE₀₀ between the two closest group colors
+(separation). The number chosen is the smallest $k$ with a fit of 5 ΔE₀₀ or less, stopping earlier
+if the next $k$ gives two colors closer than 10 ΔE₀₀.
 
 ![Number of colors](../img/color_k.png)
 

@@ -47,6 +47,10 @@ TRAY_SEG = {"step": "otsu", "params": {"color_space": "LAB", "channel": 2}}
 DISH_PHOTO = DATA / "Cgiar_Bean_Pest_Seeds" / "552.jpg"
 DISH_SEG = {"step": "threshold", "params": {"color_space": "LAB", "channel": 0, "min_val": 0, "max_val": 160}}
 PEST = DATA / "Cgiar_Bean_Pest_Seeds"
+COLOR_K_PHOTO = DATA / "Cgiar_Bean_Sequia_Seeds" / "In_row=23377.jpg"   # red mottled seeds
+COLOR_K_TRAY = (0.03, 0.97, 0.12, 0.86)                                  # tray: y0, y1, x0, x1
+COLOR_K_CARD = [[0.62, 0.0], [0.84, 0.25]]                               # color card, excluded
+COLOR_K_SEED = 42                                                        # object shown
 SEED_PHOTOS = ("051", "052", "184", "185", "552", "553")       # semillas en la caja de Petri
 INSECT_PHOTOS = ("053", "186", "554")                          # insectos y residuos sobre papel
 CLASS_NAMES_EN = {"Agujero": "Hole", "AgujeroBorde": "Edge hole", "AgujeroCerrado": "Closed hole",
@@ -525,8 +529,8 @@ def fig_color():
 
 
 def k_curve(pixels, k_max=6):
-    """For k = 1 … k_max: mean ΔE00 from each pixel to its group color, smallest ΔE00 between two
-    group colors and smallest share of a group (the quantities used by the automatic k)."""
+    """For k = 1 … k_max: mean ΔE00 from each pixel to its group color and smallest ΔE00 between two
+    group colors (the quantities used by the automatic k)."""
     from skimage.color import deltaE_ciede2000
     from fenotit.core.measurements import color as color_step
     sample = pixels
@@ -542,24 +546,38 @@ def k_curve(pixels, k_max=6):
         error = float(np.mean(deltaE_ciede2000(lab, centers[labels])))
         separation = min((deltaE_ciede2000(centers[i], centers[j]) for i in range(k) for j in range(i + 1, k)),
                          default=np.nan)
-        share = float((np.bincount(labels, minlength=k) / len(labels)).min())
-        rows.append((k, error, float(separation), share))
+        rows.append((k, error, float(separation)))
     return rows, color_step.auto_k(pixels)
 
 
 def fig_color_k():
-    if not have(DISH_PHOTO):
+    """Automatic number of colors for one red mottled seed of the second capture box."""
+    if not have(COLOR_K_PHOTO):
         return
+    from fenotit.core.corrections import pipeline as corrections_pipeline
     from fenotit.core.measurements import color as color_step
-    img, shapes = dish()
-    ctx = objects_in(img, DISH_SEG, shapes, [{"step": "morphometry"}])
-    _, mask, patch, _ = seed_crop(ctx, img)
+    corrections = corrections_pipeline.Corrections()
+    corrections.color.enabled = True
+    img, _ = corrections_pipeline.apply(load_image(str(COLOR_K_PHOTO)), corrections)
+    height, width = img.shape[:2]
+    y0, y1, x0, x1 = COLOR_K_TRAY
+    img = img[int(height * y0):int(height * y1), int(width * x0):int(width * x1)].copy()
+    ctx = objects_in(img, TRAY_SEG, [{"kind": "exclude", "type": "rect", "points": COLOR_K_CARD}],
+                     [{"step": "morphometry"}])
+    bounds = crop_box(ctx.labels, [COLOR_K_SEED], pad=8)
+    mask, patch = (ctx.labels[bounds] == COLOR_K_SEED).astype(np.uint8), img[bounds]
     core, pixels = seed_pixels(mask, patch)
     rows, chosen = k_curve(pixels)
     fig = plt.figure(figsize=(style.DOUBLE, 95 * MM))
-    top = fig.add_gridspec(1, 6, top=0.95, bottom=0.66, wspace=0.15)
+    top = fig.add_gridspec(1, 7, top=0.95, bottom=0.66, wspace=0.15)
     bottom = fig.add_gridspec(1, 2, top=0.52, bottom=0.1, left=0.1, right=0.98, wspace=0.42)
-    for index, k in enumerate(range(1, 7)):
+    ax = fig.add_subplot(top[0, 0])
+    style.photo_axes(ax)
+    photo = rgb(patch).copy()
+    photo[mask == 0] = 255
+    ax.imshow(photo)
+    ax.set_title("Seed", loc="center")
+    for index, k in enumerate(range(1, 7), 1):
         ax = fig.add_subplot(top[0, index])
         style.photo_axes(ax)
         clusters, labels = color_step._kmeans(pixels, k)
@@ -590,14 +608,15 @@ def fig_color_k():
     save(fig, "color_k.png")
     counts = {}
     median = np.median([row["area_px2"] for row in ctx.tables["objects"] if row.get("area_px2")])
-    seeds = [row["object_id"] for row in ctx.tables["objects"] if 0.4 * median < row.get("area_px2", 0) < 2.5 * median]
+    seeds = [row["object_id"] for row in ctx.tables["objects"]
+             if 0.6 * median < row.get("area_px2", 0) < 1.6 * median and row.get("solidity", 0) >= 0.97]
     for object_id in seeds:
         bounds = crop_box(ctx.labels, [object_id], pad=5)
         object_mask = (ctx.labels[bounds] == object_id).astype(np.uint8)
         _, object_pixels = seed_pixels(object_mask, img[bounds])
         k = color_step.auto_k(object_pixels)
         counts[k] = counts.get(k, 0) + 1
-    print("color k:", [(k, round(e, 2), None if np.isnan(s) else round(s, 1), round(100 * m, 1)) for k, e, s, m in rows],
+    print("color k:", [(k, round(e, 2), None if np.isnan(s) else round(s, 1)) for k, e, s in rows],
           "chosen", chosen, "| chosen k per seed in the photo:", dict(sorted(counts.items())))
 
 

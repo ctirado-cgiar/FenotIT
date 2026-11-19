@@ -8,7 +8,7 @@ from fenotit.core.pipeline.base import step
 from fenotit.core.pipeline.views import regions
 
 
-AUTO_ERR, AUTO_SEP, AUTO_SHARE = 5.0, 10.0, 0.01
+AUTO_ERR, AUTO_SEP = 5.0, 10.0
 
 
 def _lab(rgb):
@@ -65,7 +65,7 @@ def _core(mask: np.ndarray, trim: int) -> np.ndarray:
 def auto_k(pixels_rgb: np.ndarray, kmax: int = 10, sample: int = 1500) -> int:
     """Cuántos colores explican el objeto: el menor k cuyo error medio (ΔE00 de cada píxel
     a su color) es ≤ 5, sin pasar el k en que dos colores quedan a menos de 10 ΔE00 (ya no
-    se distinguen a simple vista) o uno cubre menos del 1 %. Muestra fija (semilla 134)."""
+    se distinguen a simple vista). Muestra fija (semilla 134)."""
     from skimage.color import deltaE_ciede2000
     pixels = np.asarray(pixels_rgb)
     if len(pixels) > sample:
@@ -80,9 +80,8 @@ def auto_k(pixels_rgb: np.ndarray, kmax: int = 10, sample: int = 1500) -> int:
         _, lab_k, cen = cv2.kmeans(lab, n_clusters, None, crit, 3, cv2.KMEANS_PP_CENTERS)
         lab_k = lab_k.ravel()
         if n_clusters > 1:
-            share = np.bincount(lab_k, minlength=n_clusters) / len(lab_k)
             sep = min(deltaE_ciede2000(cen[i], cen[j]) for i in range(n_clusters) for j in range(i + 1, n_clusters))
-            if sep < AUTO_SEP or share.min() < AUTO_SHARE:
+            if sep < AUTO_SEP:
                 break
         best = n_clusters
         if float(np.mean(deltaE_ciede2000(lab, cen[lab_k]))) <= AUTO_ERR:
