@@ -169,6 +169,7 @@ def draw():
              ("Measurements", ["size, shape,", "color, classes"]),
              ("Export", ["tables, workbook,", "metadata"])]
     box_width, gap, top, height = 180, 22, 392, 120
+    parts.append(f'<rect x="346" y="380" width="1218" height="146" fill="none" stroke="{BLUE}" stroke-width="2"/>')
     for index, (name, notes) in enumerate(chain):
         x = 360 + index * (box_width + gap)
         module(x, top, box_width, height, name, notes, name_size=21, note_size=18)
@@ -177,27 +178,27 @@ def draw():
     chain_end = 360 + len(chain) * (box_width + gap) - gap
     photos(LEFT_X, 470)
     lines(LEFT_X, 545, ["Photographs"], size=NAME_SIZE, weight="bold")
-    arrow([(LEFT_X + 70, 452), (358, 452)], width=3.5, main=True)
+    arrow([(LEFT_X + 70, 452), (344, 452)], width=3.5, main=True)
     text(290, 438, "reads", size=LABEL_SIZE)
     cylinder(RIGHT_X, 452, 190, 92, ["Results"], ["tables, images,", "metadata"], stack=3)
-    arrow([(chain_end + 2, 452), (1645, 452)], width=3.5, main=True)
+    arrow([(1566, 452), (1645, 452)], width=3.5, main=True)
     text(1612, 438, "writes", size=LABEL_SIZE)
 
     # Núcleo: lo que acompaña a la cadena
     module(360, 590, 280, 100, "Project", ["photos, areas, scale,", "parameters"])
-    module(360, 720, 280, 100, "Saved settings", ["presets shared", "between laboratories"])
+    module(360, 720, 280, 100, "Presets", ["saved settings, shared", "between laboratories"])
     cylinder(LEFT_X, 705, 200, 92, ["Project and", "preset files"], ["readable text files"])
     arrow([(265, 690), (358, 640)], both=True, label="opens, saves", at=(215, 618))
     arrow([(265, 720), (358, 770)], both=True)
-    arrow([(450, 588), (450, 514)])
+    arrow([(450, 588), (450, 528)])
     text(466, 560, "settings of each step", size=LABEL_SIZE, anchor="start")
     arrow([(500, 718), (500, 692)])
     text(516, 712, "loaded into", size=LABEL_SIZE, anchor="start")
     stacked(700, 600, 300, 110, "Batch processing", ["several photos at once"])
-    arrow([(850, 584), (850, 514)])
+    arrow([(850, 584), (850, 528)])
     text(866, 560, "runs these steps on each photo", size=LABEL_SIZE, anchor="start")
     module(1100, 600, 300, 110, "Statistics and charts", ["by photo or group"])
-    arrow([(1258, 514), (1258, 598)])
+    arrow([(1258, 526), (1258, 598)])
     text(1274, 560, "results", size=LABEL_SIZE, anchor="start")
     cylinder(RIGHT_X, 655, 190, 92, ["Field book"], ["genotype or ID", "of each photo"])
     arrow([(1648, 655), (1402, 655)], label="adds", at=(1610, 640))
