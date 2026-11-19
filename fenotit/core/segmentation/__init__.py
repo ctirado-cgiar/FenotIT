@@ -54,6 +54,7 @@ def chain(seg: dict) -> list[dict]:
         steps = [{"step": "detect", "params": {"model": model.get("name", ""), "conf": float(model.get("conf", 0.25)),
                                                "use": [int(classifier_cfg) for classifier_cfg in model.get("use") or []],
                                                "to_masks": bool(model.get("to_masks")),
+                                               "iou": float(model.get("iou", 0.5)),
                                                "one_per_object": bool(model.get("one_per_object")),
                                                "colors": list(model.get("colors") or [])}}]
     elif method == "model":

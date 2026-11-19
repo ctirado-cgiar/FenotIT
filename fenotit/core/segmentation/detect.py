@@ -9,8 +9,8 @@ sin internet. Formatos de salida que se leen:
 
 La foto se lleva al tamaño de entrada del modelo (yolo: sin deformar, con relleno gris;
 detr: estirada) y las cajas vuelven a píxeles de la foto. Cajas repetidas de la misma
-clase se quitan con supresión de no máximos (NMS); con `one_per_object`, la supresión se hace
-entre todas las clases y cada objeto queda con una sola caja (la de mayor puntaje)."""
+clase se quitan con supresión de no máximos (NMS) cuando su superposición (IoU) pasa de `iou`;
+con `one_per_object`, la supresión compara cajas de cualquier clase."""
 from __future__ import annotations
 
 import ast
@@ -132,7 +132,8 @@ def _nms(boxes: np.ndarray, scores: np.ndarray, cls: np.ndarray, iou: float,
 def run(img: np.ndarray, model: dict, conf: float = 0.25, iou: float = 0.5,
         one_per_object: bool = False) -> list[dict]:
     """Detecciones en la foto BGR: [{x0, y0, x1, y1 (px de la foto), cls (0..), score}],
-    de mayor a menor puntaje. `one_per_object`: una caja por objeto, sin importar la clase."""
+    de mayor a menor puntaje. `iou`: superposición máxima entre cajas; `one_per_object`: la
+    superposición se compara entre cajas de cualquier clase."""
     from pathlib import Path
     sess = session(str(Path(model["dir"]) / model["files"][0]))
     size, fmt = int(model.get("input") or 640), model.get("format", "yolo")
@@ -209,6 +210,7 @@ from fenotit.core.pipeline.base import BACKGROUND_COLOR, step  # noqa: E402
     {"key": "conf", "type": "float", "default": 0.25, "min": 0.01, "max": 1.0},
     {"key": "use", "type": "list", "default": []},
     {"key": "to_masks", "type": "bool", "default": False},
+    {"key": "iou", "type": "float", "default": 0.5, "min": 0.05, "max": 0.95},
     {"key": "one_per_object", "type": "bool", "default": False},
     {"key": "colors", "type": "list", "default": []},
 ])
@@ -222,7 +224,8 @@ def detect(ctx, params):
     model = models.get(params["model"])
     if model is None or model["output"] != "boxes":
         raise FileNotFoundError(f"Detection model not found: {params['model']}")
-    dets = run(ctx.image, model, float(params["conf"]), one_per_object=bool(params.get("one_per_object")))
+    dets = run(ctx.image, model, float(params["conf"]), float(params.get("iou", 0.5)),
+               one_per_object=bool(params.get("one_per_object")))
     use = set(int(class_id) for class_id in params.get("use") or [])
     if use:
         dets = [box for box in dets if box["cls"] in use]
