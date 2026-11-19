@@ -163,45 +163,50 @@ def draw():
     text(968, 272, "runs analyses", size=LABEL_SIZE, anchor="start")
     text(360, 372, "Analysis steps, run in order on each photograph", size=NOTE_SIZE, anchor="start", italic=True)
     chain = [("Corrections", ["lens, perspective,", "color, scale"]),
-             ("Segmentation", ["threshold,", "by example,", "MobileSAM"]),
+             ("Segmentation", ["threshold, by example,", "MobileSAM"]),
              ("Detection", ["boxes from", "trained models"]),
              ("Objects", ["separation,", "filters"]),
-             ("Measurements", ["size, shape,", "color, classes"]),
-             ("Export", ["tables, workbook,", "metadata"])]
-    box_width, gap, top, height = 180, 22, 392, 120
-    parts.append(f'<rect x="346" y="380" width="1218" height="146" fill="none" stroke="{BLUE}" stroke-width="2"/>')
+             ("Measurements", ["size, shape,", "color, classes"])]
+    box_width, gap, top, height = 220, 22, 392, 120
+    parts.append(f'<rect x="346" y="380" width="1216" height="146" fill="none" stroke="{BLUE}" stroke-width="2"/>')
     for index, (name, notes) in enumerate(chain):
         x = 360 + index * (box_width + gap)
-        module(x, top, box_width, height, name, notes, name_size=21, note_size=18)
+        module(x, top, box_width, height, name, notes, name_size=22, note_size=18)
         if index:
             arrow([(x - gap, top + height / 2), (x - 1, top + height / 2)], width=3.5, main=True)
-    chain_end = 360 + len(chain) * (box_width + gap) - gap
     photos(LEFT_X, 470)
     lines(LEFT_X, 545, ["Photographs"], size=NAME_SIZE, weight="bold")
     arrow([(LEFT_X + 70, 452), (344, 452)], width=3.5, main=True)
     text(290, 438, "reads", size=LABEL_SIZE)
-    cylinder(RIGHT_X, 452, 190, 92, ["Results"], ["tables, images,", "metadata"], stack=3)
-    arrow([(1566, 452), (1645, 452)], width=3.5, main=True)
-    text(1612, 438, "writes", size=LABEL_SIZE)
 
-    # Núcleo: lo que acompaña a la cadena
-    module(360, 590, 280, 100, "Project", ["photos, areas, scale,", "parameters"])
-    module(360, 720, 280, 100, "Presets", ["saved settings, shared", "between laboratories"])
-    cylinder(LEFT_X, 705, 200, 92, ["Project and", "preset files"], ["readable text files"])
-    arrow([(265, 690), (358, 640)], both=True, label="opens, saves", at=(215, 618))
-    arrow([(265, 720), (358, 770)], both=True)
+    # Núcleo: lo que acompaña a los pasos
+    module(360, 590, 260, 100, "Project", ["photos, areas, scale,", "parameters"])
+    module(360, 740, 260, 100, "Presets", ["saved settings, shared", "between laboratories"])
+    cylinder(LEFT_X, 715, 200, 92, ["Project and", "preset files"], ["readable text files"])
+    arrow([(265, 700), (358, 640)], both=True, label="opens, saves", at=(215, 628))
+    arrow([(265, 730), (358, 790)], both=True)
     arrow([(450, 588), (450, 528)])
     text(466, 560, "settings of each step", size=LABEL_SIZE, anchor="start")
-    arrow([(500, 718), (500, 692)])
-    text(516, 712, "loaded into", size=LABEL_SIZE, anchor="start")
-    stacked(700, 600, 300, 110, "Batch processing", ["several photos at once"])
-    arrow([(850, 584), (850, 528)])
-    text(866, 560, "runs these steps on each photo", size=LABEL_SIZE, anchor="start")
-    module(1100, 600, 300, 110, "Statistics and charts", ["by photo or group"])
-    arrow([(1258, 526), (1258, 598)])
-    text(1274, 560, "results", size=LABEL_SIZE, anchor="start")
-    cylinder(RIGHT_X, 655, 190, 92, ["Field book"], ["genotype or ID", "of each photo"])
-    arrow([(1648, 655), (1402, 655)], label="adds", at=(1610, 640))
+    arrow([(490, 738), (490, 692)], both=True)
+    text(506, 722, "loads into, saves from", size=LABEL_SIZE, anchor="start")
+    stacked(690, 600, 260, 110, "Batch processing", ["several photos at once"])
+    arrow([(820, 584), (820, 528)])
+    text(836, 560, "runs the steps on each photo", size=LABEL_SIZE, anchor="start")
+    module(1010, 600, 250, 110, "Statistics and charts", ["by photo or group"], name_size=22)
+    arrow([(1135, 526), (1135, 598)])
+    text(1151, 572, "results", size=LABEL_SIZE, anchor="start")
+    module(1310, 600, 240, 110, "Export", ["tables, workbook,", "metadata, images"])
+    arrow([(1430, 526), (1430, 598)], width=3.5, main=True)
+    text(1446, 572, "results", size=LABEL_SIZE, anchor="start")
+    cylinder(RIGHT_X, 655, 190, 92, ["Results"], [], stack=3)
+    arrow([(1552, 655), (1645, 655)], width=3.5, main=True)
+    text(1600, 640, "writes", size=LABEL_SIZE)
+    arrow([(1135, 712), (1135, 790), (RIGHT_X, 790), (RIGHT_X, 714)])
+    text(1420, 780, "saves charts (PNG, 300 dpi)", size=LABEL_SIZE)
+    cylinder(RIGHT_X, 452, 190, 92, ["Field book"], [])
+    text(RIGHT_X, 528, "genotype or ID")
+    arrow([(1652, 480), (1552, 598)])
+    text(1612, 566, "adds columns", size=LABEL_SIZE, anchor="start")
 
     # Bibliotecas
     module(360, 880, 560, 62, "OpenCV, NumPy, SciPy, scikit-image, scikit-learn", fill=GRAY_FILL, stroke=GRAY,
@@ -213,10 +218,11 @@ def draw():
     # Modelos entrenados y su conversión
     cylinder(RIGHT_X, 910, 190, 92, ["Trained", "models"], [])
     arrow([(1648, 910), (1542, 910)], label="loads", at=(1603, 895))
-    module(1600, 1095, 290, 110, "Converter", ["separate Python", "environment, to ONNX"])
+    module(1590, 1095, 300, 120, "Converter", ["Ultralytics YOLO or", "RF-DETR, to ONNX,", "separate environment"])
     arrow([(RIGHT_X, 1093), (RIGHT_X, 975)], label="adds", at=(RIGHT_X + 40, 1040), anchor="start")
     document(1440, 1150, tag=".pt")
     text(1385, 1160, "PyTorch model", size=NOTE_SIZE, anchor="end")
+    text(1385, 1185, "(.pt, .pth)", size=NOTE_SIZE, anchor="end")
     document(1440, 1030, tag=".onnx")
     text(1385, 1040, "ONNX model", size=NOTE_SIZE, anchor="end")
     arrow([(1482, 1015), (1655, 960)])
