@@ -166,6 +166,7 @@ def detection_params(detector: dict) -> dict:
     """Parámetros de la pieza object_detections a partir del detector elegido."""
     return {"model": detector["name"], "conf": float(detector.get("conf", 0.25)),
             "use": [int(index) for index in detector.get("use") or []],
+            "one_per_object": bool(detector.get("one_per_object")),
             "classes": list(detector.get("classes") or []), "colors": list(detector.get("colors") or [])}
 
 

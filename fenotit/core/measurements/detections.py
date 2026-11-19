@@ -39,7 +39,7 @@ def assign(labels: np.ndarray, detections: list[dict]) -> list[int]:
 
 @step("object_detections", "measurement", requires=("labels",),
       params=[{"key": "model", "default": ""}, {"key": "conf", "default": 0.25}, {"key": "use", "default": []},
-              {"key": "classes", "default": []}, {"key": "colors", "default": []}])
+              {"key": "one_per_object", "default": False}, {"key": "classes", "default": []}, {"key": "colors", "default": []}])
 def object_detections(ctx, params):
     """Corre el detector en la foto y cuenta, en cada objeto, las cajas de cada clase que le
     corresponden (`assign`; las que no tocan ningún objeto no se cuentan). Tablas: `n_<clase>` por
@@ -53,7 +53,8 @@ def object_detections(ctx, params):
     names = list(params.get("classes") or model.get("classes") or [])
     colors = list(params.get("colors") or [])
     use = {int(index) for index in params.get("use") or []}
-    found = [detection for detection in detect.run(ctx.image, model, float(params["conf"]))
+    found = [detection for detection in detect.run(ctx.image, model, float(params["conf"]),
+                                                            one_per_object=bool(params.get("one_per_object")))
              if not use or detection["cls"] in use]
     owners = assign(ctx.labels, found)
     counted = [index for index in sorted(use) if index < len(names)] if use else list(range(len(names)))

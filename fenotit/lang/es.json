@@ -806,6 +806,8 @@
   "det.conf_help": "El detector da un puntaje de 0 a 1 a cada caja. Se conservan las que llegan a este valor. Más alto: menos cajas falsas, pero puede perder objetos difíciles.",
   "det.classes": "Clases",
   "det.classes_help": "Las clases que reconoce el modelo. Desmarca las que no quieras contar ni medir.",
+  "det.one_box": "Una caja por objeto",
+  "det.one_box_help": "Deja solo la caja de mayor confianza donde se superponen cajas de distintas clases. Úsalo cuando cada objeto pertenece a una sola clase, por ejemplo el número de semillas de una vaina.",
   "det.to_masks": "Convertir cajas en máscaras",
   "det.to_masks_help": "MobileSAM dibuja el contorno del objeto dentro de cada caja. Así se pueden medir área, forma, color y distancias de borde a borde, además de contar por clase. Tarda unos segundos más por foto y funciona mejor cuando los objetos no están encimados.",
   "det.needs_masks": "Necesita el contorno de cada objeto. Marca «Convertir cajas en máscaras» en Detectar.",

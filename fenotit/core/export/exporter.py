@@ -212,6 +212,7 @@ def segmentation_rows(project) -> list[tuple[str, Any]]:
                                                                if model.get("to_masks") else "")),
                  *model_rows(model.get("name", "")),
                  ("detector_min_confidence", model.get("conf", 0.25)),
+                 ("detector_one_box_per_object", bool(model.get("one_per_object"))),
                  ("detector_classes_used", "; ".join(names[i] for i in use if i < len(names)))]
     elif method == "model":
         model = getattr(seg, "model", {}) or {}

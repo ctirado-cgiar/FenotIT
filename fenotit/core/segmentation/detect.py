@@ -9,7 +9,8 @@ sin internet. Formatos de salida que se leen:
 
 La foto se lleva al tamaño de entrada del modelo (yolo: sin deformar, con relleno gris;
 detr: estirada) y las cajas vuelven a píxeles de la foto. Cajas repetidas de la misma
-clase se quitan con supresión de no máximos (NMS)."""
+clase se quitan con supresión de no máximos (NMS); con `one_per_object`, la supresión se hace
+entre todas las clases y cada objeto queda con una sola caja (la de mayor puntaje)."""
 from __future__ import annotations
 
 import ast
@@ -117,19 +118,21 @@ def _letterbox(img: np.ndarray, size: int):
     return out, ratio, int(round(pad_x - 0.1)), int(round(pad_y - 0.1))
 
 
-def _nms(boxes: np.ndarray, scores: np.ndarray, cls: np.ndarray, iou: float) -> list[int]:
+def _nms(boxes: np.ndarray, scores: np.ndarray, cls: np.ndarray, iou: float,
+         one_per_object: bool = False) -> list[int]:
     keep = []
-    for class_id in np.unique(cls):
-        idx = np.nonzero(cls == class_id)[0]
+    groups = [np.arange(len(scores))] if one_per_object else [np.nonzero(cls == class_id)[0] for class_id in np.unique(cls)]
+    for idx in groups:
         xywh = [[float(box[0]), float(box[1]), float(box[2] - box[0]), float(box[3] - box[1])] for box in boxes[idx]]
         got = cv2.dnn.NMSBoxes(xywh, scores[idx].astype(float).tolist(), 0.0, iou)
         keep += [int(idx[i]) for i in np.asarray(got).reshape(-1)]
     return sorted(keep, key=lambda i: -scores[i])
 
 
-def run(img: np.ndarray, model: dict, conf: float = 0.25, iou: float = 0.5) -> list[dict]:
+def run(img: np.ndarray, model: dict, conf: float = 0.25, iou: float = 0.5,
+        one_per_object: bool = False) -> list[dict]:
     """Detecciones en la foto BGR: [{x0, y0, x1, y1 (px de la foto), cls (0..), score}],
-    de mayor a menor puntaje."""
+    de mayor a menor puntaje. `one_per_object`: una caja por objeto, sin importar la clase."""
     from pathlib import Path
     sess = session(str(Path(model["dir"]) / model["files"][0]))
     size, fmt = int(model.get("input") or 640), model.get("format", "yolo")
@@ -170,7 +173,7 @@ def run(img: np.ndarray, model: dict, conf: float = 0.25, iou: float = 0.5) -> l
     xyxy[:, [1, 3]] = xyxy[:, [1, 3]].clip(0, height)
     good = (xyxy[:, 2] - xyxy[:, 0] >= 1) & (xyxy[:, 3] - xyxy[:, 1] >= 1)
     xyxy, score, cls = xyxy[good], score[good], cls[good]
-    keep = _nms(xyxy, score, cls, iou) if len(score) else []
+    keep = _nms(xyxy, score, cls, iou, one_per_object) if len(score) else []
     return [{"x0": float(xyxy[i, 0]), "y0": float(xyxy[i, 1]), "x1": float(xyxy[i, 2]), "y1": float(xyxy[i, 3]),
              "cls": int(cls[i]), "score": float(score[i])} for i in keep]
 
@@ -206,6 +209,7 @@ from fenotit.core.pipeline.base import BACKGROUND_COLOR, step  # noqa: E402
     {"key": "conf", "type": "float", "default": 0.25, "min": 0.01, "max": 1.0},
     {"key": "use", "type": "list", "default": []},
     {"key": "to_masks", "type": "bool", "default": False},
+    {"key": "one_per_object", "type": "bool", "default": False},
     {"key": "colors", "type": "list", "default": []},
 ])
 def detect(ctx, params):
@@ -218,7 +222,7 @@ def detect(ctx, params):
     model = models.get(params["model"])
     if model is None or model["output"] != "boxes":
         raise FileNotFoundError(f"Detection model not found: {params['model']}")
-    dets = run(ctx.image, model, float(params["conf"]))
+    dets = run(ctx.image, model, float(params["conf"]), one_per_object=bool(params.get("one_per_object")))
     use = set(int(class_id) for class_id in params.get("use") or [])
     if use:
         dets = [box for box in dets if box["cls"] in use]

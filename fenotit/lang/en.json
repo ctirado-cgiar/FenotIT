@@ -806,6 +806,8 @@
   "det.conf_help": "The detector gives each box a score from 0 to 1. Boxes that reach this value are kept. Higher: fewer false boxes, but difficult objects may be missed.",
   "det.classes": "Classes",
   "det.classes_help": "The classes the model recognizes. Untick those you do not want to count or measure.",
+  "det.one_box": "One box per object",
+  "det.one_box_help": "Keeps only the box with the highest confidence where boxes of different classes overlap. Use it when each object belongs to a single class, for example the number of seeds in a pod.",
   "det.to_masks": "Convert boxes to masks",
   "det.to_masks_help": "MobileSAM draws the outline of the object inside each box. Area, shape, color and edge-to-edge distances can then be measured, besides counting per class. It takes a few more seconds per photo and works best when objects do not overlap.",
   "det.needs_masks": "Needs the outline of each object. Tick «Convert boxes to masks» in Detect.",

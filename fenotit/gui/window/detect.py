@@ -84,6 +84,13 @@ class DetectMixin:
         self._det_classes.pack(fill=tk.X, pady=(SPACE["xs"], SPACE["md"]))
         self._det_use: list[tk.BooleanVar] = []
         self._det_names: list[str] = []
+        one_row = tk.Frame(box, bg=bg)
+        one_row.pack(fill=tk.X, pady=(0, SPACE["xs"]))
+        self.one_box_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(one_row, text=t("det.one_box"), variable=self.one_box_var, bg=bg, fg=COLORS["text"],
+                       selectcolor=COLORS["bg_card"], activebackground=bg, font=small, padx=0,
+                       command=self._on_detector_change).pack(side=tk.LEFT)
+        HelpIcon(one_row, t("det.one_box"), t("det.one_box_help"), bg=bg).pack(side=tk.LEFT, padx=(SPACE["sm"], 0))
         masks_row = tk.Frame(box, bg=bg)
         masks_row.pack(fill=tk.X)
         self._to_masks_row = masks_row
@@ -183,12 +190,14 @@ class DetectMixin:
                 "conf": round(float(self.conf_var.get()), 3),
                 "use": [index for index, var in enumerate(self._det_use) if var.get()],
                 "to_masks": bool(self.to_masks_var.get()),
+                "one_per_object": bool(self.one_box_var.get()),
                 "classes": list(self._det_names),
                 "colors": [self._class_color(index) for index in range(len(self._det_names))]}
 
     def _set_detector_state(self, state: dict):
         self.conf_var.set(float(state.get("conf", 0.25)))
         self.to_masks_var.set(bool(state.get("to_masks", False)))
+        self.one_box_var.set(bool(state.get("one_per_object", False)))
         ids = [model["id"] for model in self._detectors()]
         self._det_model_id = state.get("name") if state.get("name") in ids else (ids[0] if ids else "")
         model = self._detector()
@@ -248,7 +257,8 @@ class DetectMixin:
         from fenotit.core.segmentation import detect, sam
         full, model = self.scaler_left.original, self._detector()
         state = self._detector_state()
-        key = (id(full), self._det_model_id, state["conf"], tuple(state["use"]), state["to_masks"])
+        key = (id(full), self._det_model_id, state["conf"], tuple(state["use"]), state["to_masks"],
+               state["one_per_object"])
         cached = self._det_cache
         if cached is not None and cached[0] == key:
             self._render_detections(img, cached[1], cached[2], include, exclude)
@@ -265,7 +275,7 @@ class DetectMixin:
         def work():
             started = time.perf_counter()
             try:
-                found = [box for box in detect.run(full, model, state["conf"]) if box["cls"] in state["use"]]
+                found = [box for box in detect.run(full, model, state["conf"], one_per_object=state["one_per_object"]) if box["cls"] in state["use"]]
                 labels = sam.from_boxes(full, [(box["x0"], box["y0"], box["x1"], box["y1"]) for box in found]) \
                     if state["to_masks"] and self._detection_analysis() else None
                 seconds = time.perf_counter() - started
